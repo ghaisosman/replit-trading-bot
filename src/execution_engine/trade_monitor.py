@@ -66,10 +66,13 @@ class TradeMonitor:
             self._check_ghost_trades(suppress_notifications)
             self._process_cycle_countdown(suppress_notifications)
             
-            # Mark startup scan as complete after first run (only if not suppressed)
-            if not self.startup_scan_complete and not suppress_notifications:
+            # Mark startup scan as complete after first run
+            if not self.startup_scan_complete:
                 self.startup_scan_complete = True
-                self.logger.info("🔍 STARTUP SCAN: Initial anomaly scan completed")
+                if suppress_notifications:
+                    self.logger.info("🔍 STARTUP SCAN: Initial anomaly scan completed (notifications suppressed)")
+                else:
+                    self.logger.info("🔍 STARTUP SCAN: Initial anomaly scan completed")
 
             self.logger.debug(f"🔍 {scan_type}: Completed anomaly detection")
         except Exception as e:
@@ -219,9 +222,9 @@ class TradeMonitor:
                             quantity=abs(position_amt),
                             detected_at=datetime.now(),
                             cycles_remaining=5,  # 5 cycles before clearing
-                            detection_notified=True,
+                            detection_notified=False,  # Start as False, will be set to True if notification sent
                             clearing_notified=False,
-                            last_notification_time=datetime.now(),
+                            last_notification_time=None,  # Will be set when notification is sent
                             notification_cooldown_minutes=60
                         )
                         self.ghost_trades[ghost_id] = ghost_trade
@@ -239,11 +242,15 @@ class TradeMonitor:
                         # Only send notifications if:
                         # 1. Not suppressed AND
                         # 2. Startup scan is complete AND  
-                        # 3. This is not the initial detection (first time we see this ghost trade)
-                        if not suppress_notifications and self.startup_scan_complete:
+                        # 3. This is a truly new detection (not a duplicate)
+                        should_notify = (not suppress_notifications and 
+                                       self.startup_scan_complete and 
+                                       not ghost_trade.detection_notified)
+                        
+                        if should_notify:
                             self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
                             
-                            # Send Telegram notification only if not suppressed and startup is complete
+                            # Send Telegram notification
                             self.telegram_reporter.report_ghost_trade_detected(
                                 strategy_name=monitoring_strategy,
                                 symbol=symbol,
@@ -251,6 +258,10 @@ class TradeMonitor:
                                 quantity=abs(position_amt),
                                 current_price=current_price
                             )
+                            
+                            # Mark as notified to prevent re-notification
+                            ghost_trade.detection_notified = True
+                            ghost_trade.last_notification_time = datetime.now()
                         else:
                             scan_type = "STARTUP SCAN" if not self.startup_scan_complete else "SUPPRESSED CHECK"
                             self.logger.info(f"👻 POSITION NOTED ({scan_type}) | {monitoring_strategy} | {symbol} | Manual position tracked | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
@@ -301,7 +312,9 @@ class TradeMonitor:
         # Process ghost trades - NEVER close them on Binance, only clear from internal tracking
         ghosts_to_remove = []
         for ghost_id, ghost_trade in self.ghost_trades.items():
-            ghost_trade.cycles_remaining -= 1
+            # Only decrement cycles if not suppressed (to prevent clearing during startup)
+            if not suppress_notifications:
+                ghost_trade.cycles_remaining -= 1
 
             # Check if position still exists on Binance before clearing
             binance_positions = self._get_binance_positions(ghost_trade.symbol)
@@ -313,8 +326,11 @@ class TradeMonitor:
                     position_still_exists = True
                     break
 
-            # Only clear from tracking if position no longer exists OR cycles expired
-            if ghost_trade.cycles_remaining <= 0 or not position_still_exists:
+            # Only clear from tracking if position no longer exists OR cycles expired (and not suppressed)
+            should_clear = ((ghost_trade.cycles_remaining <= 0 and not suppress_notifications) or 
+                          not position_still_exists)
+            
+            if should_clear:
                 # Extract strategy name from simplified ghost_id (strategy_symbol format)
                 parts = ghost_id.split('_')
                 if len(parts) >= 2:
@@ -322,8 +338,8 @@ class TradeMonitor:
                 else:
                     strategy_name = parts[0]
 
-                # Log and notify only if not already notified
-                if not ghost_trade.clearing_notified:
+                # Log and notify only if not already notified and not suppressed
+                if not ghost_trade.clearing_notified and not suppress_notifications:
                     if position_still_exists:
                         self.logger.info(f"🧹 GHOST TRADE CLEARED | {strategy_name} | Timeout - Position remains on Binance")
                     else:
