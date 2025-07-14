@@ -88,17 +88,25 @@ For MAINNET:
             mode = "FUTURES TESTNET" if global_config.BINANCE_TESTNET else "FUTURES MAINNET"
             self.logger.info(f"📊 MODE: {mode}")
 
-            strategies = ", ".join(self.strategies.keys())
-            self.logger.info(f"📈 ACTIVE STRATEGIES: {strategies}")
+            strategies = list(self.strategies.keys())
+            self.logger.info(f"📈 ACTIVE STRATEGIES: {', '.join(strategies)}")
 
             # Get initial balance
-            balance_info = self.balance_fetcher.get_usdt_balance()
-            if balance_info:
-                self.logger.info(f"💰 ACCOUNT BALANCE: ${balance_info:.2f} USDT")
+            balance_info = self.balance_fetcher.get_usdt_balance() or 0
+            self.logger.info(f"💰 ACCOUNT BALANCE: ${balance_info:.2f} USDT")
 
             self.logger.info(f"⚡ MONITORING INTERVAL: {global_config.PRICE_UPDATE_INTERVAL}s")
 
-            self.telegram_reporter.report_bot_startup()
+            # Get pairs being watched
+            pairs = [config['symbol'] for config in self.strategies.values()]
+
+            # Send startup notification
+            self.telegram_reporter.report_bot_startup(
+                pairs=pairs,
+                strategies=strategies,
+                balance=balance_info,
+                open_trades=len(self.order_manager.active_positions)
+            )
 
             self.is_running = True
 
