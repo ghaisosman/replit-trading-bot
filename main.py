@@ -1,8 +1,10 @@
+
 import asyncio
 import logging
 import signal
 import sys
 import threading
+import time
 from src.bot_manager import BotManager
 from src.utils.logger import setup_logger
 from web_dashboard import app
@@ -10,6 +12,7 @@ from web_dashboard import app
 # Global bot manager for signal handling and web interface access
 bot_manager = None
 shutdown_event = asyncio.Event()
+web_server_running = False
 
 # Make bot manager accessible to web interface
 import sys
@@ -22,8 +25,29 @@ def signal_handler(signum, frame):
     if shutdown_event:
         shutdown_event.set()
 
+def run_web_dashboard():
+    """Run web dashboard in separate thread - keeps running even if bot stops"""
+    global web_server_running
+    logger = logging.getLogger(__name__)
+    
+    try:
+        web_server_running = True
+        logger.info("🌐 WEB DASHBOARD: Starting persistent web interface on http://0.0.0.0:5000")
+        logger.info("🌐 WEB DASHBOARD: Dashboard will remain active even when bot stops")
+        
+        # Run Flask with minimal logging to reduce console noise
+        import logging as flask_logging
+        flask_log = flask_logging.getLogger('werkzeug')
+        flask_log.setLevel(flask_logging.WARNING)
+        
+        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
+    except Exception as e:
+        logger.error(f"Web dashboard error: {e}")
+    finally:
+        web_server_running = False
+
 async def main():
-    global bot_manager
+    global bot_manager, web_server_running
 
     # Setup logging
     setup_logger()
@@ -33,29 +57,25 @@ async def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    logger.info("Starting Multi-Strategy Trading Bot")
+    logger.info("Starting Multi-Strategy Trading Bot with Persistent Web Interface")
 
-    # Start web dashboard in background thread
-    def run_web_dashboard():
-        logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
-        logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
-        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
-
-    web_thread = threading.Thread(target=run_web_dashboard, daemon=True)
+    # Start web dashboard in background thread - this will keep running
+    web_thread = threading.Thread(target=run_web_dashboard, daemon=False)  # Not daemon so it persists
     web_thread.start()
     
     # Give web dashboard time to start
-    await asyncio.sleep(2)
-    logger.info("🌐 Web Dashboard accessible at: https://[your-repl-url].replit.dev")
+    await asyncio.sleep(3)
+    logger.info("🌐 Web Dashboard accessible and will remain active")
 
     try:
-        # Initialize and start the bot
+        # Initialize the bot manager
         bot_manager = BotManager()
 
         # Make bot manager accessible to web interface
         sys.modules['__main__'].bot_manager = bot_manager
 
         # Start the bot in a task so we can handle shutdown signals
+        logger.info("🚀 Starting trading bot main loop...")
         bot_task = asyncio.create_task(bot_manager.start())
         shutdown_task = asyncio.create_task(shutdown_event.wait())
 
@@ -67,7 +87,7 @@ async def main():
 
         # Check if shutdown was triggered
         if shutdown_task in done:
-            logger.info("Shutdown signal received, stopping bot...")
+            logger.info("🛑 Shutdown signal received, stopping bot...")
             await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
 
         # Cancel any pending tasks
@@ -78,49 +98,85 @@ async def main():
             except asyncio.CancelledError:
                 pass
 
+        # Keep web server running after bot stops
+        logger.info("🔴 Bot stopped but web interface remains active for control")
+        logger.info("💡 You can restart the bot using the web interface")
+        
+        # Keep the main process alive to maintain web interface
+        while web_server_running:
+            await asyncio.sleep(5)
+
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt")
         if bot_manager:
             await bot_manager.stop("Manual shutdown via keyboard interrupt")
+        logger.info("🌐 Web interface remains active")
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         if bot_manager:
             await bot_manager.stop(f"Unexpected error: {str(e)}")
-        raise
+        logger.info("🌐 Web interface remains active despite bot error")
 
 if __name__ == "__main__":
     # Setup logging first
     setup_logger()
     logger = logging.getLogger(__name__)
     
-    # Make bot_manager available to web dashboard
-    bot_manager = BotManager()
+    # Initialize bot_manager as None initially
+    bot_manager = None
 
     # Make it globally accessible for web interface
-    import sys
-    sys.modules[__name__].bot_manager = bot_manager
+    sys.modules[__name__].bot_manager = None
 
-    # Start web dashboard in background
-    def run_web_dashboard():
-        logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
-        logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
-        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
-
-    web_thread = threading.Thread(target=run_web_dashboard, daemon=True)
+    # Start web dashboard in persistent background thread
+    web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
     web_thread.start()
     
     # Give web dashboard time to start
-    import time
-    time.sleep(2)
-    logger.info("🌐 Web Dashboard accessible via Replit webview")
+    time.sleep(3)
+    logger.info("🌐 Persistent Web Dashboard started - accessible via Replit webview")
 
     try:
+        # Create and setup bot manager
+        bot_manager = BotManager()
+        sys.modules[__name__].bot_manager = bot_manager
+        
         # Run the bot
+        logger.info("🚀 Starting bot from console...")
         asyncio.run(bot_manager.start())
+        
     except KeyboardInterrupt:
         logger.info("🔴 BOT STOPPED: Manual shutdown via console (Ctrl+C)")
         # Send stop notification
         try:
-            bot_manager.telegram_reporter.report_bot_stopped("Manual shutdown via Ctrl+C")
+            if bot_manager:
+                bot_manager.telegram_reporter.report_bot_stopped("Manual shutdown via Ctrl+C")
         except:
             pass
+        
+        # Keep web interface running
+        logger.info("🌐 Web interface remains active for bot control")
+        logger.info("💡 The process will continue running to keep web interface accessible")
+        
+        # Keep process alive for web interface
+        try:
+            while web_server_running:
+                time.sleep(5)
+        except KeyboardInterrupt:
+            logger.info("🔴 Final shutdown - terminating web interface")
+    
+    except Exception as e:
+        logger.error(f"Bot error: {e}")
+        if bot_manager:
+            try:
+                bot_manager.telegram_reporter.report_bot_stopped(f"Error: {str(e)}")
+            except:
+                pass
+        
+        # Keep web interface running even on error
+        logger.info("🌐 Web interface remains active despite bot error")
+        try:
+            while web_server_running:
+                time.sleep(5)
+        except KeyboardInterrupt:
+            logger.info("🔴 Final shutdown - terminating web interface")

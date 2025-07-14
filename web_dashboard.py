@@ -159,6 +159,8 @@ def start_bot():
     global bot_manager, bot_thread, bot_running, shared_bot_manager
     
     try:
+        logger = logging.getLogger(__name__)
+        
         # Always try to get the latest shared bot manager
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
         
@@ -171,7 +173,6 @@ def start_bot():
             bot_manager = shared_bot_manager
             
             # Log the web start action to console
-            logger = logging.getLogger(__name__)
             logger.info("🌐 WEB INTERFACE: Starting bot via web dashboard")
             
             # Also log to bot manager's logger if available
@@ -183,51 +184,45 @@ def start_bot():
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
+                    # Reset startup notification flag for restart
+                    shared_bot_manager.startup_notified = False
+                    
                     # Set running state
                     shared_bot_manager.is_running = True
-                    logger.info("🚀 BOT STARTED VIA WEB INTERFACE")
+                    logger.info("🚀 BOT RESTARTED VIA WEB INTERFACE")
                     
-                    # Send Telegram notification about web start
-                    try:
-                        from src.data_fetcher.balance_fetcher import BalanceFetcher
-                        balance_fetcher = BalanceFetcher(shared_bot_manager.binance_client)
-                        balance = balance_fetcher.get_usdt_balance() or 0
-                        
-                        pairs = [config['symbol'] for config in shared_bot_manager.strategies.values()]
-                        strategy_names = list(shared_bot_manager.strategies.keys())
-                        
-                        shared_bot_manager.telegram_reporter.report_bot_startup(
-                            pairs=pairs,
-                            strategies=strategy_names,
-                            balance=balance,
-                            open_trades=0
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to send startup notification: {e}")
-                    
-                    # Start the bot's main trading loop
+                    # Start the bot's main trading loop (this will handle startup notifications)
                     loop.run_until_complete(shared_bot_manager._main_trading_loop())
                 except Exception as e:
-                    logger.error(f"Bot error: {e}")
+                    logger.error(f"Bot error during restart: {e}")
+                    # Send error notification
+                    try:
+                        shared_bot_manager.telegram_reporter.report_bot_stopped(f"Restart failed: {str(e)}")
+                    except:
+                        pass
                 finally:
                     shared_bot_manager.is_running = False
-                    logger.info("🔴 BOT STOPPED VIA WEB INTERFACE")
+                    logger.info("🔴 BOT STOPPED - Web interface remains active")
                     loop.close()
             
             bot_thread = threading.Thread(target=start_shared_bot, daemon=True)
             bot_thread.start()
             bot_running = True
             
-            return jsonify({'success': True, 'message': 'Bot started from web interface'})
+            return jsonify({'success': True, 'message': 'Bot restarted successfully from web interface'})
         
         # Fallback: create new bot instance if no shared manager exists
         if bot_running:
             return jsonify({'success': False, 'message': 'Bot is already running'})
         
-        logger = logging.getLogger(__name__)
         logger.info("🌐 WEB INTERFACE: Creating new bot instance via web dashboard")
         
+        # Create fresh bot manager instance
         bot_manager = BotManager()
+        
+        # Update the global reference
+        sys.modules['__main__'].bot_manager = bot_manager
+        
         bot_running = True
         
         # Start bot in separate thread
@@ -236,27 +231,34 @@ def start_bot():
             asyncio.set_event_loop(loop)
             logger = logging.getLogger(__name__)
             try:
-                logger.info("🚀 STARTING BOT FROM WEB INTERFACE")
+                logger.info("🚀 STARTING NEW BOT INSTANCE FROM WEB INTERFACE")
                 loop.run_until_complete(bot_manager.start())
             except Exception as e:
                 logger.error(f"Bot error: {e}")
+                # Send error notification
+                try:
+                    bot_manager.telegram_reporter.report_bot_stopped(f"Startup failed: {str(e)}")
+                except:
+                    pass
             finally:
                 global bot_running
                 bot_running = False
-                logger.info("🔴 BOT STOPPED FROM WEB INTERFACE")
+                logger.info("🔴 BOT STOPPED - Web interface remains active")
                 loop.close()
         
         bot_thread = threading.Thread(target=run_bot, daemon=True)
         bot_thread.start()
         
-        return jsonify({'success': True, 'message': 'Bot started successfully'})
+        return jsonify({'success': True, 'message': 'New bot instance started successfully'})
+        
     except Exception as e:
         bot_running = False
+        logger.error(f"Failed to start bot: {e}")
         return jsonify({'success': False, 'message': f'Failed to start bot: {e}'})
 
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
-    """Stop the trading bot"""
+    """Stop the trading bot while keeping web interface active"""
     global bot_manager, bot_running, shared_bot_manager
     
     try:
@@ -268,7 +270,7 @@ def stop_bot():
         # Check if there's a shared bot manager from main.py
         if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
             if shared_bot_manager.is_running:
-                logger.info("🌐 WEB INTERFACE: Stopping bot via web dashboard")
+                logger.info("🌐 WEB INTERFACE: Stopping bot via web dashboard (web interface will remain active)")
                 
                 # Also log to bot manager's logger if available
                 if hasattr(shared_bot_manager, 'logger'):
@@ -280,12 +282,19 @@ def stop_bot():
                 # Send stop notification
                 try:
                     shared_bot_manager.telegram_reporter.report_bot_stopped("Manual stop via web interface")
-                    logger.info("🔴 BOT STOPPED VIA WEB INTERFACE")
+                    logger.info("🔴 BOT STOPPED VIA WEB INTERFACE (Dashboard remains active)")
                 except Exception as e:
                     logger.warning(f"Failed to send stop notification: {e}")
                 
                 bot_running = False
-                return jsonify({'success': True, 'message': 'Bot stopped from web interface'})
+                
+                # Important: Don't terminate the process, just stop the bot
+                logger.info("💡 Web interface remains active - you can restart the bot anytime")
+                
+                return jsonify({
+                    'success': True, 
+                    'message': 'Bot stopped successfully. Web interface remains active for restart.'
+                })
             else:
                 return jsonify({'success': False, 'message': 'Bot is not running in console'})
         
@@ -293,21 +302,30 @@ def stop_bot():
         if not bot_running or not bot_manager:
             return jsonify({'success': False, 'message': 'Bot is not running'})
         
-        logger.info("🌐 WEB INTERFACE: Stopping standalone bot via web dashboard")
+        logger.info("🌐 WEB INTERFACE: Stopping standalone bot via web dashboard (web interface will remain active)")
         
-        # Stop the bot
-        bot_manager.is_running = False
+        # Stop the bot gracefully
+        if hasattr(bot_manager, 'is_running'):
+            bot_manager.is_running = False
+        
         bot_running = False
         
         # Send stop notification for standalone bot
         try:
             bot_manager.telegram_reporter.report_bot_stopped("Manual stop via web interface")
-            logger.info("🔴 STANDALONE BOT STOPPED VIA WEB INTERFACE")
+            logger.info("🔴 STANDALONE BOT STOPPED VIA WEB INTERFACE (Dashboard remains active)")
         except Exception as e:
             logger.warning(f"Failed to send stop notification: {e}")
         
-        return jsonify({'success': True, 'message': 'Bot stopped successfully'})
+        logger.info("💡 Web interface remains active - you can restart the bot anytime")
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Bot stopped successfully. Web interface remains active for restart.'
+        })
+        
     except Exception as e:
+        logger.error(f"Error stopping bot: {e}")
         return jsonify({'success': False, 'message': f'Failed to stop bot: {e}'})
 
 @app.route('/api/bot/status')

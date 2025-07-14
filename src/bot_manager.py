@@ -117,12 +117,14 @@ For MAINNET:
         finally:
             del frame
 
-        if caller:
-            self.logger.info(f"🌐 BOT STARTUP INITIATED FROM: {caller}")
+        startup_source = caller if caller else "Console"
+        self.logger.info(f"🌐 BOT STARTUP INITIATED FROM: {startup_source}")
 
         try:
             # Startup banner
-            self.logger.info("🚀 TRADING BOT ACTIVATED")
+            is_restart = self.startup_notified  # Check if this is a restart
+            startup_type = "RESTARTED" if is_restart else "ACTIVATED"
+            self.logger.info(f"🚀 TRADING BOT {startup_type}")
 
             mode = "FUTURES TESTNET" if global_config.BINANCE_TESTNET else "FUTURES MAINNET"
             self.logger.info(f"📊 MODE: {mode}")
@@ -142,8 +144,9 @@ For MAINNET:
             # Get pairs being watched
             pairs = [config['symbol'] for config in self.strategies.values()]
 
-            # Send startup notification only once
+            # Send startup notification (handles restart notifications too)
             if not self.startup_notified:
+                # First time startup
                 self.telegram_reporter.report_bot_startup(
                     pairs=pairs,
                     strategies=strategies,
@@ -151,6 +154,22 @@ For MAINNET:
                     open_trades=len(self.order_manager.active_positions)
                 )
                 self.startup_notified = True
+            else:
+                # This is a restart
+                restart_message = f"""
+🔄 <b>BOT RESTARTED</b>
+⏰ <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+🌐 <b>Source:</b> {startup_source}
+
+📊 <b>Current Status:</b>
+💰 <b>Balance:</b> ${balance_info:,.1f} USDT
+📈 <b>Active Strategies:</b> {len(strategies)}
+🎯 <b>Pairs:</b> {', '.join(pairs)}
+📍 <b>Open Positions:</b> {len(self.order_manager.active_positions)}
+
+✅ <b>Bot is now active and monitoring markets</b>
+                """
+                self.telegram_reporter.send_message(restart_message)
 
             self.is_running = True
 
