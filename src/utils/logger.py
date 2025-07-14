@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 
 class ColoredFormatter(logging.Formatter):
-    """Colorful formatter with block separators for console logging"""
+    """Colorful formatter with Telegram-style vertical layout"""
 
     COLORS = {
         'DEBUG': '\033[36m',    # Cyan
@@ -45,8 +45,8 @@ class ColoredFormatter(logging.Formatter):
         self.last_log_time = None
 
     def format(self, record):
-        # Format timestamp without seconds and milliseconds
-        timestamp = datetime.fromtimestamp(record.created).strftime('%Y-%m-%d %H:%M')
+        # Format timestamp
+        timestamp = datetime.fromtimestamp(record.created).strftime('%H:%M:%S')
         current_time = datetime.fromtimestamp(record.created)
 
         # Get message
@@ -72,57 +72,72 @@ class ColoredFormatter(logging.Formatter):
         else:
             text_color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
         
-        bg_color = self.BACKGROUND_COLORS.get(record.levelname, self.BACKGROUND_COLORS['RESET'])
         reset = self.COLORS['RESET']
 
-        # Add separator line if this is a new time block (different minute)
+        # Add time separator if new minute
         separator = ""
         if self.last_log_time is None or current_time.minute != self.last_log_time.minute:
-            separator = f"\n{text_color}{'─' * 80}{reset}\n"
+            separator = f"\n{text_color}{'─' * 60}{reset}\n"
         
         self.last_log_time = current_time
 
-        # Create different block styles for each log level
-        if record.levelname == 'INFO':
-            if is_active_position:
-                # Use double borders for active positions
-                block_start = f"{text_color}╔═"
-                block_end = f"═╗{reset}"
-                block_body = f"{text_color}║ {bg_color} INFO {reset} {text_color}[{timestamp}] {message} ║{reset}"
-                block_bottom = f"{text_color}╚{'═' * (len(f'[{timestamp}] {message}') + 8)}╝{reset}"
-            else:
-                block_start = f"{text_color}┌─"
-                block_end = f"─┐{reset}"
-                block_body = f"{text_color}│ {bg_color} INFO {reset} {text_color}[{timestamp}] {message} │{reset}"
-                block_bottom = f"{text_color}└{'─' * (len(f'[{timestamp}] {message}') + 8)}┘{reset}"
+        # Create Telegram-style vertical message
+        if is_active_position:
+            # Active position - special formatting
+            formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
+║ 📊 ACTIVE POSITION                                ║
+║ ⏰ {timestamp}                                        ║
+║ {message}                                         ║
+╚═══════════════════════════════════════════════════╝{reset}
+"""
+        elif "MARKET ASSESSMENT" in message:
+            # Market assessment - compact style
+            formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
+│ 📈 MARKET SCAN                                  │
+│ ⏰ {timestamp}                                      │
+│ {message}                                       │
+└─────────────────────────────────────────────────┘{reset}
+"""
+        elif "TRADE ENTRY" in message or "POSITION OPENED" in message:
+            # Trade entry - highlighted
+            formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
+║ 🟢 TRADE ENTRY                                   ║
+║ ⏰ {timestamp}                                        ║
+║ {message}                                         ║
+╚═══════════════════════════════════════════════════╝{reset}
+"""
+        elif "TRADE CLOSED" in message or "POSITION CLOSED" in message:
+            # Trade closed - highlighted
+            formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
+║ 🔴 TRADE CLOSED                                  ║
+║ ⏰ {timestamp}                                        ║
+║ {message}                                         ║
+╚═══════════════════════════════════════════════════╝{reset}
+"""
         elif record.levelname == 'ERROR':
-            block_start = f"{text_color}╔═"
-            block_end = f"═╗{reset}"
-            block_body = f"{text_color}║ {bg_color} ERROR {reset} {text_color}[{timestamp}] {message} ║{reset}"
-            block_bottom = f"{text_color}╚{'═' * (len(f'[{timestamp}] {message}') + 9)}╝{reset}"
+            # Error - double border
+            formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
+║ ❌ ERROR                                         ║
+║ ⏰ {timestamp}                                        ║
+║ {message}                                         ║
+╚═══════════════════════════════════════════════════╝{reset}
+"""
         elif record.levelname == 'WARNING':
-            block_start = f"{text_color}╭─"
-            block_end = f"─╮{reset}"
-            block_body = f"{text_color}│ {bg_color} WARN {reset} {text_color}[{timestamp}] {message} │{reset}"
-            block_bottom = f"{text_color}╰{'─' * (len(f'[{timestamp}] {message}') + 8)}╯{reset}"
+            # Warning - rounded border
+            formatted_message = f"""{separator}{text_color}╭─────────────────────────────────────────────────╮
+│ ⚠️  WARNING                                       │
+│ ⏰ {timestamp}                                      │
+│ {message}                                       │
+╰─────────────────────────────────────────────────╯{reset}
+"""
         else:
-            # DEBUG, CRITICAL, etc.
-            block_start = f"{text_color}┏━"
-            block_end = f"━┓{reset}"
-            level_short = record.levelname[:5]
-            block_body = f"{text_color}┃ {bg_color} {level_short} {reset} {text_color}[{timestamp}] {message} ┃{reset}"
-            block_bottom = f"{text_color}┗{'━' * (len(f'[{timestamp}] {message}') + len(level_short) + 4)}┛{reset}"
-
-        # Calculate the width for the top and bottom borders
-        content_width = len(f'[{timestamp}] {message}') + 10
-        
-        # Format the complete message with visual block
-        formatted_message = (
-            f"{separator}"
-            f"{block_start}{'─' * (content_width - 2)}{block_end}\n"
-            f"{block_body}\n"
-            f"{block_bottom}\n"
-        )
+            # Regular info - simple border
+            formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
+│ ℹ️  INFO                                          │
+│ ⏰ {timestamp}                                      │
+│ {message}                                       │
+└─────────────────────────────────────────────────┘{reset}
+"""
         
         return formatted_message
 
@@ -130,14 +145,14 @@ class SimpleFileFormatter(logging.Formatter):
     """Simple formatter for file logging without colors"""
 
     def format(self, record):
-        timestamp = datetime.fromtimestamp(record.created).strftime('%Y-%m-%d %H:%M')
+        timestamp = datetime.fromtimestamp(record.created).strftime('%Y-%m-%d %H:%M:%S')
         message = record.getMessage()
         return f"[{timestamp}] [{record.levelname}] {message}"
 
 def setup_logger():
-    """Setup logging configuration with colorful block console output"""
+    """Setup logging configuration with Telegram-style vertical output"""
 
-    # Console handler with colored blocks
+    # Console handler with Telegram-style blocks
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(ColoredFormatter())
     console_handler.setLevel(logging.INFO)
@@ -163,4 +178,4 @@ def setup_logger():
 
     # Test the new format
     logger = logging.getLogger(__name__)
-    logger.info("🎨 Enhanced block logging format initialized")
+    logger.info("📱 Telegram-style vertical logging format initialized")
