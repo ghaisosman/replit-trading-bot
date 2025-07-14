@@ -274,3 +274,32 @@ class OrderManager:
         except Exception as e:
             self.logger.error(f"Error setting leverage {leverage}x for {symbol}: {e}")
             return False
+
+    def clear_orphan_position(self, strategy_name: str) -> None:
+        """Clear orphan position for a strategy"""
+        if strategy_name in self.active_positions:
+            del self.active_positions[strategy_name]
+            self.logger.info(f"🧹 ORPHAN POSITION CLEARED | {strategy_name} | Strategy can trade again")
+
+    def is_legitimate_bot_position(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float) -> bool:
+        """
+        Validate if a position is a legitimate bot position based on trade history
+        This prevents manual positions from being incorrectly recovered as bot positions
+        """
+        try:
+            # Check if this position matches any known bot trade
+            # For now, we'll be conservative and NOT automatically recover any positions
+            # This forces all positions to go through ghost trade detection first
+
+            # In the future, we could add:
+            # 1. Trade history validation from trade logs
+            # 2. Database lookup for legitimate bot trades
+            # 3. Time-based validation (recent bot activity)
+
+            # For safety, return False to prevent automatic recovery
+            # All positions will be processed by ghost trade detection
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Error validating position legitimacy: {e}")
+            return False

@@ -268,6 +268,12 @@ class TradeMonitor:
                                        self.startup_scan_complete and 
                                        not ghost_trade.detection_notified)
 
+                        # During startup scan, mark all positions as potential ghost trades
+                        if not self.startup_scan_complete:
+                            self.logger.warning(f"🔍 STARTUP POSITION DETECTED | {monitoring_strategy} | {symbol} | Manual position found during startup | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
+                            self.logger.warning(f"🚨 CRITICAL: This position was NOT opened by the bot in this session")
+                            self.logger.warning(f"🔍 Position will be monitored as ghost trade until manually closed")
+
                         # Only log when we're about to send a notification
                         if should_notify:
                             self.logger.warning(f"🔍 GHOST DEBUG: About to notify for {symbol} | Ghost ID: {ghost_id} | Notified before: {ghost_trade.detection_notified}")

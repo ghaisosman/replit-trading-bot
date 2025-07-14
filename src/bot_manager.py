@@ -536,3 +536,49 @@ For MAINNET:
             'strategies': list(self.strategies.keys()),
             'balance': self.balance_fetcher.get_usdt_balance()
         }
+
+    async def _recover_positions(self) -> None:
+        """Recover existing positions from Binance on startup (with ghost trade protection)"""
+        try:
+            self.logger.info("🔍 CHECKING FOR EXISTING POSITIONS...")
+
+            recovered_count = 0
+
+            if self.binance_client.is_futures:
+                account_info = self.binance_client.client.futures_account()
+                positions = account_info.get('positions', [])
+
+                for position in positions:
+                    position_amt = float(position.get('positionAmt', 0))
+
+                    if abs(position_amt) > 0.001:  # Position exists
+                        symbol = position.get('symbol')
+                        entry_price = float(position.get('entryPrice', 0))
+
+                        # Find which strategy should handle this symbol
+                        strategy_name = None
+                        for name, strategy in self.strategies.items():
+                            if strategy['symbol'] == symbol:
+                                strategy_name = name
+                                break
+
+                        if strategy_name:
+                            # CRITICAL: Do NOT automatically recover positions
+                            # This prevents ghost trades from being treated as bot trades
+                            side = 'BUY' if position_amt > 0 else 'SELL'
+
+                            self.logger.warning(f"🔍 POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {abs(position_amt)} | Entry: ${entry_price}")
+                            self.logger.warning(f"🚨 POSITION RECOVERY DISABLED: All positions are treated as manual until verified by trade monitoring")
+                            self.logger.warning(f"🔍 This position will be processed by ghost trade detection to determine if it's legitimate")
+
+                            # DO NOT add to order manager - let ghost trade detection handle it
+                            # If it's a legitimate bot position, it should have proper tracking
+                            # If it's a manual position, it will be detected as a ghost trade
+
+            self.logger.info(f"✅ POSITION RECOVERY COMPLETE: {recovered_count} positions automatically recovered")
+            self.logger.info(f"🔍 All existing positions will be verified by trade monitoring system")
+
+        except Exception as e:
+            self.logger.error(f"Error checking existing positions: {e}")
+            import traceback
+            self.logger.error(f"Position check error: {traceback.format_exc()}")
