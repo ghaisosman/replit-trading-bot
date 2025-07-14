@@ -244,10 +244,10 @@ class SignalProcessor:
             # Check PnL-based stop loss
             if position_side == 'BUY' and current_price <= stop_loss:
                 self.logger.info(f"LONG STOP LOSS: Price ${current_price:.4f} <= SL ${stop_loss:.4f}")
-                return True
+                return "Stop Loss"
             elif position_side == 'SELL' and current_price >= stop_loss:
                 self.logger.info(f"SHORT STOP LOSS: Price ${current_price:.4f} >= SL ${stop_loss:.4f}")
-                return True
+                return "Stop Loss"
             
             # Strategy-specific exit conditions
             strategy_name = strategy_config.get('name', '')
@@ -259,12 +259,12 @@ class SignalProcessor:
                 # Long position: Take profit when RSI reaches 60
                 if position_side == 'BUY' and rsi_current >= 60:
                     self.logger.info(f"LONG TAKE PROFIT: RSI {rsi_current:.2f} >= 60")
-                    return True
+                    return "Take Profit (RSI 60+)"
                 
                 # Short position: Take profit when RSI reaches 40
                 elif position_side == 'SELL' and rsi_current <= 40:
                     self.logger.info(f"SHORT TAKE PROFIT: RSI {rsi_current:.2f} <= 40")
-                    return True
+                    return "Take Profit (RSI 40-)"
             
             # MACD-based exit conditions for MACD strategy
             elif strategy_name == 'macd_divergence' and 'macd_histogram' in df.columns:
@@ -277,17 +277,17 @@ class SignalProcessor:
                     # Long position: Take profit when histogram starts decreasing (diverging bearish)
                     if position_side == 'BUY' and histogram_current < histogram_prev and histogram_current > 0:
                         self.logger.info(f"LONG TAKE PROFIT: MACD histogram decreasing {histogram_current:.6f} (bearish divergence detected)")
-                        return True
+                        return "Take Profit (MACD Bearish Divergence)"
                     
                     # Short position: Take profit when histogram starts increasing (diverging bullish)
                     elif position_side == 'SELL' and histogram_current > histogram_prev and histogram_current < 0:
                         self.logger.info(f"SHORT TAKE PROFIT: MACD histogram increasing {histogram_current:.6f} (bullish divergence detected)")
-                        return True
+                        return "Take Profit (MACD Bullish Divergence)"
             
             # Fallback to traditional TP/SL for other strategies
             elif strategy_name != 'rsi_oversold':
                 if current_price >= take_profit:
-                    return True
+                    return "Take Profit"
             
             return False
             

@@ -318,11 +318,13 @@ For MAINNET:
 
                     # Close position
                     if self.order_manager.close_position(strategy_name, exit_reason):
-                        self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | Final PnL: ${pnl:,.1f}")
+                        self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:,.1f} | Exit: ${current_price:,.1f} | Final PnL: ${pnl:,.1f}")
 
                         from dataclasses import asdict
+                        position_data = asdict(position)
+                        position_data['exit_price'] = current_price  # Add current price as exit price
                         self.telegram_reporter.report_position_closed(
-                            asdict(position), 
+                            position_data, 
                             exit_reason, 
                             pnl
                         )
