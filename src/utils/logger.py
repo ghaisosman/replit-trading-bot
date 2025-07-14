@@ -106,8 +106,24 @@ class ColoredFormatter(logging.Formatter):
                     lines.append(f"💵 {parts[3]}")
                     lines.append(f"📊 {parts[4]}")
                     lines.append(f"📈 {parts[5]}")
+                elif len(parts) >= 4:
+                    # Handle shorter format: "MARKET ASSESSMENT | STRATEGY | SYMBOL | Price: $xxx | Info"
+                    lines.append("📈 MARKET ASSESSMENT")
+                    lines.append(f"🎯 Strategy: {parts[1]}")
+                    lines.append(f"💱 Symbol: {parts[2]}")
+                    lines.append(f"💵 {parts[3]}")
+                    if len(parts) > 4:
+                        lines.append(f"📊 {parts[4]}")
                 else:
-                    lines.append(msg)
+                    # Split the message by spaces and format each part
+                    msg_clean = msg.replace("📈 MARKET ASSESSMENT | ", "")
+                    parts = msg_clean.split(" | ")
+                    lines.append("📈 MARKET ASSESSMENT")
+                    for part in parts:
+                        if part.strip():
+                            lines.append(f"📊 {part.strip()}")
+                    if not parts:
+                        lines.append(msg)
             elif "POSITION OPENED" in msg:
                 parts = msg.split(" | ")
                 if len(parts) >= 8:

@@ -403,7 +403,7 @@ For MAINNET:
                     condition = "Oversold" if rsi < 30 else "Overbought" if rsi > 70 else "Normal"
                     return f"RSI: {rsi:.2f} | Condition: {condition}"
             elif strategy_name == 'macd_divergence':
-                return "MACD Divergence" #TODO : implement proper logging for this strategy
+                return "MACD Analysis | Status: Monitoring"
 
             return "No Signal"
         except Exception as e:
