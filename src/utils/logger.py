@@ -24,6 +24,22 @@ class ColoredFormatter(logging.Formatter):
         'RESET': '\033[0m'      # Reset
     }
 
+    # Strategy-specific colors
+    STRATEGY_COLORS = {
+        'RSI_OVERSOLD': '\033[95m',      # Purple/Magenta
+        'SMA_CROSSOVER': '\033[93m',     # Yellow
+        'rsi_oversold': '\033[95m',      # Purple/Magenta
+        'sma_crossover': '\033[93m',     # Yellow
+    }
+
+    # Active position colors (brighter/bold versions)
+    ACTIVE_POSITION_COLORS = {
+        'RSI_OVERSOLD': '\033[1;95m',    # Bold Purple/Magenta
+        'SMA_CROSSOVER': '\033[1;93m',   # Bold Yellow
+        'rsi_oversold': '\033[1;95m',    # Bold Purple/Magenta
+        'sma_crossover': '\033[1;93m',   # Bold Yellow
+    }
+
     def __init__(self):
         super().__init__()
         self.last_log_time = None
@@ -36,8 +52,26 @@ class ColoredFormatter(logging.Formatter):
         # Get message
         message = record.getMessage()
 
+        # Detect strategy and position status from message
+        strategy_color = None
+        is_active_position = False
+        
+        # Check for strategy mentions and active positions
+        for strategy_name in self.STRATEGY_COLORS.keys():
+            if strategy_name.upper() in message.upper():
+                if "TRADE IN PROGRESS" in message:
+                    strategy_color = self.ACTIVE_POSITION_COLORS.get(strategy_name)
+                    is_active_position = True
+                elif any(keyword in message for keyword in ["MARKET ASSESSMENT", "ENTRY SIGNAL", "POSITION OPENED", "POSITION CLOSED", "SCANNING"]):
+                    strategy_color = self.STRATEGY_COLORS.get(strategy_name)
+                break
+
         # Get colors
-        text_color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
+        if strategy_color:
+            text_color = strategy_color
+        else:
+            text_color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
+        
         bg_color = self.BACKGROUND_COLORS.get(record.levelname, self.BACKGROUND_COLORS['RESET'])
         reset = self.COLORS['RESET']
 
@@ -50,10 +84,17 @@ class ColoredFormatter(logging.Formatter):
 
         # Create different block styles for each log level
         if record.levelname == 'INFO':
-            block_start = f"{text_color}┌─"
-            block_end = f"─┐{reset}"
-            block_body = f"{text_color}│ {bg_color} INFO {reset} {text_color}[{timestamp}] {message} │{reset}"
-            block_bottom = f"{text_color}└{'─' * (len(f'[{timestamp}] {message}') + 8)}┘{reset}"
+            if is_active_position:
+                # Use double borders for active positions
+                block_start = f"{text_color}╔═"
+                block_end = f"═╗{reset}"
+                block_body = f"{text_color}║ {bg_color} INFO {reset} {text_color}[{timestamp}] {message} ║{reset}"
+                block_bottom = f"{text_color}╚{'═' * (len(f'[{timestamp}] {message}') + 8)}╝{reset}"
+            else:
+                block_start = f"{text_color}┌─"
+                block_end = f"─┐{reset}"
+                block_body = f"{text_color}│ {bg_color} INFO {reset} {text_color}[{timestamp}] {message} │{reset}"
+                block_bottom = f"{text_color}└{'─' * (len(f'[{timestamp}] {message}') + 8)}┘{reset}"
         elif record.levelname == 'ERROR':
             block_start = f"{text_color}╔═"
             block_end = f"═╗{reset}"
