@@ -213,6 +213,9 @@ class TelegramReporter:
     def report_entry_signal(self, strategy_name: str, signal_data: dict):
         """Report entry signal detection to Telegram"""
         try:
+            # Escape special HTML characters in reason
+            reason = signal_data['reason'].replace('<', '&lt;').replace('>', '&gt;').replace('&', '&amp;')
+            
             message = f"""
 🚨 <b>ENTRY SIGNAL DETECTED</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
@@ -222,7 +225,7 @@ class TelegramReporter:
 💵 <b>Entry Price:</b> ${signal_data['entry_price']:.4f}
 🛡️ <b>Stop Loss:</b> ${signal_data['stop_loss']:.4f}
 🎯 <b>Take Profit:</b> ${signal_data['take_profit']:.4f}
-📝 <b>Reason:</b> {signal_data['reason']}
+📝 <b>Reason:</b> {reason}
             """
             self.send_message(message)
         except Exception as e:
