@@ -14,6 +14,7 @@ from src.execution_engine.strategies.macd_divergence_config import MACDDivergenc
 from src.reporting.telegram_reporter import TelegramReporter
 from src.config.trading_config import trading_config_manager
 from src.execution_engine.trade_monitor import TradeMonitor
+from src.execution_engine.anomaly_detector import AnomalyDetector
 
 
 class BotManager:
@@ -90,8 +91,6 @@ For MAINNET:
         self.is_running = False
         self.startup_notified = False  # Flag to prevent duplicate startup notifications
 
-        # Initialize execution engine components
-        self.order_manager = OrderManager(self.binance_client)
         # Initialize anomaly detector for orphan/ghost detection
         self.anomaly_detector = AnomalyDetector(
             binance_client=self.binance_client,
@@ -99,17 +98,9 @@ For MAINNET:
             telegram_reporter=self.telegram_reporter
         )
 
-        # Connect order manager and trade monitor for bot trade registration
-        self.order_manager.set_trade_monitor(self.trade_monitor)
-
-        # CRITICAL: Set trade monitor reference in order manager to prevent ghost trade detection
-        # self.order_manager.set_trade_monitor(self.trade_monitor)
-        self.logger.info("🔍 Trade monitor initialized")
-
-        # Register strategies with trade monitor
-        for strategy_name, strategy_config in self.strategies.items():
-            self.trade_monitor.register_strategy(strategy_name, strategy_config['symbol'])
-            self.logger.debug(f"🔍 Registered strategy {strategy_name} with symbol {strategy_config['symbol']}")
+        # Set anomaly detector reference in order manager
+        self.order_manager.set_anomaly_detector(self.anomaly_detector)
+        self.logger.info("🔍 Anomaly detector initialized and connected to order manager")
 
         # Daily reporter
         from src.analytics.daily_reporter import DailyReporter

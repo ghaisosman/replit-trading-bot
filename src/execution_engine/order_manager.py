@@ -108,7 +108,7 @@ class OrderManager:
 
             # Log trade for validation purposes
             self._log_trade_for_validation(position)
-            
+
             # Record the time of this order for ghost detection timing
             self.last_order_time = datetime.now()
 
@@ -463,3 +463,8 @@ class OrderManager:
         """Set trade monitor reference for position registration"""
         self.trade_monitor = trade_monitor
         self.logger.debug("🔍 TRADE MONITOR: Reference set in order manager")
+
+    def set_anomaly_detector(self, anomaly_detector):
+        """Set anomaly detector reference for ghost trade prevention"""
+        self.anomaly_detector = anomaly_detector
+        self.logger.debug("🔍 ANOMALY DETECTOR: Reference set in order manager")
