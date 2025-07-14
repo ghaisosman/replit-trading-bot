@@ -101,10 +101,10 @@ class OrderManager:
             # Store active position
             self.active_positions[strategy_name] = position
 
-            # Register bot trade with trade monitor to pause ghost detection for 30 seconds
+            # Register bot trade with trade monitor to pause ghost detection for 60 seconds
             if hasattr(self, 'trade_monitor') and self.trade_monitor:
                 self.trade_monitor.register_bot_trade(position.symbol)
-                self.logger.debug(f"🔍 BOT TRADE REGISTERED: {position.symbol} | Ghost detection paused for 30 seconds")
+                self.logger.debug(f"🔍 BOT TRADE REGISTERED: {position.symbol} | Ghost detection paused for 60 seconds")
 
             # Log trade for validation purposes
             self._log_trade_for_validation(position)

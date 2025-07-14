@@ -63,7 +63,7 @@ class TradeMonitor:
 
         # Track recent bot trades to prevent immediate ghost detection
         self.recent_bot_trades: Dict[str, datetime] = {}  # symbol -> trade_timestamp
-        self.ghost_detection_delay_seconds = 30  # 30 second delay after bot trades
+        self.ghost_detection_delay_seconds = 60  # 60 second delay after bot trades for better confirmation
 
         # Load persistent ghost fingerprints to survive bot restarts
         self._load_persistent_ghost_fingerprints()
@@ -76,6 +76,16 @@ class TradeMonitor:
         """Register that the bot just placed a trade on this symbol"""
         self.recent_bot_trades[symbol] = datetime.now()
         self.logger.info(f"🔍 BOT TRADE REGISTERED | {symbol} | Ghost detection paused for {self.ghost_detection_delay_seconds} seconds")
+        
+        # Also clear any existing ghost trade for this symbol since bot just placed a trade
+        ghosts_to_clear = []
+        for ghost_id, ghost_trade in self.ghost_trades.items():
+            if ghost_trade.symbol == symbol:
+                ghosts_to_clear.append(ghost_id)
+        
+        for ghost_id in ghosts_to_clear:
+            del self.ghost_trades[ghost_id]
+            self.logger.info(f"🔍 GHOST TRADE CLEARED | {symbol} | Removed due to bot trade placement")
 
     def _is_ghost_detection_paused(self, symbol: str) -> bool:
         """Check if ghost detection should be paused for this symbol due to recent bot trade"""
@@ -229,13 +239,13 @@ class TradeMonitor:
                         self.logger.debug(f"🔍 GHOST CHECK: Comparing {symbol} - Binance: {position_amt}, Bot expects: {expected_position_amt}")
 
                         # More lenient tolerance for quantity differences due to rounding
-                        if abs(position_amt - expected_position_amt) < 0.001:  # Very small tolerance for exact matches
+                        if abs(position_amt - expected_position_amt) < 0.1:  # Increased tolerance for futures rounding
                             is_bot_position = True
                             matching_strategy = strategy_name
                             self.logger.debug(f"🔍 GHOST CHECK: Position {symbol} matches bot strategy {strategy_name}")
                             break
                         # Also check for exact quantity match (common case)
-                        elif abs(abs(position_amt) - bot_position.quantity) < 0.001:
+                        elif abs(abs(position_amt) - bot_position.quantity) < 0.1:  # Increased tolerance
                             is_bot_position = True
                             matching_strategy = strategy_name
                             self.logger.debug(f"🔍 GHOST CHECK: Position {symbol} matches bot strategy {strategy_name} (quantity match)")
