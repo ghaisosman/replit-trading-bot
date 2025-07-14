@@ -108,7 +108,7 @@ For MAINNET:
 
         # Daily reporter
         from src.analytics.daily_reporter import DailyReporter
-        selfdaily_reporter = DailyReporter(self.telegram_reporter)
+        self.daily_reporter = DailyReporter(self.telegram_reporter)
 
         # Track if startup notification was sent
         self.startup_notification_sent = False

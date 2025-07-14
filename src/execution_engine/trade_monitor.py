@@ -53,17 +53,17 @@ class TradeMonitor:
 
         # Flag to prevent notifications during initial startup scan
         self.startup_scan_complete = False
-        
+
         # Track notified ghosts to prevent repeated notifications
         self.notified_ghost_positions: Dict[str, datetime] = {}  # symbol -> last_notification_time
 
         # Track ghost trade fingerprints to prevent re-detection of same trades
         self.ghost_trade_fingerprints: Dict[str, datetime] = {}  # fingerprint -> clear_time
-        
+
         # Track recent bot trades to prevent immediate ghost detection
         self.recent_bot_trades: Dict[str, datetime] = {}  # symbol -> trade_timestamp
         self.ghost_detection_delay_seconds = 30  # 30 second delay after bot trades
-        
+
         # Load persistent ghost fingerprints to survive bot restarts
         self._load_persistent_ghost_fingerprints()
 
@@ -80,14 +80,14 @@ class TradeMonitor:
         """Check if ghost detection should be paused for this symbol due to recent bot trade"""
         if symbol not in self.recent_bot_trades:
             return False
-        
+
         time_since_trade = datetime.now() - self.recent_bot_trades[symbol]
         is_paused = time_since_trade.total_seconds() < self.ghost_detection_delay_seconds
-        
+
         if is_paused:
             remaining_seconds = self.ghost_detection_delay_seconds - time_since_trade.total_seconds()
             self.logger.debug(f"🔍 GHOST DETECTION PAUSED | {symbol} | {remaining_seconds:.1f}s remaining")
-        
+
         return is_paused
 
     def check_for_anomalies(self, suppress_notifications: bool = False) -> None:
@@ -305,7 +305,7 @@ class TradeMonitor:
                                 self.logger.debug(f"🔍 GHOST CHECK: Symbol {symbol} already tracked under ghost ID {existing_ghost_id}, skipping duplicate")
                                 symbol_already_tracked = True
                                 break
-                        
+
                         if symbol_already_tracked:
                             continue
 
@@ -335,7 +335,7 @@ class TradeMonitor:
                         # Check if this symbol has been recently notified (prevent spam)
                         last_notification = self.notified_ghost_positions.get(symbol)
                         notification_cooldown_hours = 2  # Don't re-notify for 2 hours
-                        
+
                         recently_notified = False
                         if last_notification:
                             time_since_notification = datetime.now() - last_notification
@@ -370,9 +370,9 @@ class TradeMonitor:
                                     quantity=abs(position_amt),
                                     current_price=current_price
                                 )
-                                
+
                                 self.logger.debug(f"🔍 GHOST NOTIFICATION: Successfully sent notification for {ghost_id}")
-                                
+
                             except Exception as e:
                                 self.logger.error(f"Failed to send ghost trade notification: {e}")
                         else:
@@ -388,7 +388,7 @@ class TradeMonitor:
                         # Update the existing ghost trade but don't re-notify
                         if existing_ghost_id:
                             existing_ghost = self.ghost_trades[existing_ghost_id]
-                            
+
                             # Always ensure existing ghost trades are marked as notified during startup
                             if not self.startup_scan_complete and not existing_ghost.detection_notified:
                                 self.logger.info(f"🔍 STARTUP SCAN: Marking existing ghost trade {existing_ghost_id} as notified to prevent duplicate notifications")
@@ -468,19 +468,19 @@ class TradeMonitor:
                         symbol=ghost_trade.symbol
                     )
                     ghost_trade.clearing_notified = True
-                    
+
                     # Remove from notification tracking since position is actually closed
                     if ghost_trade.symbol in self.notified_ghost_positions:
                         del self.notified_ghost_positions[ghost_trade.symbol]
 
                 ghosts_to_remove.append(ghost_id)
                 self.logger.debug(f"🔍 GHOST CLEANUP: Marking {ghost_id} for removal - position no longer exists on Binance")
-                
+
             else:
                 # Position still exists - this is a persistent manual trade
                 # Don't decrement cycles or clear - just monitor indefinitely
                 self.logger.debug(f"🔍 GHOST CHECK: Persistent manual position {ghost_id} still exists, continuing to monitor")
-                
+
                 # Reset cycles to prevent negative overflow but don't clear
                 if ghost_trade.cycles_remaining <= -100:
                     ghost_trade.cycles_remaining = 100
@@ -490,28 +490,28 @@ class TradeMonitor:
         for ghost_id in ghosts_to_remove:
             ghost_trade = self.ghost_trades[ghost_id]
             current_time = datetime.now()
-            
+
             # Add to recently cleared to prevent immediate re-detection (with longer cooldown)
             self.recently_cleared_ghosts[ghost_id] = current_time
-            
+
             # Generate and store fingerprint to prevent re-detection of same trade (NEW)
             fingerprint = self._generate_ghost_trade_fingerprint(ghost_trade.symbol, ghost_trade.quantity if ghost_trade.side == 'LONG' else -ghost_trade.quantity)
             self.ghost_trade_fingerprints[fingerprint] = current_time
             self.logger.debug(f"🔍 GHOST CLEANUP: Added fingerprint {fingerprint} to prevent re-detection")
-            
+
             # Save fingerprints persistently
             self._save_persistent_ghost_fingerprints()
-            
+
             # Clean up persistent symbol tracking when position is actually closed
             if ghost_trade.symbol in self.persistent_ghost_symbols:
                 del self.persistent_ghost_symbols[ghost_trade.symbol]
                 self.logger.debug(f"🔍 GHOST CLEANUP: Removed {ghost_trade.symbol} from persistent tracking")
-            
+
             # Remove from notification tracking
             if ghost_trade.symbol in self.notified_ghost_positions:
                 del self.notified_ghost_positions[ghost_trade.symbol]
                 self.logger.debug(f"🔍 GHOST CLEANUP: Removed {ghost_trade.symbol} from notification tracking")
-            
+
             del self.ghost_trades[ghost_id]
             self.logger.debug(f"🔍 GHOST CLEANUP: Successfully removed ghost trade {ghost_id}")
 
@@ -776,16 +776,16 @@ class TradeMonitor:
     def _is_ghost_trade_recently_cleared(self, symbol: str, position_amt: float) -> bool:
         """Check if a ghost trade with same characteristics was recently cleared"""
         fingerprint = self._generate_ghost_trade_fingerprint(symbol, position_amt)
-        
+
         if fingerprint in self.ghost_trade_fingerprints:
             clear_time = self.ghost_trade_fingerprints[fingerprint]
             time_since_clear = datetime.now() - clear_time
             cooldown_hours = 2  # 2 hours cooldown as requested
-            
+
             if time_since_clear.total_seconds() < (cooldown_hours * 3600):
                 self.logger.debug(f"🔍 GHOST FINGERPRINT: Trade {fingerprint} was cleared {time_since_clear.total_seconds():.0f}s ago, within {cooldown_hours}h cooldown")
                 return True
-                
+
         return False
 
     def _load_persistent_ghost_fingerprints(self):
@@ -793,13 +793,13 @@ class TradeMonitor:
         try:
             import os
             import json
-            
+
             fingerprint_file = "trading_data/ghost_fingerprints.json"
-            
+
             if os.path.exists(fingerprint_file):
                 with open(fingerprint_file, 'r') as f:
                     data = json.load(f)
-                    
+
                 # Convert string timestamps back to datetime objects
                 current_time = datetime.now()
                 for fingerprint, timestamp_str in data.items():
@@ -811,11 +811,11 @@ class TradeMonitor:
                             self.logger.debug(f"🔍 FINGERPRINT LOADED: {fingerprint} from {timestamp_str}")
                     except ValueError:
                         continue
-                        
+
                 self.logger.info(f"🔍 FINGERPRINT TRACKING: Loaded {len(self.ghost_trade_fingerprints)} persistent ghost fingerprints")
             else:
                 self.logger.debug(f"🔍 FINGERPRINT TRACKING: No persistent fingerprint file found")
-                
+
         except Exception as e:
             self.logger.error(f"Error loading persistent ghost fingerprints: {e}")
 
@@ -824,21 +824,41 @@ class TradeMonitor:
         try:
             import os
             import json
-            
+
             # Ensure directory exists
             os.makedirs("trading_data", exist_ok=True)
-            
+
             fingerprint_file = "trading_data/ghost_fingerprints.json"
-            
+
             # Convert datetime objects to strings for JSON serialization
             data = {}
             for fingerprint, clear_time in self.ghost_trade_fingerprints.items():
                 data[fingerprint] = clear_time.isoformat()
-            
+
             with open(fingerprint_file, 'w') as f:
                 json.dump(data, f, indent=2)
-                
+
             self.logger.debug(f"🔍 FINGERPRINT TRACKING: Saved {len(data)} ghost fingerprints to {fingerprint_file}")
-            
+
         except Exception as e:
             self.logger.error(f"Error saving persistent ghost fingerprints: {e}")
+    def has_blocking_anomaly(self, strategy_name: str) -> bool:
+        """Check if strategy has a blocking anomaly"""
+        return strategy_name in self.ghost_trades
+
+    def _should_delay_ghost_detection(self) -> bool:
+        """Check if ghost detection should be delayed due to recent order"""
+        if not self.order_manager or not hasattr(self.order_manager, 'last_order_time'):
+            return False
+
+        if not self.order_manager.last_order_time:
+            return False
+
+        from datetime import datetime, timedelta
+        time_since_order = datetime.now() - self.order_manager.last_order_time
+
+        # Delay ghost detection for 30 seconds after placing an order
+        if time_since_order < timedelta(seconds=30):
+            return True
+
+        return False

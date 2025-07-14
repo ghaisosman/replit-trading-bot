@@ -30,6 +30,7 @@ class OrderManager:
         self.logger = logging.getLogger(__name__)
         self.active_positions: Dict[str, Position] = {}  # strategy_name -> Position
         self.position_history: List[Position] = []
+        self.last_order_time = None  # Track when last order was placed
 
     def execute_signal(self, signal: TradingSignal, strategy_config: Dict) -> Optional[Position]:
         """Execute a trading signal"""
@@ -458,3 +459,4 @@ class OrderManager:
         """Set trade monitor reference for position registration"""
         self.trade_monitor = trade_monitor
         self.logger.debug("🔍 TRADE MONITOR: Reference set in order manager")
+```
