@@ -26,6 +26,7 @@ class GhostTrade:
     binance_order_id: Optional[int] = None
     detection_notified: bool = False
     clearing_notified: bool = False
+    last_notification_time: Optional[datetime] = None
 
 class TradeMonitor:
     """Monitors for orphan and ghost trades"""
@@ -172,7 +173,7 @@ class TradeMonitor:
 
                 # If this is not a bot position, it's a ghost trade
                 if not is_bot_position:
-                    self.logger.warning(f"🔍 GHOST CHECK: Found manual position {symbol}: {position_amt}")
+                    self.logger.debug(f"🔍 GHOST CHECK: Found manual position {symbol}: {position_amt}")
 
                     # Find which strategy should monitor this symbol
                     monitoring_strategy = None
@@ -184,7 +185,7 @@ class TradeMonitor:
                     # If no strategy monitors this symbol, create a generic monitoring name
                     if not monitoring_strategy:
                         monitoring_strategy = f"manual_{symbol.lower()}"
-                        self.logger.info(f"🔍 GHOST CHECK: No strategy monitors {symbol}, using generic name: {monitoring_strategy}")
+                        self.logger.debug(f"🔍 GHOST CHECK: No strategy monitors {symbol}, using generic name: {monitoring_strategy}")
 
                     # Check if we already have a ghost trade for this symbol/strategy combination
                     existing_ghost_found = False
@@ -193,7 +194,7 @@ class TradeMonitor:
                             ghost_id.startswith(f"{monitoring_strategy}_") and
                             abs(ghost_trade.quantity - abs(position_amt)) < 0.001):
                             existing_ghost_found = True
-                            self.logger.info(f"🔍 GHOST CHECK: Already tracking ghost trade for {symbol} under {monitoring_strategy}")
+                            self.logger.debug(f"🔍 GHOST CHECK: Already tracking ghost trade for {symbol} under {monitoring_strategy}")
                             break
 
                     # Only create new ghost trade if we don't already have one
@@ -209,7 +210,8 @@ class TradeMonitor:
                             detected_at=datetime.now(),
                             cycles_remaining=20,  # 20 cycles (40 seconds)
                             detection_notified=True,
-                            clearing_notified=False
+                            clearing_notified=False,
+                            last_notification_time=datetime.now()
                         )
                         self.ghost_trades[expected_ghost_id] = ghost_trade
 
@@ -233,7 +235,7 @@ class TradeMonitor:
                     else:
                         self.logger.debug(f"🔍 GHOST CHECK: Ghost trade already exists for {symbol}, skipping duplicate detection")
                 else:
-                    self.logger.info(f"🔍 GHOST CHECK: Position {symbol} is a known bot position")
+                    self.logger.debug(f"🔍 GHOST CHECK: Position {symbol} is a known bot position")
 
         except Exception as e:
             self.logger.error(f"Error checking ghost trades: {e}")
