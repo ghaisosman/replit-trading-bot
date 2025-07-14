@@ -56,9 +56,16 @@ class BinanceClientWrapper:
             self.logger.error(f"❌ Binance API connection test failed: {e}")
             if e.code == -2015:
                 if global_config.BINANCE_TESTNET:
-                    self.logger.error("API Key invalid for testnet. Verify:")
-                    self.logger.error("1. Keys are from https://testnet.binance.vision/")
-                    self.logger.error("2. Keys have 'Spot & Margin Trading' permission")
+                    self.logger.error("❌ API Key invalid for SPOT testnet. Common issues:")
+                    self.logger.error("1. Keys are from FUTURES testnet (testnet.binancefuture.com)")
+                    self.logger.error("   → This bot needs SPOT testnet keys from https://testnet.binance.vision/")
+                    self.logger.error("2. Keys don't have 'Spot & Margin Trading' permission")
+                    self.logger.error("3. Keys are expired or invalid")
+                    self.logger.error("")
+                    self.logger.error("🔧 SOLUTION: Get new SPOT testnet API keys:")
+                    self.logger.error("   • Go to https://testnet.binance.vision/")
+                    self.logger.error("   • Create API Key with 'Spot & Margin Trading' permission")
+                    self.logger.error("   • Update your Replit Secrets")
                 else:
                     self.logger.error("API Key invalid or IP not whitelisted for mainnet")
             return False
@@ -123,12 +130,14 @@ class BinanceClientWrapper:
             if e.code == -2015:
                 if global_config.BINANCE_TESTNET:
                     self.logger.error("❌ TESTNET API PERMISSION ERROR")
-                    self.logger.error("🔧 SOLUTION: Get new testnet API keys with TRADING permissions:")
-                    self.logger.error("   1. Go to https://testnet.binance.vision/")
+                    self.logger.error("🔧 SOLUTION: You likely have FUTURES testnet keys, but need SPOT testnet keys:")
+                    self.logger.error("   1. Go to https://testnet.binance.vision/ (NOT binancefuture.com)")
                     self.logger.error("   2. API Management → Create API Key")
                     self.logger.error("   3. Enable: Reading + Spot & Margin Trading")
                     self.logger.error("   4. Disable IP restrictions for testing")
-                    self.logger.error("   5. Update your Replit Secrets with new keys")
+                    self.logger.error("   5. Update your Replit Secrets with new SPOT testnet keys")
+                    self.logger.error("")
+                    self.logger.error("ℹ️  Current keys appear to be from Futures testnet (different endpoint)")
                 else:
                     self.logger.error("❌ MAINNET API Keys invalid or IP not whitelisted")
                     self.logger.error("🔧 Solutions:")
