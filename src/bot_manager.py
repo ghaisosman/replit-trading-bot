@@ -67,11 +67,19 @@ For MAINNET:
         self.order_manager = OrderManager(self.binance_client)
         self.telegram_reporter = TelegramReporter()
 
-        # Strategy configurations
-        self.strategies = {
+        # Initialize strategies with flexible configuration
+        base_strategies = {
             'sma_crossover': SMACrossoverConfig.get_config(),
-            'rsi_oversold': RSIOversoldConfig.get_config()
+            'rsi_oversold': RSIOversoldConfig.get_config(),
+            'macd_divergence': MACDDivergenceConfig.get_config()
         }
+
+        # Apply trading parameters through config manager
+        self.strategies = {}
+        for strategy_name, base_config in base_strategies.items():
+            self.strategies[strategy_name] = trading_config_manager.get_strategy_config(
+                strategy_name, base_config
+            )
 
         # Strategy assessment timers
         self.strategy_last_assessment = {}
@@ -132,7 +140,7 @@ For MAINNET:
             error_msg = f"Startup Error: {str(e)}"
             self.logger.error(error_msg)
             self.telegram_reporter.report_error("Startup Error", str(e))
-            
+
             # Send shutdown notification for startup failure
             self.telegram_reporter.report_bot_stopped(f"Failed to start: {str(e)}")
             raise
@@ -141,10 +149,10 @@ For MAINNET:
         """Stop the trading bot"""
         self.logger.info(f"Stopping trading bot: {reason}")
         self.is_running = False
-        
+
         # Send shutdown notification to Telegram
         self.telegram_reporter.report_bot_stopped(reason)
-        
+
         # Small delay to ensure message is sent before process terminates
         await asyncio.sleep(1)
 
@@ -172,12 +180,12 @@ For MAINNET:
                 error_msg = f"Main Loop Error: {str(e)}"
                 self.logger.error(error_msg)
                 self.telegram_reporter.report_error("Main Loop Error", str(e))
-                
+
                 # If it's a critical error, stop the bot
                 if "API" in str(e) or "connection" in str(e).lower() or "auth" in str(e).lower():
                     await self.stop(f"Critical error: {str(e)}")
                     break
-                    
+
                 await asyncio.sleep(5)  # Brief pause before retrying
 
     async def _process_strategy(self, strategy_name: str, strategy_config: Dict):
