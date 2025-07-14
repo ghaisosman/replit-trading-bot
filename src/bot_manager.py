@@ -25,6 +25,11 @@ class BotManager:
         
         # Initialize components
         self.binance_client = BinanceClientWrapper()
+        
+        # Test Binance API connection
+        if not self.binance_client.test_connection():
+            raise ValueError("Failed to connect to Binance API. Check your API keys and network connection.")
+        
         self.price_fetcher = PriceFetcher(self.binance_client)
         self.balance_fetcher = BalanceFetcher(self.binance_client)
         self.signal_processor = SignalProcessor()

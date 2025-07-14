@@ -9,7 +9,7 @@ class GlobalConfig:
         # Binance API credentials from secrets
         self.BINANCE_API_KEY = os.getenv('BINANCE_API_KEY')
         self.BINANCE_SECRET_KEY = os.getenv('BINANCE_SECRET_KEY')
-        self.BINANCE_TESTNET = True  # Default to testnet
+        self.BINANCE_TESTNET = os.getenv('BINANCE_TESTNET', 'true').lower() == 'true'  # Default to testnet
         
         # Telegram bot credentials
         self.TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')

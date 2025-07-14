@@ -16,22 +16,50 @@ class BinanceClientWrapper:
     def _initialize_client(self):
         """Initialize Binance client"""
         try:
-            self.client = Client(
-                api_key=global_config.BINANCE_API_KEY,
-                api_secret=global_config.BINANCE_SECRET_KEY,
-                testnet=global_config.BINANCE_TESTNET
-            )
-            self.logger.info("Binance client initialized successfully")
+            if global_config.BINANCE_TESTNET:
+                # Use testnet URLs
+                self.client = Client(
+                    api_key=global_config.BINANCE_API_KEY,
+                    api_secret=global_config.BINANCE_SECRET_KEY,
+                    testnet=True,
+                    tld='com'
+                )
+                self.logger.info("Binance testnet client initialized successfully")
+            else:
+                self.client = Client(
+                    api_key=global_config.BINANCE_API_KEY,
+                    api_secret=global_config.BINANCE_SECRET_KEY,
+                    testnet=False
+                )
+                self.logger.info("Binance mainnet client initialized successfully")
         except Exception as e:
             self.logger.error(f"Failed to initialize Binance client: {e}")
             raise
     
+    def test_connection(self) -> bool:
+        """Test API connection"""
+        try:
+            # Test with a simple ping first
+            self.client.ping()
+            self.logger.info("Binance API connection test successful")
+            return True
+        except BinanceAPIException as e:
+            self.logger.error(f"Binance API connection test failed: {e}")
+            if e.code == -2015:
+                self.logger.error("API Key invalid or IP not whitelisted. Check your testnet API keys.")
+            return False
+        except Exception as e:
+            self.logger.error(f"Connection test failed: {e}")
+            return False
+
     def get_account_info(self) -> Optional[Dict[str, Any]]:
         """Get account information"""
         try:
             return self.client.get_account()
         except BinanceAPIException as e:
             self.logger.error(f"Error getting account info: {e}")
+            if e.code == -2015:
+                self.logger.error("API Key invalid or IP not whitelisted. Please check your Binance testnet API keys.")
             return None
     
     def get_symbol_ticker(self, symbol: str) -> Optional[Dict[str, Any]]:

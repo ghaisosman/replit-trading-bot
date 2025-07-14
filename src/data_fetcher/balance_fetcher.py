@@ -42,6 +42,13 @@ class BalanceFetcher:
         balances = self.get_account_balance()
         if balances and 'USDT' in balances:
             return balances['USDT']['free']
+        
+        # For testnet, if no USDT balance, return a mock balance
+        from src.config.global_config import global_config
+        if global_config.BINANCE_TESTNET and (not balances or 'USDT' not in balances):
+            self.logger.warning("No USDT balance found in testnet. Using mock balance for testing.")
+            return 1000.0  # Mock balance for testing
+        
         return None
     
     def check_sufficient_balance(self, required_margin: float, balance_multiplier: float = 2.0) -> bool:
