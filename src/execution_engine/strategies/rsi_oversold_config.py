@@ -12,12 +12,14 @@ class RSIOversoldConfig:
             'margin': 50.0,  # USDT
             'leverage': 5,
             'timeframe': '15m',
-            'max_stop_loss': 1.5,  # 1.5% stop loss
-            'take_profit_pct': 2.5,  # 2.5% take profit
-            'rsi_oversold_level': 60,  # RSI level for oversold (TESTING - higher for easier triggers)
+            'max_loss_pct': 10,  # 10% of margin for stop loss
+            'rsi_long_entry': 30,  # RSI level for long entry
+            'rsi_long_exit': 60,   # RSI level for long take profit
+            'rsi_short_entry': 70, # RSI level for short entry  
+            'rsi_short_exit': 40,  # RSI level for short take profit
             'assessment_interval': 60,  # 60 seconds
             'enabled': True,
-            'description': 'Buy when RSI is oversold below 25'
+            'description': 'RSI strategy: Long at RSI 30, TP at RSI 60. Short at RSI 70, TP at RSI 40. SL at -10% margin PnL'
         }
     
     @staticmethod

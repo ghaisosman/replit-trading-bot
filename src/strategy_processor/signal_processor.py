@@ -79,32 +79,55 @@ class SignalProcessor:
             return None
     
     def _evaluate_rsi_oversold(self, df: pd.DataFrame, current_price: float, config: Dict) -> Optional[TradingSignal]:
-        """RSI Oversold strategy evaluation"""
+        """RSI strategy evaluation for both long and short signals"""
         try:
             if 'rsi' not in df.columns:
                 return None
             
             rsi_current = df['rsi'].iloc[-1]
-            rsi_oversold_level = config.get('rsi_oversold_level', 30)
+            margin = config.get('margin', 50.0)
+            leverage = config.get('leverage', 5)
+            max_loss_pct = config.get('max_loss_pct', 10)  # 10% of margin
             
-            # Check for oversold condition (TESTING - modified for easier triggers)
-            if rsi_current < rsi_oversold_level:
-                stop_loss = current_price * (1 - config['max_stop_loss'] / 100)
-                take_profit = current_price * (1 + config.get('take_profit_pct', 3) / 100)
+            # Calculate stop loss based on PnL (10% of margin)
+            max_loss_amount = margin * (max_loss_pct / 100)
+            notional_value = margin * leverage
+            stop_loss_pct = (max_loss_amount / notional_value) * 100
+            
+            # Long signal: RSI reaches 30
+            if rsi_current <= 30:
+                stop_loss = current_price * (1 - stop_loss_pct / 100)
+                # Take profit will be determined by RSI level in exit conditions
+                take_profit = current_price * 1.05  # Placeholder, real TP is RSI-based
                 
                 return TradingSignal(
                     signal_type=SignalType.BUY,
-                    confidence=0.8,  # Higher confidence for testing
+                    confidence=0.8,
                     entry_price=current_price,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
-                    reason=f"RSI TEST ENTRY at {rsi_current:.2f} (below {rsi_oversold_level})"
+                    reason=f"RSI LONG ENTRY at {rsi_current:.2f} (RSI <= 30)"
+                )
+            
+            # Short signal: RSI reaches 70
+            elif rsi_current >= 70:
+                stop_loss = current_price * (1 + stop_loss_pct / 100)
+                # Take profit will be determined by RSI level in exit conditions
+                take_profit = current_price * 0.95  # Placeholder, real TP is RSI-based
+                
+                return TradingSignal(
+                    signal_type=SignalType.SELL,
+                    confidence=0.8,
+                    entry_price=current_price,
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
+                    reason=f"RSI SHORT ENTRY at {rsi_current:.2f} (RSI >= 70)"
                 )
             
             return None
             
         except Exception as e:
-            self.logger.error(f"Error in RSI oversold evaluation: {e}")
+            self.logger.error(f"Error in RSI strategy evaluation: {e}")
             return None
     
     def evaluate_exit_conditions(self, df: pd.DataFrame, position: Dict, strategy_config: Dict) -> bool:
@@ -114,29 +137,35 @@ class SignalProcessor:
             entry_price = position['entry_price']
             stop_loss = position['stop_loss']
             take_profit = position['take_profit']
+            position_side = position.get('side', 'BUY')
             
-            # Check stop loss
-            if current_price <= stop_loss:
+            # Check PnL-based stop loss
+            if position_side == 'BUY' and current_price <= stop_loss:
+                self.logger.info(f"LONG STOP LOSS: Price ${current_price:.4f} <= SL ${stop_loss:.4f}")
+                return True
+            elif position_side == 'SELL' and current_price >= stop_loss:
+                self.logger.info(f"SHORT STOP LOSS: Price ${current_price:.4f} >= SL ${stop_loss:.4f}")
                 return True
             
-            # Check take profit
-            if current_price >= take_profit:
-                return True
-            
-            # TESTING: Additional aggressive exit conditions for faster testing
-            if 'rsi' in df.columns:
+            # RSI-based exit conditions for RSI strategy
+            strategy_name = strategy_config.get('name', '')
+            if strategy_name == 'rsi_oversold' and 'rsi' in df.columns:
                 rsi_current = df['rsi'].iloc[-1]
                 
-                # Exit if RSI goes above 70 (overbought after our oversold entry)
-                if rsi_current > 70:
-                    self.logger.info(f"TEST EXIT: RSI overbought at {rsi_current:.2f}")
+                # Long position: Take profit when RSI reaches 60
+                if position_side == 'BUY' and rsi_current >= 60:
+                    self.logger.info(f"LONG TAKE PROFIT: RSI {rsi_current:.2f} >= 60")
                     return True
                 
-                # Exit if we have any profit and RSI is rising (quick profit taking for testing)
-                if current_price > entry_price * 1.005:  # 0.5% profit
-                    if len(df) >= 2 and df['rsi'].iloc[-1] > df['rsi'].iloc[-2]:
-                        self.logger.info(f"TEST EXIT: Quick profit + RSI rising")
-                        return True
+                # Short position: Take profit when RSI reaches 40
+                elif position_side == 'SELL' and rsi_current <= 40:
+                    self.logger.info(f"SHORT TAKE PROFIT: RSI {rsi_current:.2f} <= 40")
+                    return True
+            
+            # Fallback to traditional TP/SL for other strategies
+            elif strategy_name != 'rsi_oversold':
+                if current_price >= take_profit:
+                    return True
             
             return False
             
