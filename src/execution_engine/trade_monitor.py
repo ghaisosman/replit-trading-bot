@@ -129,8 +129,8 @@ class TradeMonitor:
                         
                         # If this is not the bot's position, it's a ghost trade
                         if not is_bot_position:
-                            # Check if we already have a ghost trade for this symbol and strategy
-                            existing_ghost_id = None
+                            # Check if we already have a ghost trade for this strategy-symbol combination
+                            existing_ghost_found = False
                             for gid, ghost in self.ghost_trades.items():
                                 # Extract strategy and symbol from ghost_id
                                 parts = gid.split('_')
@@ -138,14 +138,13 @@ class TradeMonitor:
                                     ghost_strategy = '_'.join(parts[:-3])  # Everything except symbol, quantity, timestamp
                                     ghost_symbol = parts[-3]  # Symbol is third from last
                                     
-                                    if (ghost_strategy == strategy_name and 
-                                        ghost_symbol == symbol and
-                                        abs(ghost.quantity - abs(position_amt)) < 0.001):
-                                        existing_ghost_id = gid
+                                    # Check if this is the same strategy-symbol combination
+                                    if ghost_strategy == strategy_name and ghost_symbol == symbol:
+                                        existing_ghost_found = True
                                         break
                             
-                            # Only create new ghost trade if we don't already have one
-                            if not existing_ghost_id:
+                            # Only create new ghost trade if we don't already have one for this strategy-symbol
+                            if not existing_ghost_found:
                                 side = 'BUY' if position_amt > 0 else 'SELL'
                                 # Use timestamp to ensure uniqueness while keeping strategy name intact
                                 timestamp = int(datetime.now().timestamp())
