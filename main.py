@@ -10,27 +10,12 @@ from src.utils.logger import setup_logger
 bot_manager = None
 shutdown_event = asyncio.Event()
 
-async def shutdown_handler():
-    """Handle graceful shutdown"""
-    global bot_manager
-    if bot_manager:
-        await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
-    shutdown_event.set()
-
 def signal_handler(signum, frame):
     """Handle termination signals"""
     print("\n🛑 Shutdown signal received...")
-    # Create a new event loop if we're not in one
-    loop = None
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    
-    # Run the shutdown handler and wait for it to complete
-    loop.run_until_complete(shutdown_handler())
-    sys.exit(0)
+    # Set the shutdown event to trigger graceful shutdown
+    if shutdown_event:
+        shutdown_event.set()
 
 async def main():
     global bot_manager
@@ -51,16 +36,26 @@ async def main():
         
         # Start the bot in a task so we can handle shutdown signals
         bot_task = asyncio.create_task(bot_manager.start())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
         
         # Wait for either the bot to complete or shutdown signal
         done, pending = await asyncio.wait(
-            [bot_task, asyncio.create_task(shutdown_event.wait())],
+            [bot_task, shutdown_task],
             return_when=asyncio.FIRST_COMPLETED
         )
+        
+        # Check if shutdown was triggered
+        if shutdown_task in done:
+            logger.info("Shutdown signal received, stopping bot...")
+            await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
         
         # Cancel any pending tasks
         for task in pending:
             task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
             
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt")
