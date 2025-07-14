@@ -16,6 +16,7 @@ class Position:
     quantity: float
     stop_loss: float
     take_profit: float
+    position_side: str = "LONG"  # LONG or SHORT for hedge mode
     order_id: Optional[int] = None
     entry_time: Optional[datetime] = None
     status: str = "OPEN"
@@ -43,13 +44,16 @@ class OrderManager:
             if not quantity:
                 return None
             
-            # Create market order
+            # Create market order with hedge mode support
+            side = 'BUY' if signal.signal_type == SignalType.BUY else 'SELL'
+            position_side = 'LONG' if signal.signal_type == SignalType.BUY else 'SHORT'
+            
             order_params = {
                 'symbol': strategy_config['symbol'],
-                'side': 'BUY' if signal.signal_type == SignalType.BUY else 'SELL',
+                'side': side,
                 'type': 'MARKET',
                 'quantity': quantity,
-                'positionSide': 'BOTH'  # Required for Binance Futures (One-way mode)
+                'positionSide': position_side  # LONG/SHORT for hedge mode
             }
             
             order_result = self.binance_client.create_order(**order_params)
@@ -66,6 +70,7 @@ class OrderManager:
                 quantity=quantity,
                 stop_loss=signal.stop_loss,
                 take_profit=signal.take_profit,
+                position_side=order_params['positionSide'],
                 order_id=order_result.get('orderId'),
                 entry_time=datetime.now(),
                 status="OPEN"
@@ -90,7 +95,7 @@ class OrderManager:
             
             position = self.active_positions[strategy_name]
             
-            # Create closing order (opposite side)
+            # Create closing order (opposite side) with hedge mode support
             close_side = 'SELL' if position.side == 'BUY' else 'BUY'
             
             order_params = {
@@ -98,7 +103,7 @@ class OrderManager:
                 'side': close_side,
                 'type': 'MARKET',
                 'quantity': position.quantity,
-                'positionSide': 'BOTH'  # Required for Binance Futures (One-way mode)
+                'positionSide': position.position_side  # Use stored position side
             }
             
             order_result = self.binance_client.create_order(**order_params)
