@@ -48,15 +48,39 @@ class ColoredFormatter(logging.Formatter):
         
         self.last_log_time = current_time
 
-        # Create bordered block
-        border_char = "█"
-        level_badge = f"{bg_color} {record.levelname} {reset}"
+        # Create different block styles for each log level
+        if record.levelname == 'INFO':
+            block_start = f"{text_color}┌─"
+            block_end = f"─┐{reset}"
+            block_body = f"{text_color}│ {bg_color} INFO {reset} {text_color}[{timestamp}] {message} │{reset}"
+            block_bottom = f"{text_color}└{'─' * (len(f'[{timestamp}] {message}') + 8)}┘{reset}"
+        elif record.levelname == 'ERROR':
+            block_start = f"{text_color}╔═"
+            block_end = f"═╗{reset}"
+            block_body = f"{text_color}║ {bg_color} ERROR {reset} {text_color}[{timestamp}] {message} ║{reset}"
+            block_bottom = f"{text_color}╚{'═' * (len(f'[{timestamp}] {message}') + 9)}╝{reset}"
+        elif record.levelname == 'WARNING':
+            block_start = f"{text_color}╭─"
+            block_end = f"─╮{reset}"
+            block_body = f"{text_color}│ {bg_color} WARN {reset} {text_color}[{timestamp}] {message} │{reset}"
+            block_bottom = f"{text_color}╰{'─' * (len(f'[{timestamp}] {message}') + 8)}╯{reset}"
+        else:
+            # DEBUG, CRITICAL, etc.
+            block_start = f"{text_color}┏━"
+            block_end = f"━┓{reset}"
+            level_short = record.levelname[:5]
+            block_body = f"{text_color}┃ {bg_color} {level_short} {reset} {text_color}[{timestamp}] {message} ┃{reset}"
+            block_bottom = f"{text_color}┗{'━' * (len(f'[{timestamp}] {message}') + len(level_short) + 4)}┛{reset}"
+
+        # Calculate the width for the top and bottom borders
+        content_width = len(f'[{timestamp}] {message}') + 10
         
         # Format the complete message with visual block
         formatted_message = (
             f"{separator}"
-            f"{text_color}{border_char} {level_badge} "
-            f"{text_color}[{timestamp}] {message} {border_char}{reset}"
+            f"{block_start}{'─' * (content_width - 2)}{block_end}\n"
+            f"{block_body}\n"
+            f"{block_bottom}\n"
         )
         
         return formatted_message
