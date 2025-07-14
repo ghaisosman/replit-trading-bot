@@ -99,6 +99,27 @@ For MAINNET:
 
     async def start(self):
         """Start the trading bot"""
+        self.is_running = True
+
+        # Log startup source
+        import inspect
+        frame = inspect.currentframe()
+        caller = None
+        try:
+            # Look for web dashboard in the call stack
+            while frame:
+                if 'web_dashboard' in str(frame.f_code.co_filename):
+                    caller = "Web Interface"
+                    break
+                frame = frame.f_back
+        except:
+            pass
+        finally:
+            del frame
+
+        if caller:
+            self.logger.info(f"🌐 BOT STARTUP INITIATED FROM: {caller}")
+
         try:
             # Startup banner
             self.logger.info("🚀 TRADING BOT ACTIVATED")

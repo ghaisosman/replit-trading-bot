@@ -27,6 +27,7 @@ app.secret_key = 'your-secret-key-here'
 
 # Setup logging for web dashboard
 setup_logger()
+logger = logging.getLogger(__name__)
 
 # Global bot instance - shared with main.py
 bot_manager = None
@@ -169,6 +170,10 @@ def start_bot():
             # Use the shared bot manager and start it
             bot_manager = shared_bot_manager
             
+            # Log the web start action to console
+            logger = logging.getLogger(__name__)
+            logger.info("🌐 WEB INTERFACE: Starting bot via web dashboard")
+            
             # Start the shared bot in the main event loop
             def start_shared_bot():
                 loop = asyncio.new_event_loop()
@@ -176,13 +181,33 @@ def start_bot():
                 try:
                     # Set running state
                     shared_bot_manager.is_running = True
+                    logger.info("🚀 BOT STARTED VIA WEB INTERFACE")
+                    
+                    # Send Telegram notification about web start
+                    try:
+                        from src.data_fetcher.balance_fetcher import BalanceFetcher
+                        balance_fetcher = BalanceFetcher(shared_bot_manager.binance_client)
+                        balance = balance_fetcher.get_usdt_balance() or 0
+                        
+                        pairs = [config['symbol'] for config in shared_bot_manager.strategies.values()]
+                        strategy_names = list(shared_bot_manager.strategies.keys())
+                        
+                        shared_bot_manager.telegram_reporter.report_bot_startup(
+                            pairs=pairs,
+                            strategies=strategy_names,
+                            balance=balance,
+                            open_trades=0
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to send startup notification: {e}")
                     
                     # Start the bot's main trading loop
                     loop.run_until_complete(shared_bot_manager._main_trading_loop())
                 except Exception as e:
-                    logging.getLogger(__name__).error(f"Bot error: {e}")
+                    logger.error(f"Bot error: {e}")
                 finally:
                     shared_bot_manager.is_running = False
+                    logger.info("🔴 BOT STOPPED VIA WEB INTERFACE")
                     loop.close()
             
             bot_thread = threading.Thread(target=start_shared_bot, daemon=True)
@@ -194,6 +219,9 @@ def start_bot():
         # Fallback: create new bot instance if no shared manager exists
         if bot_running:
             return jsonify({'success': False, 'message': 'Bot is already running'})
+        
+        logger = logging.getLogger(__name__)
+        logger.info("🌐 WEB INTERFACE: Creating new bot instance via web dashboard")
         
         bot_manager = BotManager()
         bot_running = True
@@ -228,20 +256,25 @@ def stop_bot():
     global bot_manager, bot_running, shared_bot_manager
     
     try:
+        logger = logging.getLogger(__name__)
+        
         # Always try to get the latest shared bot manager
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
         
         # Check if there's a shared bot manager from main.py
         if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
             if shared_bot_manager.is_running:
+                logger.info("🌐 WEB INTERFACE: Stopping bot via web dashboard")
+                
                 # Stop the shared bot by setting is_running to False
                 shared_bot_manager.is_running = False
                 
                 # Send stop notification
                 try:
                     shared_bot_manager.telegram_reporter.report_bot_stopped("Manual stop via web interface")
-                except:
-                    pass
+                    logger.info("🔴 BOT STOPPED VIA WEB INTERFACE")
+                except Exception as e:
+                    logger.warning(f"Failed to send stop notification: {e}")
                 
                 bot_running = False
                 return jsonify({'success': True, 'message': 'Bot stopped from web interface'})
@@ -252,9 +285,18 @@ def stop_bot():
         if not bot_running or not bot_manager:
             return jsonify({'success': False, 'message': 'Bot is not running'})
         
+        logger.info("🌐 WEB INTERFACE: Stopping standalone bot via web dashboard")
+        
         # Stop the bot
         bot_manager.is_running = False
         bot_running = False
+        
+        # Send stop notification for standalone bot
+        try:
+            bot_manager.telegram_reporter.report_bot_stopped("Manual stop via web interface")
+            logger.info("🔴 STANDALONE BOT STOPPED VIA WEB INTERFACE")
+        except Exception as e:
+            logger.warning(f"Failed to send stop notification: {e}")
         
         return jsonify({'success': True, 'message': 'Bot stopped successfully'})
     except Exception as e:
@@ -404,4 +446,6 @@ def calculate_pnl(position, current_price):
         return (position.entry_price - current_price) * position.quantity
 
 if __name__ == '__main__':
+    logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:8080")
+    logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
     app.run(host='0.0.0.0', port=8080, debug=True)

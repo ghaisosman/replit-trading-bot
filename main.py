@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 import signal
@@ -25,47 +24,47 @@ def signal_handler(signum, frame):
 
 async def main():
     global bot_manager
-    
+
     # Setup logging
     setup_logger()
     logger = logging.getLogger(__name__)
-    
+
     # Setup signal handlers for graceful shutdown
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
+
     logger.info("Starting Multi-Strategy Trading Bot")
-    
+
     # Start web dashboard in background thread
     def run_web_dashboard():
         app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
-    
+
     web_thread = threading.Thread(target=run_web_dashboard, daemon=True)
     web_thread.start()
     logger.info("🌐 Web Dashboard started at http://0.0.0.0:8080")
-    
+
     try:
         # Initialize and start the bot
         bot_manager = BotManager()
-        
+
         # Make bot manager accessible to web interface
         sys.modules['__main__'].bot_manager = bot_manager
-        
+
         # Start the bot in a task so we can handle shutdown signals
         bot_task = asyncio.create_task(bot_manager.start())
         shutdown_task = asyncio.create_task(shutdown_event.wait())
-        
+
         # Wait for either the bot to complete or shutdown signal
         done, pending = await asyncio.wait(
             [bot_task, shutdown_task],
             return_when=asyncio.FIRST_COMPLETED
         )
-        
+
         # Check if shutdown was triggered
         if shutdown_task in done:
             logger.info("Shutdown signal received, stopping bot...")
             await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
-        
+
         # Cancel any pending tasks
         for task in pending:
             task.cancel()
@@ -73,7 +72,7 @@ async def main():
                 await task
             except asyncio.CancelledError:
                 pass
-            
+
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt")
         if bot_manager:
@@ -85,4 +84,20 @@ async def main():
         raise
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Make bot_manager available to web dashboard
+    bot_manager = BotManager()
+
+    # Make it globally accessible for web interface
+    import sys
+    sys.modules[__name__].bot_manager = bot_manager
+
+    try:
+        # Run the bot
+        asyncio.run(bot_manager.start())
+    except KeyboardInterrupt:
+        logger.info("🔴 BOT STOPPED: Manual shutdown via console (Ctrl+C)")
+        # Send stop notification
+        try:
+            bot_manager.telegram_reporter.report_bot_stopped("Manual shutdown via Ctrl+C")
+        except:
+            pass
