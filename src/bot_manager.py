@@ -111,7 +111,7 @@ For MAINNET:
 
             # Get initial balance
             balance_info = self.balance_fetcher.get_usdt_balance() or 0
-            self.logger.info(f"💰 ACCOUNT BALANCE: ${balance_info:.2f} USDT")
+            self.logger.info(f"💰 ACCOUNT BALANCE: ${balance_info:,.1f} USDT")
 
             self.logger.info(f"⚡ MONITORING INTERVAL: {global_config.PRICE_UPDATE_INTERVAL}s")
 
@@ -215,7 +215,7 @@ For MAINNET:
                     position_value_usdt = position.entry_price * position.quantity
                     pnl_percent = (pnl_usdt / position_value_usdt) * 100 if position_value_usdt > 0 else 0
 
-                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: ${pnl_usdt:.2f} USDT ({pnl_percent:+.2f}%)")
+                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:,.1f} | Value: ${position_value_usdt:,.1f} USDT | PnL: ${pnl_usdt:,.1f} USDT ({pnl_percent:+.1f}%)")
                 return
 
             # Check balance requirements
@@ -245,7 +245,7 @@ For MAINNET:
             signal = self.signal_processor.evaluate_entry_conditions(df, strategy_config)
 
             if signal:
-                self.logger.info(f"🚨 ENTRY SIGNAL DETECTED | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | ${signal.entry_price:.4f} | Reason: {signal.reason}")
+                self.logger.info(f"🚨 ENTRY SIGNAL DETECTED | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | ${signal.entry_price:,.1f} | Reason: {signal.reason}")
 
                 # Entry signals are still reported to Telegram
                 self.telegram_reporter.report_entry_signal(strategy_name, {
@@ -261,7 +261,7 @@ For MAINNET:
                 position = self.order_manager.execute_signal(signal, strategy_config)
 
                 if position:
-                    self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:.4f} | Qty: {position.quantity} | SL: ${position.stop_loss:.4f} | TP: ${position.take_profit:.4f}")
+                    self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:,.1f} | Qty: {position.quantity:,.1f} | SL: ${position.stop_loss:,.1f} | TP: ${position.take_profit:,.1f}")
 
                     # Report position opened
                     from dataclasses import asdict
@@ -271,7 +271,7 @@ For MAINNET:
             else:
                 # Log market assessment result (console only, no Telegram)
                 market_info = self._get_market_info(df, strategy_name)
-                self.logger.info(f"📈 MARKET ASSESSMENT | {strategy_name.upper()} | {strategy_config['symbol']} | Price: ${current_price:.4f} | {market_info}")
+                self.logger.info(f"📈 MARKET ASSESSMENT | {strategy_name.upper()} | {strategy_config['symbol']} | Price: ${current_price:,.1f} | {market_info}")
 
         except Exception as e:
             self.logger.error(f"Error processing strategy {strategy_name}: {e}")
@@ -314,11 +314,11 @@ For MAINNET:
                     exit_reason = "Stop Loss" if current_price <= position.stop_loss else "Take Profit" if current_price >= position.take_profit else "Exit Signal"
                     pnl_status = "PROFIT" if pnl > 0 else "LOSS"
 
-                    self.logger.info(f"🔄 EXIT TRIGGERED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Exit: ${current_price:.4f} | PnL: ${pnl:.2f} ({pnl_status})")
+                    self.logger.info(f"🔄 EXIT TRIGGERED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Exit: ${current_price:,.1f} | PnL: ${pnl:,.1f} ({pnl_status})")
 
                     # Close position
                     if self.order_manager.close_position(strategy_name, exit_reason):
-                        self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | Final PnL: ${pnl:.2f}")
+                        self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | Final PnL: ${pnl:,.1f}")
 
                         from dataclasses import asdict
                         self.telegram_reporter.report_position_closed(
@@ -401,7 +401,7 @@ For MAINNET:
                 if 'rsi' in df.columns:
                     rsi = df['rsi'].iloc[-1]
                     condition = "Oversold" if rsi < 30 else "Overbought" if rsi > 70 else "Normal"
-                    return f"RSI: {rsi:.2f} | Condition: {condition}"
+                    return f"RSI: {rsi:.1f} | Condition: {condition}"
             elif strategy_name == 'macd_divergence':
                 return "MACD Analysis | Status: Monitoring"
 
@@ -431,7 +431,7 @@ For MAINNET:
                                 side = 'BUY' if position_amt > 0 else 'SELL'
                                 quantity = abs(position_amt)
 
-                                self.logger.info(f"📍 EXISTING POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price:.4f}")
+                                self.logger.info(f"📍 EXISTING POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {quantity:,.1f} | Entry: ${entry_price:,.1f}")
 
                                 # Create position object (simplified recovery)
                                 from src.execution_engine.order_manager import Position
