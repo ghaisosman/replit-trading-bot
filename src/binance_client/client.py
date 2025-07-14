@@ -59,7 +59,14 @@ class BinanceClientWrapper:
         except BinanceAPIException as e:
             self.logger.error(f"Error getting account info: {e}")
             if e.code == -2015:
-                self.logger.error("API Key invalid or IP not whitelisted. Please check your Binance testnet API keys.")
+                if global_config.BINANCE_TESTNET:
+                    self.logger.error("❌ TESTNET API Keys need TRADING permissions. Get new keys from https://testnet.binance.vision/")
+                else:
+                    self.logger.error("❌ MAINNET API Keys invalid or IP not whitelisted. Check your Binance account settings.")
+                    self.logger.error("🔧 Solutions:")
+                    self.logger.error("   1. Enable trading permissions for API keys")
+                    self.logger.error("   2. Disable IP restrictions OR whitelist your IP")
+                    self.logger.error("   3. Verify API keys are correct")
             return None
     
     def get_symbol_ticker(self, symbol: str) -> Optional[Dict[str, Any]]:

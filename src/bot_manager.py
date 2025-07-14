@@ -24,6 +24,10 @@ class BotManager:
         if not global_config.validate_config():
             raise ValueError("Invalid configuration. Check environment variables.")
         
+        # Check live trading readiness
+        if not global_config.is_live_trading_ready():
+            raise ValueError("Configuration not ready for live trading.")
+        
         # Initialize components
         self.binance_client = BinanceClientWrapper()
         
