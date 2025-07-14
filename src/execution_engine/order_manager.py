@@ -212,19 +212,19 @@ class OrderManager:
             # Calculate quantity based on entry price
             quantity = notional_value / signal.entry_price
 
-            # Apply symbol-specific precision based on Binance requirements
+            # Apply symbol-specific precision based on Binance Futures requirements
             if symbol == 'BTCUSDT':
-                quantity = round(quantity, 5)  # BTC requires 5 decimal places
+                quantity = round(quantity, 3)  # BTC Futures requires 3 decimal places
             elif symbol == 'ETHUSDT':
-                quantity = round(quantity, 2)  # ETH requires 2 decimal places  
+                quantity = round(quantity, 2)  # ETH Futures requires 2 decimal places  
             elif symbol == 'SOLUSDT':
-                quantity = round(quantity, 1)  # SOL requires 1 decimal place
+                quantity = round(quantity, 0)  # SOL Futures requires whole numbers only
             elif symbol == 'ADAUSDT':
                 quantity = round(quantity, 0)  # ADA requires whole numbers
             elif symbol.endswith('USDT'):
                 quantity = round(quantity, 2)  # Most USDT pairs use 2 decimal places
             else:
-                quantity = round(quantity, 5)  # Default fallback
+                quantity = round(quantity, 3)  # Default fallback
 
             self.logger.info(f"Calculated position size for {symbol}: {quantity}")
 
