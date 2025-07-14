@@ -98,7 +98,7 @@ For MAINNET:
 
         # Daily reporter
         from src.analytics.daily_reporter import DailyReporter
-        self.daily_reporter = DailyReporter(self.telegram_reporter, self.order_manager)
+        self.daily_reporter = DailyReporter(self.telegram_reporter)
 
 
     async def start(self):
