@@ -67,11 +67,11 @@ def dashboard():
                     'strategy': strategy_name,
                     'symbol': position.symbol,
                     'side': position.side,
-                    'entry_price': position.entry_price,
-                    'quantity': position.quantity,
-                    'current_price': current_price,
-                    'pnl': pnl,
-                    'pnl_percent': (pnl / (position.entry_price * position.quantity)) * 100 if position.entry_price * position.quantity > 0 else 0
+                    'entry_price': f"${position.entry_price:,.1f}",
+                    'quantity': f"{position.quantity:,.1f}",
+                    'current_price': f"${current_price:,.1f}" if current_price else "N/A",
+                    'pnl': f"${pnl:,.1f}" if pnl else "$0.0",
+                    'pnl_percent': f"{(pnl / (position.entry_price * position.quantity)) * 100:.1f}%" if position.entry_price * position.quantity > 0 else "0.0%"
                 })
         
         return render_template('dashboard.html', 
