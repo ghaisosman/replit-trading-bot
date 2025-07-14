@@ -210,11 +210,12 @@ For MAINNET:
                 position = self.order_manager.active_positions[strategy_name]
                 current_price = self._get_current_price(strategy_config['symbol'])
                 if current_price:
-                    # Log position status with PnL
-                    pnl_usdt = self._calculate_pnl(position, current_price)
-                    pnl_percent = (pnl_usdt / (position.entry_price * position.quantity)) * 100 if position.quantity > 0 else 0
+                    # Log active position
+                    pnl_usdt = self._calculate_pnl(position, current_price) if current_price else 0
+                    position_value_usdt = position.entry_price * position.quantity
+                    pnl_percent = (pnl_usdt / position_value_usdt) * 100 if position_value_usdt > 0 else 0
 
-                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | PnL: ${pnl_usdt:.2f} USDT ({pnl_percent:+.2f}%)")
+                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: ${pnl_usdt:.2f} USDT ({pnl_percent:+.2f}%)")
                 return
 
             # Check balance requirements

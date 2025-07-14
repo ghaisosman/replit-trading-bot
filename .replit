@@ -16,10 +16,19 @@ run = ["python3", "main.py"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "Run Trading Bot"
+runButton = "Manual Trading Bot"
 
 [[workflows.workflow]]
 name = "Run Trading Bot"
+author = 43555514
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
+
+[[workflows.workflow]]
+name = "Manual Trading Bot"
 author = 43555514
 mode = "sequential"
 

@@ -161,13 +161,23 @@ class TradeMonitor:
                                 )
                                 self.ghost_trades[ghost_id] = ghost_trade
                                 
+                                # Get current price for USDT value calculation
+                                try:
+                                    from src.data_fetcher.price_fetcher import PriceFetcher
+                                    price_fetcher = PriceFetcher(self.binance_client)
+                                    current_price = price_fetcher.get_current_price(symbol)
+                                except:
+                                    current_price = None
+                                
                                 # Log and notify
-                                self.logger.warning(f"👻 GHOST TRADE DETECTED | {strategy_name} | {symbol} | Manual position found")
+                                usdt_value = current_price * abs(position_amt) if current_price else 0
+                                self.logger.warning(f"👻 GHOST TRADE DETECTED | {strategy_name} | {symbol} | Manual position found | Value: ${usdt_value:.2f} USDT")
                                 self.telegram_reporter.report_ghost_trade_detected(
                                     strategy_name=strategy_name,
                                     symbol=symbol,
                                     side=side,
-                                    quantity=abs(position_amt)
+                                    quantity=abs(position_amt),
+                                    current_price=current_price
                                 )
                             
         except Exception as e:

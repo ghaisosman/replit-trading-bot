@@ -55,8 +55,14 @@ class TelegramReporter:
         self.send_message(message)
 
     def report_trade_entry(self, strategy_name: str, pair: str, direction: str, entry_price: float, 
-                          margin: float, leverage: int, balance_after: float, open_trades: int):
+                          margin: float, leverage: int, balance_after: float, open_trades: int, quantity: float = None):
         """2. Trade Entry"""
+        # Calculate position value if quantity is provided
+        position_value_text = ""
+        if quantity:
+            position_value = entry_price * quantity
+            position_value_text = f"📦 <b>Position Value:</b> ${position_value:.2f} USDT\n"
+        
         message = f"""
 🟢 <b>TRADE ENTRY</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
@@ -64,7 +70,7 @@ class TelegramReporter:
 💰 <b>Pair:</b> {pair}
 📊 <b>Direction:</b> {direction}
 💵 <b>Entry Price:</b> ${entry_price:.4f}
-💸 <b>Margin:</b> ${margin:.2f} USDT
+{position_value_text}💸 <b>Margin Used:</b> ${margin:.2f} USDT
 ⚡ <b>Leverage:</b> {leverage}x
 💰 <b>Current Balance:</b> ${balance_after:.2f} USDT
 📈 <b>Current Open Trades:</b> {open_trades}
@@ -73,9 +79,15 @@ class TelegramReporter:
 
     def report_trade_closing(self, strategy_name: str, pair: str, direction: str, entry_price: float,
                            exit_price: float, margin: float, pnl_usdt: float, pnl_percent: float,
-                           exit_reason: str, balance_after: float, open_trades: int):
+                           exit_reason: str, balance_after: float, open_trades: int, quantity: float = None):
         """3. Trade Closing"""
         pnl_emoji = "🟢" if pnl_usdt >= 0 else "🔴"
+
+        # Calculate position value if quantity is provided
+        position_value_text = ""
+        if quantity:
+            position_value = entry_price * quantity
+            position_value_text = f"📦 <b>Position Value:</b> ${position_value:.2f} USDT\n"
 
         message = f"""
 {pnl_emoji} <b>TRADE CLOSED</b>
@@ -85,7 +97,7 @@ class TelegramReporter:
 📊 <b>Direction:</b> {direction}
 💵 <b>Entry Price:</b> ${entry_price:.4f}
 🚪 <b>Exit Price:</b> ${exit_price:.4f}
-💸 <b>Margin:</b> ${margin:.2f} USDT
+{position_value_text}💸 <b>Margin Used:</b> ${margin:.2f} USDT
 💰 <b>Realized PNL:</b> ${pnl_usdt:.2f} USDT ({pnl_percent:+.2f}%)
 🎯 <b>Exit Reason:</b> {exit_reason}
 💰 <b>Current Balance:</b> ${balance_after:.2f} USDT
@@ -163,8 +175,9 @@ class TelegramReporter:
             balance_fetcher = BalanceFetcher(binance_client)
             current_balance = balance_fetcher.get_usdt_balance() or 0
             
-            # Calculate margin used (simplified)
-            margin_used = position_data['entry_price'] * position_data['quantity'] / 5  # Assuming 5x leverage
+            # Calculate position value and margin used
+            position_value_usdt = position_data['entry_price'] * position_data['quantity']
+            margin_used = position_value_usdt / 5  # Assuming 5x leverage
             
             message = f"""
 🟢 <b>TRADE ENTRY</b>
@@ -173,7 +186,8 @@ class TelegramReporter:
 💰 <b>Pair:</b> {position_data['symbol']}
 📊 <b>Direction:</b> {position_data['side']}
 💵 <b>Entry Price:</b> ${position_data['entry_price']:.4f}
-💸 <b>Margin:</b> ${margin_used:.2f} USDT
+📦 <b>Position Value:</b> ${position_value_usdt:.2f} USDT
+💸 <b>Margin Used:</b> ${margin_used:.2f} USDT
 ⚡ <b>Leverage:</b> 5x
 💰 <b>Current Balance:</b> ${current_balance:.2f} USDT
 📈 <b>Current Open Trades:</b> 1
@@ -186,7 +200,8 @@ class TelegramReporter:
         """Report position closed to Telegram"""
         try:
             pnl_emoji = "🟢" if pnl >= 0 else "🔴"
-            pnl_percent = (pnl / (position_data['entry_price'] * position_data['quantity'])) * 100
+            position_value_usdt = position_data['entry_price'] * position_data['quantity']
+            pnl_percent = (pnl / position_value_usdt) * 100
             
             # Get current balance
             from src.data_fetcher.balance_fetcher import BalanceFetcher
@@ -197,7 +212,7 @@ class TelegramReporter:
             current_balance = balance_fetcher.get_usdt_balance() or 0
             
             # Calculate margin used
-            margin_used = position_data['entry_price'] * position_data['quantity'] / 5
+            margin_used = position_value_usdt / 5  # Assuming 5x leverage
             
             message = f"""
 {pnl_emoji} <b>TRADE CLOSED</b>
@@ -207,7 +222,8 @@ class TelegramReporter:
 📊 <b>Direction:</b> {position_data['side']}
 💵 <b>Entry Price:</b> ${position_data['entry_price']:.4f}
 🚪 <b>Exit Price:</b> ${position_data.get('exit_price', 0):.4f}
-💸 <b>Margin:</b> ${margin_used:.2f} USDT
+📦 <b>Position Value:</b> ${position_value_usdt:.2f} USDT
+💸 <b>Margin Used:</b> ${margin_used:.2f} USDT
 💰 <b>Realized PNL:</b> ${pnl:.2f} USDT ({pnl_percent:+.2f}%)
 🎯 <b>Exit Reason:</b> {exit_reason}
 💰 <b>Current Balance:</b> ${current_balance:.2f} USDT
@@ -248,17 +264,23 @@ class TelegramReporter:
         except Exception as e:
             self.logger.error(f"Failed to send orphan trade clearance report: {e}")
 
-    def report_ghost_trade_detected(self, strategy_name: str, symbol: str, side: str, quantity: float):
+    def report_ghost_trade_detected(self, strategy_name: str, symbol: str, side: str, quantity: float, current_price: float = None):
         """Report ghost trade detection to Telegram"""
         try:
+            # Calculate USDT value if current price is available
+            usdt_value_text = ""
+            if current_price:
+                usdt_value = current_price * quantity
+                usdt_value_text = f"📦 <b>Position Value:</b> ${usdt_value:.2f} USDT\n"
+            
             message = f"""
 👻 <b>GHOST TRADE DETECTED</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
 🎯 <b>Strategy:</b> {strategy_name.upper()}
 💰 <b>Pair:</b> {symbol}
 📊 <b>Direction:</b> {side}
-📏 <b>Quantity:</b> {quantity:.6f}
-⚠️ <b>Status:</b> Manual trade found, not opened by bot
+📏 <b>Quantity:</b> {quantity:.6f} {symbol.replace('USDT', '')}
+{usdt_value_text}⚠️ <b>Status:</b> Manual trade found, not opened by bot
 🔄 <b>Action:</b> Will clear in 2 market cycles
             """
             self.send_message(message)
