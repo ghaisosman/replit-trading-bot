@@ -192,7 +192,7 @@ For MAINNET:
 
             # Initial anomaly check AFTER startup notification - SUPPRESS notifications for startup scan
             self.logger.info("🔍 PERFORMING INITIAL ANOMALY CHECK (SUPPRESSED)...")
-            self.anomaly_detector.check_anomalies(suppress_notifications=True)
+            self.anomaly_detector.run_detection(suppress_notifications=True)
 
             # Log startup scan completion status
             self.logger.info(f"🔍 STARTUP SCAN STATUS: startup_protection_complete = {self.anomaly_detector.startup_complete}")
@@ -234,7 +234,7 @@ For MAINNET:
                 await self._check_exit_conditions()
 
                 # Check for trade anomalies (orphan/ghost trades)
-                self.anomaly_detector.check_anomalies()
+                self.anomaly_detector.run_detection()
 
                 # Sleep before next iteration
                 await asyncio.sleep(global_config.PRICE_UPDATE_INTERVAL)
