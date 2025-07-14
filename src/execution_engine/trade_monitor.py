@@ -181,17 +181,23 @@ class TradeMonitor:
 
                 for strategy_name, bot_position in self.order_manager.active_positions.items():
                     if bot_position.symbol == symbol:
-                        # Compare position details
+                        # Compare position details more accurately
                         bot_side_multiplier = 1 if bot_position.side == 'BUY' else -1
                         expected_position_amt = bot_position.quantity * bot_side_multiplier
 
                         self.logger.debug(f"🔍 GHOST CHECK: Comparing {symbol} - Binance: {position_amt}, Bot expects: {expected_position_amt}")
 
-                        # Allow small tolerance for quantity differences due to rounding
-                        if abs(position_amt - expected_position_amt) < 0.1:  # Increased tolerance
+                        # More lenient tolerance for quantity differences due to rounding
+                        if abs(position_amt - expected_position_amt) < 0.001:  # Very small tolerance for exact matches
                             is_bot_position = True
                             matching_strategy = strategy_name
                             self.logger.debug(f"🔍 GHOST CHECK: Position {symbol} matches bot strategy {strategy_name}")
+                            break
+                        # Also check for exact quantity match (common case)
+                        elif abs(abs(position_amt) - bot_position.quantity) < 0.001:
+                            is_bot_position = True
+                            matching_strategy = strategy_name
+                            self.logger.debug(f"🔍 GHOST CHECK: Position {symbol} matches bot strategy {strategy_name} (quantity match)")
                             break
                         else:
                             self.logger.debug(f"🔍 GHOST CHECK: Position {symbol} differs from bot - difference: {abs(position_amt - expected_position_amt)}")
@@ -257,8 +263,8 @@ class TradeMonitor:
                         # Log detection
                         usdt_value = current_price * abs(position_amt) if current_price else 0
 
-                        # Only send notification if not suppressed AND startup scan is complete
-                        if not suppress_notifications and self.startup_scan_complete:
+                        # Only send notification if not suppressed AND startup scan is complete AND not already notified
+                        if not suppress_notifications and self.startup_scan_complete and not ghost_trade.detection_notified:
                             # This is a normal anomaly check - send notification ONLY ONCE
                             self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
 
@@ -362,6 +368,10 @@ class TradeMonitor:
                     ghost_trade.clearing_notified = True
 
                 ghosts_to_remove.append(ghost_id)
+            elif ghost_trade.cycles_remaining <= 0 and not suppress_notifications:
+                # If cycles expired but position still exists, just reset cycles and keep monitoring
+                ghost_trade.cycles_remaining = 20  # Reset cycles
+                self.logger.debug(f"🔍 GHOST CHECK: Reset cycles for persistent ghost trade {ghost_id}")
 
         # Remove cleared ghost trades from internal tracking and add to recently cleared
         for ghost_id in ghosts_to_remove:
