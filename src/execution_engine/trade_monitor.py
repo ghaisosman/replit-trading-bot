@@ -66,12 +66,13 @@ class TradeMonitor:
             self._check_ghost_trades(suppress_notifications)
             self._process_cycle_countdown(suppress_notifications)
             
-            # Mark startup scan as complete only if not suppressed
-            if not self.startup_scan_complete and not suppress_notifications:
+            # Mark startup scan as complete after first run, regardless of suppression
+            if not self.startup_scan_complete:
                 self.startup_scan_complete = True
-                self.logger.info("🔍 STARTUP SCAN: Initial anomaly scan completed")
-            elif not self.startup_scan_complete and suppress_notifications:
-                self.logger.info("🔍 STARTUP SCAN: Initial anomaly scan completed (notifications suppressed)")
+                if suppress_notifications:
+                    self.logger.info("🔍 STARTUP SCAN: Initial anomaly scan completed (notifications suppressed)")
+                else:
+                    self.logger.info("🔍 STARTUP SCAN: Initial anomaly scan completed")
 
             self.logger.debug(f"🔍 {scan_type}: Completed anomaly detection")
         except Exception as e:
@@ -246,15 +247,9 @@ class TradeMonitor:
                         # Log detection
                         usdt_value = current_price * abs(position_amt) if current_price else 0
                         
-                        # Only send notifications if:
-                        # 1. Not suppressed AND
-                        # 2. Startup scan is complete AND  
-                        # 3. This is a truly new detection (not a duplicate)
-                        should_notify = (not suppress_notifications and 
-                                       self.startup_scan_complete and 
-                                       not ghost_trade.detection_notified)
-                        
-                        if should_notify:
+                        # Determine if we should notify based on suppression and whether this is truly new
+                        if not suppress_notifications:
+                            # This is a normal anomaly check - send notification
                             self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
                             
                             # Send Telegram notification
@@ -270,8 +265,8 @@ class TradeMonitor:
                             ghost_trade.detection_notified = True
                             ghost_trade.last_notification_time = datetime.now()
                         else:
-                            scan_type = "STARTUP SCAN" if not self.startup_scan_complete else "SUPPRESSED CHECK"
-                            self.logger.info(f"👻 POSITION NOTED ({scan_type}) | {monitoring_strategy} | {symbol} | Manual position tracked | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
+                            # This is a suppressed startup scan - just log
+                            self.logger.info(f"👻 POSITION NOTED (STARTUP SCAN) | {monitoring_strategy} | {symbol} | Manual position tracked | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
                     else:
                         # Update the existing ghost trade but don't re-notify
                         if existing_ghost_id:

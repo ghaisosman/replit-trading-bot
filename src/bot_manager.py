@@ -157,7 +157,7 @@ For MAINNET:
             # Send startup notification ONCE with correct open trades count
             if not self.startup_notified:
                 self.logger.info(f"📱 SENDING TELEGRAM STARTUP NOTIFICATION ({startup_source})")
-                
+
                 try:
                     self.telegram_reporter.report_bot_startup(
                         pairs=pairs,
@@ -180,8 +180,8 @@ For MAINNET:
             self.logger.info("🔍 PERFORMING INITIAL ANOMALY CHECK (SUPPRESSED)...")
             self.trade_monitor.check_for_anomalies(suppress_notifications=True)
 
-            # Start main trading loop
-            self.logger.info("🔄 STARTING MAIN TRADING LOOP...")
+            # Log startup scan completion status
+            self.logger.info(f"🔍 STARTUP SCAN STATUS: startup_scan_complete = {self.trade_monitor.startup_scan_complete}")
 
             await self._main_trading_loop()
 
