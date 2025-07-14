@@ -158,37 +158,40 @@ def start_bot():
     global bot_manager, bot_thread, bot_running, shared_bot_manager
     
     try:
+        # Always try to get the latest shared bot manager
+        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+        
         # Check if there's a shared bot manager from main.py
         if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
             if shared_bot_manager.is_running:
-                return jsonify({'success': False, 'message': 'Bot is already running in main process'})
+                return jsonify({'success': False, 'message': 'Bot is already running in console'})
             
-            # Use the shared bot manager
+            # Use the shared bot manager and start it
             bot_manager = shared_bot_manager
-            bot_running = True
             
-            # Start the shared bot
-            def run_shared_bot():
+            # Start the shared bot in the main event loop
+            def start_shared_bot():
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                logger = logging.getLogger(__name__)
                 try:
-                    logger.info("🚀 STARTING BOT FROM WEB INTERFACE")
-                    loop.run_until_complete(bot_manager.start())
+                    # Set running state
+                    shared_bot_manager.is_running = True
+                    
+                    # Start the bot's main trading loop
+                    loop.run_until_complete(shared_bot_manager._main_trading_loop())
                 except Exception as e:
-                    logger.error(f"Bot error: {e}")
+                    logging.getLogger(__name__).error(f"Bot error: {e}")
                 finally:
-                    global bot_running
-                    bot_running = False
-                    logger.info("🔴 BOT STOPPED FROM WEB INTERFACE")
+                    shared_bot_manager.is_running = False
                     loop.close()
             
-            bot_thread = threading.Thread(target=run_shared_bot, daemon=True)
+            bot_thread = threading.Thread(target=start_shared_bot, daemon=True)
             bot_thread.start()
+            bot_running = True
             
-            return jsonify({'success': True, 'message': 'Bot started successfully'})
+            return jsonify({'success': True, 'message': 'Bot started from web interface'})
         
-        # Fallback to standalone bot if no shared manager
+        # Fallback: create new bot instance if no shared manager exists
         if bot_running:
             return jsonify({'success': False, 'message': 'Bot is already running'})
         
@@ -202,7 +205,6 @@ def start_bot():
             logger = logging.getLogger(__name__)
             try:
                 logger.info("🚀 STARTING BOT FROM WEB INTERFACE")
-                logger.info("📊 Console logs will appear below...")
                 loop.run_until_complete(bot_manager.start())
             except Exception as e:
                 logger.error(f"Bot error: {e}")
@@ -226,20 +228,32 @@ def stop_bot():
     global bot_manager, bot_running, shared_bot_manager
     
     try:
+        # Always try to get the latest shared bot manager
+        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+        
         # Check if there's a shared bot manager from main.py
         if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
             if shared_bot_manager.is_running:
-                # Stop the shared bot
-                asyncio.run(shared_bot_manager.stop("Manual stop via web interface"))
+                # Stop the shared bot by setting is_running to False
+                shared_bot_manager.is_running = False
+                
+                # Send stop notification
+                try:
+                    shared_bot_manager.telegram_reporter.report_bot_stopped("Manual stop via web interface")
+                except:
+                    pass
+                
                 bot_running = False
-                return jsonify({'success': True, 'message': 'Bot stopped successfully'})
+                return jsonify({'success': True, 'message': 'Bot stopped from web interface'})
+            else:
+                return jsonify({'success': False, 'message': 'Bot is not running in console'})
         
         # Fallback to standalone bot
         if not bot_running or not bot_manager:
             return jsonify({'success': False, 'message': 'Bot is not running'})
         
         # Stop the bot
-        asyncio.run(bot_manager.stop("Manual stop via web interface"))
+        bot_manager.is_running = False
         bot_running = False
         
         return jsonify({'success': True, 'message': 'Bot stopped successfully'})
@@ -336,16 +350,19 @@ def get_bot_status():
     """Get current bot status"""
     global bot_running, bot_manager, shared_bot_manager
     
+    # Always get fresh reference to shared bot manager
+    shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+    
     # Check shared bot manager first
     if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
         try:
             return {
                 'running': shared_bot_manager.is_running,
-                'active_positions': len(shared_bot_manager.order_manager.active_positions),
-                'strategies': list(shared_bot_manager.strategies.keys())
+                'active_positions': len(shared_bot_manager.order_manager.active_positions) if shared_bot_manager.order_manager else 0,
+                'strategies': list(shared_bot_manager.strategies.keys()) if shared_bot_manager.strategies else []
             }
-        except:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).debug(f"Error getting shared bot status: {e}")
     
     # Fallback to standalone bot
     if not bot_running or not bot_manager:

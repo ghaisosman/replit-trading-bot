@@ -38,11 +38,11 @@ async def main():
     
     # Start web dashboard in background thread
     def run_web_dashboard():
-        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+        app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
     
     web_thread = threading.Thread(target=run_web_dashboard, daemon=True)
     web_thread.start()
-    logger.info("🌐 Web Dashboard started at http://0.0.0.0:5000")
+    logger.info("🌐 Web Dashboard started at http://0.0.0.0:8080")
     
     try:
         # Initialize and start the bot
