@@ -92,10 +92,31 @@ class TelegramReporter:
 
     def report_bot_stopped(self, reason: str):
         """4. Bot stopped"""
+        # Determine if this is an error or manual shutdown
+        is_error = any(keyword in reason.lower() for keyword in ['error', 'failed', 'exception', 'critical'])
+        
+        # Choose appropriate emoji and status
+        status_emoji = "🚨" if is_error else "🔴"
+        status_text = "ERROR SHUTDOWN" if is_error else "BOT STOPPED"
+        
+        # Suggest fixes for common errors
+        suggested_fixes = ""
+        if is_error:
+            if "api" in reason.lower():
+                suggested_fixes = "\n🛠️ <b>Suggested Fix:</b> Check API keys and permissions"
+            elif "connection" in reason.lower():
+                suggested_fixes = "\n🛠️ <b>Suggested Fix:</b> Check internet connection and Binance status"
+            elif "auth" in reason.lower():
+                suggested_fixes = "\n🛠️ <b>Suggested Fix:</b> Verify API credentials and IP whitelist"
+            elif "balance" in reason.lower():
+                suggested_fixes = "\n🛠️ <b>Suggested Fix:</b> Check account balance and margin requirements"
+            else:
+                suggested_fixes = "\n🛠️ <b>Suggested Fix:</b> Check logs and restart bot if needed"
+        
         message = f"""
-🔴 <b>BOT STOPPED</b>
+{status_emoji} <b>{status_text}</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
-📝 <b>Reason:</b> {reason}
+📝 <b>Reason:</b> {reason}{suggested_fixes}
         """
         self.send_message(message)
 

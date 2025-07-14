@@ -129,14 +129,21 @@ For MAINNET:
             await self._main_trading_loop()
 
         except Exception as e:
-            self.logger.error(f"Error starting bot: {e}")
+            error_msg = f"Startup Error: {str(e)}"
+            self.logger.error(error_msg)
             self.telegram_reporter.report_error("Startup Error", str(e))
+            
+            # Send shutdown notification for startup failure
+            self.telegram_reporter.report_bot_stopped(f"Failed to start: {str(e)}")
             raise
 
-    async def stop(self):
+    async def stop(self, reason: str = "Manual shutdown"):
         """Stop the trading bot"""
-        self.logger.info("Stopping trading bot...")
+        self.logger.info(f"Stopping trading bot: {reason}")
         self.is_running = False
+        
+        # Send shutdown notification to Telegram
+        self.telegram_reporter.report_bot_stopped(reason)
 
     async def _main_trading_loop(self):
         """Main trading loop"""
@@ -159,8 +166,15 @@ For MAINNET:
                 await asyncio.sleep(global_config.PRICE_UPDATE_INTERVAL)
 
             except Exception as e:
-                self.logger.error(f"Error in main trading loop: {e}")
+                error_msg = f"Main Loop Error: {str(e)}"
+                self.logger.error(error_msg)
                 self.telegram_reporter.report_error("Main Loop Error", str(e))
+                
+                # If it's a critical error, stop the bot
+                if "API" in str(e) or "connection" in str(e).lower() or "auth" in str(e).lower():
+                    await self.stop(f"Critical error: {str(e)}")
+                    break
+                    
                 await asyncio.sleep(5)  # Brief pause before retrying
 
     async def _process_strategy(self, strategy_name: str, strategy_config: Dict):
