@@ -21,7 +21,7 @@ from src.data_fetcher.balance_fetcher import BalanceFetcher
 from src.bot_manager import BotManager
 import logging
 from src.utils.logger import setup_logger
-from src.analytics.ml_analyzer import MLAnalyzer
+from src.analytics.ml_analyzer import MLTradeAnalyzer
 
 # Define trades directory path
 trades_dir = Path("trading_data/trades")
@@ -439,7 +439,7 @@ def recent_trades():
         return jsonify({'success': False, 'error': str(e)})
 
 # Initialize ML analyzer
-ml_analyzer = MLAnalyzer()
+ml_analyzer = MLTradeAnalyzer()
 
 @app.route('/ml-reports')
 def ml_reports():
