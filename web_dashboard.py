@@ -14,6 +14,42 @@ import plotly.graph_objs as go
 import plotly.utils
 from pathlib import Path
 from src.config.trading_config import trading_config_manager
+
+def _persist_config_to_file():
+    """Persist current trading config manager state to trading_config.py file"""
+    try:
+        # Read the current file
+        config_file_path = 'src/config/trading_config.py'
+        with open(config_file_path, 'r') as f:
+            content = f.read()
+        
+        # Build the new strategy_overrides dictionary string
+        overrides_str = "        self.strategy_overrides = {\n"
+        for strategy_name, overrides in trading_config_manager.strategy_overrides.items():
+            overrides_str += f"            '{strategy_name}': {{\n"
+            for key, value in overrides.items():
+                if isinstance(value, str):
+                    overrides_str += f"                '{key}': '{value}',\n"
+                else:
+                    overrides_str += f"                '{key}': {value},\n"
+            overrides_str += "            },\n"
+        overrides_str += "        }"
+        
+        # Replace the strategy_overrides section in the file
+        import re
+        pattern = r'self\.strategy_overrides\s*=\s*\{[^}]*\}(?:\s*\})*'
+        new_content = re.sub(pattern, overrides_str.strip(), content, flags=re.DOTALL)
+        
+        # Write back to file
+        with open(config_file_path, 'w') as f:
+            f.write(new_content)
+            
+        logger.info("💾 Configuration persisted to trading_config.py")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to persist config to file: {e}")
+        return False
 from src.config.global_config import global_config
 from src.binance_client.client import BinanceClientWrapper
 from src.data_fetcher.price_fetcher import PriceFetcher
@@ -361,6 +397,9 @@ def update_strategy(strategy_name):
         # Update strategy parameters in config manager
         trading_config_manager.update_strategy_params(strategy_name, data)
 
+        # PERSIST CHANGES TO FILE - Write updated config back to trading_config.py
+        _persist_config_to_file()
+
         # Always try to get the latest shared bot manager
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
 
@@ -379,11 +418,13 @@ def update_strategy(strategy_name):
             logger.info(f"📝 WEB INTERFACE: Updated {strategy_name} config in standalone bot: {data}")
             bot_updated = True
 
-        message = f'Strategy {strategy_name} updated'
+        message = f'Strategy {strategy_name} updated and saved to file'
         if bot_updated:
             message += ' (applied to running bot immediately)'
         else:
-            message += ' (restart bot to apply changes)'
+            message += ' (will persist after restart)'
+
+        logger.info(f"💾 PERSISTED: {strategy_name} config saved to trading_config.py")
 
         return jsonify({'success': True, 'message': message})
     except Exception as e:
