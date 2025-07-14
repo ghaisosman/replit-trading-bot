@@ -82,7 +82,7 @@ For MAINNET:
         # Anomaly detection
         from src.execution_engine.trade_monitor import TradeMonitor
         self.trade_monitor = TradeMonitor(self.binance_client, self.order_manager, self.telegram_reporter)
-        
+
         # Register strategies for monitoring
         for strategy_name, strategy_config in self.strategies.items():
             self.trade_monitor.register_strategy(strategy_name, strategy_config['symbol'])
@@ -148,7 +148,7 @@ For MAINNET:
 
                 # Check exit conditions for open positions
                 await self._check_exit_conditions()
-                
+
                 # Check for trade anomalies (orphan/ghost trades)
                 self.trade_monitor.check_for_anomalies()
 
@@ -388,30 +388,30 @@ For MAINNET:
         """Recover active positions from Binance on startup"""
         try:
             self.logger.info("🔍 CHECKING FOR EXISTING POSITIONS...")
-            
+
             for strategy_name, strategy_config in self.strategies.items():
                 symbol = strategy_config['symbol']
-                
+
                 # Get open positions from Binance for this symbol
                 try:
                     if self.binance_client.is_futures:
                         positions = self.binance_client.client.futures_position_information(symbol=symbol)
-                        
+
                         for position in positions:
                             position_amt = float(position.get('positionAmt', 0))
-                            
+
                             if abs(position_amt) > 0:  # Position exists
                                 # Recover position details
                                 entry_price = float(position.get('entryPrice', 0))
                                 side = 'BUY' if position_amt > 0 else 'SELL'
                                 quantity = abs(position_amt)
-                                
+
                                 self.logger.info(f"📍 EXISTING POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price:.4f}")
-                                
+
                                 # Create position object (simplified recovery)
                                 from src.execution_engine.order_manager import Position
                                 from datetime import datetime
-                                
+
                                 recovered_position = Position(
                                     strategy_name=strategy_name,
                                     symbol=symbol,
@@ -425,20 +425,20 @@ For MAINNET:
                                     entry_time=datetime.now(),  # Current time as fallback
                                     status='OPEN'
                                 )
-                                
+
                                 # Add to active positions
                                 self.order_manager.active_positions[strategy_name] = recovered_position
-                                
+
                                 break  # Only one position per strategy
-                                
+
                 except Exception as e:
                     self.logger.warning(f"Could not check positions for {symbol}: {e}")
-                    
+
             if self.order_manager.active_positions:
                 self.logger.info(f"✅ RECOVERED {len(self.order_manager.active_positions)} ACTIVE POSITIONS")
             else:
                 self.logger.info("✅ NO EXISTING POSITIONS FOUND")
-                
+
         except Exception as e:
             self.logger.error(f"Error recovering active positions: {e}")
 
@@ -450,4 +450,3 @@ For MAINNET:
             'strategies': list(self.strategies.keys()),
             'balance': self.balance_fetcher.get_usdt_balance()
         }
-

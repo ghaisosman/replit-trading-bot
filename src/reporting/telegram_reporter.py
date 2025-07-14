@@ -18,6 +18,10 @@ class TelegramReporter:
     def send_message(self, message: str, parse_mode: str = "HTML") -> bool:
         """Send a message to Telegram"""
         try:
+            # Filter out market assessment messages - they should only appear in console logs
+            if "MARKET ASSESSMENT" in message or "SCANNING" in message:
+                return True  # Skip sending but return success
+            
             url = f"{self.base_url}/sendMessage"
             payload = {
                 'chat_id': self.chat_id,
