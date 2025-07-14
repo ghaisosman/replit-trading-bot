@@ -146,3 +146,26 @@ class OrderManager:
     def get_position_history(self) -> List[Position]:
         """Get position history"""
         return self.position_history.copy()
+    
+    def clear_orphan_position(self, strategy_name: str) -> bool:
+        """Clear an orphan position (bot opened, manually closed)"""
+        try:
+            if strategy_name not in self.active_positions:
+                self.logger.warning(f"No active position to clear for strategy {strategy_name}")
+                return False
+            
+            position = self.active_positions[strategy_name]
+            
+            # Mark as orphan and move to history
+            position.status = "ORPHAN_CLEARED"
+            self.position_history.append(position)
+            
+            # Remove from active positions
+            del self.active_positions[strategy_name]
+            
+            self.logger.info(f"Orphan position cleared for {strategy_name}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error clearing orphan position: {e}")
+            return False

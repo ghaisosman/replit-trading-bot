@@ -105,6 +105,56 @@ class TelegramReporter:
         """
         self.send_message(message)
 
+    def report_orphan_trade_detected(self, strategy_name: str, symbol: str, side: str, entry_price: float):
+        """Report orphan trade detection"""
+        message = f"""
+🔍 <b>ORPHAN TRADE DETECTED</b>
+⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
+🎯 <b>Strategy:</b> {strategy_name}
+💰 <b>Pair:</b> {symbol}
+📊 <b>Direction:</b> {side}
+💵 <b>Entry Price:</b> ${entry_price:.4f}
+⚠️ <b>Status:</b> Bot opened trade, manually closed
+🔄 <b>Action:</b> Will clear in 2 market cycles
+        """
+        self.send_message(message)
+
+    def report_orphan_trade_cleared(self, strategy_name: str, symbol: str):
+        """Report orphan trade cleared"""
+        message = f"""
+🧹 <b>ORPHAN TRADE CLEARED</b>
+⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
+🎯 <b>Strategy:</b> {strategy_name}
+💰 <b>Pair:</b> {symbol}
+✅ <b>Status:</b> Strategy can trade again
+        """
+        self.send_message(message)
+
+    def report_ghost_trade_detected(self, strategy_name: str, symbol: str, side: str, quantity: float):
+        """Report ghost trade detection"""
+        message = f"""
+👻 <b>GHOST TRADE DETECTED</b>
+⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
+🎯 <b>Strategy:</b> {strategy_name}
+💰 <b>Pair:</b> {symbol}
+📊 <b>Direction:</b> {side}
+📏 <b>Quantity:</b> {quantity:.6f}
+⚠️ <b>Status:</b> Manual trade found, not opened by bot
+🔄 <b>Action:</b> Will clear in 2 market cycles
+        """
+        self.send_message(message)
+
+    def report_ghost_trade_cleared(self, strategy_name: str, symbol: str):
+        """Report ghost trade cleared"""
+        message = f"""
+🧹 <b>GHOST TRADE CLEARED</b>
+⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
+🎯 <b>Strategy:</b> {strategy_name}
+💰 <b>Pair:</b> {symbol}
+✅ <b>Status:</b> Strategy can trade again
+        """
+        self.send_message(message)
+
     # Remove all the old methods we don't need anymore
     def report_entry_signal(self, *args, **kwargs):
         pass

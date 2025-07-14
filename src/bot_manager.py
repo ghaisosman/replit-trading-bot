@@ -78,6 +78,10 @@ For MAINNET:
 
         # Running state
         self.is_running = False
+        
+        # Anomaly detection
+        self.trade_monitor = TradeMonitor()
+
 
     async def start(self):
         """Start the trading bot"""
@@ -155,6 +159,12 @@ For MAINNET:
             # Update last assessment time
             self.strategy_last_assessment[strategy_name] = datetime.now()
 
+            # Check if strategy has blocking anomaly
+            if self.trade_monitor.has_blocking_anomaly(strategy_name):
+                anomaly_status = self.trade_monitor.get_anomaly_status(strategy_name)
+                self.logger.info(f"⚠️ STRATEGY BLOCKED | {strategy_name.upper()} | {strategy_config['symbol']} | Status: {anomaly_status}")
+                return
+
             # Check if strategy already has an active position
             if strategy_name in self.order_manager.active_positions:
                 # Show current position status
@@ -162,7 +172,7 @@ For MAINNET:
                 current_price = self._get_current_price(strategy_config['symbol'])
                 if current_price:
                     pnl = self._calculate_pnl(position, current_price)
-                    self.logger.info(f"📊 ACTIVE POSITION | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.4f} | PnL: ${pnl:.2f}")
+                    self.logger.info(f"📊 ACTIVE POSITION | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.4f} | PnL: ${pnl:.2f} USDT")
                 return
 
             # Check balance requirements
@@ -376,3 +386,49 @@ For MAINNET:
             'strategies': list(self.strategies.keys()),
             'balance': self.balance_fetcher.get_usdt_balance()
         }
+
+class TradeMonitor:
+    """
+    Monitors trades for anomalies like orphan and ghost trades.
+    """
+
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        self.anomalies = {}  # Stores anomaly status per strategy
+
+    def has_blocking_anomaly(self, strategy_name: str) -> bool:
+        """
+        Checks if a blocking anomaly exists for a strategy.
+        """
+        return strategy_name in self.anomalies
+
+    def get_anomaly_status(self, strategy_name: str) -> Optional[str]:
+        """
+        Returns the status of the anomaly for a strategy, if any.
+        """
+        return self.anomalies.get(strategy_name)
+
+    def detect_orphan_trade(self, strategy_name: str):
+        """
+        Detects and flags orphan trades.
+        """
+        self.logger.warning(f"Orphan trade detected for strategy: {strategy_name}")
+        self.anomalies[strategy_name] = "Orphan Trade Detected"
+        # TODO: Implement telegram notification
+
+    def detect_ghost_trade(self, strategy_name: str):
+        """
+        Detects and flags ghost trades.
+        """
+        self.logger.warning(f"Ghost trade detected for strategy: {strategy_name}")
+        self.anomalies[strategy_name] = "Ghost Trade Detected"
+        # TODO: Implement telegram notification
+
+    def clear_anomaly(self, strategy_name: str):
+         """
+         Clears anomaly after a cooldown period (e.g., 2 market cycles).
+         """
+         if strategy_name in self.anomalies:
+            del self.anomalies[strategy_name]
+            self.logger.info(f"Anomaly cleared for strategy: {strategy_name}")
+         # TODO: Implement telegram notification
