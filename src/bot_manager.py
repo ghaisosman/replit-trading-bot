@@ -210,7 +210,7 @@ For MAINNET:
             if signal:
                 self.logger.info(f"🚨 ENTRY SIGNAL DETECTED | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | ${signal.entry_price:.4f} | Reason: {signal.reason}")
 
-                # Report signal to Telegram
+                # Entry signals are still reported to Telegram
                 self.telegram_reporter.report_entry_signal(strategy_name, {
                     'symbol': strategy_config['symbol'],
                     'signal_type': signal.signal_type.value,
@@ -232,11 +232,9 @@ For MAINNET:
                 else:
                     self.logger.warning(f"❌ POSITION FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not execute signal")
             else:
-                # Log market assessment result
+                # Log market assessment result (console only, no Telegram)
                 market_info = self._get_market_info(df, strategy_name)
                 self.logger.info(f"📈 MARKET ASSESSMENT | {strategy_name.upper()} | {strategy_config['symbol']} | Price: ${current_price:.4f} | {market_info}")
-
-                # Market assessment notifications are log-only (no telegram)
 
         except Exception as e:
             self.logger.error(f"Error processing strategy {strategy_name}: {e}")

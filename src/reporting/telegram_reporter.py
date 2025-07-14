@@ -169,6 +169,7 @@ class TelegramReporter:
         pass
 
     def report_market_assessment(self, *args, **kwargs):
+        # Market assessments are console-only, no Telegram notifications
         pass
 
     def report_balance_warning(self, *args, **kwargs):
