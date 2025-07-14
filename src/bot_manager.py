@@ -144,6 +144,9 @@ For MAINNET:
         
         # Send shutdown notification to Telegram
         self.telegram_reporter.report_bot_stopped(reason)
+        
+        # Small delay to ensure message is sent before process terminates
+        await asyncio.sleep(1)
 
     async def _main_trading_loop(self):
         """Main trading loop"""
