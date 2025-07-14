@@ -134,9 +134,9 @@ class TradeMonitor:
                             for gid, ghost in self.ghost_trades.items():
                                 # Extract strategy and symbol from ghost_id
                                 parts = gid.split('_')
-                                if len(parts) >= 2:
-                                    ghost_strategy = '_'.join(parts[:-3]) if len(parts) > 3 else parts[0]
-                                    ghost_symbol = parts[-3] if len(parts) > 3 else parts[1]
+                                if len(parts) >= 4:
+                                    ghost_strategy = '_'.join(parts[:-3])  # Everything except symbol, quantity, timestamp
+                                    ghost_symbol = parts[-3]  # Symbol is third from last
                                     
                                     if (ghost_strategy == strategy_name and 
                                         ghost_symbol == symbol and
@@ -216,10 +216,10 @@ class TradeMonitor:
             
             # Only clear from tracking if position no longer exists OR cycles expired
             if ghost_trade.cycles_remaining <= 0 or not position_still_exists:
-                # Extract strategy name from ghost_id (everything before the last two underscores)
+                # Extract strategy name from ghost_id (everything before the last three underscores)
                 parts = ghost_id.split('_')
-                if len(parts) >= 3:
-                    strategy_name = '_'.join(parts[:-2])  # Join all parts except symbol and quantity
+                if len(parts) >= 4:
+                    strategy_name = '_'.join(parts[:-3])  # Join all parts except symbol, quantity, and timestamp
                 else:
                     strategy_name = parts[0]
                 
