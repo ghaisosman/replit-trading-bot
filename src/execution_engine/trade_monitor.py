@@ -186,12 +186,22 @@ class TradeMonitor:
                         monitoring_strategy = f"manual_{symbol.lower()}"
                         self.logger.info(f"🔍 GHOST CHECK: No strategy monitors {symbol}, using generic name: {monitoring_strategy}")
 
-                    # Generate the expected ghost ID for this position
-                    side = 'LONG' if position_amt > 0 else 'SHORT'
-                    expected_ghost_id = f"{monitoring_strategy}_{symbol}_{side}_{abs(position_amt):.6f}"
+                    # Check if we already have a ghost trade for this symbol/strategy combination
+                    existing_ghost_found = False
+                    for ghost_id, ghost_trade in self.ghost_trades.items():
+                        if (ghost_trade.symbol == symbol and 
+                            ghost_id.startswith(f"{monitoring_strategy}_") and
+                            abs(ghost_trade.quantity - abs(position_amt)) < 0.001):
+                            existing_ghost_found = True
+                            self.logger.info(f"🔍 GHOST CHECK: Already tracking ghost trade for {symbol} under {monitoring_strategy}")
+                            break
 
-                    # Check if we already have this exact ghost trade
-                    if expected_ghost_id not in self.ghost_trades:
+                    # Only create new ghost trade if we don't already have one
+                    if not existing_ghost_found:
+                        side = 'LONG' if position_amt > 0 else 'SHORT'
+                        timestamp = int(datetime.now().timestamp())
+                        expected_ghost_id = f"{monitoring_strategy}_{symbol}_{side}_{abs(position_amt):.6f}_{timestamp}"
+
                         ghost_trade = GhostTrade(
                             symbol=symbol,
                             side=side,
@@ -210,7 +220,7 @@ class TradeMonitor:
                         except:
                             current_price = None
 
-                        # Log and notify
+                        # Log and notify ONLY once
                         usdt_value = current_price * abs(position_amt) if current_price else 0
                         self.logger.warning(f"👻 GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
                         self.telegram_reporter.report_ghost_trade_detected(
@@ -221,7 +231,7 @@ class TradeMonitor:
                             current_price=current_price
                         )
                     else:
-                        self.logger.info(f"🔍 GHOST CHECK: Ghost trade {expected_ghost_id} already exists, skipping duplicate")
+                        self.logger.debug(f"🔍 GHOST CHECK: Ghost trade already exists for {symbol}, skipping duplicate detection")
                 else:
                     self.logger.info(f"🔍 GHOST CHECK: Position {symbol} is a known bot position")
 
