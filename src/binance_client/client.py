@@ -257,3 +257,20 @@ class BinanceClientWrapper:
         except BinanceAPIException as e:
             self.logger.error(f"Error setting leverage {leverage}x for {symbol}: {e}")
             return None
+
+    def set_margin_type(self, symbol: str, margin_type: str = "CROSSED") -> Optional[Dict[str, Any]]:
+        """Set margin type for futures trading (ISOLATED or CROSSED)"""
+        try:
+            if self.is_futures:
+                return self.client.futures_change_margin_type(symbol=symbol, marginType=margin_type)
+            else:
+                self.logger.warning("Margin type setting not available for spot trading")
+                return None
+        except BinanceAPIException as e:
+            # Error -4046 means margin type is already set to the requested type
+            if e.code == -4046:
+                self.logger.info(f"Margin type for {symbol} already set to {margin_type}")
+                return {"msg": f"Margin type already {margin_type}"}
+            else:
+                self.logger.error(f"Error setting margin type {margin_type} for {symbol}: {e}")
+                return None

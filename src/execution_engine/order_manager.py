@@ -47,9 +47,23 @@ class OrderManager:
 
             # Set leverage before creating order
             leverage = strategy_config.get('leverage', 1)
-            if not self._set_leverage(strategy_config['symbol'], leverage):
-                self.logger.error(f"Failed to set leverage {leverage}x for {strategy_config['symbol']}")
-                return None
+            symbol = strategy_config['symbol']
+
+            # Set leverage for the symbol
+            leverage_result = self.binance_client.set_leverage(symbol, leverage)
+            if leverage_result:
+                self.logger.info(f"Leverage set to {leverage}x for {symbol}")
+            else:
+                self.logger.warning(f"Could not set leverage for {symbol}")
+
+            # Set margin type to CROSSED
+            margin_result = self.binance_client.set_margin_type(symbol, "CROSSED")
+            if margin_result:
+                self.logger.info(f"Margin type set to CROSS for {symbol}")
+            else:
+                self.logger.warning(f"Could not set margin type for {symbol}")
+
+            # Calculate position size
 
             # Determine order side and position side for hedge mode
             side = 'BUY' if signal.signal_type == SignalType.BUY else 'SELL'
