@@ -165,12 +165,66 @@ class TelegramReporter:
     def report_position_closed(self, *args, **kwargs):
         pass
 
-    def report_error(self, *args, **kwargs):
-        pass
+    def report_error(self, error_type: str, error_message: str, strategy_name: str = None):
+        """Report an error to Telegram"""
+        try:
+            message = f"❌ **{error_type}**\n"
+            if strategy_name:
+                message += f"Strategy: {strategy_name}\n"
+            message += f"Error: {error_message}"
 
-    def report_market_assessment(self, *args, **kwargs):
-        # Market assessments are console-only, no Telegram notifications
-        pass
+            self.send_message(message)
+        except Exception as e:
+            self.logger.error(f"Failed to send error report: {e}")
 
-    def report_balance_warning(self, *args, **kwargs):
-        pass
+    def report_orphan_trade_detected(self, strategy_name: str, symbol: str, side: str, entry_price: float):
+        """Report orphan trade detection to Telegram"""
+        try:
+            message = f"🔍 **ORPHAN TRADE DETECTED**\n"
+            message += f"Strategy: {strategy_name.upper()}\n"
+            message += f"Symbol: {symbol}\n"
+            message += f"Side: {side}\n"
+            message += f"Entry Price: ${entry_price:.4f}\n"
+            message += f"⚠️ Position was closed manually outside the bot"
+
+            self.send_message(message)
+        except Exception as e:
+            self.logger.error(f"Failed to send orphan trade detection report: {e}")
+
+    def report_orphan_trade_cleared(self, strategy_name: str, symbol: str):
+        """Report orphan trade clearance to Telegram"""
+        try:
+            message = f"🧹 **ORPHAN TRADE CLEARED**\n"
+            message += f"Strategy: {strategy_name.upper()}\n"
+            message += f"Symbol: {symbol}\n"
+            message += f"✅ Strategy can now trade again"
+
+            self.send_message(message)
+        except Exception as e:
+            self.logger.error(f"Failed to send orphan trade clearance report: {e}")
+
+    def report_ghost_trade_detected(self, strategy_name: str, symbol: str, side: str, quantity: float):
+        """Report ghost trade detection to Telegram"""
+        try:
+            message = f"👻 **GHOST TRADE DETECTED**\n"
+            message += f"Strategy: {strategy_name.upper()}\n"
+            message += f"Symbol: {symbol}\n"
+            message += f"Side: {side}\n"
+            message += f"Quantity: {quantity}\n"
+            message += f"⚠️ Position was opened manually outside the bot"
+
+            self.send_message(message)
+        except Exception as e:
+            self.logger.error(f"Failed to send ghost trade detection report: {e}")
+
+    def report_ghost_trade_cleared(self, strategy_name: str, symbol: str):
+        """Report ghost trade clearance to Telegram"""
+        try:
+            message = f"🧹 **GHOST TRADE CLEARED**\n"
+            message += f"Strategy: {strategy_name.upper()}\n"
+            message += f"Symbol: {symbol}\n"
+            message += f"✅ Strategy can now trade again"
+
+            self.send_message(message)
+        except Exception as e:
+            self.logger.error(f"Failed to send ghost trade clearance report: {e}")

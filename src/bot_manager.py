@@ -80,7 +80,12 @@ For MAINNET:
         self.is_running = False
 
         # Anomaly detection
-        self.trade_monitor = TradeMonitor()
+        from src.execution_engine.trade_monitor import TradeMonitor
+        self.trade_monitor = TradeMonitor(self.binance_client, self.order_manager, self.telegram_reporter)
+        
+        # Register strategies for monitoring
+        for strategy_name, strategy_config in self.strategies.items():
+            self.trade_monitor.register_strategy(strategy_name, strategy_config['symbol'])
 
 
     async def start(self):
@@ -143,6 +148,9 @@ For MAINNET:
 
                 # Check exit conditions for open positions
                 await self._check_exit_conditions()
+                
+                # Check for trade anomalies (orphan/ghost trades)
+                self.trade_monitor.check_for_anomalies()
 
                 # Sleep before next iteration
                 await asyncio.sleep(global_config.PRICE_UPDATE_INTERVAL)
@@ -443,48 +451,3 @@ For MAINNET:
             'balance': self.balance_fetcher.get_usdt_balance()
         }
 
-class TradeMonitor:
-    """
-    Monitors trades for anomalies like orphan and ghost trades.
-    """
-
-    def __init__(self):
-        self.logger = logging.getLogger(__name__)
-        self.anomalies = {}  # Stores anomaly status per strategy
-
-    def has_blocking_anomaly(self, strategy_name: str) -> bool:
-        """
-        Checks if a blocking anomaly exists for a strategy.
-        """
-        return strategy_name in self.anomalies
-
-    def get_anomaly_status(self, strategy_name: str) -> Optional[str]:
-        """
-        Returns the status of the anomaly for a strategy, if any.
-        """
-        return self.anomalies.get(strategy_name)
-
-    def detect_orphan_trade(self, strategy_name: str):
-        """
-        Detects and flags orphan trades.
-        """
-        self.logger.warning(f"Orphan trade detected for strategy: {strategy_name}")
-        self.anomalies[strategy_name] = "Orphan Trade Detected"
-        # TODO: Implement telegram notification
-
-    def detect_ghost_trade(self, strategy_name: str):
-        """
-        Detects and flags ghost trades.
-        """
-        self.logger.warning(f"Ghost trade detected for strategy: {strategy_name}")
-        self.anomalies[strategy_name] = "Ghost Trade Detected"
-        # TODO: Implement telegram notification
-
-    def clear_anomaly(self, strategy_name: str):
-         """
-         Clears anomaly after a cooldown period (e.g., 2 market cycles).
-         """
-         if strategy_name in self.anomalies:
-            del self.anomalies[strategy_name]
-            self.logger.info(f"Anomaly cleared for strategy: {strategy_name}")
-         # TODO: Implement telegram notification
