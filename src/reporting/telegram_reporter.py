@@ -31,6 +31,10 @@ class TelegramReporter:
 
         # Track startup notifications to prevent duplicates
         self.startup_notification_sent = False
+        
+        # Set up Telegram API base URL
+        if self.bot_token:
+            self.base_url = f"https://api.telegram.org/bot{self.bot_token}"
 
     def send_message(self, message: str, parse_mode: str = "HTML") -> bool:
         """Send a message to Telegram"""
