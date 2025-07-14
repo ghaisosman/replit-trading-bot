@@ -129,26 +129,25 @@ class TradeMonitor:
                         
                         # If this is not the bot's position, it's a ghost trade
                         if not is_bot_position:
-                            # Create unique ID for this ghost trade
-                            ghost_id = f"{strategy_name}_{symbol}_{abs(position_amt)}_{datetime.now().strftime('%H%M%S')}"
-                            
-                            # Check if we already detected this ghost trade (use simpler check)
-                            existing_ghost = None
+                            # Check if we already have a ghost trade for this symbol and strategy
+                            existing_ghost_id = None
                             for gid, ghost in self.ghost_trades.items():
                                 if (gid.startswith(f"{strategy_name}_{symbol}_") and 
                                     abs(ghost.quantity - abs(position_amt)) < 0.001):
-                                    existing_ghost = gid
+                                    existing_ghost_id = gid
                                     break
                             
-                            if not existing_ghost:
+                            # Only create new ghost trade if we don't already have one
+                            if not existing_ghost_id:
                                 side = 'BUY' if position_amt > 0 else 'SELL'
+                                ghost_id = f"{strategy_name}_{symbol}_{abs(position_amt):.6f}"
                                 
                                 ghost_trade = GhostTrade(
                                     symbol=symbol,
                                     side=side,
                                     quantity=abs(position_amt),
                                     detected_at=datetime.now(),
-                                    cycles_remaining=2,
+                                    cycles_remaining=20,  # Increased from 2 to 20 cycles (40 seconds)
                                     detection_notified=True,
                                     clearing_notified=False
                                 )
@@ -196,9 +195,18 @@ class TradeMonitor:
         for ghost_id, ghost_trade in self.ghost_trades.items():
             ghost_trade.cycles_remaining -= 1
             
-            if ghost_trade.cycles_remaining <= 0:
-                # Clear ghost trade from internal tracking ONLY - DO NOT close on Binance
-                # Ghost trades are manual positions that bot should never interfere with
+            # Check if position still exists on Binance before clearing
+            binance_positions = self._get_binance_positions(ghost_trade.symbol)
+            position_still_exists = False
+            
+            for binance_pos in binance_positions:
+                position_amt = float(binance_pos.get('positionAmt', 0))
+                if abs(position_amt) > 0.001:  # Position still exists
+                    position_still_exists = True
+                    break
+            
+            # Only clear from tracking if position no longer exists OR cycles expired
+            if ghost_trade.cycles_remaining <= 0 or not position_still_exists:
                 ghosts_to_remove.append(ghost_id)
                 
                 # Extract strategy name from ghost_id
@@ -206,7 +214,11 @@ class TradeMonitor:
                 
                 # Log and notify only if not already notified
                 if not ghost_trade.clearing_notified:
-                    self.logger.info(f"🧹 GHOST TRADE CLEARED | {strategy_name} | Removed from tracking only - Position remains on Binance")
+                    if position_still_exists:
+                        self.logger.info(f"🧹 GHOST TRADE CLEARED | {strategy_name} | Timeout - Position remains on Binance")
+                    else:
+                        self.logger.info(f"🧹 GHOST TRADE CLEARED | {strategy_name} | Position closed manually")
+                    
                     self.telegram_reporter.report_ghost_trade_cleared(
                         strategy_name=strategy_name,
                         symbol=ghost_trade.symbol
