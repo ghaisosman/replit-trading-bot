@@ -17,7 +17,7 @@ deploymentTarget = "gce"
 ignorePorts = true
 
 [workflows]
-runButton = "Manual Trading Bot"
+runButton = "Start Trading Bot"
 
 [[workflows.workflow]]
 name = "Run Trading Bot"
@@ -30,6 +30,15 @@ args = "python main.py"
 
 [[workflows.workflow]]
 name = "Manual Trading Bot"
+author = 43555514
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
+
+[[workflows.workflow]]
+name = "Start Trading Bot"
 author = 43555514
 mode = "sequential"
 

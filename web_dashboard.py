@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import plotly.graph_objs as go
 import plotly.utils
+from pathlib import Path
 from src.config.trading_config import trading_config_manager
 from src.config.global_config import global_config
 from src.binance_client.client import BinanceClientWrapper
@@ -21,6 +22,9 @@ from src.bot_manager import BotManager
 import logging
 from src.utils.logger import setup_logger
 from src.analytics.ml_analyzer import MLAnalyzer
+
+# Define trades directory path
+trades_dir = Path("trading_data/trades")
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
@@ -239,7 +243,6 @@ def start_bot():
             except Exception as e:
                 logger.error(f"Bot error: {e}")
                 # Send error notification
-                ```python
                 try:
                     bot_manager.telegram_reporter.report_bot_stopped(f"Startup failed: {str(e)}")
                 except:
@@ -435,37 +438,6 @@ def recent_trades():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/ml_reports')
-def ml_reports():
-    """ML Reports page"""
-    return render_template('ml_reports.html')
-
-@app.route('/api/ml_insights')
-def ml_insights():
-    """Get ML insights and analysis"""
-    try:
-        insights = ml_analyzer.generate_insights()
-        return jsonify({'success': True, 'insights': insights})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/ml_predictions')
-def ml_predictions():
-    """Get ML predictions for current market conditions"""
-    try:
-        predictions = ml_analyzer.get_predictions()
-        return jsonify({'success': True, 'predictions': predictions})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/train_models')
-def train_models():
-    """Train ML models with current trade data"""
-    try:
-        result = ml_analyzer.train_models()
-        return jsonify({'success': True, 'result': result})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
 # Initialize ML analyzer
 ml_analyzer = MLAnalyzer()
 
