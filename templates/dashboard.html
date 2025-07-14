@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -297,7 +296,7 @@
         $('#botToggle').click(function() {
             const isRunning = $(this).text().includes('Stop');
             const endpoint = isRunning ? '/api/bot/stop' : '/api/bot/start';
-            
+
             $.post(endpoint, function(data) {
                 if (data.success) {
                     location.reload();
@@ -433,14 +432,14 @@
             $.get('/api/positions', function(data) {
                 // Update positions display
             });
-            
+
             // Update bot status
             $.get('/api/bot/status', function(data) {
                 $('#botStatus').text(data.running ? 'RUNNING' : 'STOPPED');
                 $('#botStatus').removeClass('bg-success bg-danger').addClass(data.running ? 'bg-success' : 'bg-danger');
                 $('#activePositions').text(data.active_positions);
             });
-            
+
             // Update balance
             $.get('/api/balance', function(data) {
                 if (data.balance !== undefined) {

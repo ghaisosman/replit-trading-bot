@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 Trading Bot Web Dashboard
@@ -21,6 +20,7 @@ from src.data_fetcher.balance_fetcher import BalanceFetcher
 from src.bot_manager import BotManager
 import logging
 from src.utils.logger import setup_logger
+from src.analytics.ml_analyzer import MLAnalyzer
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
@@ -51,13 +51,13 @@ def dashboard():
     try:
         # Get current bot status
         status = get_bot_status()
-        
+
         # Get balance
         balance = balance_fetcher.get_usdt_balance() or 0
-        
+
         # Get current strategies
         strategies = trading_config_manager.strategy_overrides
-        
+
         # Get active positions
         active_positions = []
         if bot_manager and bot_manager.order_manager:
@@ -74,7 +74,7 @@ def dashboard():
                     'pnl': f"${pnl:,.1f}" if pnl else "$0.0",
                     'pnl_percent': f"{(pnl / (position.entry_price * position.quantity)) * 100:.1f}%" if position.entry_price * position.quantity > 0 else "0.0%"
                 })
-        
+
         return render_template('dashboard.html', 
                              status=status,
                              balance=balance,
@@ -91,13 +91,13 @@ def chart(symbol):
         df = price_fetcher.get_ohlcv_data(symbol, '15m', limit=100)
         if df is None or df.empty:
             return f"No data available for {symbol}"
-        
+
         # Calculate indicators
         df = price_fetcher.calculate_indicators(df)
-        
+
         # Create candlestick chart
         fig = go.Figure()
-        
+
         # Add candlestick
         fig.add_trace(go.Candlestick(
             x=df.index,
@@ -107,7 +107,7 @@ def chart(symbol):
             close=df['close'],
             name='Price'
         ))
-        
+
         # Add RSI if available
         if 'rsi' in df.columns:
             fig.add_trace(go.Scatter(
@@ -117,7 +117,7 @@ def chart(symbol):
                 yaxis='y2',
                 line=dict(color='purple')
             ))
-        
+
         # Add MACD if available
         if 'macd' in df.columns:
             fig.add_trace(go.Scatter(
@@ -127,7 +127,7 @@ def chart(symbol):
                 yaxis='y3',
                 line=dict(color='blue')
             ))
-            
+
         if 'macd_signal' in df.columns:
             fig.add_trace(go.Scatter(
                 x=df.index,
@@ -136,7 +136,7 @@ def chart(symbol):
                 yaxis='y3',
                 line=dict(color='red')
             ))
-        
+
         # Update layout
         fig.update_layout(
             title=f'{symbol} Trading Chart',
@@ -146,9 +146,9 @@ def chart(symbol):
             xaxis_rangeslider_visible=False,
             height=600
         )
-        
+
         chart_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-        
+
         return render_template('chart.html', symbol=symbol, chart=chart_json)
     except Exception as e:
         return f"Error loading chart: {e}"
@@ -157,28 +157,28 @@ def chart(symbol):
 def start_bot():
     """Start the trading bot"""
     global bot_manager, bot_thread, bot_running, shared_bot_manager
-    
+
     try:
         logger = logging.getLogger(__name__)
-        
+
         # Always try to get the latest shared bot manager
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-        
+
         # Check if there's a shared bot manager from main.py
         if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
             if shared_bot_manager.is_running:
                 return jsonify({'success': False, 'message': 'Bot is already running in console'})
-            
+
             # Use the shared bot manager and start it
             bot_manager = shared_bot_manager
-            
+
             # Log the web start action to console
             logger.info("🌐 WEB INTERFACE: Starting bot via web dashboard")
-            
+
             # Also log to bot manager's logger if available
             if hasattr(shared_bot_manager, 'logger'):
                 shared_bot_manager.logger.info("🌐 WEB INTERFACE: Bot started via web dashboard")
-            
+
             # Start the shared bot in the main event loop
             def start_shared_bot():
                 loop = asyncio.new_event_loop()
@@ -186,14 +186,14 @@ def start_bot():
                 try:
                     # FORCE reset startup notification flag for restart
                     shared_bot_manager.startup_notified = False
-                    
+
                     # Set running state
                     shared_bot_manager.is_running = True
                     logger.info("🚀 BOT RESTARTED VIA WEB INTERFACE")
-                    
+
                     # Force debug logging for notification state
                     logger.info(f"🔍 DEBUG: startup_notified reset to: {shared_bot_manager.startup_notified}")
-                    
+
                     # Start the bot's start method (this will handle startup notifications properly)
                     loop.run_until_complete(shared_bot_manager.start())
                 except Exception as e:
@@ -207,27 +207,27 @@ def start_bot():
                     shared_bot_manager.is_running = False
                     logger.info("🔴 BOT STOPPED - Web interface remains active")
                     loop.close()
-            
+
             bot_thread = threading.Thread(target=start_shared_bot, daemon=True)
             bot_thread.start()
             bot_running = True
-            
+
             return jsonify({'success': True, 'message': 'Bot restarted successfully from web interface'})
-        
+
         # Fallback: create new bot instance if no shared manager exists
         if bot_running:
             return jsonify({'success': False, 'message': 'Bot is already running'})
-        
+
         logger.info("🌐 WEB INTERFACE: Creating new bot instance via web dashboard")
-        
+
         # Create fresh bot manager instance
         bot_manager = BotManager()
-        
+
         # Update the global reference
         sys.modules['__main__'].bot_manager = bot_manager
-        
+
         bot_running = True
-        
+
         # Start bot in separate thread
         def run_bot():
             loop = asyncio.new_event_loop()
@@ -239,6 +239,7 @@ def start_bot():
             except Exception as e:
                 logger.error(f"Bot error: {e}")
                 # Send error notification
+                ```python
                 try:
                     bot_manager.telegram_reporter.report_bot_stopped(f"Startup failed: {str(e)}")
                 except:
@@ -248,12 +249,12 @@ def start_bot():
                 bot_running = False
                 logger.info("🔴 BOT STOPPED - Web interface remains active")
                 loop.close()
-        
+
         bot_thread = threading.Thread(target=run_bot, daemon=True)
         bot_thread.start()
-        
+
         return jsonify({'success': True, 'message': 'New bot instance started successfully'})
-        
+
     except Exception as e:
         bot_running = False
         logger.error(f"Failed to start bot: {e}")
@@ -263,70 +264,70 @@ def start_bot():
 def stop_bot():
     """Stop the trading bot while keeping web interface active"""
     global bot_manager, bot_running, shared_bot_manager
-    
+
     try:
         logger = logging.getLogger(__name__)
-        
+
         # Always try to get the latest shared bot manager
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-        
+
         # Check if there's a shared bot manager from main.py
         if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
             if shared_bot_manager.is_running:
                 logger.info("🌐 WEB INTERFACE: Stopping bot via web dashboard (web interface will remain active)")
-                
+
                 # Also log to bot manager's logger if available
                 if hasattr(shared_bot_manager, 'logger'):
                     shared_bot_manager.logger.info("🌐 WEB INTERFACE: Bot stopped via web dashboard")
-                
+
                 # Stop the shared bot by setting is_running to False
                 shared_bot_manager.is_running = False
-                
+
                 # Send stop notification
                 try:
                     shared_bot_manager.telegram_reporter.report_bot_stopped("Manual stop via web interface")
                     logger.info("🔴 BOT STOPPED VIA WEB INTERFACE (Dashboard remains active)")
                 except Exception as e:
                     logger.warning(f"Failed to send stop notification: {e}")
-                
+
                 bot_running = False
-                
+
                 # Important: Don't terminate the process, just stop the bot
                 logger.info("💡 Web interface remains active - you can restart the bot anytime")
-                
+
                 return jsonify({
                     'success': True, 
                     'message': 'Bot stopped successfully. Web interface remains active for restart.'
                 })
             else:
                 return jsonify({'success': False, 'message': 'Bot is not running in console'})
-        
+
         # Fallback to standalone bot
         if not bot_running or not bot_manager:
             return jsonify({'success': False, 'message': 'Bot is not running'})
-        
+
         logger.info("🌐 WEB INTERFACE: Stopping standalone bot via web dashboard (web interface will remain active)")
-        
+
         # Stop the bot gracefully
         if hasattr(bot_manager, 'is_running'):
             bot_manager.is_running = False
-        
+
         bot_running = False
-        
+
         # Send stop notification for standalone bot
         try:
             bot_manager.telegram_reporter.report_bot_stopped("Manual stop via web interface")
             logger.info("🔴 STANDALONE BOT STOPPED VIA WEB INTERFACE (Dashboard remains active)")
         except Exception as e:
             logger.warning(f"Failed to send stop notification: {e}")
-        
+
         logger.info("💡 Web interface remains active - you can restart the bot anytime")
-        
+
         return jsonify({
             'success': True, 
             'message': 'Bot stopped successfully. Web interface remains active for restart.'
         })
-        
+
     except Exception as e:
         logger.error(f"Error stopping bot: {e}")
         return jsonify({'success': False, 'message': f'Failed to stop bot: {e}'})
@@ -353,14 +354,14 @@ def update_strategy(strategy_name):
     """Update strategy configuration"""
     try:
         data = request.get_json()
-        
+
         # Update strategy parameters
         trading_config_manager.update_strategy_params(strategy_name, data)
-        
+
         # If bot is running, update its configuration too
         if bot_manager and strategy_name in bot_manager.strategies:
             bot_manager.strategies[strategy_name].update(data)
-        
+
         return jsonify({'success': True, 'message': f'Strategy {strategy_name} updated'})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Failed to update strategy: {e}'})
@@ -371,7 +372,7 @@ def update_default_params():
     try:
         data = request.get_json()
         trading_config_manager.update_default_params(data)
-        
+
         return jsonify({'success': True, 'message': 'Default parameters updated'})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Failed to update parameters: {e}'})
@@ -417,6 +418,57 @@ def get_positions():
     except Exception as e:
         return jsonify({'error': f'Failed to get positions: {e}'})
 
+@app.route('/api/recent_trades')
+def recent_trades():
+    """Get recent trades data"""
+    try:
+        trades_file = trades_dir / "all_trades.json"
+        if trades_file.exists():
+            with open(trades_file, 'r') as f:
+                trades = json.load(f)
+
+            # Get last 10 trades
+            recent = trades[-10:] if trades else []
+            return jsonify({'success': True, 'trades': recent})
+        else:
+            return jsonify({'success': True, 'trades': []})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/ml_reports')
+def ml_reports():
+    """ML Reports page"""
+    return render_template('ml_reports.html')
+
+@app.route('/api/ml_insights')
+def ml_insights():
+    """Get ML insights and analysis"""
+    try:
+        insights = ml_analyzer.generate_insights()
+        return jsonify({'success': True, 'insights': insights})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/ml_predictions')
+def ml_predictions():
+    """Get ML predictions for current market conditions"""
+    try:
+        predictions = ml_analyzer.get_predictions()
+        return jsonify({'success': True, 'predictions': predictions})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/train_models')
+def train_models():
+    """Train ML models with current trade data"""
+    try:
+        result = ml_analyzer.train_models()
+        return jsonify({'success': True, 'result': result})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+# Initialize ML analyzer
+ml_analyzer = MLAnalyzer()
+
 @app.route('/ml-reports')
 def ml_reports():
     """ML Reports dashboard page"""
@@ -426,7 +478,6 @@ def ml_reports():
 def train_ml_models():
     """Train ML models and return results"""
     try:
-        from src.analytics.ml_analyzer import ml_analyzer
         results = ml_analyzer.train_models()
         return jsonify(results)
     except Exception as e:
@@ -436,7 +487,6 @@ def train_ml_models():
 def get_ml_insights():
     """Get ML trading insights"""
     try:
-        from src.analytics.ml_analyzer import ml_analyzer
         insights = ml_analyzer.generate_insights()
         return jsonify(insights)
     except Exception as e:
@@ -446,7 +496,6 @@ def get_ml_insights():
 def predict_trade():
     """Predict trade outcome"""
     try:
-        from src.analytics.ml_analyzer import ml_analyzer
         trade_features = request.get_json()
         prediction = ml_analyzer.predict_trade_outcome(trade_features)
         return jsonify(prediction)
@@ -459,14 +508,14 @@ def get_daily_report():
     try:
         from src.analytics.trade_logger import trade_logger
         from datetime import datetime, timedelta
-        
+
         # Get yesterday's data by default
         date = request.args.get('date')
         if date:
             report_date = datetime.strptime(date, '%Y-%m-%d')
         else:
             report_date = datetime.now() - timedelta(days=1)
-            
+
         daily_summary = trade_logger.get_daily_summary(report_date)
         return jsonify(daily_summary)
     except Exception as e:
@@ -479,7 +528,7 @@ def send_daily_report():
         from src.analytics.daily_reporter import DailyReporter
         from src.reporting.telegram_reporter import TelegramReporter
         from datetime import datetime, timedelta
-        
+
         # Get date from request or use yesterday
         data = request.get_json() or {}
         date = data.get('date')
@@ -487,12 +536,12 @@ def send_daily_report():
             report_date = datetime.strptime(date, '%Y-%m-%d')
         else:
             report_date = datetime.now() - timedelta(days=1)
-            
+
         # Initialize and send report
         telegram_reporter = TelegramReporter()
         daily_reporter = DailyReporter(telegram_reporter)
         success = daily_reporter.send_manual_report(report_date)
-        
+
         return jsonify({'success': success, 'message': 'Report sent' if success else 'Failed to send report'})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to send report: {e}'})
@@ -513,10 +562,10 @@ def export_trade_data():
 def get_bot_status():
     """Get current bot status"""
     global bot_running, bot_manager, shared_bot_manager
-    
+
     # Always get fresh reference to shared bot manager
     shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-    
+
     # Check shared bot manager first
     if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
         try:
@@ -527,7 +576,7 @@ def get_bot_status():
             }
         except Exception as e:
             logging.getLogger(__name__).debug(f"Error getting shared bot status: {e}")
-    
+
     # Fallback to standalone bot
     if not bot_running or not bot_manager:
         return {
@@ -535,7 +584,7 @@ def get_bot_status():
             'active_positions': 0,
             'strategies': list(trading_config_manager.strategy_overrides.keys())
         }
-    
+
     try:
         return {
             'running': True,
@@ -561,7 +610,7 @@ def calculate_pnl(position, current_price):
     """Calculate PnL for position"""
     if not current_price:
         return 0
-    
+
     if position.side == 'BUY':
         return (current_price - position.entry_price) * position.quantity
     else:
