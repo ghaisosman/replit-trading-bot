@@ -410,11 +410,7 @@ class TradeMonitor:
         # Process ghost trades - NEVER close them on Binance, only clear from internal tracking
         ghosts_to_remove = []
         for ghost_id, ghost_trade in self.ghost_trades.items():
-            # Only decrement cycles if not suppressed (to prevent clearing during startup)
-            if not suppress_notifications:
-                ghost_trade.cycles_remaining -= 1
-
-            # Check if position still exists on Binance before clearing
+            # Check if position still exists on Binance before any processing
             binance_positions = self._get_binance_positions(ghost_trade.symbol)
             position_still_exists = False
 
@@ -424,11 +420,8 @@ class TradeMonitor:
                     position_still_exists = True
                     break
 
-            # Only clear from tracking if position no longer exists on Binance
-            # Don't clear just because cycles expired - let manual positions persist
-            should_clear = not position_still_exists
-
-            if should_clear:
+            # If position no longer exists on Binance, clear it immediately regardless of cycles
+            if not position_still_exists:
                 # Extract strategy name from simplified ghost_id (strategy_symbol format)
                 parts = ghost_id.split('_')
                 if len(parts) >= 2:
@@ -438,7 +431,7 @@ class TradeMonitor:
 
                 # Log and notify only if not already notified and not suppressed
                 if not ghost_trade.clearing_notified and not suppress_notifications:
-                    self.logger.info(f"🧹 GHOST TRADE CLEARED | {strategy_name} | Position closed manually")
+                    self.logger.info(f"🧹 GHOST TRADE CLEARED | {strategy_name} | Position closed manually on Binance")
 
                     self.telegram_reporter.report_ghost_trade_cleared(
                         strategy_name=strategy_name,
@@ -451,18 +444,21 @@ class TradeMonitor:
                         del self.notified_ghost_positions[ghost_trade.symbol]
 
                 ghosts_to_remove.append(ghost_id)
-            elif ghost_trade.cycles_remaining <= 0 and not suppress_notifications:
-                # If cycles expired but position still exists, keep monitoring but don't reset cycles frequently
-                # Instead, set a longer monitoring period to reduce log spam
-                if ghost_trade.cycles_remaining <= -50:  # After 50 extra cycles, reset to avoid negative overflow
-                    ghost_trade.cycles_remaining = 100  # Longer reset period for persistent manual trades
-                    self.logger.debug(f"🔍 GHOST CHECK: Extended monitoring period for persistent ghost trade {ghost_id}")
-                else:
-                    self.logger.debug(f"🔍 GHOST CHECK: Continuing to monitor persistent ghost trade {ghost_id} (cycles: {ghost_trade.cycles_remaining})")
+                self.logger.debug(f"🔍 GHOST CLEANUP: Marking {ghost_id} for removal - position no longer exists on Binance")
+                
+            else:
+                # Position still exists - this is a persistent manual trade
+                # Don't decrement cycles or clear - just monitor indefinitely
+                self.logger.debug(f"🔍 GHOST CHECK: Persistent manual position {ghost_id} still exists, continuing to monitor")
+                
+                # Reset cycles to prevent negative overflow but don't clear
+                if ghost_trade.cycles_remaining <= -100:
+                    ghost_trade.cycles_remaining = 100
+                    self.logger.debug(f"🔍 GHOST CHECK: Reset cycle counter for persistent ghost trade {ghost_id}")
 
-        # Remove cleared ghost trades from internal tracking and add to recently cleared
+        # Remove ghost trades that no longer exist on Binance
         for ghost_id in ghosts_to_remove:
-            # Add to recently cleared to prevent immediate re-detection
+            # Add to recently cleared to prevent immediate re-detection (with longer cooldown)
             self.recently_cleared_ghosts[ghost_id] = datetime.now()
             
             # Clean up persistent symbol tracking when position is actually closed
@@ -471,7 +467,13 @@ class TradeMonitor:
                 del self.persistent_ghost_symbols[ghost_trade.symbol]
                 self.logger.debug(f"🔍 GHOST CLEANUP: Removed {ghost_trade.symbol} from persistent tracking")
             
+            # Remove from notification tracking
+            if ghost_trade.symbol in self.notified_ghost_positions:
+                del self.notified_ghost_positions[ghost_trade.symbol]
+                self.logger.debug(f"🔍 GHOST CLEANUP: Removed {ghost_trade.symbol} from notification tracking")
+            
             del self.ghost_trades[ghost_id]
+            self.logger.debug(f"🔍 GHOST CLEANUP: Successfully removed ghost trade {ghost_id}")
 
     def _get_binance_positions(self, symbol: str) -> List[Dict]:
         """Get positions from Binance for a specific symbol"""
@@ -508,7 +510,7 @@ class TradeMonitor:
         """Clean up recently cleared ghost trades after cooldown period"""
         try:
             current_time = datetime.now()
-            cooldown_minutes = 15  # 15 minutes cooldown before allowing re-detection
+            cooldown_minutes = 60  # 60 minutes cooldown before allowing re-detection (increased from 15)
 
             ghosts_to_remove = []
             for ghost_id, clear_time in self.recently_cleared_ghosts.items():
@@ -517,7 +519,7 @@ class TradeMonitor:
 
             for ghost_id in ghosts_to_remove:
                 del self.recently_cleared_ghosts[ghost_id]
-                self.logger.debug(f"🔍 GHOST CLEANUP: Removed {ghost_id} from recently cleared list")
+                self.logger.debug(f"🔍 GHOST CLEANUP: Removed {ghost_id} from recently cleared list after {cooldown_minutes} minutes")
 
             # Also cleanup old notification tracking (after 24 hours)
             notifications_to_remove = []
@@ -527,7 +529,7 @@ class TradeMonitor:
 
             for symbol in notifications_to_remove:
                 del self.notified_ghost_positions[symbol]
-                self.logger.debug(f"🔍 NOTIFICATION CLEANUP: Removed {symbol} from notification tracking")
+                self.logger.debug(f"🔍 NOTIFICATION CLEANUP: Removed {symbol} from notification tracking after 24 hours")
 
         except Exception as e:
             self.logger.error(f"Error cleaning up recently cleared ghosts: {e}")
