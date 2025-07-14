@@ -48,6 +48,9 @@ class TradeMonitor:
         # Track recently cleared ghost trades to prevent immediate re-detection
         self.recently_cleared_ghosts: Dict[str, datetime] = {}  # ghost_id -> clear_time
 
+        # Track persistent ghost trades by symbol to prevent duplicate notifications
+        self.persistent_ghost_symbols: Dict[str, datetime] = {}  # symbol -> first_detection_time
+
         # Flag to prevent notifications during initial startup scan
         self.startup_scan_complete = False
 
@@ -245,6 +248,25 @@ class TradeMonitor:
                             self.logger.debug(f"🔍 GHOST CHECK: Ghost trade {ghost_id} already exists, skipping duplicate creation")
                             continue
 
+                        # Check if this symbol has been persistently tracked to prevent re-notifications
+                        if symbol in self.persistent_ghost_symbols:
+                            time_since_first_detection = datetime.now() - self.persistent_ghost_symbols[symbol]
+                            if time_since_first_detection.total_seconds() < 3600:  # 1 hour grace period
+                                self.logger.debug(f"🔍 GHOST CHECK: Symbol {symbol} was recently notified ({time_since_first_detection.total_seconds():.0f}s ago), skipping duplicate notification")
+                                continue
+
+                        # Additional check: Look for any existing ghost trade for this symbol regardless of strategy name
+                        # This prevents duplicate detection when strategies change or symbol monitoring changes
+                        symbol_already_tracked = False
+                        for existing_ghost_id, existing_ghost in self.ghost_trades.items():
+                            if existing_ghost.symbol == symbol and not existing_ghost.clearing_notified:
+                                self.logger.debug(f"🔍 GHOST CHECK: Symbol {symbol} already tracked under ghost ID {existing_ghost_id}, skipping duplicate")
+                                symbol_already_tracked = True
+                                break
+                        
+                        if symbol_already_tracked:
+                            continue
+
                         ghost_trade = GhostTrade(
                             symbol=symbol,
                             side=side,
@@ -300,6 +322,10 @@ class TradeMonitor:
                                 # Mark as notified ONLY after successful notification
                                 ghost_trade.detection_notified = True
                                 ghost_trade.last_notification_time = datetime.now()
+                                
+                                # Track this symbol as persistently notified to prevent re-notifications
+                                self.persistent_ghost_symbols[symbol] = datetime.now()
+                                
                                 self.logger.debug(f"🔍 GHOST NOTIFICATION: Successfully sent and marked as notified for {ghost_id}")
                                 
                             except Exception as e:
@@ -407,14 +433,25 @@ class TradeMonitor:
 
                 ghosts_to_remove.append(ghost_id)
             elif ghost_trade.cycles_remaining <= 0 and not suppress_notifications:
-                # If cycles expired but position still exists, just reset cycles and keep monitoring
-                ghost_trade.cycles_remaining = 20  # Reset cycles
-                self.logger.debug(f"🔍 GHOST CHECK: Reset cycles for persistent ghost trade {ghost_id}")
+                # If cycles expired but position still exists, keep monitoring but don't reset cycles frequently
+                # Instead, set a longer monitoring period to reduce log spam
+                if ghost_trade.cycles_remaining <= -50:  # After 50 extra cycles, reset to avoid negative overflow
+                    ghost_trade.cycles_remaining = 100  # Longer reset period for persistent manual trades
+                    self.logger.debug(f"🔍 GHOST CHECK: Extended monitoring period for persistent ghost trade {ghost_id}")
+                else:
+                    self.logger.debug(f"🔍 GHOST CHECK: Continuing to monitor persistent ghost trade {ghost_id} (cycles: {ghost_trade.cycles_remaining})")
 
         # Remove cleared ghost trades from internal tracking and add to recently cleared
         for ghost_id in ghosts_to_remove:
             # Add to recently cleared to prevent immediate re-detection
             self.recently_cleared_ghosts[ghost_id] = datetime.now()
+            
+            # Clean up persistent symbol tracking when position is actually closed
+            ghost_trade = self.ghost_trades[ghost_id]
+            if ghost_trade.symbol in self.persistent_ghost_symbols:
+                del self.persistent_ghost_symbols[ghost_trade.symbol]
+                self.logger.debug(f"🔍 GHOST CLEANUP: Removed {ghost_trade.symbol} from persistent tracking")
+            
             del self.ghost_trades[ghost_id]
 
     def _get_binance_positions(self, symbol: str) -> List[Dict]:
@@ -452,7 +489,7 @@ class TradeMonitor:
         """Clean up recently cleared ghost trades after cooldown period"""
         try:
             current_time = datetime.now()
-            cooldown_minutes = 5  # 5 minutes cooldown before allowing re-detection
+            cooldown_minutes = 15  # 15 minutes cooldown before allowing re-detection
 
             ghosts_to_remove = []
             for ghost_id, clear_time in self.recently_cleared_ghosts.items():
