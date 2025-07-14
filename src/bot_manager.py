@@ -147,6 +147,7 @@ For MAINNET:
             # Send startup notification based on source
             if startup_source == "Web Interface":
                 # Web interface restart/start - always send startup notification
+                self.logger.info("📱 SENDING TELEGRAM STARTUP NOTIFICATION (Web Interface)")
                 self.telegram_reporter.report_bot_startup(
                     pairs=pairs,
                     strategies=strategies,

@@ -191,8 +191,8 @@ def start_bot():
                     shared_bot_manager.is_running = True
                     logger.info("🚀 BOT RESTARTED VIA WEB INTERFACE")
                     
-                    # Start the bot's main trading loop (this will handle startup notifications)
-                    loop.run_until_complete(shared_bot_manager._main_trading_loop())
+                    # Start the bot's start method (this will handle startup notifications properly)
+                    loop.run_until_complete(shared_bot_manager.start())
                 except Exception as e:
                     logger.error(f"Bot error during restart: {e}")
                     # Send error notification
