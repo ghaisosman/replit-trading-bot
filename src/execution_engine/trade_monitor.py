@@ -132,15 +132,24 @@ class TradeMonitor:
                             # Check if we already have a ghost trade for this symbol and strategy
                             existing_ghost_id = None
                             for gid, ghost in self.ghost_trades.items():
-                                if (gid.startswith(f"{strategy_name}_{symbol}_") and 
-                                    abs(ghost.quantity - abs(position_amt)) < 0.001):
-                                    existing_ghost_id = gid
-                                    break
+                                # Extract strategy and symbol from ghost_id
+                                parts = gid.split('_')
+                                if len(parts) >= 2:
+                                    ghost_strategy = '_'.join(parts[:-3]) if len(parts) > 3 else parts[0]
+                                    ghost_symbol = parts[-3] if len(parts) > 3 else parts[1]
+                                    
+                                    if (ghost_strategy == strategy_name and 
+                                        ghost_symbol == symbol and
+                                        abs(ghost.quantity - abs(position_amt)) < 0.001):
+                                        existing_ghost_id = gid
+                                        break
                             
                             # Only create new ghost trade if we don't already have one
                             if not existing_ghost_id:
                                 side = 'BUY' if position_amt > 0 else 'SELL'
-                                ghost_id = f"{strategy_name}_{symbol}_{abs(position_amt):.6f}"
+                                # Use timestamp to ensure uniqueness while keeping strategy name intact
+                                timestamp = int(datetime.now().timestamp())
+                                ghost_id = f"{strategy_name}_{symbol}_{abs(position_amt):.6f}_{timestamp}"
                                 
                                 ghost_trade = GhostTrade(
                                     symbol=symbol,
@@ -207,10 +216,12 @@ class TradeMonitor:
             
             # Only clear from tracking if position no longer exists OR cycles expired
             if ghost_trade.cycles_remaining <= 0 or not position_still_exists:
-                ghosts_to_remove.append(ghost_id)
-                
-                # Extract strategy name from ghost_id
-                strategy_name = ghost_id.split('_')[0]
+                # Extract strategy name from ghost_id (everything before the last two underscores)
+                parts = ghost_id.split('_')
+                if len(parts) >= 3:
+                    strategy_name = '_'.join(parts[:-2])  # Join all parts except symbol and quantity
+                else:
+                    strategy_name = parts[0]
                 
                 # Log and notify only if not already notified
                 if not ghost_trade.clearing_notified:
@@ -224,6 +235,8 @@ class TradeMonitor:
                         symbol=ghost_trade.symbol
                     )
                     ghost_trade.clearing_notified = True
+                
+                ghosts_to_remove.append(ghost_id)
         
         # Remove cleared ghost trades from internal tracking only
         for ghost_id in ghosts_to_remove:
