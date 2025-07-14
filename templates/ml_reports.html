@@ -1,0 +1,421 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ML Reports - Trading Bot</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .insight-card {
+            border-left: 4px solid #28a745;
+            background: #f8f9fa;
+        }
+        .prediction-card {
+            border-left: 4px solid #007bff;
+            background: #f8f9fa;
+        }
+        .report-card {
+            border-left: 4px solid #ffc107;
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="fas fa-brain"></i> ML Reports & Analytics
+            </span>
+            <div class="d-flex">
+                <button class="btn btn-outline-light btn-sm me-2" onclick="window.open('/', '_blank')">
+                    <i class="fas fa-home"></i> Dashboard
+                </button>
+                <button class="btn btn-success btn-sm" onclick="refreshAllData()">
+                    <i class="fas fa-sync"></i> Refresh All
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- ML Model Status -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="metric-card">
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <h4><i class="fas fa-robot"></i></h4>
+                            <h5>ML Models</h5>
+                            <button class="btn btn-light btn-sm" onclick="trainMLModels()">
+                                <i class="fas fa-cogs"></i> Train Models
+                            </button>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h4><i class="fas fa-chart-line"></i></h4>
+                            <h5>Insights</h5>
+                            <button class="btn btn-light btn-sm" onclick="loadInsights()">
+                                <i class="fas fa-lightbulb"></i> Generate
+                            </button>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h4><i class="fas fa-crystal-ball"></i></h4>
+                            <h5>Predictions</h5>
+                            <button class="btn btn-light btn-sm" onclick="testPrediction()">
+                                <i class="fas fa-magic"></i> Test Predict
+                            </button>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h4><i class="fas fa-file-export"></i></h4>
+                            <h5>Export Data</h5>
+                            <button class="btn btn-light btn-sm" onclick="exportData()">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Daily Report Section -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card report-card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-calendar-day"></i> Daily Trading Report</h5>
+                        <div class="float-end">
+                            <input type="date" id="reportDate" class="form-control form-control-sm d-inline" style="width: auto;">
+                            <button class="btn btn-primary btn-sm" onclick="loadDailyReport()">
+                                <i class="fas fa-search"></i> Load
+                            </button>
+                            <button class="btn btn-success btn-sm" onclick="sendTelegramReport()">
+                                <i class="fas fa-paper-plane"></i> Send to Telegram
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="dailyReportContent">
+                            <p class="text-muted">Select a date and click "Load" to view daily report</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ML Insights Section -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card insight-card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-lightbulb"></i> Trading Insights</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="insightsContent">
+                            <p class="text-muted">Click "Generate" to load ML insights</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card prediction-card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-crystal-ball"></i> Trade Prediction</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="predictionContent">
+                            <p class="text-muted">Click "Test Predict" to see sample prediction</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Training Results -->
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5><i class="fas fa-chart-bar"></i> ML Model Performance</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="trainingResults">
+                            <p class="text-muted">Train ML models to see performance metrics</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set default date to yesterday
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        document.getElementById('reportDate').value = yesterday.toISOString().split('T')[0];
+
+        function refreshAllData() {
+            loadDailyReport();
+            loadInsights();
+        }
+
+        function trainMLModels() {
+            $('#trainingResults').html('<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Training ML models...</div>');
+            
+            $.post('/api/ml/train', function(data) {
+                if (data.error) {
+                    $('#trainingResults').html('<div class="alert alert-danger">❌ Training failed: ' + data.error + '</div>');
+                } else {
+                    let html = '<div class="alert alert-success">✅ ML models trained successfully!</div>';
+                    html += '<div class="row">';
+                    
+                    if (data.profitability_accuracy) {
+                        html += '<div class="col-md-4"><div class="card"><div class="card-body text-center">';
+                        html += '<h5>Profitability Accuracy</h5>';
+                        html += '<h3 class="text-success">' + (data.profitability_accuracy * 100).toFixed(1) + '%</h3>';
+                        html += '</div></div></div>';
+                    }
+                    
+                    if (data.pnl_r2_score) {
+                        html += '<div class="col-md-4"><div class="card"><div class="card-body text-center">';
+                        html += '<h5>PnL R² Score</h5>';
+                        html += '<h3 class="text-info">' + data.pnl_r2_score.toFixed(3) + '</h3>';
+                        html += '</div></div></div>';
+                    }
+                    
+                    if (data.duration_r2_score) {
+                        html += '<div class="col-md-4"><div class="card"><div class="card-body text-center">';
+                        html += '<h5>Duration R² Score</h5>';
+                        html += '<h3 class="text-warning">' + data.duration_r2_score.toFixed(3) + '</h3>';
+                        html += '</div></div></div>';
+                    }
+                    
+                    html += '</div>';
+                    
+                    if (data.profitability_features) {
+                        html += '<div class="mt-3"><h6>Top Important Features:</h6><ul>';
+                        data.profitability_features.slice(0, 5).forEach(function(feature) {
+                            html += '<li>' + feature[0] + ': ' + feature[1].toFixed(3) + '</li>';
+                        });
+                        html += '</ul></div>';
+                    }
+                    
+                    $('#trainingResults').html(html);
+                }
+            });
+        }
+
+        function loadInsights() {
+            $('#insightsContent').html('<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading insights...</div>');
+            
+            $.get('/api/ml/insights', function(data) {
+                if (data.error) {
+                    $('#insightsContent').html('<div class="alert alert-danger">❌ ' + data.error + '</div>');
+                } else {
+                    let html = '';
+                    
+                    if (data.strategy_performance) {
+                        html += '<h6><i class="fas fa-trophy"></i> Strategy Performance</h6>';
+                        html += '<div class="table-responsive"><table class="table table-sm">';
+                        html += '<thead><tr><th>Strategy</th><th>Win Rate</th><th>Avg PnL %</th></tr></thead><tbody>';
+                        
+                        Object.entries(data.strategy_performance).forEach(function([strategy, stats]) {
+                            const winRate = (stats.was_profitable.mean * 100).toFixed(1);
+                            const avgPnl = stats.pnl_percentage.mean.toFixed(2);
+                            html += '<tr><td>' + strategy + '</td><td>' + winRate + '%</td><td>' + avgPnl + '%</td></tr>';
+                        });
+                        
+                        html += '</tbody></table></div>';
+                    }
+                    
+                    if (data.time_analysis && data.time_analysis.best_trading_hours) {
+                        html += '<h6><i class="fas fa-clock"></i> Best Trading Hours</h6>';
+                        html += '<ul>';
+                        Object.entries(data.time_analysis.best_trading_hours).forEach(function([hour, winRate]) {
+                            html += '<li>Hour ' + hour + ': ' + (winRate * 100).toFixed(1) + '% win rate</li>';
+                        });
+                        html += '</ul>';
+                    }
+                    
+                    if (data.market_trend_performance) {
+                        html += '<h6><i class="fas fa-chart-line"></i> Market Trend Performance</h6>';
+                        html += '<ul>';
+                        Object.entries(data.market_trend_performance).forEach(function([trend, winRate]) {
+                            html += '<li>' + trend + ': ' + (winRate * 100).toFixed(1) + '% win rate</li>';
+                        });
+                        html += '</ul>';
+                    }
+                    
+                    $('#insightsContent').html(html || '<p class="text-muted">No insights available yet. Need more trade data.</p>');
+                }
+            });
+        }
+
+        function testPrediction() {
+            $('#predictionContent').html('<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Making prediction...</div>');
+            
+            const sampleFeatures = {
+                strategy: 'rsi_oversold',
+                symbol: 'BTCUSDT',
+                side: 'BUY',
+                leverage: 5,
+                position_size_usdt: 100,
+                rsi_entry: 25,
+                macd_entry: -0.5,
+                hour_of_day: 14,
+                day_of_week: 2,
+                month: 12,
+                market_trend: 'BULLISH',
+                volatility_score: 0.3,
+                signal_strength: 0.8
+            };
+            
+            $.ajax({
+                url: '/api/ml/predict',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(sampleFeatures),
+                success: function(data) {
+                    if (data.error) {
+                        $('#predictionContent').html('<div class="alert alert-danger">❌ ' + data.error + '</div>');
+                    } else {
+                        let html = '<div class="alert alert-info">📊 Sample Prediction Results</div>';
+                        html += '<div class="row">';
+                        
+                        if (data.profit_probability !== undefined) {
+                            const profitProb = (data.profit_probability * 100).toFixed(1);
+                            const color = data.profit_probability > 0.6 ? 'success' : data.profit_probability > 0.4 ? 'warning' : 'danger';
+                            html += '<div class="col-md-6"><div class="card border-' + color + '">';
+                            html += '<div class="card-body text-center">';
+                            html += '<h6>Profit Probability</h6>';
+                            html += '<h4 class="text-' + color + '">' + profitProb + '%</h4>';
+                            html += '</div></div></div>';
+                        }
+                        
+                        if (data.predicted_pnl_percentage !== undefined) {
+                            const pnl = data.predicted_pnl_percentage.toFixed(2);
+                            const color = data.predicted_pnl_percentage > 0 ? 'success' : 'danger';
+                            html += '<div class="col-md-6"><div class="card border-' + color + '">';
+                            html += '<div class="card-body text-center">';
+                            html += '<h6>Predicted PnL</h6>';
+                            html += '<h4 class="text-' + color + '">' + pnl + '%</h4>';
+                            html += '</div></div></div>';
+                        }
+                        
+                        html += '</div>';
+                        
+                        if (data.recommendation) {
+                            const recColor = data.recommendation === 'STRONG_BUY' ? 'success' : 
+                                           data.recommendation === 'BUY' ? 'info' : 
+                                           data.recommendation === 'HOLD' ? 'warning' : 'danger';
+                            html += '<div class="mt-3 text-center">';
+                            html += '<h5>Recommendation: <span class="badge bg-' + recColor + '">' + data.recommendation + '</span></h5>';
+                            if (data.confidence) {
+                                html += '<p>Confidence: ' + (data.confidence * 100).toFixed(1) + '%</p>';
+                            }
+                            html += '</div>';
+                        }
+                        
+                        $('#predictionContent').html(html);
+                    }
+                }
+            });
+        }
+
+        function loadDailyReport() {
+            const date = document.getElementById('reportDate').value;
+            $('#dailyReportContent').html('<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading report...</div>');
+            
+            $.get('/api/daily-report?date=' + date, function(data) {
+                if (data.error) {
+                    $('#dailyReportContent').html('<div class="alert alert-danger">❌ ' + data.error + '</div>');
+                } else {
+                    let html = '<div class="row">';
+                    
+                    // Summary stats
+                    html += '<div class="col-md-3"><div class="card"><div class="card-body text-center">';
+                    html += '<h6>Total Trades</h6><h4>' + data.total_trades + '</h4>';
+                    html += '</div></div></div>';
+                    
+                    html += '<div class="col-md-3"><div class="card"><div class="card-body text-center">';
+                    html += '<h6>Win Rate</h6><h4 class="text-success">' + data.win_rate.toFixed(1) + '%</h4>';
+                    html += '</div></div></div>';
+                    
+                    const pnlColor = data.total_pnl >= 0 ? 'success' : 'danger';
+                    html += '<div class="col-md-3"><div class="card"><div class="card-body text-center">';
+                    html += '<h6>Total P&L</h6><h4 class="text-' + pnlColor + '">$' + data.total_pnl.toFixed(2) + '</h4>';
+                    html += '</div></div></div>';
+                    
+                    html += '<div class="col-md-3"><div class="card"><div class="card-body text-center">';
+                    html += '<h6>Avg Duration</h6><h4>' + data.average_trade_duration.toFixed(0) + ' min</h4>';
+                    html += '</div></div></div>';
+                    
+                    html += '</div>';
+                    
+                    // Strategy breakdown
+                    if (data.strategy_breakdown && Object.keys(data.strategy_breakdown).length > 0) {
+                        html += '<div class="mt-3"><h6>Strategy Breakdown</h6>';
+                        html += '<div class="table-responsive"><table class="table table-sm">';
+                        html += '<thead><tr><th>Strategy</th><th>Trades</th><th>P&L</th><th>Symbols</th></tr></thead><tbody>';
+                        
+                        Object.entries(data.strategy_breakdown).forEach(function([strategy, stats]) {
+                            const pnlColor = stats.pnl >= 0 ? 'text-success' : 'text-danger';
+                            html += '<tr><td>' + strategy.toUpperCase() + '</td>';
+                            html += '<td>' + stats.trades + '</td>';
+                            html += '<td class="' + pnlColor + '">$' + stats.pnl.toFixed(2) + '</td>';
+                            html += '<td>' + stats.symbols.join(', ') + '</td></tr>';
+                        });
+                        
+                        html += '</tbody></table></div></div>';
+                    }
+                    
+                    $('#dailyReportContent').html(html);
+                }
+            });
+        }
+
+        function sendTelegramReport() {
+            const date = document.getElementById('reportDate').value;
+            
+            $.ajax({
+                url: '/api/daily-report/send',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({date: date}),
+                success: function(data) {
+                    if (data.success) {
+                        alert('✅ Daily report sent to Telegram successfully!');
+                    } else {
+                        alert('❌ Failed to send report: ' + (data.error || 'Unknown error'));
+                    }
+                }
+            });
+        }
+
+        function exportData() {
+            $.get('/api/trade-data/export', function(data) {
+                if (data.success) {
+                    alert('✅ Trade data exported to: ' + data.filename);
+                } else {
+                    alert('❌ Failed to export data: ' + (data.error || 'Unknown error'));
+                }
+            });
+        }
+
+        // Auto-load today's report on page load
+        $(document).ready(function() {
+            loadDailyReport();
+        });
+    </script>
+</body>
+</html>

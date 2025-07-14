@@ -417,6 +417,99 @@ def get_positions():
     except Exception as e:
         return jsonify({'error': f'Failed to get positions: {e}'})
 
+@app.route('/ml-reports')
+def ml_reports():
+    """ML Reports dashboard page"""
+    return render_template('ml_reports.html')
+
+@app.route('/api/ml/train', methods=['POST'])
+def train_ml_models():
+    """Train ML models and return results"""
+    try:
+        from src.analytics.ml_analyzer import ml_analyzer
+        results = ml_analyzer.train_models()
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({'error': f'Failed to train models: {e}'})
+
+@app.route('/api/ml/insights')
+def get_ml_insights():
+    """Get ML trading insights"""
+    try:
+        from src.analytics.ml_analyzer import ml_analyzer
+        insights = ml_analyzer.generate_insights()
+        return jsonify(insights)
+    except Exception as e:
+        return jsonify({'error': f'Failed to generate insights: {e}'})
+
+@app.route('/api/ml/predict', methods=['POST'])
+def predict_trade():
+    """Predict trade outcome"""
+    try:
+        from src.analytics.ml_analyzer import ml_analyzer
+        trade_features = request.get_json()
+        prediction = ml_analyzer.predict_trade_outcome(trade_features)
+        return jsonify(prediction)
+    except Exception as e:
+        return jsonify({'error': f'Failed to predict trade: {e}'})
+
+@app.route('/api/daily-report')
+def get_daily_report():
+    """Get daily trading report"""
+    try:
+        from src.analytics.trade_logger import trade_logger
+        from datetime import datetime, timedelta
+        
+        # Get yesterday's data by default
+        date = request.args.get('date')
+        if date:
+            report_date = datetime.strptime(date, '%Y-%m-%d')
+        else:
+            report_date = datetime.now() - timedelta(days=1)
+            
+        daily_summary = trade_logger.get_daily_summary(report_date)
+        return jsonify(daily_summary)
+    except Exception as e:
+        return jsonify({'error': f'Failed to get daily report: {e}'})
+
+@app.route('/api/daily-report/send', methods=['POST'])
+def send_daily_report():
+    """Send daily report to Telegram"""
+    try:
+        from src.analytics.daily_reporter import DailyReporter
+        from src.reporting.telegram_reporter import TelegramReporter
+        from datetime import datetime, timedelta
+        
+        # Get date from request or use yesterday
+        data = request.get_json() or {}
+        date = data.get('date')
+        if date:
+            report_date = datetime.strptime(date, '%Y-%m-%d')
+        else:
+            report_date = datetime.now() - timedelta(days=1)
+            
+        # Initialize and send report
+        telegram_reporter = TelegramReporter()
+        daily_reporter = DailyReporter(telegram_reporter)
+        success = daily_reporter.send_manual_report(report_date)
+        
+        return jsonify({'success': success, 'message': 'Report sent' if success else 'Failed to send report'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to send report: {e}'})
+
+@app.route('/api/trade-data/export')
+def export_trade_data():
+    """Export trade data for ML analysis"""
+    try:
+        from src.analytics.trade_logger import trade_logger
+        filename = trade_logger.export_for_ml()
+        if filename:
+            return jsonify({'success': True, 'filename': filename})
+        else:
+            return jsonify({'success': False, 'error': 'No data to export'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to export data: {e}'})
+
 def get_bot_status():
     """Get current bot status"""
     global bot_running, bot_manager, shared_bot_manager
