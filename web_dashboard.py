@@ -21,28 +21,50 @@ def _persist_config_to_file():
         # Read the current file
         config_file_path = 'src/config/trading_config.py'
         with open(config_file_path, 'r') as f:
-            content = f.read()
+            lines = f.readlines()
         
-        # Build the new strategy_overrides dictionary string
-        overrides_str = "        self.strategy_overrides = {\n"
+        # Find the start and end of strategy_overrides
+        start_idx = None
+        end_idx = None
+        brace_count = 0
+        
+        for i, line in enumerate(lines):
+            if 'self.strategy_overrides = {' in line:
+                start_idx = i
+                brace_count = line.count('{') - line.count('}')
+                continue
+            
+            if start_idx is not None:
+                brace_count += line.count('{') - line.count('}')
+                if brace_count == 0:
+                    end_idx = i
+                    break
+        
+        if start_idx is None or end_idx is None:
+            logger.error("Could not find strategy_overrides section in config file")
+            return False
+        
+        # Build the new strategy_overrides section
+        new_lines = []
+        new_lines.append("        self.strategy_overrides = {\n")
+        
         for strategy_name, overrides in trading_config_manager.strategy_overrides.items():
-            overrides_str += f"            '{strategy_name}': {{\n"
+            new_lines.append(f"            '{strategy_name}': {{\n")
             for key, value in overrides.items():
                 if isinstance(value, str):
-                    overrides_str += f"                '{key}': '{value}',\n"
+                    new_lines.append(f"                '{key}': '{value}',\n")
                 else:
-                    overrides_str += f"                '{key}': {value},\n"
-            overrides_str += "            },\n"
-        overrides_str += "        }"
+                    new_lines.append(f"                '{key}': {value},\n")
+            new_lines.append("            },\n")
         
-        # Replace the strategy_overrides section in the file
-        import re
-        pattern = r'self\.strategy_overrides\s*=\s*\{[^}]*\}(?:\s*\})*'
-        new_content = re.sub(pattern, overrides_str.strip(), content, flags=re.DOTALL)
+        new_lines.append("        }\n")
+        
+        # Replace the section
+        new_content = lines[:start_idx] + new_lines + lines[end_idx + 1:]
         
         # Write back to file
         with open(config_file_path, 'w') as f:
-            f.write(new_content)
+            f.writelines(new_content)
             
         logger.info("💾 Configuration persisted to trading_config.py")
         return True

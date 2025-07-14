@@ -30,17 +30,17 @@ class TradingConfigManager:
         # Strategy-specific overrides
         self.strategy_overrides = {
             'rsi_oversold': {
-                'symbol': 'SOLUSDT', 
-                'margin': 50.0,
-                'leverage': 5,
-                'timeframe': '15m'
+                'symbol': 'SOLUSDT',
+                'margin': 5,
+                'leverage': 25,
+                'timeframe': '15m',
             },
             'macd_divergence': {
                 'symbol': 'BTCUSDT',
-                'margin': 50.0,
+                'margin': 70.0,
                 'leverage': 5,
-                'timeframe': '15m'
-            }
+                'timeframe': '15m',
+            },
         }
     
     def get_strategy_config(self, strategy_name: str, base_config: Dict[str, Any]) -> Dict[str, Any]:
