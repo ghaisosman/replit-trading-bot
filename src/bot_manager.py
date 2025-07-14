@@ -101,23 +101,28 @@ For MAINNET:
         """Start the trading bot"""
         self.is_running = True
 
-        # Log startup source
+        # Log startup source - simplified detection
+        startup_source = "Web Interface"  # Default to web interface since this is the issue we're fixing
+        
+        # Check if this is a web interface call by looking at the call stack
         import inspect
         frame = inspect.currentframe()
-        caller = None
         try:
-            # Look for web dashboard in the call stack
             while frame:
-                if 'web_dashboard' in str(frame.f_code.co_filename):
-                    caller = "Web Interface"
+                filename = str(frame.f_code.co_filename)
+                if 'web_dashboard' in filename:
+                    startup_source = "Web Interface"
+                    break
+                elif 'main.py' in filename and 'web_dashboard' not in filename:
+                    startup_source = "Console"
                     break
                 frame = frame.f_back
         except:
-            pass
+            # If detection fails, assume console for safety
+            startup_source = "Console"
         finally:
             del frame
 
-        startup_source = caller if caller else "Console"
         self.logger.info(f"🌐 BOT STARTUP INITIATED FROM: {startup_source}")
 
         try:
@@ -144,50 +149,25 @@ For MAINNET:
             # Get pairs being watched
             pairs = [config['symbol'] for config in self.strategies.values()]
 
-            # Always send startup notification for web interface restarts
-            if startup_source == "Web Interface":
-                self.logger.info("📱 SENDING TELEGRAM STARTUP NOTIFICATION (Web Interface)")
-                try:
-                    self.telegram_reporter.report_bot_startup(
-                        pairs=pairs,
-                        strategies=strategies,
-                        balance=balance_info,
-                        open_trades=len(self.order_manager.active_positions)
-                    )
-                    self.logger.info("✅ TELEGRAM STARTUP NOTIFICATION SENT")
-                except Exception as e:
-                    self.logger.error(f"❌ FAILED TO SEND TELEGRAM STARTUP NOTIFICATION: {e}")
+            # ALWAYS send startup notification - this ensures it works regardless of source
+            self.logger.info(f"📱 SENDING TELEGRAM STARTUP NOTIFICATION ({startup_source})")
+            try:
+                self.telegram_reporter.report_bot_startup(
+                    pairs=pairs,
+                    strategies=strategies,
+                    balance=balance_info,
+                    open_trades=len(self.order_manager.active_positions)
+                )
+                self.logger.info("✅ TELEGRAM STARTUP NOTIFICATION SENT SUCCESSFULLY")
                 self.startup_notified = True
-            elif not self.startup_notified:
-                # First time console startup
-                self.logger.info("📱 SENDING TELEGRAM STARTUP NOTIFICATION (Console)")
+            except Exception as e:
+                self.logger.error(f"❌ FAILED TO SEND TELEGRAM STARTUP NOTIFICATION: {e}")
+                # Try to send a simple error message
                 try:
-                    self.telegram_reporter.report_bot_startup(
-                        pairs=pairs,
-                        strategies=strategies,
-                        balance=balance_info,
-                        open_trades=len(self.order_manager.active_positions)
-                    )
-                    self.logger.info("✅ TELEGRAM STARTUP NOTIFICATION SENT")
-                except Exception as e:
-                    self.logger.error(f"❌ FAILED TO SEND TELEGRAM STARTUP NOTIFICATION: {e}")
-                self.startup_notified = True
-            else:
-                # Console restart (if needed in future)
-                restart_message = f"""
-🔄 <b>BOT RESTARTED</b>
-⏰ <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-🌐 <b>Source:</b> {startup_source}
-
-📊 <b>Current Status:</b>
-💰 <b>Balance:</b> ${balance_info:,.1f} USDT
-📈 <b>Active Strategies:</b> {len(strategies)}
-🎯 <b>Pairs:</b> {', '.join(pairs)}
-📍 <b>Open Positions:</b> {len(self.order_manager.active_positions)}
-
-✅ <b>Bot is now active and monitoring markets</b>
-                """
-                self.telegram_reporter.send_message(restart_message)
+                    error_msg = f"⚠️ Bot started from {startup_source} but notification failed: {str(e)}"
+                    self.telegram_reporter.send_message(error_msg)
+                except:
+                    pass
 
             self.is_running = True
 
