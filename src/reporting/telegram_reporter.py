@@ -1,25 +1,42 @@
-
 import requests
 import logging
 import json
 from typing import Dict, Any, Optional
 from datetime import datetime
 from src.config.global_config import global_config
+from typing import List
+
 
 class TelegramReporter:
-    """Handles all Telegram reporting for the bot"""
+    """Handles Telegram notifications for trading bot"""
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+
+        # Get Telegram config from environment
         self.bot_token = global_config.TELEGRAM_BOT_TOKEN
         self.chat_id = global_config.TELEGRAM_CHAT_ID
-        self.base_url = f"https://api.telegram.org/bot{self.bot_token}"
+
+        # Validate configuration
+        if not self.bot_token or not self.chat_id:
+            self.logger.warning("⚠️ Telegram configuration incomplete - notifications disabled")
+            self.enabled = False
+        else:
+            self.enabled = True
+            self.logger.info("✅ Telegram reporter initialized successfully")
+
+        # Rate limiting
+        self.last_message_time = {}
+        self.min_interval = 5  # Minimum 5 seconds between similar messages
+
+        # Track startup notifications to prevent duplicates
+        self.startup_notification_sent = False
 
     def send_message(self, message: str, parse_mode: str = "HTML") -> bool:
         """Send a message to Telegram"""
         try:
             self.logger.info(f"🔍 TELEGRAM DEBUG: send_message() called with message length: {len(message)}")
-            
+
             # Filter out market assessment messages - they should only appear in console logs
             if ("MARKET ASSESSMENT" in message or 
                 "SCANNING" in message or 
@@ -27,10 +44,10 @@ class TelegramReporter:
                 "📈 MARKET" in message):
                 self.logger.info(f"🔍 TELEGRAM DEBUG: Message filtered out (market assessment)")
                 return True  # Skip sending but return success
-            
+
             self.logger.info(f"🔍 TELEGRAM DEBUG: bot_token exists: {bool(self.bot_token)}")
             self.logger.info(f"🔍 TELEGRAM DEBUG: chat_id exists: {bool(self.chat_id)}")
-            
+
             url = f"{self.base_url}/sendMessage"
             payload = {
                 'chat_id': self.chat_id,
@@ -41,7 +58,7 @@ class TelegramReporter:
             self.logger.info(f"🔍 TELEGRAM DEBUG: Making POST request to Telegram API...")
             response = requests.post(url, json=payload, timeout=10)
             self.logger.info(f"🔍 TELEGRAM DEBUG: Response status: {response.status_code}")
-            
+
             response.raise_for_status()
             self.logger.info(f"🔍 TELEGRAM DEBUG: Message sent successfully!")
 
@@ -53,26 +70,49 @@ class TelegramReporter:
             import traceback
             self.logger.error(f"❌ TELEGRAM ERROR: Full traceback: {traceback.format_exc()}")
             return False
+    
+    def reset_startup_notification(self):
+        """Reset startup notification flag - used when bot is restarted"""
+        self.startup_notification_sent = False
+        self.logger.info("🔍 TELEGRAM DEBUG: Startup notification flag reset")
 
-    def report_bot_startup(self, pairs: list, strategies: list, balance: float, open_trades: int):
-        """1. Bot starting message"""
-        self.logger.info(f"🔍 TELEGRAM DEBUG: report_bot_startup() called")
-        self.logger.info(f"🔍 TELEGRAM DEBUG: pairs={pairs}, strategies={strategies}, balance={balance}, open_trades={open_trades}")
-        
-        message = f"""
+    def report_bot_startup(self, source: str, pairs: List[str], strategies: List[str], balance: float, open_trades: int):
+        """Report bot startup to Telegram"""
+        try:
+            # Prevent duplicate startup notifications
+            if self.startup_notification_sent:
+                self.logger.info(f"🔍 TELEGRAM DEBUG: Startup notification already sent, skipping duplicate")
+                return True
+
+            self.logger.info(f"🔍 TELEGRAM DEBUG: report_bot_startup() called")
+            self.logger.info(f"🔍 TELEGRAM DEBUG: pairs={pairs}, strategies={strategies}, balance={balance}, open_trades={open_trades}")
+
+            pairs_text = ", ".join(pairs)
+            strategies_text = ", ".join(strategies)
+
+            message = f"""
 🟢 <b>BOT STARTED</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
 🔋 <b>Bot Health:</b> Online
-📊 <b>Pairs Watching:</b> {', '.join(pairs)}
-🎯 <b>Strategy Names:</b> {', '.join(strategies)}
+📊 <b>Pairs Watching:</b> {pairs_text}
+🎯 <b>Strategy Names:</b> {strategies_text}
 💰 <b>Available Balance:</b> ${balance:.2f} USDT
 📈 <b>Currently Open Trades:</b> {open_trades}
-        """
-        
-        self.logger.info(f"🔍 TELEGRAM DEBUG: Prepared message, calling send_message()")
-        result = self.send_message(message)
-        self.logger.info(f"🔍 TELEGRAM DEBUG: send_message() returned: {result}")
-        return result
+            """
+
+            self.logger.info(f"🔍 TELEGRAM DEBUG: Prepared message, calling send_message()")
+            result = self.send_message(message)
+            self.logger.info(f"🔍 TELEGRAM DEBUG: send_message() returned: {result}")
+
+            # Mark startup notification as sent if successful
+            if result:
+                self.startup_notification_sent = True
+                self.logger.info(f"🔍 TELEGRAM DEBUG: Startup notification marked as sent")
+
+            return result
+        except Exception as e:
+            self.logger.error(f"Failed to send bot startup report: {e}")
+            return False
 
     def report_trade_entry(self, strategy_name: str, pair: str, direction: str, entry_price: float, 
                           margin: float, leverage: int, balance_after: float, open_trades: int, quantity: float = None):
@@ -82,7 +122,7 @@ class TelegramReporter:
         if quantity:
             position_value = entry_price * quantity
             position_value_text = f"📦 <b>Position Value:</b> ${position_value:.2f} USDT\n"
-        
+
         message = f"""
 🟢 <b>TRADE ENTRY</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
@@ -129,11 +169,11 @@ class TelegramReporter:
         """4. Bot stopped"""
         # Determine if this is an error or manual shutdown
         is_error = any(keyword in reason.lower() for keyword in ['error', 'failed', 'exception', 'critical'])
-        
+
         # Choose appropriate emoji and status
         status_emoji = "🚨" if is_error else "🔴"
         status_text = "ERROR SHUTDOWN" if is_error else "BOT STOPPED"
-        
+
         # Suggest fixes for common errors
         suggested_fixes = ""
         if is_error:
@@ -147,7 +187,7 @@ class TelegramReporter:
                 suggested_fixes = "\n🛠️ <b>Suggested Fix:</b> Check account balance and margin requirements"
             else:
                 suggested_fixes = "\n🛠️ <b>Suggested Fix:</b> Check logs and restart bot if needed"
-        
+
         message = f"""
 {status_emoji} <b>{status_text}</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
@@ -190,15 +230,15 @@ class TelegramReporter:
             # Get balance and trade count info
             from src.data_fetcher.balance_fetcher import BalanceFetcher
             from src.binance_client.client import BinanceClientWrapper
-            
+
             binance_client = BinanceClientWrapper()
             balance_fetcher = BalanceFetcher(binance_client)
             current_balance = balance_fetcher.get_usdt_balance() or 0
-            
+
             # Calculate position value and margin used
             position_value_usdt = position_data['entry_price'] * position_data['quantity']
             margin_used = position_value_usdt / 5  # Assuming 5x leverage
-            
+
             message = f"""
 🟢 <b>TRADE ENTRY</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
@@ -222,18 +262,18 @@ class TelegramReporter:
             pnl_emoji = "🟢" if pnl >= 0 else "🔴"
             position_value_usdt = position_data['entry_price'] * position_data['quantity']
             pnl_percent = (pnl / position_value_usdt) * 100
-            
+
             # Get current balance
             from src.data_fetcher.balance_fetcher import BalanceFetcher
             from src.binance_client.client import BinanceClientWrapper
-            
+
             binance_client = BinanceClientWrapper()
             balance_fetcher = BalanceFetcher(binance_client)
             current_balance = balance_fetcher.get_usdt_balance() or 0
-            
+
             # Calculate margin used
             margin_used = position_value_usdt / 5  # Assuming 5x leverage
-            
+
             message = f"""
 {pnl_emoji} <b>TRADE CLOSED</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
@@ -289,29 +329,29 @@ class TelegramReporter:
         try:
             # Get the actual position data from Binance to calculate margin used
             from src.binance_client.client import BinanceClientWrapper
-            
+
             margin_used_text = ""
             position_value_text = ""
-            
+
             try:
                 # Get position info from Binance to calculate actual margin
                 binance_client = BinanceClientWrapper()
                 if binance_client.is_futures:
                     account_info = binance_client.client.futures_account()
                     positions = account_info.get('positions', [])
-                    
+
                     for pos in positions:
                         if pos.get('symbol') == symbol and abs(float(pos.get('positionAmt', 0))) > 0:
                             # Get the actual margin used (isolated margin or portion of cross margin)
                             isolated_margin = float(pos.get('isolatedMargin', 0))
                             initial_margin = float(pos.get('initialMargin', 0))
-                            
+
                             # Use isolated margin if available, otherwise use initial margin
                             actual_margin = isolated_margin if isolated_margin > 0 else initial_margin
-                            
+
                             if actual_margin > 0:
                                 margin_used_text = f"💸 <b>Margin Used:</b> ${actual_margin:.2f} USDT\n"
-                            
+
                             # Calculate position value (margin * leverage)
                             if current_price and actual_margin > 0:
                                 # Estimate leverage from position size and margin
@@ -322,14 +362,14 @@ class TelegramReporter:
                                 position_value = current_price * quantity
                                 position_value_text = f"📦 <b>Position Value:</b> ${position_value:.2f} USDT\n"
                             break
-                            
+
             except Exception as e:
                 self.logger.debug(f"Could not get detailed position info: {e}")
                 # Fallback to simple calculation
                 if current_price:
                     position_value = current_price * quantity
                     position_value_text = f"📦 <b>Position Value:</b> ${position_value:.2f} USDT\n"
-            
+
             message = f"""
 👻 <b>GHOST TRADE DETECTED</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}

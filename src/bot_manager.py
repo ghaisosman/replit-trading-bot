@@ -100,6 +100,9 @@ For MAINNET:
         from src.analytics.daily_reporter import DailyReporter
         self.daily_reporter = DailyReporter(self.telegram_reporter)
 
+        # Track if startup notification was sent
+        self.startup_notification_sent = False
+
 
     async def start(self):
         """Start the trading bot"""
