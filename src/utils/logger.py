@@ -89,12 +89,12 @@ class ColoredFormatter(logging.Formatter):
             # Handle different message types
             if "TRADE IN PROGRESS" in msg:
                 parts = msg.split(" | ")
-                if len(parts) >= 6:
+                if len(parts) >= 5:
                     lines.append("📊 TRADE IN PROGRESS")
                     lines.append(f"🎯 Strategy: {parts[1]}")
                     lines.append(f"💱 Symbol: {parts[2]}")
-                    lines.append(f"📈 {parts[3]}")
-                    lines.append(f"💰 {parts[4]}")
+                    lines.append(f"💵 {parts[3]}")
+                    lines.append(f"📊 {parts[4]}")
                 else:
                     lines.append(msg)
             elif "MARKET ASSESSMENT" in msg:
