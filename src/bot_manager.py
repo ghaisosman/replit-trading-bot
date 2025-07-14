@@ -471,9 +471,11 @@ For MAINNET:
             return f"Error: {e}"
 
     async def _recover_active_positions(self):
-        """Recover active positions from Binance on startup"""
+        """Recover active positions from Binance on startup with enhanced validation"""
         try:
             self.logger.info("🔍 CHECKING FOR EXISTING POSITIONS...")
+
+            recovered_count = 0
 
             for strategy_name, strategy_config in self.strategies.items():
                 symbol = strategy_config['symbol']
@@ -492,38 +494,48 @@ For MAINNET:
                                 side = 'BUY' if position_amt > 0 else 'SELL'
                                 quantity = abs(position_amt)
 
-                                self.logger.info(f"📍 EXISTING POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {quantity:,.1f} | Entry: ${entry_price:,.1f}")
+                                self.logger.info(f"📍 EXISTING POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {quantity:,.6f} | Entry: ${entry_price:,.4f}")
 
-                                # Create position object (simplified recovery)
-                                from src.execution_engine.order_manager import Position
-                                from datetime import datetime
+                                # Use enhanced validation to determine if this is a legitimate bot position
+                                if self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price):
+                                    # This is a legitimate bot position - recover it
+                                    self.logger.info(f"✅ LEGITIMATE BOT POSITION | {strategy_name.upper()} | {symbol} | Recovering...")
 
-                                recovered_position = Position(
-                                    strategy_name=strategy_name,
-                                    symbol=symbol,
-                                    side=side,
-                                    entry_price=entry_price,
-                                    quantity=quantity,
-                                    stop_loss=entry_price * 0.985 if side == 'BUY' else entry_price * 1.015,  # Estimated
-                                    take_profit=entry_price * 1.025 if side == 'BUY' else entry_price * 0.975,  # Estimated
-                                    position_side='LONG' if side == 'BUY' else 'SHORT',
-                                    order_id=0,  # Unknown on recovery
-                                    entry_time=datetime.now(),  # Current time as fallback
-                                    status='OPEN'
-                                )
+                                    from src.execution_engine.order_manager import Position
+                                    from datetime import datetime
 
-                                # Add to active positions
-                                self.order_manager.active_positions[strategy_name] = recovered_position
+                                    recovered_position = Position(
+                                        strategy_name=strategy_name,
+                                        symbol=symbol,
+                                        side=side,
+                                        entry_price=entry_price,
+                                        quantity=quantity,
+                                        stop_loss=entry_price * 0.985 if side == 'BUY' else entry_price * 1.015,  # Estimated
+                                        take_profit=entry_price * 1.025 if side == 'BUY' else entry_price * 0.975,  # Estimated
+                                        position_side='LONG' if side == 'BUY' else 'SHORT',
+                                        order_id=0,  # Unknown on recovery
+                                        entry_time=datetime.now(),  # Current time as fallback
+                                        status='RECOVERED'
+                                    )
+
+                                    # Add to active positions
+                                    self.order_manager.active_positions[strategy_name] = recovered_position
+                                    recovered_count += 1
+
+                                    self.logger.info(f"✅ POSITION RECOVERED | {strategy_name.upper()} | {symbol} | Entry: ${entry_price:,.4f} | Qty: {quantity:,.6f}")
+                                else:
+                                    # This is likely a manual position - let ghost trade detection handle it
+                                    self.logger.warning(f"🚨 MANUAL POSITION DETECTED | {strategy_name.upper()} | {symbol} | Not recovering - ghost trade detection will handle it")
 
                                 break  # Only one position per strategy
 
                 except Exception as e:
                     self.logger.warning(f"Could not check positions for {symbol}: {e}")
 
-            if self.order_manager.active_positions:
-                self.logger.info(f"✅ RECOVERED {len(self.order_manager.active_positions)} ACTIVE POSITIONS")
+            if recovered_count > 0:
+                self.logger.info(f"✅ RECOVERED {recovered_count} LEGITIMATE BOT POSITIONS")
             else:
-                self.logger.info("✅ NO EXISTING POSITIONS FOUND")
+                self.logger.info("✅ NO LEGITIMATE BOT POSITIONS FOUND FOR RECOVERY")
 
         except Exception as e:
             self.logger.error(f"Error recovering active positions: {e}")

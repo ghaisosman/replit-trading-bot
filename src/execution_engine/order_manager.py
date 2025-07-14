@@ -292,23 +292,14 @@ class OrderManager:
         try:
             self.logger.debug(f"🔍 VALIDATING POSITION | {strategy_name} | {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price}")
 
-            # Method 1: Check recent trade history from trade logs
+            # Method 1: Check recent trade history from trade logs (most reliable)
             if self._validate_from_trade_history(strategy_name, symbol, side, quantity, entry_price):
                 self.logger.info(f"✅ POSITION VALIDATED | Trade history match | {strategy_name} | {symbol}")
                 return True
 
-            # Method 2: Check if position matches strategy configuration patterns
-            if self._validate_from_strategy_config(strategy_name, symbol, side, quantity, entry_price):
-                self.logger.info(f"✅ POSITION VALIDATED | Strategy config match | {strategy_name} | {symbol}")
-                return True
-
-            # Method 3: Check position timing and characteristics
-            if self._validate_from_position_characteristics(strategy_name, symbol, side, quantity, entry_price):
-                self.logger.info(f"✅ POSITION VALIDATED | Characteristics match | {strategy_name} | {symbol}")
-                return True
-
-            # If none of the validation methods pass, treat as manual position
-            self.logger.warning(f"🚨 POSITION VALIDATION FAILED | {strategy_name} | {symbol} | Treating as manual position")
+            # For startup recovery, be very conservative - only recover if we have explicit trade history
+            # This prevents manual positions from being incorrectly recovered
+            self.logger.warning(f"🚨 POSITION VALIDATION FAILED | {strategy_name} | {symbol} | No trade history found - treating as manual position")
             return False
 
         except Exception as e:
@@ -318,29 +309,24 @@ class OrderManager:
     def _validate_from_trade_history(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float) -> bool:
         """Validate position against trade history logs"""
         try:
-            # Check recent trade logs first
-            recent_trades = self.get_recent_trades(hours=24)
+            # Check recent trade logs from THIS SESSION only
+            recent_trades = self.get_recent_trades(hours=2)  # Only check last 2 hours for stricter validation
+            current_session_id = id(self)
+            
             for trade in recent_trades:
-                if (trade['strategy_name'] == strategy_name and 
+                # Only validate trades from current session to prevent cross-session false positives
+                if (trade.get('session_id') == current_session_id and
+                    trade['strategy_name'] == strategy_name and 
                     trade['symbol'] == symbol and
                     trade['side'] == side and
                     abs(trade['quantity'] - quantity) < 0.001 and
                     abs(trade['entry_price'] - entry_price) < 0.01):
                     
-                    self.logger.info(f"🔍 TRADE HISTORY MATCH | {strategy_name} | {symbol} | Found in recent trades")
+                    self.logger.info(f"🔍 TRADE HISTORY MATCH | {strategy_name} | {symbol} | Found in current session trades")
                     return True
 
-            # Check position history as fallback
-            for hist_position in self.position_history:
-                if (hist_position.strategy_name == strategy_name and 
-                    hist_position.symbol == symbol and
-                    hist_position.side == side and
-                    abs(hist_position.quantity - quantity) < 0.001 and
-                    abs(hist_position.entry_price - entry_price) < 0.01):
-                    
-                    self.logger.info(f"🔍 POSITION HISTORY MATCH | {strategy_name} | {symbol} | Found in position history")
-                    return True
-
+            # Do NOT check position history as fallback - this can lead to false positives
+            self.logger.debug(f"🔍 NO TRADE HISTORY MATCH | {strategy_name} | {symbol} | No matching trades in current session")
             return False
 
         except Exception as e:

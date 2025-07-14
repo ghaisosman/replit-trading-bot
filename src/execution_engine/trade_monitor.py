@@ -240,6 +240,11 @@ class TradeMonitor:
                             self.logger.debug(f"🔍 GHOST CHECK: Ghost trade {ghost_id} was recently cleared, skipping re-detection")
                             continue
 
+                        # Check if ghost trade already exists (additional safety check)
+                        if ghost_id in self.ghost_trades:
+                            self.logger.debug(f"🔍 GHOST CHECK: Ghost trade {ghost_id} already exists, skipping duplicate creation")
+                            continue
+
                         ghost_trade = GhostTrade(
                             symbol=symbol,
                             side=side,
@@ -283,17 +288,23 @@ class TradeMonitor:
                             self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
 
                             # Send Telegram notification
-                            self.telegram_reporter.report_ghost_trade_detected(
-                                strategy_name=monitoring_strategy,
-                                symbol=symbol,
-                                side=side,
-                                quantity=abs(position_amt),
-                                current_price=current_price
-                            )
-
-                            # Mark as notified to prevent re-notification
-                            ghost_trade.detection_notified = True
-                            ghost_trade.last_notification_time = datetime.now()
+                            try:
+                                self.telegram_reporter.report_ghost_trade_detected(
+                                    strategy_name=monitoring_strategy,
+                                    symbol=symbol,
+                                    side=side,
+                                    quantity=abs(position_amt),
+                                    current_price=current_price
+                                )
+                                
+                                # Mark as notified ONLY after successful notification
+                                ghost_trade.detection_notified = True
+                                ghost_trade.last_notification_time = datetime.now()
+                                self.logger.debug(f"🔍 GHOST NOTIFICATION: Successfully sent and marked as notified for {ghost_id}")
+                                
+                            except Exception as e:
+                                self.logger.error(f"Failed to send ghost trade notification: {e}")
+                                # Don't mark as notified if notification failed
                         else:
                             # This is a suppressed startup scan or already notified - just log
                             if not self.startup_scan_complete:
@@ -308,27 +319,20 @@ class TradeMonitor:
                         if existing_ghost_id:
                             existing_ghost = self.ghost_trades[existing_ghost_id]
                             
-                            # Check if this existing ghost has already been notified
-                            if not existing_ghost.detection_notified:
-                                self.logger.error(f"🚨 BUG DETECTED: Existing ghost {existing_ghost_id} for {symbol} was NOT marked as notified! This causes repeated notifications.")
-                                # Force mark as notified to prevent spam
+                            # Always ensure existing ghost trades are marked as notified during startup
+                            if not self.startup_scan_complete and not existing_ghost.detection_notified:
+                                self.logger.info(f"🔍 STARTUP SCAN: Marking existing ghost trade {existing_ghost_id} as notified to prevent duplicate notifications")
                                 existing_ghost.detection_notified = True
                                 existing_ghost.last_notification_time = datetime.now()
 
-                            if abs(existing_ghost.quantity - abs(position_amt)) > 0.1:
+                            # Update quantity if significantly different
+                            if abs(existing_ghost.quantity - abs(position_amt)) > 0.001:
                                 self.logger.debug(f"🔍 GHOST CHECK: Updating ghost trade quantity for {symbol} from {existing_ghost.quantity:.6f} to {abs(position_amt):.6f}")
                                 existing_ghost.quantity = abs(position_amt)
                                 existing_ghost.side = 'LONG' if position_amt > 0 else 'SHORT'
 
-                            # Ensure we don't re-notify for existing ghost trades
-                            if not existing_ghost.detection_notified and not suppress_notifications and self.startup_scan_complete:
-                                # This should NEVER happen - it indicates a bug
-                                self.logger.error(f"🚨 CRITICAL BUG: Existing ghost trade {ghost_id} was not marked as notified! This is the source of repeated notifications.")
-                                self.logger.error(f"🔍 Ghost details: Symbol={symbol}, Created={existing_ghost.detection_time}, Strategy={existing_ghost.strategy_name}")
-                                existing_ghost.detection_notified = True
-                                existing_ghost.last_notification_time = datetime.now()
-
-                        self.logger.debug(f"🔍 GHOST CHECK: Ghost trade already exists for {symbol}, skipping duplicate detection")
+                            # Never re-notify for existing ghost trades
+                            self.logger.debug(f"🔍 GHOST CHECK: Ghost trade already exists for {symbol}, skipping duplicate detection")
                 else:
                     self.logger.debug(f"🔍 GHOST CHECK: Position {symbol} is a known bot position")
 
