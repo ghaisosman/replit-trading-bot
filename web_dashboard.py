@@ -575,6 +575,52 @@ def export_trade_data():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to export data: {e}'})
 
+@app.route('/api/current-config')
+def get_current_config():
+    """Get current bot configuration"""
+    try:
+        config_data = {}
+        
+        # Get default parameters
+        config_data['default_params'] = trading_config_manager.default_params.to_dict()
+        
+        # Get strategy overrides
+        config_data['strategy_overrides'] = trading_config_manager.strategy_overrides.copy()
+        
+        # Get final configurations for each strategy
+        config_data['final_configs'] = {}
+        for strategy_name in trading_config_manager.strategy_overrides.keys():
+            base_config = {}
+            final_config = trading_config_manager.get_strategy_config(strategy_name, base_config)
+            config_data['final_configs'][strategy_name] = final_config
+        
+        # Check if bot is running and get its active config
+        config_data['bot_status'] = {
+            'running': False,
+            'active_strategies': []
+        }
+        
+        if bot_manager and hasattr(bot_manager, 'strategies'):
+            config_data['bot_status']['running'] = getattr(bot_manager, 'is_running', False)
+            config_data['bot_status']['active_strategies'] = list(bot_manager.strategies.keys()) if bot_manager.strategies else []
+            
+            # Get actual bot strategy configs
+            if bot_manager.strategies:
+                config_data['bot_active_configs'] = bot_manager.strategies.copy()
+        
+        # Also check shared bot manager
+        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+        if shared_bot_manager and hasattr(shared_bot_manager, 'strategies'):
+            config_data['bot_status']['running'] = getattr(shared_bot_manager, 'is_running', False)
+            config_data['bot_status']['active_strategies'] = list(shared_bot_manager.strategies.keys()) if shared_bot_manager.strategies else []
+            
+            if shared_bot_manager.strategies:
+                config_data['bot_active_configs'] = shared_bot_manager.strategies.copy()
+        
+        return jsonify({'success': True, 'config': config_data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to get configuration: {e}'})
+
 def get_bot_status():
     """Get current bot status"""
     global bot_running, bot_manager, shared_bot_manager

@@ -325,6 +325,27 @@
         </div>
     </div>
 
+    <!-- Current Config Modal -->
+    <div class="modal fade" id="currentConfigModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Current Configuration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="configDisplay">
+                        <!-- Configuration will be displayed here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="refreshConfig()">Refresh</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Bot control functions
         $('#botToggle').click(function() {
@@ -495,7 +516,7 @@
 
         function displayMLInsights(insights) {
             let html = '';
-            
+
             if (insights.strategy_performance) {
                 html += '<h6>Strategy Performance:</h6>';
                 for (let strategy in insights.strategy_performance) {
@@ -504,7 +525,7 @@
                     html += `<small>${strategy}: ${winRate}% Win Rate</small><br>`;
                 }
             }
-            
+
             if (insights.time_analysis && insights.time_analysis.best_trading_hours) {
                 html += '<h6 class="mt-2">Best Trading Hours:</h6>';
                 for (let hour in insights.time_analysis.best_trading_hours) {
@@ -512,21 +533,21 @@
                     html += `<small>${hour}:00 - ${rate}% Success</small><br>`;
                 }
             }
-            
+
             if (!html) {
                 html = '<p class="text-muted">No insights available yet. Train models with more data.</p>';
             }
-            
+
             $('#ml-insights-content').html(html);
         }
 
         function displayMLPredictions(predictions) {
             let html = '';
-            
+
             predictions.forEach(function(pred) {
                 let status = pred.predicted_profitable ? 'text-success' : 'text-danger';
                 let recommendation = pred.predicted_profitable ? 'Profitable' : 'Risky';
-                
+
                 html += `
                     <div class="border-bottom pb-2 mb-2">
                         <strong>${pred.symbol || 'Market'}</strong>
@@ -536,11 +557,11 @@
                     </div>
                 `;
             });
-            
+
             if (!html) {
                 html = '<p class="text-muted">No predictions available. Train models first.</p>';
             }
-            
+
             $('#ml-predictions-content').html(html);
         }
 
@@ -565,6 +586,125 @@
                 }
             });
         }, 30000);
+
+        function updateDefaultParams() {
+            const data = {
+                symbol: $('#defaultSymbol').val(),
+                margin: parseFloat($('#defaultMargin').val()),
+                leverage: parseInt($('#defaultLeverage').val()),
+                timeframe: $('#defaultTimeframe').val()
+            };
+
+            // Remove empty values
+            Object.keys(data).forEach(key => {
+                if (!data[key]) delete data[key];
+            });
+
+            $.ajax({
+                url: '/api/default-params',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function(response) {
+                    if (response.success) {
+                        $('#defaultParamsModal').modal('hide');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                }
+            });
+        }
+
+        function showCurrentConfig() {
+            $('#currentConfigModal').modal('show');
+            refreshConfig();
+        }
+
+        function refreshConfig() {
+            const configDisplay = document.getElementById('configDisplay');
+            configDisplay.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            `;
+
+            $.get('/api/current-config', function(data) {
+                if (data.success) {
+                    displayConfiguration(data.config);
+                } else {
+                    configDisplay.innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
+                }
+            }).fail(function() {
+                configDisplay.innerHTML = `<div class="alert alert-danger">Error loading configuration.</div>`;
+            });
+        }
+
+        function displayConfiguration(config) {
+            const configDisplay = document.getElementById('configDisplay');
+
+            let html = `
+                <div class="accordion" id="configAccordion">
+                    <!-- Bot Status -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingStatus">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStatus">
+                                🤖 Bot Status
+                            </button>
+                        </h2>
+                        <div id="collapseStatus" class="accordion-collapse collapse show" data-bs-parent="#configAccordion">
+                            <div class="accordion-body">
+                                <p><strong>Running:</strong> <span class="badge bg-${config.bot_status.running ? 'success' : 'danger'}">${config.bot_status.running ? 'Yes' : 'No'}</span></p>
+                                <p><strong>Active Strategies:</strong> ${config.bot_status.active_strategies.join(', ') || 'None'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Final Strategy Configurations -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingFinal">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFinal">
+                                🎯 Current Strategy Settings
+                            </button>
+                        </h2>
+                        <div id="collapseFinal" class="accordion-collapse collapse" data-bs-parent="#configAccordion">
+                            <div class="accordion-body">
+            `;
+
+            for (const [strategy, settings] of Object.entries(config.final_configs)) {
+                html += `
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <strong>${strategy.toUpperCase()}</strong>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Symbol:</strong> ${settings.symbol}</p>
+                                    <p><strong>Margin:</strong> $${settings.margin}</p>
+                                    <p><strong>Leverage:</strong> ${settings.leverage}x</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Timeframe:</strong> ${settings.timeframe}</p>
+                                    <p><strong>Max Loss:</strong> ${settings.max_loss_pct}%</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            configDisplay.innerHTML = html;
+        }
     </script>
 </body>
 </html>
