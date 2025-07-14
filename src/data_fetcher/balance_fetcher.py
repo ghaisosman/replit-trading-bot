@@ -18,18 +18,35 @@ class BalanceFetcher:
                 return None
             
             balances = {}
-            for balance in account_info['balances']:
-                asset = balance['asset']
-                free = float(balance['free'])
-                locked = float(balance['locked'])
-                total = free + locked
-                
-                if total > 0:  # Only include assets with balance
-                    balances[asset] = {
-                        'free': free,
-                        'locked': locked,
-                        'total': total
-                    }
+            
+            if self.binance_client.is_futures:
+                # Futures account structure
+                for balance in account_info['assets']:
+                    asset = balance['asset']
+                    free = float(balance['availableBalance'])
+                    locked = float(balance['initialMargin']) + float(balance['maintMargin'])
+                    total = free + locked
+                    
+                    if total > 0:  # Only include assets with balance
+                        balances[asset] = {
+                            'free': free,
+                            'locked': locked,
+                            'total': total
+                        }
+            else:
+                # Spot account structure
+                for balance in account_info['balances']:
+                    asset = balance['asset']
+                    free = float(balance['free'])
+                    locked = float(balance['locked'])
+                    total = free + locked
+                    
+                    if total > 0:  # Only include assets with balance
+                        balances[asset] = {
+                            'free': free,
+                            'locked': locked,
+                            'total': total
+                        }
             
             return balances
             

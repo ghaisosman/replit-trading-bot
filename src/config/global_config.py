@@ -14,6 +14,7 @@ class GlobalConfig:
         self.BINANCE_API_KEY = os.getenv('BINANCE_API_KEY')
         self.BINANCE_SECRET_KEY = os.getenv('BINANCE_SECRET_KEY')
         self.BINANCE_TESTNET = os.getenv('BINANCE_TESTNET', 'true').lower() == 'true'  # Default to testnet
+        self.BINANCE_FUTURES = os.getenv('BINANCE_FUTURES', 'true').lower() == 'true'  # Enable futures trading
         
         # Telegram bot credentials
         self.TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
@@ -52,10 +53,15 @@ class GlobalConfig:
     def is_live_trading_ready(self) -> bool:
         """Check if configuration is ready for live trading"""
         if self.BINANCE_TESTNET:
-            print("🧪 TESTNET MODE: Safe for testing")
+            if self.BINANCE_FUTURES:
+                print("🧪 FUTURES TESTNET MODE: Safe for testing")
+                print("Using Binance Futures testnet endpoints")
+            else:
+                print("🧪 SPOT TESTNET MODE: Safe for testing")
             return True
         else:
-            print("⚠️  MAINNET MODE: REAL MONEY AT RISK!")
+            mode = "FUTURES" if self.BINANCE_FUTURES else "SPOT"
+            print(f"⚠️  {mode} MAINNET MODE: REAL MONEY AT RISK!")
             print("Make sure you have:")
             print("1. Valid API keys with trading permissions")
             print("2. IP whitelisting configured (if enabled)")

@@ -1,4 +1,3 @@
-
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 import logging
@@ -6,73 +5,95 @@ from typing import Dict, Any, Optional
 from src.config.global_config import global_config
 
 class BinanceClientWrapper:
-    """Wrapper for Binance client with error handling"""
-    
+    """Wrapper for Binance client with error handling (supports both Spot and Futures)"""
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.client = None
+        self.is_futures = global_config.BINANCE_FUTURES
         self._initialize_client()
-    
+
     def _initialize_client(self):
-        """Initialize Binance client"""
+        """Initialize Binance client for Spot or Futures"""
         try:
             if global_config.BINANCE_TESTNET:
-                # Use testnet URLs explicitly
-                self.client = Client(
-                    api_key=global_config.BINANCE_API_KEY,
-                    api_secret=global_config.BINANCE_SECRET_KEY,
-                    testnet=True
-                )
-                # Verify testnet endpoints
-                self.logger.info("Binance testnet client initialized successfully")
-                self.logger.info(f"Using testnet base URL: {self.client.API_URL}")
+                if self.is_futures:
+                    # Use futures testnet
+                    self.client = Client(
+                        api_key=global_config.BINANCE_API_KEY,
+                        api_secret=global_config.BINANCE_SECRET_KEY,
+                        testnet=True
+                    )
+                    # Override base URLs for futures testnet
+                    self.client.API_URL = 'https://testnet.binancefuture.com'
+                    self.client.FUTURES_URL = 'https://testnet.binancefuture.com'
+                    self.logger.info("Binance FUTURES testnet client initialized successfully")
+                    self.logger.info(f"Using futures testnet URL: {self.client.FUTURES_URL}")
+                else:
+                    # Use spot testnet
+                    self.client = Client(
+                        api_key=global_config.BINANCE_API_KEY,
+                        api_secret=global_config.BINANCE_SECRET_KEY,
+                        testnet=True
+                    )
+                    self.logger.info("Binance SPOT testnet client initialized successfully")
+                    self.logger.info(f"Using spot testnet URL: {self.client.API_URL}")
             else:
+                # Mainnet
                 self.client = Client(
                     api_key=global_config.BINANCE_API_KEY,
                     api_secret=global_config.BINANCE_SECRET_KEY,
                     testnet=False
                 )
-                self.logger.info("Binance mainnet client initialized successfully")
-                self.logger.info(f"Using mainnet base URL: {self.client.API_URL}")
+                mode = "FUTURES" if self.is_futures else "SPOT"
+                self.logger.info(f"Binance {mode} mainnet client initialized successfully")
+
         except Exception as e:
             self.logger.error(f"Failed to initialize Binance client: {e}")
             raise
-    
+
     def test_connection(self) -> bool:
         """Test API connection"""
         try:
-            # Test with a simple ping first
-            self.client.ping()
-            
-            # Verify we're connected to the right environment
-            if global_config.BINANCE_TESTNET:
-                self.logger.info(f"✅ Connected to TESTNET: {self.client.API_URL}")
+            if self.is_futures:
+                # Test futures connection
+                self.client.futures_ping()
+                env = "FUTURES TESTNET" if global_config.BINANCE_TESTNET else "FUTURES MAINNET"
+                url = self.client.FUTURES_URL if global_config.BINANCE_TESTNET else "https://fapi.binance.com"
             else:
-                self.logger.info(f"✅ Connected to MAINNET: {self.client.API_URL}")
-                
+                # Test spot connection
+                self.client.ping()
+                env = "SPOT TESTNET" if global_config.BINANCE_TESTNET else "SPOT MAINNET"
+                url = self.client.API_URL
+
+            self.logger.info(f"✅ Connected to {env}: {url}")
             self.logger.info("✅ Binance API connection test successful")
             return True
+
         except BinanceAPIException as e:
             self.logger.error(f"❌ Binance API connection test failed: {e}")
             if e.code == -2015:
                 if global_config.BINANCE_TESTNET:
-                    self.logger.error("❌ API Key invalid for SPOT testnet. Common issues:")
-                    self.logger.error("1. Keys are from FUTURES testnet (testnet.binancefuture.com)")
-                    self.logger.error("   → This bot needs SPOT testnet keys from https://testnet.binance.vision/")
-                    self.logger.error("2. Keys don't have 'Spot & Margin Trading' permission")
-                    self.logger.error("3. Keys are expired or invalid")
-                    self.logger.error("")
-                    self.logger.error("🔧 SOLUTION: Get new SPOT testnet API keys:")
-                    self.logger.error("   • Go to https://testnet.binance.vision/")
-                    self.logger.error("   • Create API Key with 'Spot & Margin Trading' permission")
-                    self.logger.error("   • Update your Replit Secrets")
+                    if self.is_futures:
+                        self.logger.error("❌ API Key invalid for FUTURES testnet. Common issues:")
+                        self.logger.error("1. Keys are from SPOT testnet (testnet.binance.vision)")
+                        self.logger.error("   → This bot needs FUTURES testnet keys from https://testnet.binancefuture.com/")
+                        self.logger.error("2. Keys don't have futures trading permissions")
+                        self.logger.error("3. Keys are expired or invalid")
+                        self.logger.error("")
+                        self.logger.error("🔧 SOLUTION: Get new FUTURES testnet API keys:")
+                        self.logger.error("   • Go to https://testnet.binancefuture.com/")
+                        self.logger.error("   • Create API Key with futures trading permissions")
+                        self.logger.error("   • Update your Replit Secrets")
+                    else:
+                        self.logger.error("❌ API Key invalid for SPOT testnet. Get keys from https://testnet.binance.vision/")
                 else:
                     self.logger.error("API Key invalid or IP not whitelisted for mainnet")
             return False
         except Exception as e:
             self.logger.error(f"❌ Connection test failed: {e}")
             return False
-    
+
     def validate_api_permissions(self) -> Dict[str, bool]:
         """Validate API key permissions for trading"""
         permissions = {
@@ -81,109 +102,146 @@ class BinanceClientWrapper:
             'trading': False,
             'market_data': False
         }
-        
+
         try:
-            # Test basic ping
-            self.client.ping()
-            permissions['ping'] = True
-            self.logger.info("✅ API Ping: SUCCESS")
-            
-            # Test market data access
-            ticker = self.client.get_symbol_ticker(symbol='BTCUSDT')
-            if ticker:
-                permissions['market_data'] = True
-                self.logger.info("✅ Market Data: SUCCESS")
-            
-            # Test account access
-            account = self.client.get_account()
-            if account:
-                permissions['account_access'] = True
-                self.logger.info("✅ Account Access: SUCCESS")
-                
-                # Check if trading is enabled
-                if account.get('canTrade', False):
-                    permissions['trading'] = True
-                    self.logger.info("✅ Trading Permission: SUCCESS")
-                else:
-                    self.logger.error("❌ Trading Permission: DISABLED")
-                    self.logger.error("🔧 Enable 'Spot & Margin Trading' in your API key settings")
-                    
+            if self.is_futures:
+                # Test futures permissions
+                self.client.futures_ping()
+                permissions['ping'] = True
+                self.logger.info("✅ Futures API Ping: SUCCESS")
+
+                # Test futures market data
+                ticker = self.client.futures_symbol_ticker(symbol='BTCUSDT')
+                if ticker:
+                    permissions['market_data'] = True
+                    self.logger.info("✅ Futures Market Data: SUCCESS")
+
+                # Test futures account access
+                account = self.client.futures_account()
+                if account:
+                    permissions['account_access'] = True
+                    permissions['trading'] = True  # Futures account access implies trading
+                    self.logger.info("✅ Futures Account Access: SUCCESS")
+                    self.logger.info("✅ Futures Trading Permission: SUCCESS")
+            else:
+                # Test spot permissions (existing code)
+                self.client.ping()
+                permissions['ping'] = True
+                self.logger.info("✅ API Ping: SUCCESS")
+
+                ticker = self.client.get_symbol_ticker(symbol='BTCUSDT')
+                if ticker:
+                    permissions['market_data'] = True
+                    self.logger.info("✅ Market Data: SUCCESS")
+
+                account = self.client.get_account()
+                if account:
+                    permissions['account_access'] = True
+                    self.logger.info("✅ Account Access: SUCCESS")
+
+                    if account.get('canTrade', False):
+                        permissions['trading'] = True
+                        self.logger.info("✅ Trading Permission: SUCCESS")
+                    else:
+                        self.logger.error("❌ Trading Permission: DISABLED")
+
         except BinanceAPIException as e:
             if e.code == -2015:
                 self.logger.error("❌ API Key Permission Error")
                 if global_config.BINANCE_TESTNET:
-                    self.logger.error("🔧 Create new testnet API keys at https://testnet.binance.vision/")
+                    env = "FUTURES" if self.is_futures else "SPOT"
+                    url = "https://testnet.binancefuture.com/" if self.is_futures else "https://testnet.binance.vision/"
+                    self.logger.error(f"🔧 Create new {env} testnet API keys at {url}")
                 else:
                     self.logger.error("🔧 Check your mainnet API key permissions")
             else:
                 self.logger.error(f"❌ API Error: {e}")
         except Exception as e:
             self.logger.error(f"❌ Validation Error: {e}")
-            
+
         return permissions
 
     def get_account_info(self) -> Optional[Dict[str, Any]]:
         """Get account information"""
         try:
-            return self.client.get_account()
+            if self.is_futures:
+                return self.client.futures_account()
+            else:
+                return self.client.get_account()
         except BinanceAPIException as e:
             if e.code == -2015:
                 if global_config.BINANCE_TESTNET:
-                    self.logger.error("❌ TESTNET API PERMISSION ERROR")
-                    self.logger.error("🔧 SOLUTION: You likely have FUTURES testnet keys, but need SPOT testnet keys:")
-                    self.logger.error("   1. Go to https://testnet.binance.vision/ (NOT binancefuture.com)")
+                    env = "FUTURES" if self.is_futures else "SPOT"
+                    opposite_env = "SPOT" if self.is_futures else "FUTURES"
+                    url = "https://testnet.binancefuture.com/" if self.is_futures else "https://testnet.binance.vision/"
+                    opposite_url = "https://testnet.binance.vision/" if self.is_futures else "https://testnet.binancefuture.com/"
+
+                    self.logger.error(f"❌ {env} TESTNET API PERMISSION ERROR")
+                    self.logger.error(f"🔧 SOLUTION: You likely have {opposite_env} testnet keys, but need {env} testnet keys:")
+                    self.logger.error(f"   1. Go to {url} (NOT {opposite_url})")
                     self.logger.error("   2. API Management → Create API Key")
-                    self.logger.error("   3. Enable: Reading + Spot & Margin Trading")
+                    self.logger.error(f"   3. Enable: Reading + {env} Trading")
                     self.logger.error("   4. Disable IP restrictions for testing")
-                    self.logger.error("   5. Update your Replit Secrets with new SPOT testnet keys")
+                    self.logger.error(f"   5. Update your Replit Secrets with new {env} testnet keys")
                     self.logger.error("")
-                    self.logger.error("ℹ️  Current keys appear to be from Futures testnet (different endpoint)")
+                    self.logger.error(f"ℹ️  Current keys appear to be from {opposite_env} testnet (different endpoint)")
                 else:
                     self.logger.error("❌ MAINNET API Keys invalid or IP not whitelisted")
-                    self.logger.error("🔧 Solutions:")
-                    self.logger.error("   1. Enable trading permissions for API keys")
-                    self.logger.error("   2. Disable IP restrictions OR whitelist your IP")
-                    self.logger.error("   3. Verify API keys are correct")
             else:
                 self.logger.error(f"Error getting account info: {e}")
             return None
-    
+
     def get_symbol_ticker(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Get current price for symbol"""
         try:
-            return self.client.get_symbol_ticker(symbol=symbol)
+            if self.is_futures:
+                return self.client.futures_symbol_ticker(symbol=symbol)
+            else:
+                return self.client.get_symbol_ticker(symbol=symbol)
         except BinanceAPIException as e:
             self.logger.error(f"Error getting ticker for {symbol}: {e}")
             return None
-    
+
     def get_historical_klines(self, symbol: str, interval: str, limit: int = 100) -> Optional[list]:
         """Get historical klines"""
         try:
-            return self.client.get_historical_klines(symbol, interval, limit=limit)
+            if self.is_futures:
+                return self.client.futures_klines(symbol=symbol, interval=interval, limit=limit)
+            else:
+                return self.client.get_historical_klines(symbol, interval, limit=limit)
         except BinanceAPIException as e:
             self.logger.error(f"Error getting klines for {symbol}: {e}")
             return None
-    
+
     def create_order(self, **kwargs) -> Optional[Dict[str, Any]]:
         """Create an order"""
         try:
-            return self.client.create_order(**kwargs)
+            if self.is_futures:
+                return self.client.futures_create_order(**kwargs)
+            else:
+                return self.client.create_order(**kwargs)
         except BinanceAPIException as e:
             self.logger.error(f"Error creating order: {e}")
             return None
-    
+
     def get_open_orders(self, symbol: str = None) -> Optional[list]:
         """Get open orders"""
         try:
-            return self.client.get_open_orders(symbol=symbol)
+            if self.is_futures:
+                return self.client.futures_get_open_orders(symbol=symbol)
+            else:
+                return self.client.get_open_orders(symbol=symbol)
         except BinanceAPIException as e:
             self.logger.error(f"Error getting open orders: {e}")
             return None
-    
+
     def cancel_order(self, symbol: str, order_id: int) -> Optional[Dict[str, Any]]:
         """Cancel an order"""
         try:
-            return self.client.cancel_order(symbol=symbol, orderId=order_id)
+            if self.is_futures:
+                return self.client.futures_cancel_order(symbol=symbol, orderId=order_id)
+            else:
+                return self.client.cancel_order(symbol=symbol, orderId=order_id)
         except BinanceAPIException as e:
             self.logger.error(f"Error canceling order: {e}")
             return None
