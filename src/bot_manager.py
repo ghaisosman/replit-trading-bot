@@ -96,6 +96,10 @@ For MAINNET:
         for strategy_name, strategy_config in self.strategies.items():
             self.trade_monitor.register_strategy(strategy_name, strategy_config['symbol'])
 
+        # Daily reporter
+        from src.reporting.daily_reporter import DailyReporter
+        self.daily_reporter = DailyReporter(self.telegram_reporter, self.order_manager)
+
 
     async def start(self):
         """Start the trading bot"""
@@ -103,7 +107,7 @@ For MAINNET:
 
         # Log startup source - simplified detection
         startup_source = "Web Interface"  # Default to web interface since this is the issue we're fixing
-        
+
         # Check if this is a web interface call by looking at the call stack
         import inspect
         frame = inspect.currentframe()
@@ -153,13 +157,13 @@ For MAINNET:
             # CRITICAL: Force startup notification to be sent IMMEDIATELY
             self.logger.info(f"📱 PREPARING TELEGRAM STARTUP NOTIFICATION ({startup_source})")
             self.logger.info(f"🔍 NOTIFICATION DEBUG: startup_notified = {self.startup_notified}")
-            
+
             # Force reset notification flag
             self.startup_notified = False
             self.logger.info(f"🔍 NOTIFICATION DEBUG: Force reset startup_notified = {self.startup_notified}")
-            
+
             self.logger.info(f"📱 SENDING TELEGRAM STARTUP NOTIFICATION ({startup_source})")
-            
+
             # ALWAYS send startup notification regardless of previous state
             try:
                 self.logger.info(f"🔍 CALLING telegram_reporter.report_bot_startup()...")
@@ -177,7 +181,7 @@ For MAINNET:
                 self.logger.error(f"❌ NOTIFICATION ERROR DETAILS: {type(e).__name__}: {str(e)}")
                 import traceback
                 self.logger.error(f"❌ FULL TRACEBACK: {traceback.format_exc()}")
-                
+
                 # Try to send a simple error message
                 try:
                     self.logger.info(f"🔍 ATTEMPTING FALLBACK NOTIFICATION...")
@@ -194,7 +198,11 @@ For MAINNET:
             self.logger.info(f"🔍 BOT STATUS: is_running = {self.is_running}")
 
             # Start main trading loop
-            self.logger.info(f"🔄 STARTING MAIN TRADING LOOP...")
+            self.logger.info("🔄 STARTING MAIN TRADING LOOP...")
+
+            # Start daily reporter scheduler
+            self.daily_reporter.start_scheduler()
+
             await self._main_trading_loop()
 
         except Exception as e:

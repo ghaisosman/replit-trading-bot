@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 from src.binance_client.client import BinanceClientWrapper
 from src.strategy_processor.signal_processor import TradingSignal, SignalType
+from src.analytics.trade_logger import trade_logger
 
 @dataclass
 class Position:
@@ -19,6 +20,7 @@ class Position:
     order_id: Optional[int] = None
     entry_time: Optional[datetime] = None
     status: str = "OPEN"
+    trade_id: Optional[str] = None
 
 class OrderManager:
     """Manages order execution and position tracking"""
@@ -92,14 +94,41 @@ class OrderManager:
             self.logger.error(f"Error executing signal: {e}")
             return None
 
-    def close_position(self, strategy_name: str, reason: str = "Manual close") -> bool:
+    def _calculate_profit_loss(self, position: Position, current_price: float) -> Tuple[float, float]:
+        """Calculate profit and loss for a position"""
+        entry_price = position.entry_price
+        side = position.side
+        quantity = position.quantity
+
+        # Calculate PnL based on position side
+        if side == 'BUY':  # Long position
+            pnl = (current_price - entry_price) * quantity
+        else:  # Short position
+            pnl = (entry_price - current_price) * quantity
+
+        # Calculate PnL percentage
+        pnl_percentage = (pnl / (entry_price * quantity)) * 100 if entry_price * quantity != 0 else 0
+
+        return pnl, pnl_percentage
+
+    def close_position(self, strategy_name: str, reason: str = "Manual close") -> dict:
         """Close an active position"""
         try:
             if strategy_name not in self.active_positions:
                 self.logger.warning(f"No active position for strategy {strategy_name}")
-                return False
+                return {}
 
             position = self.active_positions[strategy_name]
+            symbol = position.symbol
+
+            # Fetch current price for accurate PnL calculation
+            current_price = self.binance_client.get_latest_price(symbol)
+            if not current_price:
+                self.logger.error(f"❌ Could not fetch current price for {symbol}")
+                return {}
+
+            # Calculate profit/loss
+            pnl, pnl_percentage = self._calculate_profit_loss(position, current_price)
 
             # Create closing order (opposite side) with hedge mode support
             close_side = 'SELL' if position.side == 'BUY' else 'BUY'
@@ -115,7 +144,21 @@ class OrderManager:
             order_result = self.binance_client.create_order(**order_params)
             if not order_result:
                 self.logger.error("Failed to create closing order")
-                return False
+                return {}
+
+             # Log trade exit for analytics
+            try:
+                if position.trade_id:
+                    trade_logger.log_trade_exit(
+                        trade_id=position.trade_id,
+                        exit_price=current_price,
+                        exit_reason=reason,
+                        pnl_usdt=pnl,
+                        pnl_percentage=pnl_percentage,
+                        max_drawdown=0  # Could be calculated if tracking is implemented
+                    )
+            except Exception as e:
+                self.logger.error(f"❌ Error logging trade exit: {e}")
 
             # Update position status
             position.status = "CLOSED"
@@ -124,12 +167,20 @@ class OrderManager:
             self.position_history.append(position)
             del self.active_positions[strategy_name]
 
-            self.logger.info(f"Position closed for {strategy_name}. Reason: {reason}")
-            return True
+            self.logger.info(f"🔴 POSITION CLOSED | {strategy_name} | {symbol} | PnL: ${pnl:.2f} USDT ({pnl_percentage:+.2f}%) | Duration: {position.entry_time - datetime.now():.1f}min")
+
+            return {
+                'symbol': symbol,
+                'pnl_usdt': pnl,
+                'pnl_percentage': pnl_percentage,
+                'exit_price': current_price,
+                'exit_reason': reason,
+                'duration_minutes': (datetime.now() - position.entry_time).total_seconds() / 60
+            }
 
         except Exception as e:
             self.logger.error(f"Error closing position: {e}")
-            return False
+            return {}
 
     def _calculate_position_size(self, signal: TradingSignal, strategy_config: Dict) -> Optional[float]:
         """Calculate position size based on margin and leverage"""
