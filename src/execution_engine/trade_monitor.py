@@ -121,20 +121,34 @@ class TradeMonitor:
                     account_info = self.binance_client.client.futures_account()
                     all_positions = account_info.get('positions', [])
                     self.logger.info(f"🔍 GHOST CHECK: Found {len(all_positions)} total positions on Binance")
+                    
+                    # Debug: Log all positions with their amounts
+                    for pos in all_positions:
+                        pos_amt = float(pos.get('positionAmt', 0))
+                        if abs(pos_amt) > 0:
+                            self.logger.info(f"🔍 GHOST CHECK: Position found - {pos.get('symbol')}: {pos_amt}")
+                            
             except Exception as e:
                 self.logger.error(f"Error getting all Binance positions: {e}")
                 return
             
-            # Filter for positions with non-zero amounts
-            active_positions = [pos for pos in all_positions if abs(float(pos.get('positionAmt', 0))) > 0.001]
+            # Filter for positions with non-zero amounts (lower threshold)
+            active_positions = [pos for pos in all_positions if abs(float(pos.get('positionAmt', 0))) > 0.00001]
             self.logger.info(f"🔍 GHOST CHECK: {len(active_positions)} active positions found")
+            
+            # Log bot's current positions for comparison
+            self.logger.info(f"🔍 GHOST CHECK: Bot has {len(self.order_manager.active_positions)} active positions:")
+            for strategy_name, bot_position in self.order_manager.active_positions.items():
+                side_multiplier = 1 if bot_position.side == 'BUY' else -1
+                expected_amt = bot_position.quantity * side_multiplier
+                self.logger.info(f"  • {strategy_name}: {bot_position.symbol} = {expected_amt} ({bot_position.side})")
             
             # Check each active position
             for binance_pos in active_positions:
                 symbol = binance_pos.get('symbol')
                 position_amt = float(binance_pos.get('positionAmt', 0))
                 
-                self.logger.info(f"🔍 GHOST CHECK: Checking position {symbol}: {position_amt}")
+                self.logger.info(f"🔍 GHOST CHECK: Analyzing position {symbol}: {position_amt}")
                 
                 # Check if this position matches ANY known bot position
                 is_bot_position = False
@@ -146,12 +160,16 @@ class TradeMonitor:
                         bot_side_multiplier = 1 if bot_position.side == 'BUY' else -1
                         expected_position_amt = bot_position.quantity * bot_side_multiplier
                         
+                        self.logger.info(f"🔍 GHOST CHECK: Comparing {symbol} - Binance: {position_amt}, Bot expects: {expected_position_amt}")
+                        
                         # Allow small tolerance for quantity differences due to rounding
-                        if abs(position_amt - expected_position_amt) < 0.01:  # Increased tolerance
+                        if abs(position_amt - expected_position_amt) < 0.1:  # Increased tolerance
                             is_bot_position = True
                             matching_strategy = strategy_name
                             self.logger.info(f"🔍 GHOST CHECK: Position {symbol} matches bot strategy {strategy_name}")
                             break
+                        else:
+                            self.logger.info(f"🔍 GHOST CHECK: Position {symbol} differs from bot - difference: {abs(position_amt - expected_position_amt)}")
                 
                 # If this is not a bot position, it's a ghost trade
                 if not is_bot_position:
@@ -164,21 +182,22 @@ class TradeMonitor:
                             monitoring_strategy = strategy_name
                             break
                     
-                    # If no strategy monitors this symbol, use a generic name
+                    # If no strategy monitors this symbol, create a generic monitoring name
                     if not monitoring_strategy:
                         monitoring_strategy = f"manual_{symbol.lower()}"
+                        self.logger.info(f"🔍 GHOST CHECK: No strategy monitors {symbol}, using generic name: {monitoring_strategy}")
                     
                     # Check if we already have a ghost trade for this position
                     existing_ghost_found = False
                     for gid, ghost in self.ghost_trades.items():
-                        if ghost.symbol == symbol and abs(ghost.quantity - abs(position_amt)) < 0.01:
+                        if ghost.symbol == symbol and abs(ghost.quantity - abs(position_amt)) < 0.1:
                             existing_ghost_found = True
                             self.logger.info(f"🔍 GHOST CHECK: Already tracking ghost trade for {symbol}")
                             break
                     
                     # Only create new ghost trade if we don't already have one for this position
                     if not existing_ghost_found:
-                        side = 'BUY' if position_amt > 0 else 'SELL'
+                        side = 'LONG' if position_amt > 0 else 'SHORT'
                         timestamp = int(datetime.now().timestamp())
                         ghost_id = f"{monitoring_strategy}_{symbol}_{abs(position_amt):.6f}_{timestamp}"
                         
@@ -195,9 +214,8 @@ class TradeMonitor:
                         
                         # Get current price for USDT value calculation
                         try:
-                            from src.data_fetcher.price_fetcher import PriceFetcher
-                            price_fetcher = PriceFetcher(self.binance_client)
-                            current_price = price_fetcher.get_current_price(symbol)
+                            ticker = self.binance_client.get_symbol_ticker(symbol)
+                            current_price = float(ticker['price']) if ticker else None
                         except:
                             current_price = None
                         
@@ -211,6 +229,10 @@ class TradeMonitor:
                             quantity=abs(position_amt),
                             current_price=current_price
                         )
+                    else:
+                        self.logger.info(f"🔍 GHOST CHECK: Not creating duplicate ghost trade for {symbol}")
+                else:
+                    self.logger.info(f"🔍 GHOST CHECK: Position {symbol} is a known bot position")
                         
         except Exception as e:
             self.logger.error(f"Error checking ghost trades: {e}")
