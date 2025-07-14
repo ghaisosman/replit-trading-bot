@@ -184,12 +184,15 @@ def start_bot():
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    # Reset startup notification flag for restart
+                    # FORCE reset startup notification flag for restart
                     shared_bot_manager.startup_notified = False
                     
                     # Set running state
                     shared_bot_manager.is_running = True
                     logger.info("🚀 BOT RESTARTED VIA WEB INTERFACE")
+                    
+                    # Force debug logging for notification state
+                    logger.info(f"🔍 DEBUG: startup_notified reset to: {shared_bot_manager.startup_notified}")
                     
                     # Start the bot's start method (this will handle startup notifications properly)
                     loop.run_until_complete(shared_bot_manager.start())

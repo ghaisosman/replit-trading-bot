@@ -127,8 +127,7 @@ For MAINNET:
 
         try:
             # Startup banner
-            is_restart = self.startup_notified  # Check if this is a restart
-            startup_type = "RESTARTED" if is_restart else "ACTIVATED"
+            startup_type = "RESTARTED" if startup_source == "Web Interface" else "ACTIVATED"
             self.logger.info(f"🚀 TRADING BOT {startup_type}")
 
             mode = "FUTURES TESTNET" if global_config.BINANCE_TESTNET else "FUTURES MAINNET"
@@ -149,8 +148,10 @@ For MAINNET:
             # Get pairs being watched
             pairs = [config['symbol'] for config in self.strategies.values()]
 
-            # ALWAYS send startup notification - this ensures it works regardless of source
+            # FORCE startup notification logging
             self.logger.info(f"📱 SENDING TELEGRAM STARTUP NOTIFICATION ({startup_source})")
+            
+            # ALWAYS send startup notification regardless of previous state
             try:
                 self.telegram_reporter.report_bot_startup(
                     pairs=pairs,
@@ -162,12 +163,15 @@ For MAINNET:
                 self.startup_notified = True
             except Exception as e:
                 self.logger.error(f"❌ FAILED TO SEND TELEGRAM STARTUP NOTIFICATION: {e}")
+                # Force logging of the specific error
+                self.logger.error(f"❌ NOTIFICATION ERROR DETAILS: {type(e).__name__}: {str(e)}")
                 # Try to send a simple error message
                 try:
                     error_msg = f"⚠️ Bot started from {startup_source} but notification failed: {str(e)}"
                     self.telegram_reporter.send_message(error_msg)
-                except:
-                    pass
+                    self.logger.info("✅ ERROR NOTIFICATION SENT TO TELEGRAM")
+                except Exception as fallback_error:
+                    self.logger.error(f"❌ EVEN FALLBACK NOTIFICATION FAILED: {fallback_error}")
 
             self.is_running = True
 
