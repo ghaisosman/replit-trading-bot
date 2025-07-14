@@ -144,25 +144,33 @@ For MAINNET:
             # Get pairs being watched
             pairs = [config['symbol'] for config in self.strategies.values()]
 
-            # Send startup notification based on source
+            # Always send startup notification for web interface restarts
             if startup_source == "Web Interface":
-                # Web interface restart/start - always send startup notification
                 self.logger.info("📱 SENDING TELEGRAM STARTUP NOTIFICATION (Web Interface)")
-                self.telegram_reporter.report_bot_startup(
-                    pairs=pairs,
-                    strategies=strategies,
-                    balance=balance_info,
-                    open_trades=len(self.order_manager.active_positions)
-                )
+                try:
+                    self.telegram_reporter.report_bot_startup(
+                        pairs=pairs,
+                        strategies=strategies,
+                        balance=balance_info,
+                        open_trades=len(self.order_manager.active_positions)
+                    )
+                    self.logger.info("✅ TELEGRAM STARTUP NOTIFICATION SENT")
+                except Exception as e:
+                    self.logger.error(f"❌ FAILED TO SEND TELEGRAM STARTUP NOTIFICATION: {e}")
                 self.startup_notified = True
             elif not self.startup_notified:
                 # First time console startup
-                self.telegram_reporter.report_bot_startup(
-                    pairs=pairs,
-                    strategies=strategies,
-                    balance=balance_info,
-                    open_trades=len(self.order_manager.active_positions)
-                )
+                self.logger.info("📱 SENDING TELEGRAM STARTUP NOTIFICATION (Console)")
+                try:
+                    self.telegram_reporter.report_bot_startup(
+                        pairs=pairs,
+                        strategies=strategies,
+                        balance=balance_info,
+                        open_trades=len(self.order_manager.active_positions)
+                    )
+                    self.logger.info("✅ TELEGRAM STARTUP NOTIFICATION SENT")
+                except Exception as e:
+                    self.logger.error(f"❌ FAILED TO SEND TELEGRAM STARTUP NOTIFICATION: {e}")
                 self.startup_notified = True
             else:
                 # Console restart (if needed in future)
