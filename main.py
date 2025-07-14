@@ -3,8 +3,10 @@ import asyncio
 import logging
 import signal
 import sys
+import threading
 from src.bot_manager import BotManager
 from src.utils.logger import setup_logger
+from web_dashboard import app
 
 # Global bot manager for signal handling
 bot_manager = None
@@ -29,6 +31,14 @@ async def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     logger.info("Starting Multi-Strategy Trading Bot")
+    
+    # Start web dashboard in background thread
+    def run_web_dashboard():
+        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+    
+    web_thread = threading.Thread(target=run_web_dashboard, daemon=True)
+    web_thread.start()
+    logger.info("🌐 Web Dashboard started at http://0.0.0.0:5000")
     
     try:
         # Initialize and start the bot
