@@ -18,12 +18,18 @@ class TelegramReporter:
     def send_message(self, message: str, parse_mode: str = "HTML") -> bool:
         """Send a message to Telegram"""
         try:
+            self.logger.info(f"🔍 TELEGRAM DEBUG: send_message() called with message length: {len(message)}")
+            
             # Filter out market assessment messages - they should only appear in console logs
             if ("MARKET ASSESSMENT" in message or 
                 "SCANNING" in message or 
                 "MARKET SCAN" in message or
                 "📈 MARKET" in message):
+                self.logger.info(f"🔍 TELEGRAM DEBUG: Message filtered out (market assessment)")
                 return True  # Skip sending but return success
+            
+            self.logger.info(f"🔍 TELEGRAM DEBUG: bot_token exists: {bool(self.bot_token)}")
+            self.logger.info(f"🔍 TELEGRAM DEBUG: chat_id exists: {bool(self.chat_id)}")
             
             url = f"{self.base_url}/sendMessage"
             payload = {
@@ -32,17 +38,27 @@ class TelegramReporter:
                 'parse_mode': parse_mode
             }
 
+            self.logger.info(f"🔍 TELEGRAM DEBUG: Making POST request to Telegram API...")
             response = requests.post(url, json=payload, timeout=10)
+            self.logger.info(f"🔍 TELEGRAM DEBUG: Response status: {response.status_code}")
+            
             response.raise_for_status()
+            self.logger.info(f"🔍 TELEGRAM DEBUG: Message sent successfully!")
 
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to send Telegram message: {e}")
+            self.logger.error(f"❌ TELEGRAM ERROR: Failed to send message: {e}")
+            self.logger.error(f"❌ TELEGRAM ERROR: Error type: {type(e).__name__}")
+            import traceback
+            self.logger.error(f"❌ TELEGRAM ERROR: Full traceback: {traceback.format_exc()}")
             return False
 
     def report_bot_startup(self, pairs: list, strategies: list, balance: float, open_trades: int):
         """1. Bot starting message"""
+        self.logger.info(f"🔍 TELEGRAM DEBUG: report_bot_startup() called")
+        self.logger.info(f"🔍 TELEGRAM DEBUG: pairs={pairs}, strategies={strategies}, balance={balance}, open_trades={open_trades}")
+        
         message = f"""
 🟢 <b>BOT STARTED</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
@@ -52,7 +68,11 @@ class TelegramReporter:
 💰 <b>Available Balance:</b> ${balance:.2f} USDT
 📈 <b>Currently Open Trades:</b> {open_trades}
         """
-        self.send_message(message)
+        
+        self.logger.info(f"🔍 TELEGRAM DEBUG: Prepared message, calling send_message()")
+        result = self.send_message(message)
+        self.logger.info(f"🔍 TELEGRAM DEBUG: send_message() returned: {result}")
+        return result
 
     def report_trade_entry(self, strategy_name: str, pair: str, direction: str, entry_price: float, 
                           margin: float, leverage: int, balance_after: float, open_trades: int, quantity: float = None):

@@ -137,22 +137,32 @@ For MAINNET:
             self.logger.info(f"📈 ACTIVE STRATEGIES: {', '.join(strategies)}")
 
             # Get initial balance
+            self.logger.info(f"🔍 FETCHING ACCOUNT BALANCE...")
             balance_info = self.balance_fetcher.get_usdt_balance() or 0
             self.logger.info(f"💰 ACCOUNT BALANCE: ${balance_info:,.1f} USDT")
 
             self.logger.info(f"⚡ MONITORING INTERVAL: {global_config.PRICE_UPDATE_INTERVAL}s")
 
             # Check for existing positions from previous runs
+            self.logger.info(f"🔍 CHECKING FOR EXISTING POSITIONS...")
             await self._recover_active_positions()
 
             # Get pairs being watched
             pairs = [config['symbol'] for config in self.strategies.values()]
 
-            # FORCE startup notification logging
+            # CRITICAL: Force startup notification to be sent IMMEDIATELY
+            self.logger.info(f"📱 PREPARING TELEGRAM STARTUP NOTIFICATION ({startup_source})")
+            self.logger.info(f"🔍 NOTIFICATION DEBUG: startup_notified = {self.startup_notified}")
+            
+            # Force reset notification flag
+            self.startup_notified = False
+            self.logger.info(f"🔍 NOTIFICATION DEBUG: Force reset startup_notified = {self.startup_notified}")
+            
             self.logger.info(f"📱 SENDING TELEGRAM STARTUP NOTIFICATION ({startup_source})")
             
             # ALWAYS send startup notification regardless of previous state
             try:
+                self.logger.info(f"🔍 CALLING telegram_reporter.report_bot_startup()...")
                 self.telegram_reporter.report_bot_startup(
                     pairs=pairs,
                     strategies=strategies,
@@ -165,17 +175,26 @@ For MAINNET:
                 self.logger.error(f"❌ FAILED TO SEND TELEGRAM STARTUP NOTIFICATION: {e}")
                 # Force logging of the specific error
                 self.logger.error(f"❌ NOTIFICATION ERROR DETAILS: {type(e).__name__}: {str(e)}")
+                import traceback
+                self.logger.error(f"❌ FULL TRACEBACK: {traceback.format_exc()}")
+                
                 # Try to send a simple error message
                 try:
+                    self.logger.info(f"🔍 ATTEMPTING FALLBACK NOTIFICATION...")
                     error_msg = f"⚠️ Bot started from {startup_source} but notification failed: {str(e)}"
-                    self.telegram_reporter.send_message(error_msg)
-                    self.logger.info("✅ ERROR NOTIFICATION SENT TO TELEGRAM")
+                    result = self.telegram_reporter.send_message(error_msg)
+                    if result:
+                        self.logger.info("✅ ERROR NOTIFICATION SENT TO TELEGRAM")
+                    else:
+                        self.logger.error("❌ ERROR NOTIFICATION ALSO FAILED")
                 except Exception as fallback_error:
                     self.logger.error(f"❌ EVEN FALLBACK NOTIFICATION FAILED: {fallback_error}")
 
             self.is_running = True
+            self.logger.info(f"🔍 BOT STATUS: is_running = {self.is_running}")
 
             # Start main trading loop
+            self.logger.info(f"🔄 STARTING MAIN TRADING LOOP...")
             await self._main_trading_loop()
 
         except Exception as e:
