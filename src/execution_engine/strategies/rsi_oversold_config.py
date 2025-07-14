@@ -13,13 +13,13 @@ class RSIOversoldConfig:
             'leverage': 5,
             'timeframe': '15m',
             'max_loss_pct': 10,  # 10% of margin for stop loss
-            'rsi_long_entry': 30,  # RSI level for long entry
-            'rsi_long_exit': 60,   # RSI level for long take profit
-            'rsi_short_entry': 70, # RSI level for short entry  
-            'rsi_short_exit': 40,  # RSI level for short take profit
+            'rsi_long_entry': 40,  # RSI level for long entry (relaxed for testing)
+            'rsi_long_exit': 70,   # RSI level for long take profit (relaxed for testing)
+            'rsi_short_entry': 60, # RSI level for short entry (relaxed for testing)
+            'rsi_short_exit': 30,  # RSI level for short take profit (relaxed for testing)
             'assessment_interval': 60,  # 60 seconds
             'enabled': True,
-            'description': 'RSI strategy: Long at RSI 30, TP at RSI 60. Short at RSI 70, TP at RSI 40. SL at -10% margin PnL'
+            'description': 'RSI strategy: Long at RSI 40, TP at RSI 70. Short at RSI 60, TP at RSI 30. SL at -10% margin PnL (RELAXED FOR TESTING)'
         }
     
     @staticmethod

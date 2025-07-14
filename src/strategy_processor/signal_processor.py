@@ -93,8 +93,8 @@ class SignalProcessor:
             notional_value = margin * leverage
             stop_loss_pct = (max_loss_amount / notional_value) * 100
 
-            # Long signal: RSI reaches 30
-            if rsi_current <= 30:
+            # Long signal: RSI reaches 40 (relaxed from 30 for testing)
+            if rsi_current <= 40:
                 stop_loss = current_price * (1 - stop_loss_pct / 100)
                 # Take profit will be determined by RSI level in exit conditions
                 take_profit = current_price * 1.05  # Placeholder, real TP is RSI-based
@@ -105,11 +105,11 @@ class SignalProcessor:
                     entry_price=current_price,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
-                    reason=f"RSI LONG ENTRY at {rsi_current:.2f} (RSI <= 30)"
+                    reason=f"RSI LONG ENTRY at {rsi_current:.2f} (RSI <= 40)"
                 )
 
-            # Short signal: RSI reaches 70
-            elif rsi_current >= 70:
+            # Short signal: RSI reaches 60 (relaxed from 70 for testing)
+            elif rsi_current >= 60:
                 stop_loss = current_price * (1 + stop_loss_pct / 100)
                 # Take profit will be determined by RSI level in exit conditions
                 take_profit = current_price * 0.95  # Placeholder, real TP is RSI-based
@@ -120,7 +120,7 @@ class SignalProcessor:
                     entry_price=current_price,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
-                    reason=f"RSI SHORT ENTRY at {rsi_current:.2f} (RSI >= 70)"
+                    reason=f"RSI SHORT ENTRY at {rsi_current:.2f} (RSI >= 60)"
                 )
 
             return None
@@ -255,15 +255,15 @@ class SignalProcessor:
             if strategy_name == 'rsi_oversold' and 'rsi' in df.columns:
                 rsi_current = df['rsi'].iloc[-1]
 
-                # Long position: Take profit when RSI reaches 60
-                if position_side == 'BUY' and rsi_current >= 60:
-                    self.logger.info(f"LONG TAKE PROFIT: RSI {rsi_current:.2f} >= 60")
-                    return "Take Profit (RSI 60+)"
+                # Long position: Take profit when RSI reaches 70 (relaxed from 60 for testing)
+                if position_side == 'BUY' and rsi_current >= 70:
+                    self.logger.info(f"LONG TAKE PROFIT: RSI {rsi_current:.2f} >= 70")
+                    return "Take Profit (RSI 70+)"
 
-                # Short position: Take profit when RSI reaches 40
-                elif position_side == 'SELL' and rsi_current <= 40:
-                    self.logger.info(f"SHORT TAKE PROFIT: RSI {rsi_current:.2f} <= 40")
-                    return "Take Profit (RSI 40-)"
+                # Short position: Take profit when RSI reaches 30 (relaxed from 40 for testing)
+                elif position_side == 'SELL' and rsi_current <= 30:
+                    self.logger.info(f"SHORT TAKE PROFIT: RSI {rsi_current:.2f} <= 30")
+                    return "Take Profit (RSI 30-)"
 
             # MACD-based exit conditions for MACD strategy
             elif strategy_name == 'macd_divergence' and 'macd_histogram' in df.columns:
