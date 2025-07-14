@@ -31,24 +31,36 @@ class BotManager:
         # Initialize components
         self.binance_client = BinanceClientWrapper()
         
-        # Test Binance API connection
+        # Test Binance API connection and permissions
         if not self.binance_client.test_connection():
-            error_msg = """
-Failed to connect to Binance API. 
+            error_msg = f"""
+❌ Failed to connect to Binance API.
 
-For TESTNET (recommended):
+Current mode: {'TESTNET' if global_config.BINANCE_TESTNET else 'MAINNET'}
+
+For TESTNET:
 1. Go to https://testnet.binance.vision/
-2. Create an account and generate API keys
+2. Create API keys with TRADING permissions
 3. Update your Replit Secrets with the testnet keys
 
-For MAINNET (use with caution):
+For MAINNET:
 1. Set BINANCE_TESTNET=false in Secrets
-2. Use your real Binance API keys
+2. Use your real Binance API keys with trading permissions
 3. Ensure IP whitelisting is disabled or your IP is whitelisted
-
-Current mode: {}
-            """.format("TESTNET" if global_config.BINANCE_TESTNET else "MAINNET")
+            """
             raise ValueError(error_msg)
+        
+        # Validate API permissions
+        self.logger.info("🔍 VALIDATING API PERMISSIONS...")
+        permissions = self.binance_client.validate_api_permissions()
+        
+        if not permissions['market_data']:
+            raise ValueError("❌ Market data access required but not available")
+            
+        if not permissions['account_access'] and not global_config.BINANCE_TESTNET:
+            raise ValueError("❌ Account access required for live trading")
+            
+        self.logger.info("✅ API VALIDATION COMPLETE")
         
         self.price_fetcher = PriceFetcher(self.binance_client)
         self.balance_fetcher = BalanceFetcher(self.binance_client)

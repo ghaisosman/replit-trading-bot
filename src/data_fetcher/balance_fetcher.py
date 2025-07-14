@@ -37,13 +37,19 @@ class BalanceFetcher:
             self.logger.error(f"Error getting account balance: {e}")
             return None
     
-    def get_usdt_balance(self) -> Optional[float]:
+    def get_usdt_balance(self) -> float:
         """Get available USDT balance"""
         balances = self.get_account_balance()
         if balances and 'USDT' in balances:
             return balances['USDT']['free']
         
         # For testnet, if no USDT balance, return a mock balance
+        if global_config.BINANCE_TESTNET:
+            self.logger.warning("No USDT balance found in testnet. Using mock balance for testing.")
+            return 1000.0  # Mock testnet balance
+        else:
+            self.logger.error("No USDT balance found in mainnet account!")
+            return 0.0
         from src.config.global_config import global_config
         if global_config.BINANCE_TESTNET and (not balances or 'USDT' not in balances):
             self.logger.warning("No USDT balance found in testnet. Using mock balance for testing.")
