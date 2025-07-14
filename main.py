@@ -8,9 +8,13 @@ from src.bot_manager import BotManager
 from src.utils.logger import setup_logger
 from web_dashboard import app
 
-# Global bot manager for signal handling
+# Global bot manager for signal handling and web interface access
 bot_manager = None
 shutdown_event = asyncio.Event()
+
+# Make bot manager accessible to web interface
+import sys
+sys.modules['__main__'].bot_manager = None
 
 def signal_handler(signum, frame):
     """Handle termination signals"""
@@ -43,6 +47,9 @@ async def main():
     try:
         # Initialize and start the bot
         bot_manager = BotManager()
+        
+        # Make bot manager accessible to web interface
+        sys.modules['__main__'].bot_manager = bot_manager
         
         # Start the bot in a task so we can handle shutdown signals
         bot_task = asyncio.create_task(bot_manager.start())

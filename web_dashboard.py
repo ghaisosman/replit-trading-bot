@@ -28,10 +28,16 @@ app.secret_key = 'your-secret-key-here'
 # Setup logging for web dashboard
 setup_logger()
 
-# Global bot instance
+# Global bot instance - shared with main.py
 bot_manager = None
 bot_thread = None
 bot_running = False
+
+# Import the shared bot manager from main if it exists
+import sys
+shared_bot_manager = None
+if hasattr(sys.modules.get('__main__', None), 'bot_manager'):
+    shared_bot_manager = sys.modules['__main__'].bot_manager
 
 # Initialize clients for web interface
 binance_client = BinanceClientWrapper()
@@ -149,9 +155,40 @@ def chart(symbol):
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
     """Start the trading bot"""
-    global bot_manager, bot_thread, bot_running
+    global bot_manager, bot_thread, bot_running, shared_bot_manager
     
     try:
+        # Check if there's a shared bot manager from main.py
+        if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
+            if shared_bot_manager.is_running:
+                return jsonify({'success': False, 'message': 'Bot is already running in main process'})
+            
+            # Use the shared bot manager
+            bot_manager = shared_bot_manager
+            bot_running = True
+            
+            # Start the shared bot
+            def run_shared_bot():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                logger = logging.getLogger(__name__)
+                try:
+                    logger.info("🚀 STARTING BOT FROM WEB INTERFACE")
+                    loop.run_until_complete(bot_manager.start())
+                except Exception as e:
+                    logger.error(f"Bot error: {e}")
+                finally:
+                    global bot_running
+                    bot_running = False
+                    logger.info("🔴 BOT STOPPED FROM WEB INTERFACE")
+                    loop.close()
+            
+            bot_thread = threading.Thread(target=run_shared_bot, daemon=True)
+            bot_thread.start()
+            
+            return jsonify({'success': True, 'message': 'Bot started successfully'})
+        
+        # Fallback to standalone bot if no shared manager
         if bot_running:
             return jsonify({'success': False, 'message': 'Bot is already running'})
         
@@ -186,9 +223,18 @@ def start_bot():
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
     """Stop the trading bot"""
-    global bot_manager, bot_running
+    global bot_manager, bot_running, shared_bot_manager
     
     try:
+        # Check if there's a shared bot manager from main.py
+        if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
+            if shared_bot_manager.is_running:
+                # Stop the shared bot
+                asyncio.run(shared_bot_manager.stop("Manual stop via web interface"))
+                bot_running = False
+                return jsonify({'success': True, 'message': 'Bot stopped successfully'})
+        
+        # Fallback to standalone bot
         if not bot_running or not bot_manager:
             return jsonify({'success': False, 'message': 'Bot is not running'})
         
@@ -288,8 +334,20 @@ def get_positions():
 
 def get_bot_status():
     """Get current bot status"""
-    global bot_running, bot_manager
+    global bot_running, bot_manager, shared_bot_manager
     
+    # Check shared bot manager first
+    if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
+        try:
+            return {
+                'running': shared_bot_manager.is_running,
+                'active_positions': len(shared_bot_manager.order_manager.active_positions),
+                'strategies': list(shared_bot_manager.strategies.keys())
+            }
+        except:
+            pass
+    
+    # Fallback to standalone bot
     if not bot_running or not bot_manager:
         return {
             'running': False,
