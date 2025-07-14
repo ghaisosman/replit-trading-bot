@@ -17,14 +17,15 @@ class BinanceClientWrapper:
         """Initialize Binance client"""
         try:
             if global_config.BINANCE_TESTNET:
-                # Use testnet URLs
+                # Use testnet URLs explicitly
                 self.client = Client(
                     api_key=global_config.BINANCE_API_KEY,
                     api_secret=global_config.BINANCE_SECRET_KEY,
-                    testnet=True,
-                    tld='com'
+                    testnet=True
                 )
+                # Verify testnet endpoints
                 self.logger.info("Binance testnet client initialized successfully")
+                self.logger.info(f"Using testnet base URL: {self.client.API_URL}")
             else:
                 self.client = Client(
                     api_key=global_config.BINANCE_API_KEY,
@@ -32,6 +33,7 @@ class BinanceClientWrapper:
                     testnet=False
                 )
                 self.logger.info("Binance mainnet client initialized successfully")
+                self.logger.info(f"Using mainnet base URL: {self.client.API_URL}")
         except Exception as e:
             self.logger.error(f"Failed to initialize Binance client: {e}")
             raise
@@ -41,12 +43,24 @@ class BinanceClientWrapper:
         try:
             # Test with a simple ping first
             self.client.ping()
+            
+            # Verify we're connected to the right environment
+            if global_config.BINANCE_TESTNET:
+                self.logger.info(f"✅ Connected to TESTNET: {self.client.API_URL}")
+            else:
+                self.logger.info(f"✅ Connected to MAINNET: {self.client.API_URL}")
+                
             self.logger.info("✅ Binance API connection test successful")
             return True
         except BinanceAPIException as e:
             self.logger.error(f"❌ Binance API connection test failed: {e}")
             if e.code == -2015:
-                self.logger.error("API Key invalid or IP not whitelisted. Check your testnet API keys.")
+                if global_config.BINANCE_TESTNET:
+                    self.logger.error("API Key invalid for testnet. Verify:")
+                    self.logger.error("1. Keys are from https://testnet.binance.vision/")
+                    self.logger.error("2. Keys have 'Spot & Margin Trading' permission")
+                else:
+                    self.logger.error("API Key invalid or IP not whitelisted for mainnet")
             return False
         except Exception as e:
             self.logger.error(f"❌ Connection test failed: {e}")
