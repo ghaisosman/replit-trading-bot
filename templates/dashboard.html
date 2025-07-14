@@ -157,6 +157,40 @@
             </div>
         </div>
 
+        <!-- ML Insights Section -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5><i class="fas fa-brain"></i> ML Insights</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="ml-insights-content">
+                            <p class="text-muted">Loading ML insights...</p>
+                        </div>
+                        <button class="btn btn-info btn-sm" onclick="loadMLInsights()">
+                            <i class="fas fa-sync"></i> Refresh Insights
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5><i class="fas fa-chart-line"></i> ML Predictions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="ml-predictions-content">
+                            <p class="text-muted">Loading ML predictions...</p>
+                        </div>
+                        <button class="btn btn-success btn-sm" onclick="loadMLPredictions()">
+                            <i class="fas fa-sync"></i> Get Predictions
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Strategy Configuration -->
         <div class="row mt-4">
             <div class="col-12">
@@ -424,6 +458,90 @@
                     }
                 });
             }
+        }
+
+        // Load ML insights on page load
+        $(document).ready(function() {
+            loadMLInsights();
+            loadMLPredictions();
+        });
+
+        // ML Functions
+        function loadMLInsights() {
+            $('#ml-insights-content').html('<p class="text-muted">Loading ML insights...</p>');
+            $.get('/api/ml_insights', function(data) {
+                if (data.success && data.insights) {
+                    displayMLInsights(data.insights);
+                } else {
+                    $('#ml-insights-content').html('<p class="text-warning">No insights available. Train models first.</p>');
+                }
+            }).fail(function() {
+                $('#ml-insights-content').html('<p class="text-danger">Failed to load insights</p>');
+            });
+        }
+
+        function loadMLPredictions() {
+            $('#ml-predictions-content').html('<p class="text-muted">Loading ML predictions...</p>');
+            $.get('/api/ml_predictions', function(data) {
+                if (data.success && data.predictions) {
+                    displayMLPredictions(data.predictions);
+                } else {
+                    $('#ml-predictions-content').html('<p class="text-warning">No predictions available. Train models first.</p>');
+                }
+            }).fail(function() {
+                $('#ml-predictions-content').html('<p class="text-danger">Failed to load predictions</p>');
+            });
+        }
+
+        function displayMLInsights(insights) {
+            let html = '';
+            
+            if (insights.strategy_performance) {
+                html += '<h6>Strategy Performance:</h6>';
+                for (let strategy in insights.strategy_performance) {
+                    let perf = insights.strategy_performance[strategy];
+                    let winRate = (perf.was_profitable && perf.was_profitable.mean) ? (perf.was_profitable.mean * 100).toFixed(1) : 'N/A';
+                    html += `<small>${strategy}: ${winRate}% Win Rate</small><br>`;
+                }
+            }
+            
+            if (insights.time_analysis && insights.time_analysis.best_trading_hours) {
+                html += '<h6 class="mt-2">Best Trading Hours:</h6>';
+                for (let hour in insights.time_analysis.best_trading_hours) {
+                    let rate = (insights.time_analysis.best_trading_hours[hour] * 100).toFixed(1);
+                    html += `<small>${hour}:00 - ${rate}% Success</small><br>`;
+                }
+            }
+            
+            if (!html) {
+                html = '<p class="text-muted">No insights available yet. Train models with more data.</p>';
+            }
+            
+            $('#ml-insights-content').html(html);
+        }
+
+        function displayMLPredictions(predictions) {
+            let html = '';
+            
+            predictions.forEach(function(pred) {
+                let status = pred.predicted_profitable ? 'text-success' : 'text-danger';
+                let recommendation = pred.predicted_profitable ? 'Profitable' : 'Risky';
+                
+                html += `
+                    <div class="border-bottom pb-2 mb-2">
+                        <strong>${pred.symbol || 'Market'}</strong>
+                        <span class="badge bg-${pred.predicted_profitable ? 'success' : 'danger'} ms-2">${recommendation}</span><br>
+                        <small>Expected PnL: ${pred.predicted_pnl_percentage ? pred.predicted_pnl_percentage.toFixed(2) : 'N/A'}%</small><br>
+                        <small>Confidence: ${pred.confidence ? (pred.confidence * 100).toFixed(1) : 'N/A'}%</small>
+                    </div>
+                `;
+            });
+            
+            if (!html) {
+                html = '<p class="text-muted">No predictions available. Train models first.</p>';
+            }
+            
+            $('#ml-predictions-content').html(html);
         }
 
         // Auto-refresh every 30 seconds

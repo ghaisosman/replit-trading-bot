@@ -446,33 +446,77 @@ def ml_reports():
     """ML Reports dashboard page"""
     return render_template('ml_reports.html')
 
-@app.route('/api/ml/train', methods=['POST'])
+@app.route('/api/train_models', methods=['POST'])
 def train_ml_models():
     """Train ML models and return results"""
     try:
         results = ml_analyzer.train_models()
-        return jsonify(results)
+        if "error" in results:
+            return jsonify({'success': False, 'error': results['error']})
+        return jsonify({'success': True, **results})
     except Exception as e:
-        return jsonify({'error': f'Failed to train models: {e}'})
+        return jsonify({'success': False, 'error': f'Failed to train models: {e}'})
 
-@app.route('/api/ml/insights')
+@app.route('/api/ml_insights')
 def get_ml_insights():
     """Get ML trading insights"""
     try:
         insights = ml_analyzer.generate_insights()
-        return jsonify(insights)
+        if "error" in insights:
+            return jsonify({'success': False, 'error': insights['error']})
+        return jsonify({'success': True, 'insights': insights})
     except Exception as e:
-        return jsonify({'error': f'Failed to generate insights: {e}'})
+        return jsonify({'success': False, 'error': f'Failed to generate insights: {e}'})
 
-@app.route('/api/ml/predict', methods=['POST'])
-def predict_trade():
-    """Predict trade outcome"""
+@app.route('/api/ml_predictions')
+def get_ml_predictions():
+    """Get ML market predictions"""
     try:
-        trade_features = request.get_json()
-        prediction = ml_analyzer.predict_trade_outcome(trade_features)
-        return jsonify(prediction)
+        # Sample predictions for current market conditions
+        sample_features = [
+            {
+                'strategy': 'rsi_oversold',
+                'symbol': 'BTCUSDT',
+                'side': 'BUY',
+                'leverage': 5,
+                'position_size_usdt': 100,
+                'rsi_entry': 25,
+                'macd_entry': -0.5,
+                'hour_of_day': datetime.now().hour,
+                'day_of_week': datetime.now().weekday(),
+                'month': datetime.now().month,
+                'market_trend': 'BULLISH',
+                'volatility_score': 0.3,
+                'signal_strength': 0.8
+            },
+            {
+                'strategy': 'macd_divergence',
+                'symbol': 'ETHUSDT',
+                'side': 'BUY',
+                'leverage': 5,
+                'position_size_usdt': 100,
+                'rsi_entry': 45,
+                'macd_entry': 0.2,
+                'hour_of_day': datetime.now().hour,
+                'day_of_week': datetime.now().weekday(),
+                'month': datetime.now().month,
+                'market_trend': 'BULLISH',
+                'volatility_score': 0.4,
+                'signal_strength': 0.7
+            }
+        ]
+        
+        predictions = []
+        for features in sample_features:
+            prediction = ml_analyzer.predict_trade_outcome(features)
+            if "error" not in prediction:
+                prediction['symbol'] = features['symbol']
+                prediction['predicted_profitable'] = prediction.get('profit_probability', 0) > 0.5
+                predictions.append(prediction)
+        
+        return jsonify({'success': True, 'predictions': predictions})
     except Exception as e:
-        return jsonify({'error': f'Failed to predict trade: {e}'})
+        return jsonify({'success': False, 'error': f'Failed to get predictions: {e}'})
 
 @app.route('/api/daily-report')
 def get_daily_report():
