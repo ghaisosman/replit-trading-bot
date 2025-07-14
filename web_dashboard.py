@@ -454,6 +454,6 @@ def calculate_pnl(position, current_price):
         return (position.entry_price - current_price) * position.quantity
 
 if __name__ == '__main__':
-    logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:8080")
+    logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
     logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
