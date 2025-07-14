@@ -78,6 +78,7 @@ For MAINNET:
 
         # Running state
         self.is_running = False
+        self.startup_notified = False  # Flag to prevent duplicate startup notifications
 
         # Anomaly detection
         from src.execution_engine.trade_monitor import TradeMonitor
@@ -112,13 +113,15 @@ For MAINNET:
             # Get pairs being watched
             pairs = [config['symbol'] for config in self.strategies.values()]
 
-            # Send startup notification with correct open trades count
-            self.telegram_reporter.report_bot_startup(
-                pairs=pairs,
-                strategies=strategies,
-                balance=balance_info,
-                open_trades=len(self.order_manager.active_positions)
-            )
+            # Send startup notification only once
+            if not self.startup_notified:
+                self.telegram_reporter.report_bot_startup(
+                    pairs=pairs,
+                    strategies=strategies,
+                    balance=balance_info,
+                    open_trades=len(self.order_manager.active_positions)
+                )
+                self.startup_notified = True
 
             self.is_running = True
 
