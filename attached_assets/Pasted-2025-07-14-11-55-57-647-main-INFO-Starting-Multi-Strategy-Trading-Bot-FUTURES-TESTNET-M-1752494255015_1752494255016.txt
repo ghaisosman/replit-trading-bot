@@ -1,0 +1,22 @@
+2025-07-14 11:55:57,647 - __main__ - INFO - Starting Multi-Strategy Trading Bot
+🧪 FUTURES TESTNET MODE: Safe for testing
+Using Binance Futures testnet endpoints
+2025-07-14 11:55:57,805 - src.binance_client.client - INFO - Binance FUTURES testnet client initialized successfully
+2025-07-14 11:55:57,805 - src.binance_client.client - INFO - Using futures testnet URL: https://testnet.binancefuture.com
+2025-07-14 11:55:57,961 - src.binance_client.client - INFO - ✅ Connected to FUTURES TESTNET: https://testnet.binancefuture.com
+2025-07-14 11:55:57,961 - src.binance_client.client - INFO - ✅ Binance API connection test successful
+2025-07-14 11:55:57,962 - src.bot_manager - INFO - 🔍 VALIDATING API PERMISSIONS...
+2025-07-14 11:55:58,098 - src.binance_client.client - INFO - ✅ Futures API Ping: SUCCESS
+2025-07-14 11:55:58,232 - src.binance_client.client - INFO - ✅ Futures Market Data: SUCCESS
+2025-07-14 11:55:58,383 - src.binance_client.client - INFO - ✅ Futures Account Access: SUCCESS
+2025-07-14 11:55:58,383 - src.binance_client.client - INFO - ✅ Futures Trading Permission: SUCCESS
+2025-07-14 11:55:58,383 - src.bot_manager - INFO - ✅ API VALIDATION COMPLETE
+2025-07-14 11:55:58,383 - src.bot_manager - INFO - 🚀 STARTING TRADING BOT...
+2025-07-14 11:55:58,384 - src.bot_manager - INFO - 📊 MODE: TESTNET
+2025-07-14 11:55:58,384 - src.bot_manager - INFO - 📈 STRATEGIES: sma_crossover, rsi_oversold
+2025-07-14 11:55:58,532 - src.bot_manager - INFO - 💰 BALANCE: $14961.13 USDT
+2025-07-14 11:55:58,532 - src.bot_manager - INFO - ⚡ UPDATE INTERVAL: 1s
+2025-07-14 11:55:59,277 - src.bot_manager - INFO - 🔍 ASSESSING MARKET | SMA_CROSSOVER | BTCUSDT | 1h
+2025-07-14 11:55:59,437 - src.bot_manager - INFO - 📈 MARKET ASSESSMENT | SMA_CROSSOVER | BTCUSDT | Price: $121099.9000 | SMA20: $119560.35 | SMA50: $118365.55 | Trend: Bullish
+2025-07-14 11:56:00,178 - src.bot_manager - INFO - 🔍 ASSESSING MARKET | RSI_OVERSOLD | ETHUSDT | 15m
+2025-07-14 11:56:00,324 - src.bot_manager - INFO - 📈 MARKET ASSESSMENT | RSI_OVERSOLD | ETHUSDT | Price: $3058.6700 | RSI: 51.84 | Condition: Normal
