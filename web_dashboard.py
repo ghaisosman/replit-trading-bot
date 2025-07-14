@@ -358,14 +358,34 @@ def update_strategy(strategy_name):
     try:
         data = request.get_json()
 
-        # Update strategy parameters
+        # Update strategy parameters in config manager
         trading_config_manager.update_strategy_params(strategy_name, data)
 
-        # If bot is running, update its configuration too
-        if bot_manager and strategy_name in bot_manager.strategies:
-            bot_manager.strategies[strategy_name].update(data)
+        # Always try to get the latest shared bot manager
+        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
 
-        return jsonify({'success': True, 'message': f'Strategy {strategy_name} updated'})
+        # Update running bot configuration if available
+        bot_updated = False
+        
+        # Check shared bot manager first
+        if shared_bot_manager and hasattr(shared_bot_manager, 'strategies') and strategy_name in shared_bot_manager.strategies:
+            shared_bot_manager.strategies[strategy_name].update(data)
+            logger.info(f"📝 WEB INTERFACE: Updated {strategy_name} config in shared bot: {data}")
+            bot_updated = True
+        
+        # Fallback to standalone bot
+        elif bot_manager and strategy_name in bot_manager.strategies:
+            bot_manager.strategies[strategy_name].update(data)
+            logger.info(f"📝 WEB INTERFACE: Updated {strategy_name} config in standalone bot: {data}")
+            bot_updated = True
+
+        message = f'Strategy {strategy_name} updated'
+        if bot_updated:
+            message += ' (applied to running bot immediately)'
+        else:
+            message += ' (restart bot to apply changes)'
+
+        return jsonify({'success': True, 'message': message})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Failed to update strategy: {e}'})
 
