@@ -1,3 +1,4 @@
+
 import requests
 import logging
 import json
@@ -105,65 +106,150 @@ class TelegramReporter:
         """
         self.send_message(message)
 
+    def report_entry_signal(self, strategy_name: str, signal_data: dict):
+        """Report entry signal detection to Telegram"""
+        try:
+            message = f"""
+🚨 <b>ENTRY SIGNAL DETECTED</b>
+⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
+🎯 <b>Strategy:</b> {strategy_name.upper()}
+💰 <b>Pair:</b> {signal_data['symbol']}
+📊 <b>Signal:</b> {signal_data['signal_type']}
+💵 <b>Entry Price:</b> ${signal_data['entry_price']:.4f}
+🛡️ <b>Stop Loss:</b> ${signal_data['stop_loss']:.4f}
+🎯 <b>Take Profit:</b> ${signal_data['take_profit']:.4f}
+📝 <b>Reason:</b> {signal_data['reason']}
+            """
+            self.send_message(message)
+        except Exception as e:
+            self.logger.error(f"Failed to send entry signal report: {e}")
+
+    def report_position_opened(self, position_data: dict):
+        """Report position opened to Telegram"""
+        try:
+            # Get balance and trade count info
+            from src.data_fetcher.balance_fetcher import BalanceFetcher
+            from src.binance_client.client import BinanceClientWrapper
+            
+            binance_client = BinanceClientWrapper()
+            balance_fetcher = BalanceFetcher(binance_client)
+            current_balance = balance_fetcher.get_usdt_balance() or 0
+            
+            # Calculate margin used (simplified)
+            margin_used = position_data['entry_price'] * position_data['quantity'] / 5  # Assuming 5x leverage
+            
+            message = f"""
+🟢 <b>TRADE ENTRY</b>
+⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
+🎯 <b>Strategy Name:</b> {position_data['strategy_name'].upper()}
+💰 <b>Pair:</b> {position_data['symbol']}
+📊 <b>Direction:</b> {position_data['side']}
+💵 <b>Entry Price:</b> ${position_data['entry_price']:.4f}
+💸 <b>Margin:</b> ${margin_used:.2f} USDT
+⚡ <b>Leverage:</b> 5x
+💰 <b>Current Balance:</b> ${current_balance:.2f} USDT
+📈 <b>Current Open Trades:</b> 1
+            """
+            self.send_message(message)
+        except Exception as e:
+            self.logger.error(f"Failed to send position opened report: {e}")
+
+    def report_position_closed(self, position_data: dict, exit_reason: str, pnl: float):
+        """Report position closed to Telegram"""
+        try:
+            pnl_emoji = "🟢" if pnl >= 0 else "🔴"
+            pnl_percent = (pnl / (position_data['entry_price'] * position_data['quantity'])) * 100
+            
+            # Get current balance
+            from src.data_fetcher.balance_fetcher import BalanceFetcher
+            from src.binance_client.client import BinanceClientWrapper
+            
+            binance_client = BinanceClientWrapper()
+            balance_fetcher = BalanceFetcher(binance_client)
+            current_balance = balance_fetcher.get_usdt_balance() or 0
+            
+            # Calculate margin used
+            margin_used = position_data['entry_price'] * position_data['quantity'] / 5
+            
+            message = f"""
+{pnl_emoji} <b>TRADE CLOSED</b>
+⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
+🎯 <b>Strategy Name:</b> {position_data['strategy_name'].upper()}
+💰 <b>Pair:</b> {position_data['symbol']}
+📊 <b>Direction:</b> {position_data['side']}
+💵 <b>Entry Price:</b> ${position_data['entry_price']:.4f}
+🚪 <b>Exit Price:</b> ${position_data.get('exit_price', 0):.4f}
+💸 <b>Margin:</b> ${margin_used:.2f} USDT
+💰 <b>Realized PNL:</b> ${pnl:.2f} USDT ({pnl_percent:+.2f}%)
+🎯 <b>Exit Reason:</b> {exit_reason}
+💰 <b>Current Balance:</b> ${current_balance:.2f} USDT
+📈 <b>Current Open Trades:</b> 0
+            """
+            self.send_message(message)
+        except Exception as e:
+            self.logger.error(f"Failed to send position closed report: {e}")
+
     def report_orphan_trade_detected(self, strategy_name: str, symbol: str, side: str, entry_price: float):
-        """Report orphan trade detection"""
-        message = f"""
+        """Report orphan trade detection to Telegram"""
+        try:
+            message = f"""
 🔍 <b>ORPHAN TRADE DETECTED</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
-🎯 <b>Strategy:</b> {strategy_name}
+🎯 <b>Strategy:</b> {strategy_name.upper()}
 💰 <b>Pair:</b> {symbol}
 📊 <b>Direction:</b> {side}
 💵 <b>Entry Price:</b> ${entry_price:.4f}
 ⚠️ <b>Status:</b> Bot opened trade, manually closed
 🔄 <b>Action:</b> Will clear in 2 market cycles
-        """
-        self.send_message(message)
+            """
+            self.send_message(message)
+        except Exception as e:
+            self.logger.error(f"Failed to send orphan trade detection report: {e}")
 
     def report_orphan_trade_cleared(self, strategy_name: str, symbol: str):
-        """Report orphan trade cleared"""
-        message = f"""
+        """Report orphan trade clearance to Telegram"""
+        try:
+            message = f"""
 🧹 <b>ORPHAN TRADE CLEARED</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
-🎯 <b>Strategy:</b> {strategy_name}
+🎯 <b>Strategy:</b> {strategy_name.upper()}
 💰 <b>Pair:</b> {symbol}
-✅ <b>Status:</b> Strategy can trade again
-        """
-        self.send_message(message)
+✅ <b>Status:</b> Strategy can now trade again
+            """
+            self.send_message(message)
+        except Exception as e:
+            self.logger.error(f"Failed to send orphan trade clearance report: {e}")
 
     def report_ghost_trade_detected(self, strategy_name: str, symbol: str, side: str, quantity: float):
-        """Report ghost trade detection"""
-        message = f"""
+        """Report ghost trade detection to Telegram"""
+        try:
+            message = f"""
 👻 <b>GHOST TRADE DETECTED</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
-🎯 <b>Strategy:</b> {strategy_name}
+🎯 <b>Strategy:</b> {strategy_name.upper()}
 💰 <b>Pair:</b> {symbol}
 📊 <b>Direction:</b> {side}
 📏 <b>Quantity:</b> {quantity:.6f}
 ⚠️ <b>Status:</b> Manual trade found, not opened by bot
 🔄 <b>Action:</b> Will clear in 2 market cycles
-        """
-        self.send_message(message)
+            """
+            self.send_message(message)
+        except Exception as e:
+            self.logger.error(f"Failed to send ghost trade detection report: {e}")
 
     def report_ghost_trade_cleared(self, strategy_name: str, symbol: str):
-        """Report ghost trade cleared"""
-        message = f"""
+        """Report ghost trade clearance to Telegram"""
+        try:
+            message = f"""
 🧹 <b>GHOST TRADE CLEARED</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
-🎯 <b>Strategy:</b> {strategy_name}
+🎯 <b>Strategy:</b> {strategy_name.upper()}
 💰 <b>Pair:</b> {symbol}
-✅ <b>Status:</b> Strategy can trade again
-        """
-        self.send_message(message)
-
-    # Remove all the old methods we don't need anymore
-    def report_entry_signal(self, *args, **kwargs):
-        pass
-
-    def report_position_opened(self, *args, **kwargs):
-        pass
-
-    def report_position_closed(self, *args, **kwargs):
-        pass
+✅ <b>Status:</b> Strategy can now trade again
+            """
+            self.send_message(message)
+        except Exception as e:
+            self.logger.error(f"Failed to send ghost trade clearance report: {e}")
 
     def report_error(self, error_type: str, error_message: str, strategy_name: str = None):
         """Report an error to Telegram"""
@@ -176,55 +262,3 @@ class TelegramReporter:
             self.send_message(message)
         except Exception as e:
             self.logger.error(f"Failed to send error report: {e}")
-
-    def report_orphan_trade_detected(self, strategy_name: str, symbol: str, side: str, entry_price: float):
-        """Report orphan trade detection to Telegram"""
-        try:
-            message = f"🔍 **ORPHAN TRADE DETECTED**\n"
-            message += f"Strategy: {strategy_name.upper()}\n"
-            message += f"Symbol: {symbol}\n"
-            message += f"Side: {side}\n"
-            message += f"Entry Price: ${entry_price:.4f}\n"
-            message += f"⚠️ Position was closed manually outside the bot"
-
-            self.send_message(message)
-        except Exception as e:
-            self.logger.error(f"Failed to send orphan trade detection report: {e}")
-
-    def report_orphan_trade_cleared(self, strategy_name: str, symbol: str):
-        """Report orphan trade clearance to Telegram"""
-        try:
-            message = f"🧹 **ORPHAN TRADE CLEARED**\n"
-            message += f"Strategy: {strategy_name.upper()}\n"
-            message += f"Symbol: {symbol}\n"
-            message += f"✅ Strategy can now trade again"
-
-            self.send_message(message)
-        except Exception as e:
-            self.logger.error(f"Failed to send orphan trade clearance report: {e}")
-
-    def report_ghost_trade_detected(self, strategy_name: str, symbol: str, side: str, quantity: float):
-        """Report ghost trade detection to Telegram"""
-        try:
-            message = f"👻 **GHOST TRADE DETECTED**\n"
-            message += f"Strategy: {strategy_name.upper()}\n"
-            message += f"Symbol: {symbol}\n"
-            message += f"Side: {side}\n"
-            message += f"Quantity: {quantity}\n"
-            message += f"⚠️ Position was opened manually outside the bot"
-
-            self.send_message(message)
-        except Exception as e:
-            self.logger.error(f"Failed to send ghost trade detection report: {e}")
-
-    def report_ghost_trade_cleared(self, strategy_name: str, symbol: str):
-        """Report ghost trade clearance to Telegram"""
-        try:
-            message = f"🧹 **GHOST TRADE CLEARED**\n"
-            message += f"Strategy: {strategy_name.upper()}\n"
-            message += f"Symbol: {symbol}\n"
-            message += f"✅ Strategy can now trade again"
-
-            self.send_message(message)
-        except Exception as e:
-            self.logger.error(f"Failed to send ghost trade clearance report: {e}")
