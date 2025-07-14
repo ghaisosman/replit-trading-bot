@@ -13,6 +13,8 @@ class OrphanTrade:
     position: Position
     detected_at: datetime
     cycles_remaining: int = 2
+    detection_notified: bool = False
+    clearing_notified: bool = False
 
 @dataclass
 class GhostTrade:
@@ -23,6 +25,8 @@ class GhostTrade:
     detected_at: datetime
     cycles_remaining: int = 2
     binance_order_id: Optional[int] = None
+    detection_notified: bool = False
+    clearing_notified: bool = False
 
 class TradeMonitor:
     """Monitors for orphan and ghost trades"""
@@ -79,7 +83,9 @@ class TradeMonitor:
                     orphan_trade = OrphanTrade(
                         position=position,
                         detected_at=datetime.now(),
-                        cycles_remaining=2
+                        cycles_remaining=2,
+                        detection_notified=True,
+                        clearing_notified=False
                     )
                     self.orphan_trades[strategy_name] = orphan_trade
                     
@@ -123,7 +129,9 @@ class TradeMonitor:
                                 side=side,
                                 quantity=abs(position_amt),
                                 detected_at=datetime.now(),
-                                cycles_remaining=2
+                                cycles_remaining=2,
+                                detection_notified=True,
+                                clearing_notified=False
                             )
                             self.ghost_trades[ghost_id] = ghost_trade
                             
@@ -151,12 +159,14 @@ class TradeMonitor:
                 self.order_manager.clear_orphan_position(strategy_name)
                 orphans_to_remove.append(strategy_name)
                 
-                # Log and notify
-                self.logger.info(f"🧹 ORPHAN TRADE CLEARED | {strategy_name} | Strategy can trade again")
-                self.telegram_reporter.report_orphan_trade_cleared(
-                    strategy_name=strategy_name,
-                    symbol=orphan_trade.position.symbol
-                )
+                # Log and notify only if not already notified
+                if not orphan_trade.clearing_notified:
+                    self.logger.info(f"🧹 ORPHAN TRADE CLEARED | {strategy_name} | Strategy can trade again")
+                    self.telegram_reporter.report_orphan_trade_cleared(
+                        strategy_name=strategy_name,
+                        symbol=orphan_trade.position.symbol
+                    )
+                    orphan_trade.clearing_notified = True
         
         # Remove cleared orphan trades
         for strategy_name in orphans_to_remove:
@@ -174,12 +184,14 @@ class TradeMonitor:
                 # Extract strategy name from ghost_id
                 strategy_name = ghost_id.split('_')[0]
                 
-                # Log and notify
-                self.logger.info(f"🧹 GHOST TRADE CLEARED | {strategy_name} | Strategy can trade again")
-                self.telegram_reporter.report_ghost_trade_cleared(
-                    strategy_name=strategy_name,
-                    symbol=ghost_trade.symbol
-                )
+                # Log and notify only if not already notified
+                if not ghost_trade.clearing_notified:
+                    self.logger.info(f"🧹 GHOST TRADE CLEARED | {strategy_name} | Strategy can trade again")
+                    self.telegram_reporter.report_ghost_trade_cleared(
+                        strategy_name=strategy_name,
+                        symbol=ghost_trade.symbol
+                    )
+                    ghost_trade.clearing_notified = True
         
         # Remove cleared ghost trades
         for ghost_id in ghosts_to_remove:
