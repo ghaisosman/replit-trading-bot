@@ -144,9 +144,18 @@ For MAINNET:
             # Get pairs being watched
             pairs = [config['symbol'] for config in self.strategies.values()]
 
-            # Send startup notification (handles restart notifications too)
-            if not self.startup_notified:
-                # First time startup
+            # Send startup notification based on source
+            if startup_source == "Web Interface":
+                # Web interface restart/start - always send startup notification
+                self.telegram_reporter.report_bot_startup(
+                    pairs=pairs,
+                    strategies=strategies,
+                    balance=balance_info,
+                    open_trades=len(self.order_manager.active_positions)
+                )
+                self.startup_notified = True
+            elif not self.startup_notified:
+                # First time console startup
                 self.telegram_reporter.report_bot_startup(
                     pairs=pairs,
                     strategies=strategies,
@@ -155,7 +164,7 @@ For MAINNET:
                 )
                 self.startup_notified = True
             else:
-                # This is a restart
+                # Console restart (if needed in future)
                 restart_message = f"""
 🔄 <b>BOT RESTARTED</b>
 ⏰ <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
