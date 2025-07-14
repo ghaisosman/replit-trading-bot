@@ -101,12 +101,16 @@ class OrderManager:
             # Store active position
             self.active_positions[strategy_name] = position
 
-            # Register bot trade with trade monitor to pause ghost detection
-            if self.trade_monitor:
+            # Register bot trade with trade monitor to pause ghost detection for 30 seconds
+            if hasattr(self, 'trade_monitor') and self.trade_monitor:
                 self.trade_monitor.register_bot_trade(position.symbol)
+                self.logger.debug(f"🔍 BOT TRADE REGISTERED: {position.symbol} | Ghost detection paused for 30 seconds")
 
             # Log trade for validation purposes
             self._log_trade_for_validation(position)
+            
+            # Record the time of this order for ghost detection timing
+            self.last_order_time = datetime.now()
 
             # Clean log message with essential trade info
             self.logger.info(f"✅ TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | PnL: $0.00 USDT (0.00%)")
@@ -459,4 +463,3 @@ class OrderManager:
         """Set trade monitor reference for position registration"""
         self.trade_monitor = trade_monitor
         self.logger.debug("🔍 TRADE MONITOR: Reference set in order manager")
-```
