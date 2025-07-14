@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 import pandas as pd
@@ -16,21 +15,21 @@ from src.reporting.telegram_reporter import TelegramReporter
 
 class BotManager:
     """Main bot manager that orchestrates all components"""
-    
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        
+
         # Validate configuration
         if not global_config.validate_config():
             raise ValueError("Invalid configuration. Check environment variables.")
-        
+
         # Check live trading readiness
         if not global_config.is_live_trading_ready():
             raise ValueError("Configuration not ready for live trading.")
-        
+
         # Initialize components
         self.binance_client = BinanceClientWrapper()
-        
+
         # Test Binance API connection and permissions
         if not self.binance_client.test_connection():
             error_msg = f"""
@@ -49,63 +48,73 @@ For MAINNET:
 3. Ensure IP whitelisting is disabled or your IP is whitelisted
             """
             raise ValueError(error_msg)
-        
+
         # Validate API permissions
         self.logger.info("🔍 VALIDATING API PERMISSIONS...")
         permissions = self.binance_client.validate_api_permissions()
-        
+
         if not permissions['market_data']:
             raise ValueError("❌ Market data access required but not available")
-            
+
         if not permissions['account_access'] and not global_config.BINANCE_TESTNET:
             raise ValueError("❌ Account access required for live trading")
-            
+
         self.logger.info("✅ API VALIDATION COMPLETE")
-        
+
         self.price_fetcher = PriceFetcher(self.binance_client)
         self.balance_fetcher = BalanceFetcher(self.binance_client)
         self.signal_processor = SignalProcessor()
         self.order_manager = OrderManager(self.binance_client)
         self.telegram_reporter = TelegramReporter()
-        
+
         # Strategy configurations
         self.strategies = {
             'sma_crossover': SMACrossoverConfig.get_config(),
             'rsi_oversold': RSIOversoldConfig.get_config()
         }
-        
+
         # Strategy assessment timers
         self.strategy_last_assessment = {}
-        
+
         # Running state
         self.is_running = False
-    
+
     async def start(self):
         """Start the trading bot"""
         try:
-            self.logger.info("🚀 STARTING TRADING BOT...")
-            self.logger.info(f"📊 MODE: {'TESTNET' if global_config.BINANCE_TESTNET else 'MAINNET'}")
-            self.logger.info(f"📈 STRATEGIES: {', '.join(self.strategies.keys())}")
-            self.logger.info(f"💰 BALANCE: ${self.balance_fetcher.get_usdt_balance():.2f} USDT")
-            self.logger.info(f"⚡ UPDATE INTERVAL: {global_config.PRICE_UPDATE_INTERVAL}s")
-            
+            # Startup banner
+            self.logger.info("🚀 TRADING BOT ACTIVATED")
+
+            mode = "FUTURES TESTNET" if global_config.BINANCE_TESTNET else "FUTURES MAINNET"
+            self.logger.info(f"📊 MODE: {mode}")
+
+            strategies = ", ".join(self.strategies.keys())
+            self.logger.info(f"📈 ACTIVE STRATEGIES: {strategies}")
+
+            # Get initial balance
+            balance_info = self.balance_fetcher.get_usdt_balance()
+            if balance_info:
+                self.logger.info(f"💰 ACCOUNT BALANCE: ${balance_info:.2f} USDT")
+
+            self.logger.info(f"⚡ MONITORING INTERVAL: {global_config.PRICE_UPDATE_INTERVAL}s")
+
             self.telegram_reporter.report_bot_startup()
-            
+
             self.is_running = True
-            
+
             # Start main trading loop
             await self._main_trading_loop()
-            
+
         except Exception as e:
             self.logger.error(f"Error starting bot: {e}")
             self.telegram_reporter.report_error("Startup Error", str(e))
             raise
-    
+
     async def stop(self):
         """Stop the trading bot"""
         self.logger.info("Stopping trading bot...")
         self.is_running = False
-    
+
     async def _main_trading_loop(self):
         """Main trading loop"""
         while self.is_running:
@@ -114,30 +123,30 @@ For MAINNET:
                 for strategy_name, strategy_config in self.strategies.items():
                     if not strategy_config.get('enabled', True):
                         continue
-                    
+
                     await self._process_strategy(strategy_name, strategy_config)
-                
+
                 # Check exit conditions for open positions
                 await self._check_exit_conditions()
-                
+
                 # Sleep before next iteration
                 await asyncio.sleep(global_config.PRICE_UPDATE_INTERVAL)
-                
+
             except Exception as e:
                 self.logger.error(f"Error in main trading loop: {e}")
                 self.telegram_reporter.report_error("Main Loop Error", str(e))
                 await asyncio.sleep(5)  # Brief pause before retrying
-    
+
     async def _process_strategy(self, strategy_name: str, strategy_config: Dict):
         """Process a single strategy"""
         try:
             # Check if it's time to assess this strategy
             if not self._should_assess_strategy(strategy_name, strategy_config):
                 return
-            
+
             # Update last assessment time
             self.strategy_last_assessment[strategy_name] = datetime.now()
-            
+
             # Check if strategy already has an active position
             if strategy_name in self.order_manager.active_positions:
                 # Show current position status
@@ -147,36 +156,36 @@ For MAINNET:
                     pnl = self._calculate_pnl(position, current_price)
                     self.logger.info(f"📊 ACTIVE POSITION | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.4f} | PnL: ${pnl:.2f}")
                 return
-            
+
             # Check balance requirements
             if not self._check_balance_requirements(strategy_config):
                 return
-            
+
             # Log market assessment start
-            self.logger.info(f"🔍 ASSESSING MARKET | {strategy_name.upper()} | {strategy_config['symbol']} | {strategy_config['timeframe']}")
-            
+            self.logger.info(f"🔍 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']}")
+
             # Get market data
             df = self.price_fetcher.get_ohlcv_data(
                 strategy_config['symbol'],
                 strategy_config['timeframe']
             )
-            
+
             if df is None or df.empty:
                 self.logger.warning(f"No data for {strategy_config['symbol']}")
                 return
-            
+
             # Calculate indicators
             df = self.price_fetcher.calculate_indicators(df)
-            
+
             # Get current market info
             current_price = df['close'].iloc[-1]
-            
+
             # Evaluate entry conditions
             signal = self.signal_processor.evaluate_entry_conditions(df, strategy_config)
-            
+
             if signal:
                 self.logger.info(f"🚨 ENTRY SIGNAL DETECTED | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | ${signal.entry_price:.4f} | Reason: {signal.reason}")
-                
+
                 # Report signal to Telegram
                 self.telegram_reporter.report_entry_signal(strategy_name, {
                     'symbol': strategy_config['symbol'],
@@ -186,13 +195,13 @@ For MAINNET:
                     'take_profit': signal.take_profit,
                     'reason': signal.reason
                 })
-                
+
                 # Execute the signal
                 position = self.order_manager.execute_signal(signal, strategy_config)
-                
+
                 if position:
                     self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:.4f} | Qty: {position.quantity} | SL: ${position.stop_loss:.4f} | TP: ${position.take_profit:.4f}")
-                    
+
                     # Report position opened
                     from dataclasses import asdict
                     self.telegram_reporter.report_position_opened(asdict(position))
@@ -202,7 +211,7 @@ For MAINNET:
                 # Log market assessment result
                 market_info = self._get_market_info(df, strategy_name)
                 self.logger.info(f"📈 MARKET ASSESSMENT | {strategy_name.upper()} | {strategy_config['symbol']} | Price: ${current_price:.4f} | {market_info}")
-                
+
                 # Report market assessment
                 self.telegram_reporter.report_market_assessment(strategy_name, {
                     'symbol': strategy_config['symbol'],
@@ -210,54 +219,54 @@ For MAINNET:
                     'trend': 'Neutral',
                     'signal_strength': 'No Signal'
                 })
-                
+
         except Exception as e:
             self.logger.error(f"Error processing strategy {strategy_name}: {e}")
             self.telegram_reporter.report_error("Strategy Processing Error", str(e), strategy_name)
-    
+
     async def _check_exit_conditions(self):
         """Check exit conditions for all open positions"""
         try:
             active_positions = self.order_manager.get_active_positions()
-            
+
             for strategy_name, position in active_positions.items():
                 strategy_config = self.strategies.get(strategy_name)
                 if not strategy_config:
                     continue
-                
+
                 # Get current market data
                 df = self.price_fetcher.get_ohlcv_data(
                     strategy_config['symbol'],
                     strategy_config['timeframe']
                 )
-                
+
                 if df is None or df.empty:
                     continue
-                
+
                 # Calculate indicators
                 df = self.price_fetcher.calculate_indicators(df)
-                
+
                 # Check exit conditions
                 should_exit = self.signal_processor.evaluate_exit_conditions(
                     df, 
                     {'entry_price': position.entry_price, 'stop_loss': position.stop_loss, 'take_profit': position.take_profit}, 
                     strategy_config
                 )
-                
+
                 if should_exit:
                     current_price = df['close'].iloc[-1]
                     pnl = self._calculate_pnl(position, current_price)
-                    
+
                     # Determine exit reason
                     exit_reason = "Stop Loss" if current_price <= position.stop_loss else "Take Profit" if current_price >= position.take_profit else "Exit Signal"
                     pnl_status = "PROFIT" if pnl > 0 else "LOSS"
-                    
+
                     self.logger.info(f"🔄 EXIT TRIGGERED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Exit: ${current_price:.4f} | PnL: ${pnl:.2f} ({pnl_status})")
-                    
+
                     # Close position
                     if self.order_manager.close_position(strategy_name, exit_reason):
                         self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | Final PnL: ${pnl:.2f}")
-                        
+
                         from dataclasses import asdict
                         self.telegram_reporter.report_position_closed(
                             asdict(position), 
@@ -266,42 +275,42 @@ For MAINNET:
                         )
                     else:
                         self.logger.warning(f"❌ CLOSE FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not close position")
-                        
+
         except Exception as e:
             self.logger.error(f"Error checking exit conditions: {e}")
             self.telegram_reporter.report_error("Exit Check Error", str(e))
-    
+
     def _should_assess_strategy(self, strategy_name: str, strategy_config: Dict) -> bool:
         """Check if strategy should be assessed based on timing"""
         if strategy_name not in self.strategy_last_assessment:
             return True
-        
+
         last_assessment = self.strategy_last_assessment[strategy_name]
         assessment_interval = strategy_config.get('assessment_interval', 300)  # Default 5 minutes
-        
+
         return (datetime.now() - last_assessment).seconds >= assessment_interval
-    
+
     def _check_balance_requirements(self, strategy_config: Dict) -> bool:
         """Check if there's sufficient balance for the strategy"""
         try:
             # Get the biggest margin across all strategies
             max_margin = max(config['margin'] for config in self.strategies.values())
-            
+
             # Check if balance is sufficient
             if not self.balance_fetcher.check_sufficient_balance(max_margin, global_config.BALANCE_MULTIPLIER):
                 current_balance = self.balance_fetcher.get_usdt_balance() or 0
                 required_balance = max_margin * global_config.BALANCE_MULTIPLIER
-                
+
                 self.telegram_reporter.report_balance_warning(required_balance, current_balance)
                 self.logger.warning(f"Insufficient balance. Required: {required_balance}, Available: {current_balance}")
                 return False
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Error checking balance requirements: {e}")
             return False
-    
+
     def update_strategy_config(self, strategy_name: str, updates: Dict):
         """Update strategy configuration"""
         if strategy_name in self.strategies:
@@ -309,7 +318,7 @@ For MAINNET:
             self.logger.info(f"Updated configuration for {strategy_name}: {updates}")
         else:
             self.logger.warning(f"Strategy {strategy_name} not found")
-    
+
     def _get_current_price(self, symbol: str) -> Optional[float]:
         """Get current price for a symbol"""
         try:
@@ -320,7 +329,7 @@ For MAINNET:
         except Exception as e:
             self.logger.error(f"Error getting current price for {symbol}: {e}")
             return None
-    
+
     def _calculate_pnl(self, position, current_price: float) -> float:
         """Calculate PnL for a position"""
         try:
@@ -331,7 +340,7 @@ For MAINNET:
         except Exception as e:
             self.logger.error(f"Error calculating PnL: {e}")
             return 0.0
-    
+
     def _get_market_info(self, df: pd.DataFrame, strategy_name: str) -> str:
         """Get market information string for logging"""
         try:
@@ -346,11 +355,11 @@ For MAINNET:
                     rsi = df['rsi'].iloc[-1]
                     condition = "Oversold" if rsi < 30 else "Overbought" if rsi > 70 else "Normal"
                     return f"RSI: {rsi:.2f} | Condition: {condition}"
-            
+
             return "No Signal"
         except Exception as e:
             return f"Error: {e}"
-    
+
     def get_bot_status(self) -> Dict:
         """Get current bot status"""
         return {

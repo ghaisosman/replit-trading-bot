@@ -108,21 +108,21 @@ class BinanceClientWrapper:
                 # Test futures permissions
                 self.client.futures_ping()
                 permissions['ping'] = True
-                self.logger.info("✅ Futures API Ping: SUCCESS")
+                self.logger.info("✅ API PING SUCCESSFUL")
 
                 # Test futures market data
                 ticker = self.client.futures_symbol_ticker(symbol='BTCUSDT')
                 if ticker:
                     permissions['market_data'] = True
-                    self.logger.info("✅ Futures Market Data: SUCCESS")
+                    self.logger.info("✅ MARKET DATA ACCESS GRANTED")
 
                 # Test futures account access
                 account = self.client.futures_account()
                 if account:
                     permissions['account_access'] = True
                     permissions['trading'] = True  # Futures account access implies trading
-                    self.logger.info("✅ Futures Account Access: SUCCESS")
-                    self.logger.info("✅ Futures Trading Permission: SUCCESS")
+                    self.logger.info("✅ ACCOUNT ACCESS VERIFIED")
+                    self.logger.info("✅ TRADING PERMISSIONS ACTIVE")
             else:
                 # Test spot permissions (existing code)
                 self.client.ping()
