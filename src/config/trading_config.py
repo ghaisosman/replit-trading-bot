@@ -37,9 +37,9 @@ class TradingConfigManager:
             },
             'macd_divergence': {
                 'symbol': 'BTCUSDT',
-                'margin': 70.0,
+                'margin': 70,
                 'leverage': 5,
-                'timeframe': '15m',
+                'timeframe': '5m',
             },
         }
     
