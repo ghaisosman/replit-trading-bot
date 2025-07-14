@@ -101,10 +101,13 @@ For MAINNET:
 
             self.logger.info(f"⚡ MONITORING INTERVAL: {global_config.PRICE_UPDATE_INTERVAL}s")
 
+            # Check for existing positions from previous runs
+            await self._recover_active_positions()
+
             # Get pairs being watched
             pairs = [config['symbol'] for config in self.strategies.values()]
 
-            # Send startup notification
+            # Send startup notification with correct open trades count
             self.telegram_reporter.report_bot_startup(
                 pairs=pairs,
                 strategies=strategies,
@@ -374,6 +377,64 @@ For MAINNET:
             return "No Signal"
         except Exception as e:
             return f"Error: {e}"
+
+    async def _recover_active_positions(self):
+        """Recover active positions from Binance on startup"""
+        try:
+            self.logger.info("🔍 CHECKING FOR EXISTING POSITIONS...")
+            
+            for strategy_name, strategy_config in self.strategies.items():
+                symbol = strategy_config['symbol']
+                
+                # Get open positions from Binance for this symbol
+                try:
+                    if self.binance_client.is_futures:
+                        positions = self.binance_client.client.futures_position_information(symbol=symbol)
+                        
+                        for position in positions:
+                            position_amt = float(position.get('positionAmt', 0))
+                            
+                            if abs(position_amt) > 0:  # Position exists
+                                # Recover position details
+                                entry_price = float(position.get('entryPrice', 0))
+                                side = 'BUY' if position_amt > 0 else 'SELL'
+                                quantity = abs(position_amt)
+                                
+                                self.logger.info(f"📍 EXISTING POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price:.4f}")
+                                
+                                # Create position object (simplified recovery)
+                                from src.execution_engine.order_manager import Position
+                                from datetime import datetime
+                                
+                                recovered_position = Position(
+                                    strategy_name=strategy_name,
+                                    symbol=symbol,
+                                    side=side,
+                                    entry_price=entry_price,
+                                    quantity=quantity,
+                                    stop_loss=entry_price * 0.985 if side == 'BUY' else entry_price * 1.015,  # Estimated
+                                    take_profit=entry_price * 1.025 if side == 'BUY' else entry_price * 0.975,  # Estimated
+                                    position_side='LONG' if side == 'BUY' else 'SHORT',
+                                    order_id=0,  # Unknown on recovery
+                                    entry_time=datetime.now(),  # Current time as fallback
+                                    status='OPEN'
+                                )
+                                
+                                # Add to active positions
+                                self.order_manager.active_positions[strategy_name] = recovered_position
+                                
+                                break  # Only one position per strategy
+                                
+                except Exception as e:
+                    self.logger.warning(f"Could not check positions for {symbol}: {e}")
+                    
+            if self.order_manager.active_positions:
+                self.logger.info(f"✅ RECOVERED {len(self.order_manager.active_positions)} ACTIVE POSITIONS")
+            else:
+                self.logger.info("✅ NO EXISTING POSITIONS FOUND")
+                
+        except Exception as e:
+            self.logger.error(f"Error recovering active positions: {e}")
 
     def get_bot_status(self) -> Dict:
         """Get current bot status"""
