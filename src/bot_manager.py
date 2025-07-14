@@ -11,7 +11,9 @@ from src.strategy_processor.signal_processor import SignalProcessor
 from src.execution_engine.order_manager import OrderManager
 from src.execution_engine.strategies.sma_crossover_config import SMACrossoverConfig
 from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
+from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
 from src.reporting.telegram_reporter import TelegramReporter
+from src.config.trading_config import trading_config_manager
 
 class BotManager:
     """Main bot manager that orchestrates all components"""
