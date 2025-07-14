@@ -249,6 +249,7 @@ class TelegramReporter:
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
 🎯 <b>Strategy:</b> {strategy_name.upper()}
 💰 <b>Pair:</b> {symbol}
+⚠️ <b>Note:</b> Position remains open on Binance (manual trade)
 ✅ <b>Status:</b> Strategy can now trade again
             """
             self.send_message(message)

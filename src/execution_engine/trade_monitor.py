@@ -172,13 +172,14 @@ class TradeMonitor:
         for strategy_name in orphans_to_remove:
             del self.orphan_trades[strategy_name]
             
-        # Process ghost trades
+        # Process ghost trades - NEVER close them on Binance, only clear from internal tracking
         ghosts_to_remove = []
         for ghost_id, ghost_trade in self.ghost_trades.items():
             ghost_trade.cycles_remaining -= 1
             
             if ghost_trade.cycles_remaining <= 0:
-                # Clear ghost trade
+                # Clear ghost trade from internal tracking ONLY - DO NOT close on Binance
+                # Ghost trades are manual positions that bot should never interfere with
                 ghosts_to_remove.append(ghost_id)
                 
                 # Extract strategy name from ghost_id
@@ -186,14 +187,14 @@ class TradeMonitor:
                 
                 # Log and notify only if not already notified
                 if not ghost_trade.clearing_notified:
-                    self.logger.info(f"🧹 GHOST TRADE CLEARED | {strategy_name} | Strategy can trade again")
+                    self.logger.info(f"🧹 GHOST TRADE CLEARED | {strategy_name} | Removed from tracking only - Position remains on Binance")
                     self.telegram_reporter.report_ghost_trade_cleared(
                         strategy_name=strategy_name,
                         symbol=ghost_trade.symbol
                     )
                     ghost_trade.clearing_notified = True
         
-        # Remove cleared ghost trades
+        # Remove cleared ghost trades from internal tracking only
         for ghost_id in ghosts_to_remove:
             del self.ghost_trades[ghost_id]
             
