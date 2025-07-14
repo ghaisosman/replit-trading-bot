@@ -106,10 +106,6 @@ class TradeMonitor:
         try:
             # Check each registered strategy symbol
             for strategy_name, symbol in self.strategy_symbols.items():
-                # Skip if strategy already has active position
-                if strategy_name in self.order_manager.active_positions:
-                    continue
-                    
                 # Get open positions from Binance
                 binance_positions = self._get_binance_positions(symbol)
                 
@@ -117,32 +113,55 @@ class TradeMonitor:
                 for binance_pos in binance_positions:
                     position_amt = float(binance_pos.get('positionAmt', 0))
                     if position_amt != 0:  # Position exists on Binance
-                        # Create unique ID for this ghost trade
-                        ghost_id = f"{strategy_name}_{symbol}_{abs(position_amt)}"
                         
-                        # Check if we already detected this ghost trade
-                        if ghost_id not in self.ghost_trades:
-                            side = 'BUY' if position_amt > 0 else 'SELL'
+                        # Check if this position matches a known bot position
+                        bot_position = self.order_manager.active_positions.get(strategy_name)
+                        is_bot_position = False
+                        
+                        if bot_position:
+                            # Compare position details to see if this is the bot's position
+                            bot_side_multiplier = 1 if bot_position.side == 'BUY' else -1
+                            expected_position_amt = bot_position.quantity * bot_side_multiplier
                             
-                            ghost_trade = GhostTrade(
-                                symbol=symbol,
-                                side=side,
-                                quantity=abs(position_amt),
-                                detected_at=datetime.now(),
-                                cycles_remaining=2,
-                                detection_notified=True,
-                                clearing_notified=False
-                            )
-                            self.ghost_trades[ghost_id] = ghost_trade
+                            # Allow small tolerance for quantity differences due to rounding
+                            if abs(position_amt - expected_position_amt) < 0.001:
+                                is_bot_position = True
+                        
+                        # If this is not the bot's position, it's a ghost trade
+                        if not is_bot_position:
+                            # Create unique ID for this ghost trade
+                            ghost_id = f"{strategy_name}_{symbol}_{abs(position_amt)}_{datetime.now().strftime('%H%M%S')}"
                             
-                            # Log and notify
-                            self.logger.warning(f"👻 GHOST TRADE DETECTED | {strategy_name} | {symbol} | Manual position found")
-                            self.telegram_reporter.report_ghost_trade_detected(
-                                strategy_name=strategy_name,
-                                symbol=symbol,
-                                side=side,
-                                quantity=abs(position_amt)
-                            )
+                            # Check if we already detected this ghost trade (use simpler check)
+                            existing_ghost = None
+                            for gid, ghost in self.ghost_trades.items():
+                                if (gid.startswith(f"{strategy_name}_{symbol}_") and 
+                                    abs(ghost.quantity - abs(position_amt)) < 0.001):
+                                    existing_ghost = gid
+                                    break
+                            
+                            if not existing_ghost:
+                                side = 'BUY' if position_amt > 0 else 'SELL'
+                                
+                                ghost_trade = GhostTrade(
+                                    symbol=symbol,
+                                    side=side,
+                                    quantity=abs(position_amt),
+                                    detected_at=datetime.now(),
+                                    cycles_remaining=2,
+                                    detection_notified=True,
+                                    clearing_notified=False
+                                )
+                                self.ghost_trades[ghost_id] = ghost_trade
+                                
+                                # Log and notify
+                                self.logger.warning(f"👻 GHOST TRADE DETECTED | {strategy_name} | {symbol} | Manual position found")
+                                self.telegram_reporter.report_ghost_trade_detected(
+                                    strategy_name=strategy_name,
+                                    symbol=symbol,
+                                    side=side,
+                                    quantity=abs(position_amt)
+                                )
                             
         except Exception as e:
             self.logger.error(f"Error checking ghost trades: {e}")
