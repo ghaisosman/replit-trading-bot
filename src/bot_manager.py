@@ -230,13 +230,7 @@ For MAINNET:
                 market_info = self._get_market_info(df, strategy_name)
                 self.logger.info(f"📈 MARKET ASSESSMENT | {strategy_name.upper()} | {strategy_config['symbol']} | Price: ${current_price:.4f} | {market_info}")
 
-                # Report market assessment
-                self.telegram_reporter.report_market_assessment(strategy_name, {
-                    'symbol': strategy_config['symbol'],
-                    'current_price': current_price,
-                    'trend': 'Neutral',
-                    'signal_strength': 'No Signal'
-                })
+                # Market assessment notifications are log-only (no telegram)
 
         except Exception as e:
             self.logger.error(f"Error processing strategy {strategy_name}: {e}")
