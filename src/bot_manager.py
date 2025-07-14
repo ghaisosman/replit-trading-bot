@@ -9,7 +9,6 @@ from src.data_fetcher.price_fetcher import PriceFetcher
 from src.data_fetcher.balance_fetcher import BalanceFetcher
 from src.strategy_processor.signal_processor import SignalProcessor
 from src.execution_engine.order_manager import OrderManager
-from src.execution_engine.strategies.sma_crossover_config import SMACrossoverConfig
 from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
 from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
 from src.reporting.telegram_reporter import TelegramReporter
@@ -71,7 +70,6 @@ For MAINNET:
 
         # Initialize strategies with flexible configuration
         base_strategies = {
-            'sma_crossover': SMACrossoverConfig.get_config(),
             'rsi_oversold': RSIOversoldConfig.get_config(),
             'macd_divergence': MACDDivergenceConfig.get_config()
         }
@@ -398,17 +396,13 @@ For MAINNET:
     def _get_market_info(self, df: pd.DataFrame, strategy_name: str) -> str:
         """Get market information string for logging"""
         try:
-            if strategy_name == 'sma_crossover':
-                if 'sma_20' in df.columns and 'sma_50' in df.columns:
-                    sma_20 = df['sma_20'].iloc[-1]
-                    sma_50 = df['sma_50'].iloc[-1]
-                    trend = "Bullish" if sma_20 > sma_50 else "Bearish"
-                    return f"SMA20: ${sma_20:.2f} | SMA50: ${sma_50:.2f} | Trend: {trend}"
-            elif strategy_name == 'rsi_oversold':
+            if strategy_name == 'rsi_oversold':
                 if 'rsi' in df.columns:
                     rsi = df['rsi'].iloc[-1]
                     condition = "Oversold" if rsi < 30 else "Overbought" if rsi > 70 else "Normal"
                     return f"RSI: {rsi:.2f} | Condition: {condition}"
+            elif strategy_name == 'macd_divergence':
+                return "MACD Divergence" #TODO : implement proper logging for this strategy
 
             return "No Signal"
         except Exception as e:

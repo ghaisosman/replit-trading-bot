@@ -35,9 +35,7 @@ class SignalProcessor:
             strategy_name = strategy_config.get('name', 'unknown')
             
             # Route to specific strategy evaluation
-            if strategy_name == 'sma_crossover':
-                return self._evaluate_sma_crossover(df, current_price, strategy_config)
-            elif strategy_name == 'rsi_oversold':
+            if strategy_name == 'rsi_oversold':
                 return self._evaluate_rsi_oversold(df, current_price, strategy_config)
             elif strategy_name == 'macd_divergence':
                 return self._evaluate_macd_divergence(df, current_price, strategy_config)

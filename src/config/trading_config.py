@@ -29,12 +29,6 @@ class TradingConfigManager:
         
         # Strategy-specific overrides
         self.strategy_overrides = {
-            'sma_crossover': {
-                'symbol': 'BTCUSDT',
-                'margin': 100.0,
-                'leverage': 10,
-                'timeframe': '15m'
-            },
             'rsi_oversold': {
                 'symbol': 'ETHUSDT', 
                 'margin': 50.0,
