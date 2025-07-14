@@ -263,8 +263,12 @@ class TradeMonitor:
                         # Log detection
                         usdt_value = current_price * abs(position_amt) if current_price else 0
 
-                        # Only send notification if not suppressed AND startup scan is complete AND not already notified
-                        if not suppress_notifications and self.startup_scan_complete and not ghost_trade.detection_notified:
+                        # Check if we should send notification (only if not suppressed, startup complete, and not already notified)
+                        should_notify = (not suppress_notifications and 
+                                       self.startup_scan_complete and 
+                                       not ghost_trade.detection_notified)
+                        
+                        if should_notify:
                             # This is a normal anomaly check - send notification ONLY ONCE
                             self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
 
@@ -281,9 +285,14 @@ class TradeMonitor:
                             ghost_trade.detection_notified = True
                             ghost_trade.last_notification_time = datetime.now()
                         else:
-                            # This is a suppressed startup scan - just log
-                            scan_type = "STARTUP SCAN" if not self.startup_scan_complete else "SUPPRESSED CHECK"
-                            self.logger.info(f"👻 POSITION NOTED ({scan_type}) | {monitoring_strategy} | {symbol} | Manual position tracked | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
+                            # This is a suppressed startup scan or already notified - just log
+                            if not self.startup_scan_complete:
+                                scan_type = "STARTUP SCAN"
+                            elif ghost_trade.detection_notified:
+                                scan_type = "ALREADY NOTIFIED"
+                            else:
+                                scan_type = "SUPPRESSED CHECK"
+                            self.logger.debug(f"👻 POSITION NOTED ({scan_type}) | {monitoring_strategy} | {symbol} | Manual position tracked | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
                     else:
                         # Update the existing ghost trade but don't re-notify
                         if existing_ghost_id:
@@ -293,6 +302,13 @@ class TradeMonitor:
                                 self.logger.debug(f"🔍 GHOST CHECK: Updating ghost trade quantity for {symbol} from {existing_ghost.quantity:.6f} to {abs(position_amt):.6f}")
                                 existing_ghost.quantity = abs(position_amt)
                                 existing_ghost.side = 'LONG' if position_amt > 0 else 'SHORT'
+                            
+                            # Ensure we don't re-notify for existing ghost trades
+                            if not existing_ghost.detection_notified and not suppress_notifications and self.startup_scan_complete:
+                                # This should not happen, but just in case, mark as notified without sending
+                                self.logger.debug(f"🔍 GHOST CHECK: Marking existing ghost trade {ghost_id} as notified to prevent notifications")
+                                existing_ghost.detection_notified = True
+                                existing_ghost.last_notification_time = datetime.now()
 
                         self.logger.debug(f"🔍 GHOST CHECK: Ghost trade already exists for {symbol}, skipping duplicate detection")
                 else:
