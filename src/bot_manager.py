@@ -92,7 +92,12 @@ For MAINNET:
 
         # Initialize execution engine components
         self.order_manager = OrderManager(self.binance_client)
-        self.trade_monitor = TradeMonitor(self.binance_client, self.order_manager, self.telegram_reporter)
+        # Initialize anomaly detector for orphan/ghost detection
+        self.anomaly_detector = AnomalyDetector(
+            binance_client=self.binance_client,
+            order_manager=self.order_manager,
+            telegram_reporter=self.telegram_reporter
+        )
 
         # Connect order manager and trade monitor for bot trade registration
         self.order_manager.set_trade_monitor(self.trade_monitor)
