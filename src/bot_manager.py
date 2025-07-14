@@ -28,7 +28,22 @@ class BotManager:
         
         # Test Binance API connection
         if not self.binance_client.test_connection():
-            raise ValueError("Failed to connect to Binance API. Check your API keys and network connection.")
+            error_msg = """
+Failed to connect to Binance API. 
+
+For TESTNET (recommended):
+1. Go to https://testnet.binance.vision/
+2. Create an account and generate API keys
+3. Update your Replit Secrets with the testnet keys
+
+For MAINNET (use with caution):
+1. Set BINANCE_TESTNET=false in Secrets
+2. Use your real Binance API keys
+3. Ensure IP whitelisting is disabled or your IP is whitelisted
+
+Current mode: {}
+            """.format("TESTNET" if global_config.BINANCE_TESTNET else "MAINNET")
+            raise ValueError(error_msg)
         
         self.price_fetcher = PriceFetcher(self.binance_client)
         self.balance_fetcher = BalanceFetcher(self.binance_client)

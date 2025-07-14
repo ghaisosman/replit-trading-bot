@@ -72,8 +72,8 @@ class PriceFetcher:
             df['bb_lower'] = bollinger.bollinger_lband()
             df['bb_middle'] = bollinger.bollinger_mavg()
             
-            # Volume indicators
-            df['volume_sma'] = ta.volume.volume_sma(df['close'], df['volume'])
+            # Volume indicators - using basic SMA on volume
+            df['volume_sma'] = df['volume'].rolling(window=20).mean()
             
             return df
             
