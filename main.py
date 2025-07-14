@@ -37,11 +37,16 @@ async def main():
 
     # Start web dashboard in background thread
     def run_web_dashboard():
-        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+        logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
+        logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
+        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
 
     web_thread = threading.Thread(target=run_web_dashboard, daemon=True)
     web_thread.start()
-    logger.info("🌐 Web Dashboard started at http://0.0.0.0:5000")
+    
+    # Give web dashboard time to start
+    await asyncio.sleep(2)
+    logger.info("🌐 Web Dashboard accessible at: https://[your-repl-url].replit.dev")
 
     try:
         # Initialize and start the bot
@@ -84,12 +89,30 @@ async def main():
         raise
 
 if __name__ == "__main__":
+    # Setup logging first
+    setup_logger()
+    logger = logging.getLogger(__name__)
+    
     # Make bot_manager available to web dashboard
     bot_manager = BotManager()
 
     # Make it globally accessible for web interface
     import sys
     sys.modules[__name__].bot_manager = bot_manager
+
+    # Start web dashboard in background
+    def run_web_dashboard():
+        logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
+        logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
+        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
+
+    web_thread = threading.Thread(target=run_web_dashboard, daemon=True)
+    web_thread.start()
+    
+    # Give web dashboard time to start
+    import time
+    time.sleep(2)
+    logger.info("🌐 Web Dashboard accessible via Replit webview")
 
     try:
         # Run the bot
