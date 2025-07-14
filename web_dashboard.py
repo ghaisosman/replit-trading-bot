@@ -174,6 +174,10 @@ def start_bot():
             logger = logging.getLogger(__name__)
             logger.info("🌐 WEB INTERFACE: Starting bot via web dashboard")
             
+            # Also log to bot manager's logger if available
+            if hasattr(shared_bot_manager, 'logger'):
+                shared_bot_manager.logger.info("🌐 WEB INTERFACE: Bot started via web dashboard")
+            
             # Start the shared bot in the main event loop
             def start_shared_bot():
                 loop = asyncio.new_event_loop()
@@ -265,6 +269,10 @@ def stop_bot():
         if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
             if shared_bot_manager.is_running:
                 logger.info("🌐 WEB INTERFACE: Stopping bot via web dashboard")
+                
+                # Also log to bot manager's logger if available
+                if hasattr(shared_bot_manager, 'logger'):
+                    shared_bot_manager.logger.info("🌐 WEB INTERFACE: Bot stopped via web dashboard")
                 
                 # Stop the shared bot by setting is_running to False
                 shared_bot_manager.is_running = False

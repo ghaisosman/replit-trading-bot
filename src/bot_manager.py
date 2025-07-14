@@ -321,18 +321,16 @@ For MAINNET:
                 df = self.price_fetcher.calculate_indicators(df)
 
                 # Check exit conditions
-                should_exit = self.signal_processor.evaluate_exit_conditions(
+                exit_reason = self.signal_processor.evaluate_exit_conditions(
                     df, 
                     {'entry_price': position.entry_price, 'stop_loss': position.stop_loss, 'take_profit': position.take_profit}, 
                     strategy_config
                 )
 
-                if should_exit:
+                if exit_reason:
                     current_price = df['close'].iloc[-1]
                     pnl = self._calculate_pnl(position, current_price)
 
-                    # Determine exit reason
-                    exit_reason = "Stop Loss" if current_price <= position.stop_loss else "Take Profit" if current_price >= position.take_profit else "Exit Signal"
                     pnl_status = "PROFIT" if pnl > 0 else "LOSS"
 
                     self.logger.info(f"🔄 EXIT TRIGGERED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Exit: ${current_price:,.1f} | PnL: ${pnl:,.1f} ({pnl_status})")
