@@ -340,7 +340,8 @@ For MAINNET:
             else:
                 # Log market assessment result (console only, no Telegram)
                 market_info = self._get_market_info(df, strategy_name)
-                self.logger.info(f"📈 MARKET ASSESSMENT | {strategy_name.upper()} | {strategy_config['symbol']} | Price: ${current_price:,.1f} | {market_info}")
+                margin = strategy_config.get('margin', 50.0)
+                self.logger.info(f"📈 MARKET ASSESSMENT | {strategy_name.upper()} | {strategy_config['symbol']} | Price: ${current_price:,.1f} | Margin: ${margin:.1f} | {market_info}")
 
         except Exception as e:
             self.logger.error(f"Error processing strategy {strategy_name}: {e}")
