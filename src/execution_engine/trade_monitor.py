@@ -44,31 +44,40 @@ class TradeMonitor:
 
         # Track strategy symbols for monitoring
         self.strategy_symbols: Dict[str, str] = {}  # strategy_name -> symbol
+        
+        # Flag to prevent notifications during initial startup scan
+        self.startup_scan_complete = False
 
     def register_strategy(self, strategy_name: str, symbol: str):
         """Register a strategy and its symbol for monitoring"""
         self.strategy_symbols[strategy_name] = symbol
 
-    def check_for_anomalies(self) -> None:
+    def check_for_anomalies(self, suppress_notifications: bool = False) -> None:
         """Check for orphan and ghost trades"""
         try:
-            self.logger.debug(f"🔍 ANOMALY CHECK: Starting trade anomaly detection")
-            self.logger.debug(f"🔍 ANOMALY CHECK: Registered strategies: {list(self.strategy_symbols.keys())}")
-            self.logger.debug(f"🔍 ANOMALY CHECK: Active bot positions: {list(self.order_manager.active_positions.keys())}")
-            self.logger.debug(f"🔍 ANOMALY CHECK: Current orphan trades: {len(self.orphan_trades)}")
-            self.logger.debug(f"🔍 ANOMALY CHECK: Current ghost trades: {len(self.ghost_trades)}")
+            scan_type = "STARTUP SCAN" if not self.startup_scan_complete else "ANOMALY CHECK"
+            self.logger.debug(f"🔍 {scan_type}: Starting trade anomaly detection")
+            self.logger.debug(f"🔍 {scan_type}: Registered strategies: {list(self.strategy_symbols.keys())}")
+            self.logger.debug(f"🔍 {scan_type}: Active bot positions: {list(self.order_manager.active_positions.keys())}")
+            self.logger.debug(f"🔍 {scan_type}: Current orphan trades: {len(self.orphan_trades)}")
+            self.logger.debug(f"🔍 {scan_type}: Current ghost trades: {len(self.ghost_trades)}")
 
-            self._check_orphan_trades()
-            self._check_ghost_trades()
-            self._process_cycle_countdown()
+            self._check_orphan_trades(suppress_notifications)
+            self._check_ghost_trades(suppress_notifications)
+            self._process_cycle_countdown(suppress_notifications)
+            
+            # Mark startup scan as complete after first run
+            if not self.startup_scan_complete:
+                self.startup_scan_complete = True
+                self.logger.info("🔍 STARTUP SCAN: Initial anomaly scan completed")
 
-            self.logger.debug(f"🔍 ANOMALY CHECK: Completed anomaly detection")
+            self.logger.debug(f"🔍 {scan_type}: Completed anomaly detection")
         except Exception as e:
             self.logger.error(f"Error checking trade anomalies: {e}")
             import traceback
             self.logger.error(f"Anomaly check error traceback: {traceback.format_exc()}")
 
-    def _check_orphan_trades(self) -> None:
+    def _check_orphan_trades(self, suppress_notifications: bool = False) -> None:
         """Check for orphan trades (bot opened, manually closed)"""
         try:
             # Get bot's active positions
@@ -112,7 +121,7 @@ class TradeMonitor:
         except Exception as e:
             self.logger.error(f"Error checking orphan trades: {e}")
 
-    def _check_ghost_trades(self) -> None:
+    def _check_ghost_trades(self, suppress_notifications: bool = False) -> None:
         """Check for ghost trades (manually opened, not by bot)"""
         try:
             # Get ALL open positions from Binance first
@@ -188,11 +197,13 @@ class TradeMonitor:
                         monitoring_strategy = f"manual_{symbol.lower()}"
                         self.logger.debug(f"🔍 GHOST CHECK: No strategy monitors {symbol}, using generic name: {monitoring_strategy}")
 
-                    # Check if we already have a ghost trade for this symbol (regardless of quantity differences)
+                    # Check if we already have a ghost trade for this symbol
                     existing_ghost_found = False
+                    existing_ghost_id = None
                     for ghost_id, ghost_trade in self.ghost_trades.items():
                         if ghost_trade.symbol == symbol:
                             existing_ghost_found = True
+                            existing_ghost_id = ghost_id
                             self.logger.debug(f"🔍 GHOST CHECK: Already tracking ghost trade for {symbol} with ID {ghost_id}")
                             break
 
@@ -222,17 +233,32 @@ class TradeMonitor:
                         except:
                             current_price = None
 
-                        # Log and notify ONLY once per detection
+                        # Log detection
                         usdt_value = current_price * abs(position_amt) if current_price else 0
-                        self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
-                        self.telegram_reporter.report_ghost_trade_detected(
-                            strategy_name=monitoring_strategy,
-                            symbol=symbol,
-                            side=side,
-                            quantity=abs(position_amt),
-                            current_price=current_price
-                        )
+                        
+                        if not suppress_notifications and self.startup_scan_complete:
+                            self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
+                            
+                            # Send Telegram notification only if not suppressed
+                            self.telegram_reporter.report_ghost_trade_detected(
+                                strategy_name=monitoring_strategy,
+                                symbol=symbol,
+                                side=side,
+                                quantity=abs(position_amt),
+                                current_price=current_price
+                            )
+                        else:
+                            self.logger.info(f"👻 EXISTING POSITION NOTED | {monitoring_strategy} | {symbol} | Manual position tracked | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
                     else:
+                        # Update the existing ghost trade but don't re-notify
+                        if existing_ghost_id:
+                            existing_ghost = self.ghost_trades[existing_ghost_id]
+                            # Update quantity if it has changed significantly
+                            if abs(existing_ghost.quantity - abs(position_amt)) > 0.1:
+                                self.logger.debug(f"🔍 GHOST CHECK: Updating ghost trade quantity for {symbol} from {existing_ghost.quantity:.6f} to {abs(position_amt):.6f}")
+                                existing_ghost.quantity = abs(position_amt)
+                                existing_ghost.side = 'LONG' if position_amt > 0 else 'SHORT'
+                            
                         self.logger.debug(f"🔍 GHOST CHECK: Ghost trade already exists for {symbol}, skipping duplicate detection")
                 else:
                     self.logger.debug(f"🔍 GHOST CHECK: Position {symbol} is a known bot position")
@@ -242,7 +268,7 @@ class TradeMonitor:
             import traceback
             self.logger.error(f"Ghost trade check error traceback: {traceback.format_exc()}")
 
-    def _process_cycle_countdown(self) -> None:
+    def _process_cycle_countdown(self, suppress_notifications: bool = False) -> None:
         """Process countdown for orphan and ghost trades"""
         # Process orphan trades
         orphans_to_remove = []
