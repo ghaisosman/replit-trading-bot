@@ -66,13 +66,12 @@ class TradeMonitor:
             self._check_ghost_trades(suppress_notifications)
             self._process_cycle_countdown(suppress_notifications)
             
-            # Mark startup scan as complete after first run
-            if not self.startup_scan_complete:
+            # Mark startup scan as complete only if not suppressed
+            if not self.startup_scan_complete and not suppress_notifications:
                 self.startup_scan_complete = True
-                if suppress_notifications:
-                    self.logger.info("🔍 STARTUP SCAN: Initial anomaly scan completed (notifications suppressed)")
-                else:
-                    self.logger.info("🔍 STARTUP SCAN: Initial anomaly scan completed")
+                self.logger.info("🔍 STARTUP SCAN: Initial anomaly scan completed")
+            elif not self.startup_scan_complete and suppress_notifications:
+                self.logger.info("🔍 STARTUP SCAN: Initial anomaly scan completed (notifications suppressed)")
 
             self.logger.debug(f"🔍 {scan_type}: Completed anomaly detection")
         except Exception as e:
@@ -83,6 +82,11 @@ class TradeMonitor:
     def _check_orphan_trades(self, suppress_notifications: bool = False) -> None:
         """Check for orphan trades (bot opened, manually closed)"""
         try:
+            # Skip orphan trade detection during startup scan to prevent false positives
+            if not self.startup_scan_complete:
+                self.logger.debug("🔍 ORPHAN CHECK: Skipping during startup scan")
+                return
+
             # Get bot's active positions
             bot_positions = self.order_manager.get_active_positions()
 
@@ -107,19 +111,22 @@ class TradeMonitor:
                         position=position,
                         detected_at=datetime.now(),
                         cycles_remaining=2,
-                        detection_notified=True,
+                        detection_notified=not suppress_notifications,
                         clearing_notified=False
                     )
                     self.orphan_trades[strategy_name] = orphan_trade
 
-                    # Log and notify
-                    self.logger.warning(f"🔍 ORPHAN TRADE DETECTED | {strategy_name} | {symbol} | Position closed manually")
-                    self.telegram_reporter.report_orphan_trade_detected(
-                        strategy_name=strategy_name,
-                        symbol=symbol,
-                        side=position.side,
-                        entry_price=position.entry_price
-                    )
+                    # Log and notify only if not suppressed
+                    if not suppress_notifications:
+                        self.logger.warning(f"🔍 ORPHAN TRADE DETECTED | {strategy_name} | {symbol} | Position closed manually")
+                        self.telegram_reporter.report_orphan_trade_detected(
+                            strategy_name=strategy_name,
+                            symbol=symbol,
+                            side=position.side,
+                            entry_price=position.entry_price
+                        )
+                    else:
+                        self.logger.info(f"🔍 ORPHAN POSITION NOTED (STARTUP) | {strategy_name} | {symbol} | Position tracking")
 
         except Exception as e:
             self.logger.error(f"Error checking orphan trades: {e}")

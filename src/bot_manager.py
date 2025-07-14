@@ -147,58 +147,31 @@ For MAINNET:
 
             self.logger.info(f"⚡ MONITORING INTERVAL: {global_config.PRICE_UPDATE_INTERVAL}s")
 
-            # Check for existing positions from previous runs
+            # Check for existing positions from previous runs FIRST
             self.logger.info(f"🔍 CHECKING FOR EXISTING POSITIONS...")
             await self._recover_active_positions()
 
             # Get pairs being watched
             pairs = [config['symbol'] for config in self.strategies.values()]
 
-            # CRITICAL: Force startup notification to be sent IMMEDIATELY
-            self.logger.info(f"📱 PREPARING TELEGRAM STARTUP NOTIFICATION ({startup_source})")
-            self.logger.info(f"🔍 NOTIFICATION DEBUG: startup_notified = {self.startup_notified}")
-
-            # Force reset notification flag
-            self.startup_notified = False
-            self.logger.info(f"🔍 NOTIFICATION DEBUG: Force reset startup_notified = {self.startup_notified}")
-
-            self.logger.info(f"📱 SENDING TELEGRAM STARTUP NOTIFICATION ({startup_source})")
-
-            # ALWAYS send startup notification regardless of previous state
-            try:
-                self.logger.info(f"🔍 CALLING telegram_reporter.report_bot_startup()...")
-                self.telegram_reporter.report_bot_startup(
-                    pairs=pairs,
-                    strategies=strategies,
-                    balance=balance_info,
-                    open_trades=len(self.order_manager.active_positions)
-                )
-                self.logger.info("✅ TELEGRAM STARTUP NOTIFICATION SENT SUCCESSFULLY")
-                self.startup_notified = True
-            except Exception as e:
-                self.logger.error(f"❌ FAILED TO SEND TELEGRAM STARTUP NOTIFICATION: {e}")
-                # Force logging of the specific error
-                self.logger.error(f"❌ NOTIFICATION ERROR DETAILS: {type(e).__name__}: {str(e)}")
-                import traceback
-                self.logger.error(f"❌ FULL TRACEBACK: {traceback.format_exc()}")
-
-                # Try to send a simple error message
+            # Send startup notification ONCE with correct open trades count
+            if not self.startup_notified:
+                self.logger.info(f"📱 SENDING TELEGRAM STARTUP NOTIFICATION ({startup_source})")
+                
                 try:
-                    self.logger.info(f"🔍 ATTEMPTING FALLBACK NOTIFICATION...")
-                    error_msg = f"⚠️ Bot started from {startup_source} but notification failed: {str(e)}"
-                    result = self.telegram_reporter.send_message(error_msg)
-                    if result:
-                        self.logger.info("✅ ERROR NOTIFICATION SENT TO TELEGRAM")
-                    else:
-                        self.logger.error("❌ ERROR NOTIFICATION ALSO FAILED")
-                except Exception as fallback_error:
-                    self.logger.error(f"❌ EVEN FALLBACK NOTIFICATION FAILED: {fallback_error}")
+                    self.telegram_reporter.report_bot_startup(
+                        pairs=pairs,
+                        strategies=strategies,
+                        balance=balance_info,
+                        open_trades=len(self.order_manager.active_positions)
+                    )
+                    self.logger.info("✅ TELEGRAM STARTUP NOTIFICATION SENT SUCCESSFULLY")
+                    self.startup_notified = True
+                except Exception as e:
+                    self.logger.error(f"❌ FAILED TO SEND TELEGRAM STARTUP NOTIFICATION: {e}")
 
             self.is_running = True
             self.logger.info(f"🔍 BOT STATUS: is_running = {self.is_running}")
-
-            # Start main trading loop
-            self.logger.info("🔄 STARTING MAIN TRADING LOOP...")
 
             # Start daily reporter scheduler
             self.daily_reporter.start_scheduler()
@@ -206,6 +179,9 @@ For MAINNET:
             # Initial anomaly check AFTER startup notification - SUPPRESS notifications for startup scan
             self.logger.info("🔍 PERFORMING INITIAL ANOMALY CHECK (SUPPRESSED)...")
             self.trade_monitor.check_for_anomalies(suppress_notifications=True)
+
+            # Start main trading loop
+            self.logger.info("🔄 STARTING MAIN TRADING LOOP...")
 
             await self._main_trading_loop()
 
