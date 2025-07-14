@@ -123,6 +123,7 @@ class OrderManager:
         try:
             margin = strategy_config['margin']
             leverage = strategy_config['leverage']
+            symbol = strategy_config['symbol']
             
             # Calculate notional value
             notional_value = margin * leverage
@@ -130,8 +131,17 @@ class OrderManager:
             # Calculate quantity based on entry price
             quantity = notional_value / signal.entry_price
             
-            # Round to appropriate precision (you may need to adjust this based on symbol)
-            quantity = round(quantity, 6)
+            # Apply symbol-specific precision
+            if symbol == 'BTCUSDT':
+                quantity = round(quantity, 6)  # BTC requires 6 decimal places
+            elif symbol == 'ETHUSDT':
+                quantity = round(quantity, 3)  # ETH requires 3 decimal places
+            elif symbol.endswith('USDT'):
+                quantity = round(quantity, 3)  # Most USDT pairs use 3 decimal places
+            else:
+                quantity = round(quantity, 6)  # Default fallback
+            
+            self.logger.info(f"Calculated position size for {symbol}: {quantity}")
             
             return quantity
             
