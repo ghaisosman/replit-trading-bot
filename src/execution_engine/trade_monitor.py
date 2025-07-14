@@ -60,12 +60,35 @@ class TradeMonitor:
         # Track ghost trade fingerprints to prevent re-detection of same trades
         self.ghost_trade_fingerprints: Dict[str, datetime] = {}  # fingerprint -> clear_time
         
+        # Track recent bot trades to prevent immediate ghost detection
+        self.recent_bot_trades: Dict[str, datetime] = {}  # symbol -> trade_timestamp
+        self.ghost_detection_delay_seconds = 30  # 30 second delay after bot trades
+        
         # Load persistent ghost fingerprints to survive bot restarts
         self._load_persistent_ghost_fingerprints()
 
     def register_strategy(self, strategy_name: str, symbol: str):
         """Register a strategy and its symbol for monitoring"""
         self.strategy_symbols[strategy_name] = symbol
+
+    def register_bot_trade(self, symbol: str):
+        """Register that the bot just placed a trade on this symbol"""
+        self.recent_bot_trades[symbol] = datetime.now()
+        self.logger.info(f"🔍 BOT TRADE REGISTERED | {symbol} | Ghost detection paused for {self.ghost_detection_delay_seconds} seconds")
+
+    def _is_ghost_detection_paused(self, symbol: str) -> bool:
+        """Check if ghost detection should be paused for this symbol due to recent bot trade"""
+        if symbol not in self.recent_bot_trades:
+            return False
+        
+        time_since_trade = datetime.now() - self.recent_bot_trades[symbol]
+        is_paused = time_since_trade.total_seconds() < self.ghost_detection_delay_seconds
+        
+        if is_paused:
+            remaining_seconds = self.ghost_detection_delay_seconds - time_since_trade.total_seconds()
+            self.logger.debug(f"🔍 GHOST DETECTION PAUSED | {symbol} | {remaining_seconds:.1f}s remaining")
+        
+        return is_paused
 
     def check_for_anomalies(self, suppress_notifications: bool = False) -> None:
         """Check for orphan and ghost trades"""
@@ -186,6 +209,11 @@ class TradeMonitor:
                 position_amt = float(binance_pos.get('positionAmt', 0))
 
                 self.logger.debug(f"🔍 GHOST CHECK: Analyzing position {symbol}: {position_amt}")
+
+                # Skip ghost detection if bot recently placed a trade on this symbol
+                if self._is_ghost_detection_paused(symbol):
+                    self.logger.debug(f"🔍 GHOST CHECK: Skipping {symbol} - bot trade detected recently, waiting for confirmation")
+                    continue
 
                 # Check if this position matches ANY known bot position
                 is_bot_position = False
@@ -553,6 +581,17 @@ class TradeMonitor:
             for symbol in notifications_to_remove:
                 del self.notified_ghost_positions[symbol]
                 self.logger.debug(f"🔍 NOTIFICATION CLEANUP: Removed {symbol} from notification tracking after 24 hours")
+
+            # Cleanup expired bot trade tracking (after delay period + buffer)
+            bot_trades_to_remove = []
+            cleanup_threshold = self.ghost_detection_delay_seconds + 60  # 30s delay + 60s buffer
+            for symbol, trade_time in self.recent_bot_trades.items():
+                if (current_time - trade_time).total_seconds() > cleanup_threshold:
+                    bot_trades_to_remove.append(symbol)
+
+            for symbol in bot_trades_to_remove:
+                del self.recent_bot_trades[symbol]
+                self.logger.debug(f"🔍 BOT TRADE CLEANUP: Removed {symbol} from recent trades tracking after {cleanup_threshold}s")
 
         except Exception as e:
             self.logger.error(f"Error cleaning up recently cleared ghosts: {e}")

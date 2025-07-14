@@ -100,6 +100,10 @@ class OrderManager:
             # Store active position
             self.active_positions[strategy_name] = position
 
+            # Register bot trade with trade monitor to pause ghost detection
+            if self.trade_monitor:
+                self.trade_monitor.register_bot_trade(position.symbol)
+
             # Log trade for validation purposes
             self._log_trade_for_validation(position)
 
@@ -316,7 +320,7 @@ class OrderManager:
             # Check recent trade logs from THIS SESSION only
             recent_trades = self.get_recent_trades(hours=2)  # Only check last 2 hours for stricter validation
             current_session_id = id(self)
-            
+
             for trade in recent_trades:
                 # Only validate trades from current session to prevent cross-session false positives
                 if (trade.get('session_id') == current_session_id and
@@ -325,7 +329,7 @@ class OrderManager:
                     trade['side'] == side and
                     abs(trade['quantity'] - quantity) < 0.001 and
                     abs(trade['entry_price'] - entry_price) < 0.01):
-                    
+
                     self.logger.info(f"🔍 TRADE HISTORY MATCH | {strategy_name} | {symbol} | Found in current session trades")
                     return True
 
@@ -342,23 +346,23 @@ class OrderManager:
         try:
             # Import here to avoid circular import
             from src.bot_manager import BotManager
-            
+
             # Get strategy config (we'll need to pass this in or access it differently)
             # For now, we'll use some basic validation based on quantity patterns
-            
+
             # Check if quantity matches typical bot calculation patterns
             # Bot trades typically have very specific calculated quantities
             quantity_str = f"{quantity:.6f}"
-            
+
             # Bot trades often have quantities with specific decimal patterns
             # Manual trades are more likely to be round numbers
             if quantity == int(quantity):  # Whole number - likely manual
                 return False
-            
+
             # Check if this is a reasonable quantity for algorithmic trading
             if quantity > 0.000001 and quantity < 1000:  # Reasonable range
                 return True
-                
+
             return False
 
         except Exception as e:
@@ -370,17 +374,17 @@ class OrderManager:
         try:
             # Check price precision - bot trades often have very specific entry prices
             price_str = f"{entry_price:.6f}"
-            
+
             # If entry price ends in .0 or .00, it's more likely manual
             if entry_price == int(entry_price) or entry_price == round(entry_price, 2):
                 return False
-            
+
             # Check for typical bot trading patterns
             # Bot trades often have precise quantities and prices
-            
+
             # For now, we'll be conservative and require additional validation
             # This can be enhanced based on your specific trading patterns
-            
+
             return False
 
         except Exception as e:
@@ -401,17 +405,17 @@ class OrderManager:
                 'order_id': position.order_id,
                 'session_id': id(self)  # Unique session identifier
             }
-            
+
             # Store in a simple list for now (could be enhanced with file/database storage)
             if not hasattr(self, 'trade_log'):
                 self.trade_log = []
-            
+
             self.trade_log.append(trade_entry)
-            
+
             # Keep only last 100 trades to prevent memory issues
             if len(self.trade_log) > 100:
                 self.trade_log = self.trade_log[-100:]
-                
+
             self.logger.debug(f"🔍 TRADE LOGGED | {position.strategy_name} | {position.symbol} | Session: {id(self)}")
 
         except Exception as e:
@@ -422,18 +426,35 @@ class OrderManager:
         try:
             if not hasattr(self, 'trade_log'):
                 return []
-            
+
             from datetime import datetime, timedelta
             cutoff_time = datetime.now() - timedelta(hours=hours)
-            
+
             recent_trades = []
             for trade in self.trade_log:
                 trade_time = datetime.fromisoformat(trade['timestamp'])
                 if trade_time > cutoff_time:
                     recent_trades.append(trade)
-            
+
             return recent_trades
 
         except Exception as e:
             self.logger.error(f"Error getting recent trades: {e}")
             return []
+
+    def _register_bot_position_with_monitor(self, position: Position) -> None:
+        """Register bot position with trade monitor to prevent ghost trade detection"""
+        try:
+            # This method will be called by the bot manager to set the trade monitor reference
+            if hasattr(self, 'trade_monitor') and self.trade_monitor:
+                self.trade_monitor.register_bot_position(position)
+                self.logger.debug(f"🔍 POSITION REGISTERED: {position.strategy_name} | {position.symbol} | Registered with trade monitor")
+            else:
+                self.logger.debug(f"🔍 POSITION REGISTRATION: Trade monitor not available yet for {position.strategy_name}")
+        except Exception as e:
+            self.logger.error(f"Error registering bot position with monitor: {e}")
+
+    def set_trade_monitor(self, trade_monitor) -> None:
+        """Set trade monitor reference for position registration"""
+        self.trade_monitor = trade_monitor
+        self.logger.debug("🔍 TRADE MONITOR: Reference set in order manager")

@@ -13,6 +13,8 @@ from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfi
 from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
 from src.reporting.telegram_reporter import TelegramReporter
 from src.config.trading_config import trading_config_manager
+from src.execution_engine.trade_monitor import TradeMonitor
+
 
 class BotManager:
     """Main bot manager that orchestrates all components"""
@@ -88,17 +90,25 @@ For MAINNET:
         self.is_running = False
         self.startup_notified = False  # Flag to prevent duplicate startup notifications
 
-        # Anomaly detection
-        from src.execution_engine.trade_monitor import TradeMonitor
+        # Initialize execution engine components
+        self.order_manager = OrderManager(self.binance_client)
         self.trade_monitor = TradeMonitor(self.binance_client, self.order_manager, self.telegram_reporter)
 
-        # Register strategies for monitoring
+        # Connect order manager and trade monitor for bot trade registration
+        self.order_manager.set_trade_monitor(self.trade_monitor)
+
+        # CRITICAL: Set trade monitor reference in order manager to prevent ghost trade detection
+        # self.order_manager.set_trade_monitor(self.trade_monitor)
+        self.logger.info("🔍 Trade monitor initialized")
+
+        # Register strategies with trade monitor
         for strategy_name, strategy_config in self.strategies.items():
             self.trade_monitor.register_strategy(strategy_name, strategy_config['symbol'])
+            self.logger.debug(f"🔍 Registered strategy {strategy_name} with symbol {strategy_config['symbol']}")
 
         # Daily reporter
         from src.analytics.daily_reporter import DailyReporter
-        self.daily_reporter = DailyReporter(self.telegram_reporter)
+        selfdaily_reporter = DailyReporter(self.telegram_reporter)
 
         # Track if startup notification was sent
         self.startup_notification_sent = False
