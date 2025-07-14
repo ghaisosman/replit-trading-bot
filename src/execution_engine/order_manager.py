@@ -48,7 +48,8 @@ class OrderManager:
                 'symbol': strategy_config['symbol'],
                 'side': 'BUY' if signal.signal_type == SignalType.BUY else 'SELL',
                 'type': 'MARKET',
-                'quantity': quantity
+                'quantity': quantity,
+                'positionSide': 'BOTH'  # Required for Binance Futures (One-way mode)
             }
             
             order_result = self.binance_client.create_order(**order_params)
@@ -96,7 +97,8 @@ class OrderManager:
                 'symbol': position.symbol,
                 'side': close_side,
                 'type': 'MARKET',
-                'quantity': position.quantity
+                'quantity': position.quantity,
+                'positionSide': 'BOTH'  # Required for Binance Futures (One-way mode)
             }
             
             order_result = self.binance_client.create_order(**order_params)
