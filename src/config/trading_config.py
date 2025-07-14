@@ -30,7 +30,7 @@ class TradingConfigManager:
         # Strategy-specific overrides
         self.strategy_overrides = {
             'rsi_oversold': {
-                'symbol': 'ETHUSDT', 
+                'symbol': 'SOLUSDT', 
                 'margin': 50.0,
                 'leverage': 5,
                 'timeframe': '15m'

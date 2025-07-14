@@ -1,0 +1,324 @@
+
+#!/usr/bin/env python3
+"""
+Trading Bot Web Dashboard
+Complete web interface for managing the trading bot
+"""
+
+from flask import Flask, render_template, request, jsonify, redirect, url_for
+import json
+import asyncio
+import threading
+from datetime import datetime, timedelta
+import pandas as pd
+import plotly.graph_objs as go
+import plotly.utils
+from src.config.trading_config import trading_config_manager
+from src.config.global_config import global_config
+from src.binance_client.client import BinanceClientWrapper
+from src.data_fetcher.price_fetcher import PriceFetcher
+from src.data_fetcher.balance_fetcher import BalanceFetcher
+from src.bot_manager import BotManager
+import logging
+
+app = Flask(__name__)
+app.secret_key = 'your-secret-key-here'
+
+# Global bot instance
+bot_manager = None
+bot_thread = None
+bot_running = False
+
+# Initialize clients for web interface
+binance_client = BinanceClientWrapper()
+price_fetcher = PriceFetcher(binance_client)
+balance_fetcher = BalanceFetcher(binance_client)
+
+@app.route('/')
+def dashboard():
+    """Main dashboard page"""
+    try:
+        # Get current bot status
+        status = get_bot_status()
+        
+        # Get balance
+        balance = balance_fetcher.get_usdt_balance() or 0
+        
+        # Get current strategies
+        strategies = trading_config_manager.strategy_overrides
+        
+        # Get active positions
+        active_positions = []
+        if bot_manager and bot_manager.order_manager:
+            for strategy_name, position in bot_manager.order_manager.active_positions.items():
+                current_price = get_current_price(position.symbol)
+                pnl = calculate_pnl(position, current_price) if current_price else 0
+                active_positions.append({
+                    'strategy': strategy_name,
+                    'symbol': position.symbol,
+                    'side': position.side,
+                    'entry_price': position.entry_price,
+                    'quantity': position.quantity,
+                    'current_price': current_price,
+                    'pnl': pnl,
+                    'pnl_percent': (pnl / (position.entry_price * position.quantity)) * 100 if position.entry_price * position.quantity > 0 else 0
+                })
+        
+        return render_template('dashboard.html', 
+                             status=status,
+                             balance=balance,
+                             strategies=strategies,
+                             active_positions=active_positions)
+    except Exception as e:
+        return f"Error loading dashboard: {e}"
+
+@app.route('/chart/<symbol>')
+def chart(symbol):
+    """Display trading chart for a symbol"""
+    try:
+        # Get OHLCV data
+        df = price_fetcher.get_ohlcv_data(symbol, '15m', limit=100)
+        if df is None or df.empty:
+            return f"No data available for {symbol}"
+        
+        # Calculate indicators
+        df = price_fetcher.calculate_indicators(df)
+        
+        # Create candlestick chart
+        fig = go.Figure()
+        
+        # Add candlestick
+        fig.add_trace(go.Candlestick(
+            x=df.index,
+            open=df['open'],
+            high=df['high'],
+            low=df['low'],
+            close=df['close'],
+            name='Price'
+        ))
+        
+        # Add RSI if available
+        if 'rsi' in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df.index,
+                y=df['rsi'],
+                name='RSI',
+                yaxis='y2',
+                line=dict(color='purple')
+            ))
+        
+        # Add MACD if available
+        if 'macd' in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df.index,
+                y=df['macd'],
+                name='MACD',
+                yaxis='y3',
+                line=dict(color='blue')
+            ))
+            
+        if 'macd_signal' in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df.index,
+                y=df['macd_signal'],
+                name='MACD Signal',
+                yaxis='y3',
+                line=dict(color='red')
+            ))
+        
+        # Update layout
+        fig.update_layout(
+            title=f'{symbol} Trading Chart',
+            yaxis=dict(title='Price', side='left'),
+            yaxis2=dict(title='RSI', side='right', overlaying='y', range=[0, 100]),
+            yaxis3=dict(title='MACD', side='right', overlaying='y', position=0.9),
+            xaxis_rangeslider_visible=False,
+            height=600
+        )
+        
+        chart_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+        
+        return render_template('chart.html', symbol=symbol, chart=chart_json)
+    except Exception as e:
+        return f"Error loading chart: {e}"
+
+@app.route('/api/bot/start', methods=['POST'])
+def start_bot():
+    """Start the trading bot"""
+    global bot_manager, bot_thread, bot_running
+    
+    try:
+        if bot_running:
+            return jsonify({'success': False, 'message': 'Bot is already running'})
+        
+        bot_manager = BotManager()
+        bot_running = True
+        
+        # Start bot in separate thread
+        def run_bot():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(bot_manager.start())
+            except Exception as e:
+                logging.error(f"Bot error: {e}")
+            finally:
+                global bot_running
+                bot_running = False
+                loop.close()
+        
+        bot_thread = threading.Thread(target=run_bot, daemon=True)
+        bot_thread.start()
+        
+        return jsonify({'success': True, 'message': 'Bot started successfully'})
+    except Exception as e:
+        bot_running = False
+        return jsonify({'success': False, 'message': f'Failed to start bot: {e}'})
+
+@app.route('/api/bot/stop', methods=['POST'])
+def stop_bot():
+    """Stop the trading bot"""
+    global bot_manager, bot_running
+    
+    try:
+        if not bot_running or not bot_manager:
+            return jsonify({'success': False, 'message': 'Bot is not running'})
+        
+        # Stop the bot
+        asyncio.run(bot_manager.stop("Manual stop via web interface"))
+        bot_running = False
+        
+        return jsonify({'success': True, 'message': 'Bot stopped successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Failed to stop bot: {e}'})
+
+@app.route('/api/bot/status')
+def bot_status():
+    """Get current bot status"""
+    status = get_bot_status()
+    return jsonify(status)
+
+@app.route('/api/strategies')
+def get_strategies():
+    """Get all strategy configurations"""
+    strategies = {}
+    for name, overrides in trading_config_manager.strategy_overrides.items():
+        strategies[name] = {
+            **trading_config_manager.default_params.to_dict(),
+            **overrides
+        }
+    return jsonify(strategies)
+
+@app.route('/api/strategies/<strategy_name>', methods=['POST'])
+def update_strategy(strategy_name):
+    """Update strategy configuration"""
+    try:
+        data = request.get_json()
+        
+        # Update strategy parameters
+        trading_config_manager.update_strategy_params(strategy_name, data)
+        
+        # If bot is running, update its configuration too
+        if bot_manager and strategy_name in bot_manager.strategies:
+            bot_manager.strategies[strategy_name].update(data)
+        
+        return jsonify({'success': True, 'message': f'Strategy {strategy_name} updated'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Failed to update strategy: {e}'})
+
+@app.route('/api/default-params', methods=['POST'])
+def update_default_params():
+    """Update default trading parameters"""
+    try:
+        data = request.get_json()
+        trading_config_manager.update_default_params(data)
+        
+        return jsonify({'success': True, 'message': 'Default parameters updated'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Failed to update parameters: {e}'})
+
+@app.route('/api/balance')
+def get_balance():
+    """Get account balance"""
+    try:
+        balance = balance_fetcher.get_usdt_balance() or 0
+        return jsonify({'balance': balance})
+    except Exception as e:
+        return jsonify({'error': f'Failed to get balance: {e}'})
+
+@app.route('/api/price/<symbol>')
+def get_price(symbol):
+    """Get current price for symbol"""
+    try:
+        price = get_current_price(symbol)
+        return jsonify({'symbol': symbol, 'price': price})
+    except Exception as e:
+        return jsonify({'error': f'Failed to get price: {e}'})
+
+@app.route('/api/positions')
+def get_positions():
+    """Get active positions"""
+    try:
+        positions = []
+        if bot_manager and bot_manager.order_manager:
+            for strategy_name, position in bot_manager.order_manager.active_positions.items():
+                current_price = get_current_price(position.symbol)
+                pnl = calculate_pnl(position, current_price) if current_price else 0
+                positions.append({
+                    'strategy': strategy_name,
+                    'symbol': position.symbol,
+                    'side': position.side,
+                    'entry_price': position.entry_price,
+                    'quantity': position.quantity,
+                    'current_price': current_price,
+                    'pnl': pnl,
+                    'pnl_percent': (pnl / (position.entry_price * position.quantity)) * 100 if position.entry_price * position.quantity > 0 else 0
+                })
+        return jsonify(positions)
+    except Exception as e:
+        return jsonify({'error': f'Failed to get positions: {e}'})
+
+def get_bot_status():
+    """Get current bot status"""
+    global bot_running, bot_manager
+    
+    if not bot_running or not bot_manager:
+        return {
+            'running': False,
+            'active_positions': 0,
+            'strategies': list(trading_config_manager.strategy_overrides.keys())
+        }
+    
+    try:
+        return {
+            'running': True,
+            'active_positions': len(bot_manager.order_manager.active_positions),
+            'strategies': list(bot_manager.strategies.keys())
+        }
+    except:
+        return {
+            'running': bot_running,
+            'active_positions': 0,
+            'strategies': list(trading_config_manager.strategy_overrides.keys())
+        }
+
+def get_current_price(symbol):
+    """Get current price for symbol"""
+    try:
+        ticker = binance_client.get_symbol_ticker(symbol)
+        return float(ticker['price']) if ticker else None
+    except:
+        return None
+
+def calculate_pnl(position, current_price):
+    """Calculate PnL for position"""
+    if not current_price:
+        return 0
+    
+    if position.side == 'BUY':
+        return (current_price - position.entry_price) * position.quantity
+    else:
+        return (position.entry_price - current_price) * position.quantity
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)

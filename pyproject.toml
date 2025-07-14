@@ -6,8 +6,10 @@ authors = ["Your Name <you@example.com>"]
 requires-python = ">=3.11"
 dependencies = [
     "asyncio>=3.4.3",
+    "flask>=3.1.1",
     "numpy>=2.3.1",
     "pandas>=2.3.1",
+    "plotly>=6.2.0",
     "python-binance>=1.0.29",
     "python-dotenv>=1.1.1",
     "requests>=2.32.4",
