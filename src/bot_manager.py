@@ -250,6 +250,12 @@ For MAINNET:
                 self.logger.error(error_msg)
                 self.telegram_reporter.report_error("Main Loop Error", str(e))
 
+                # Log memory usage for debugging
+                import psutil
+                process = psutil.Process()
+                memory_mb = process.memory_info().rss / 1024 / 1024
+                self.logger.warning(f"🔍 MEMORY USAGE: {memory_mb:.1f} MB")
+
                 # If it's a critical error, stop the bot
                 if "API" in str(e) or "connection" in str(e).lower() or "auth" in str(e).lower():
                     await self.stop(f"Critical error: {str(e)}")

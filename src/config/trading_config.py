@@ -31,7 +31,7 @@ class TradingConfigManager:
         self.strategy_overrides = {
             'rsi_oversold': {
                 'symbol': 'SOLUSDT',
-                'margin': 5,
+                'margin': 12.5,
                 'leverage': 25,
                 'timeframe': '15m',
             },
