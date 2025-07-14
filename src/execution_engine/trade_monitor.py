@@ -267,7 +267,7 @@ class TradeMonitor:
                         should_notify = (not suppress_notifications and 
                                        self.startup_scan_complete and 
                                        not ghost_trade.detection_notified)
-                        
+
                         if should_notify:
                             # This is a normal anomaly check - send notification ONLY ONCE
                             self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
@@ -302,7 +302,7 @@ class TradeMonitor:
                                 self.logger.debug(f"🔍 GHOST CHECK: Updating ghost trade quantity for {symbol} from {existing_ghost.quantity:.6f} to {abs(position_amt):.6f}")
                                 existing_ghost.quantity = abs(position_amt)
                                 existing_ghost.side = 'LONG' if position_amt > 0 else 'SHORT'
-                            
+
                             # Ensure we don't re-notify for existing ghost trades
                             if not existing_ghost.detection_notified and not suppress_notifications and self.startup_scan_complete:
                                 # This should not happen, but just in case, mark as notified without sending
@@ -443,3 +443,171 @@ class TradeMonitor:
 
         except Exception as e:
             self.logger.error(f"Error cleaning up recently cleared ghosts: {e}")
+
+    def _clear_expired_anomalies(self):
+        """Clear expired anomalies (after countdown reaches 0)"""
+        try:
+            self.logger.debug(f"🔍 CLEAR EXPIRED: Checking for expired anomalies")
+            self.logger.debug(f"🔍 CLEAR EXPIRED: Current orphan trades: {len(self.orphan_trades)}")
+            self.logger.debug(f"🔍 CLEAR EXPIRED: Current ghost trades: {len(self.ghost_trades)}")
+
+            # Clear expired orphan trades
+            expired_orphan_ids = []
+            for orphan_id, orphan_trade in self.orphan_trades.items():
+                orphan_trade.cycles_remaining -= 1
+                self.logger.debug(f"🔍 CLEAR EXPIRED: Orphan {orphan_id} cycles remaining: {orphan_trade.cycles_remaining}")
+                if orphan_trade.cycles_remaining <= 0:
+                    expired_orphan_ids.append(orphan_id)
+
+            for orphan_id in expired_orphan_ids:
+                orphan_trade = self.orphan_trades[orphan_id]
+                if not orphan_trade.clearing_notified:
+                    self.logger.info(f"🧹 ORPHAN TRADE CLEARED | {orphan_trade.position.strategy_name} | {orphan_trade.position.symbol} | Cleared after timeout")
+                    self.telegram_reporter.report_orphan_trade_cleared(orphan_trade.position.strategy_name, orphan_trade.position.symbol)
+                    orphan_trade.clearing_notified = True
+
+                del self.orphan_trades[orphan_id]
+                self.logger.debug(f"🔍 CLEAR EXPIRED: Removed expired orphan trade {orphan_id}")
+
+            # Clear expired ghost trades
+            expired_ghost_ids = []
+            for ghost_id, ghost_trade in self.ghost_trades.items():
+                ghost_trade.cycles_remaining -= 1
+                self.logger.debug(f"🔍 CLEAR EXPIRED: Ghost {ghost_id} cycles remaining: {ghost_trade.cycles_remaining}")
+                if ghost_trade.cycles_remaining <= 0:
+                    expired_ghost_ids.append(ghost_id)
+
+            for ghost_id in expired_ghost_ids:
+                ghost_trade = self.ghost_trades[ghost_id]
+                if not ghost_trade.clearing_notified:
+                    strategy_name = ghost_id.split('_')[0]  # Extract strategy name from ghost_id
+                    self.logger.info(f"🧹 GHOST TRADE CLEARED | {strategy_name} | {ghost_trade.symbol} | Cleared after timeout")
+                    self.telegram_reporter.report_ghost_trade_cleared(strategy_name, ghost_trade.symbol)
+                    ghost_trade.clearing_notified = True
+
+                del self.ghost_trades[ghost_id]
+                self.logger.debug(f"🔍 CLEAR EXPIRED: Removed expired ghost trade {ghost_id}")
+
+        except Exception as e:
+            self.logger.error(f"Error clearing expired anomalies: {e}")
+
+    def _handle_ghost_trade(self, monitoring_strategy: str, symbol: str, position_amt: float, suppress_notifications: bool = False):
+        """Handle detected ghost trade"""
+        try:
+            self.logger.debug(f"🔍 GHOST TRADE: _handle_ghost_trade called for {monitoring_strategy} {symbol} amt={position_amt} suppress={suppress_notifications}")
+
+            current_price = self._get_current_price(symbol)
+            side = 'BUY' if position_amt > 0 else 'SELL'
+            ghost_id = f"{monitoring_strategy}_{symbol}"
+
+            self.logger.debug(f"🔍 GHOST TRADE: Generated ghost_id={ghost_id}")
+            self.logger.debug(f"🔍 GHOST TRADE: Current ghost trades: {list(self.ghost_trades.keys())}")
+
+            # Check if ghost trade already exists
+            existing_ghost_found = False
+            existing_ghost_id = None
+            for gid, ghost in self.ghost_trades.items():
+                if ghost.symbol == symbol and gid.startswith(monitoring_strategy):
+                    existing_ghost_found = True
+                    existing_ghost_id = gid
+                    self.logger.debug(f"🔍 GHOST TRADE: Found existing ghost trade: {gid}")
+                    break
+
+            if not existing_ghost_found:
+                self.logger.debug(f"🔍 GHOST TRADE: No existing ghost trade found, creating new one")
+
+                # New ghost trade
+                ghost_trade = GhostTrade(
+                    symbol=symbol,
+                    side=side,
+                    quantity=abs(position_amt),
+                    detected_at=datetime.now(),
+                    cycles_remaining=20,  # Extended cycles for new trades
+                    detection_notified=False,
+                    clearing_notified=False,
+                    last_notification_time=None,
+                    notification_cooldown_minutes=60
+                )
+
+                self.ghost_trades[ghost_id] = ghost_trade
+                self.logger.debug(f"🔍 GHOST TRADE: Created new ghost trade {ghost_id}")
+
+                # Log detection
+                usdt_value = current_price * abs(position_amt) if current_price else 0
+
+                # Check notification conditions in detail
+                self.logger.debug(f"🔍 GHOST TRADE: Notification check:")
+                self.logger.debug(f"  - suppress_notifications: {suppress_notifications}")
+                self.logger.debug(f"  - startup_scan_complete: {self.startup_scan_complete}")
+                self.logger.debug(f"  - detection_notified: {ghost_trade.detection_notified}")
+
+                should_notify = (not suppress_notifications and 
+                               self.startup_scan_complete and 
+                               not ghost_trade.detection_notified)
+
+                self.logger.debug(f"🔍 GHOST TRADE: should_notify = {should_notify}")
+
+                if should_notify:
+                    # This is a normal anomaly check - send notification ONLY ONCE
+                    self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
+
+                    # Send Telegram notification
+                    self.telegram_reporter.report_ghost_trade_detected(
+                        strategy_name=monitoring_strategy,
+                        symbol=symbol,
+                        side=side,
+                        quantity=abs(position_amt),
+                        current_price=current_price
+                    )
+
+                    ghost_trade.detection_notified = True
+                    ghost_trade.last_notification_time = datetime.now()
+                    self.logger.debug(f"🔍 GHOST TRADE: Notification sent and marked as notified")
+                else:
+                    # This is a suppressed startup scan or already notified - just log
+                    if not self.startup_scan_complete:
+                        scan_type = "STARTUP SCAN"
+                    elif ghost_trade.detection_notified:
+                        scan_type = "ALREADY NOTIFIED"
+                    else:
+                        scan_type = "SUPPRESSED CHECK"
+                    self.logger.debug(f"👻 POSITION NOTED ({scan_type}) | {monitoring_strategy} | {symbol} | Manual position tracked | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
+            else:
+                self.logger.debug(f"🔍 GHOST TRADE: Existing ghost trade found: {existing_ghost_id}")
+                existing_ghost = self.ghost_trades[existing_ghost_id]
+
+                # Update the existing ghost trade but don't re-notify
+                if existing_ghost_id:
+                    if existing_ghost and abs(existing_ghost.quantity - abs(position_amt)) > 0.000001:
+                        self.logger.debug(f"🔍 GHOST TRADE: Updating ghost trade quantity for {symbol} from {existing_ghost.quantity:.6f} to {abs(position_amt):.6f}")
+                        existing_ghost.quantity = abs(position_amt)
+                        existing_ghost.side = 'LONG' if position_amt > 0 else 'SHORT'
+
+                    # Check if this ghost trade was already notified
+                    self.logger.debug(f"🔍 GHOST TRADE: Existing ghost notification status: detection_notified={existing_ghost.detection_notified}")
+
+                    # Ensure we don't re-notify for existing ghost trades
+                    if not existing_ghost.detection_notified and not suppress_notifications and self.startup_scan_complete:
+                        # This should not happen, but just in case, mark as notified without sending
+                        self.logger.debug(f"🔍 GHOST TRADE: Marking existing ghost trade {ghost_id} as notified to prevent notifications")
+                        existing_ghost.detection_notified = True
+                        existing_ghost.last_notification_time = datetime.now()
+                    else:
+                        self.logger.debug(f"🔍 GHOST TRADE: Skipping notification - already notified or suppressed")
+
+                self.logger.debug(f"🔍 GHOST TRADE: Ghost trade already exists for {symbol}, skipping duplicate detection")
+
+        except Exception as e:
+            self.logger.error(f"Error handling ghost trade: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+
+    def _get_current_price(self, symbol: str) -> Optional[float]:
+        """Helper method to fetch current price for a symbol"""
+        try:
+            ticker = self.binance_client.get_symbol_ticker(symbol)
+            current_price = float(ticker['price']) if ticker else None
+            return current_price
+        except Exception as e:
+            self.logger.error(f"Error getting ticker price for {symbol}: {e}")
+            return None

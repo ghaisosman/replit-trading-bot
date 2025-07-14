@@ -76,7 +76,7 @@ class TelegramReporter:
         self.startup_notification_sent = False
         self.logger.info("🔍 TELEGRAM DEBUG: Startup notification flag reset")
 
-    def report_bot_startup(self, source: str, pairs: List[str], strategies: List[str], balance: float, open_trades: int):
+    def report_bot_startup(self, pairs: List[str], strategies: List[str], balance: float, open_trades: int, source: str = "Unknown"):
         """Report bot startup to Telegram"""
         try:
             # Prevent duplicate startup notifications
