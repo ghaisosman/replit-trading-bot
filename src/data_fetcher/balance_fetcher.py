@@ -44,6 +44,7 @@ class BalanceFetcher:
             return balances['USDT']['free']
         
         # For testnet, if no USDT balance, return a mock balance
+        from src.config.global_config import global_config
         if global_config.BINANCE_TESTNET:
             self.logger.warning("No USDT balance found in testnet. Using mock balance for testing.")
             return 1000.0  # Mock testnet balance
