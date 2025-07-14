@@ -1,7 +1,8 @@
 
 import asyncio
 import logging
-from typing import Dict, List
+import pandas as pd
+from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from src.config.global_config import global_config
 from src.binance_client.client import BinanceClientWrapper
@@ -66,7 +67,12 @@ Current mode: {}
     async def start(self):
         """Start the trading bot"""
         try:
-            self.logger.info("Starting trading bot...")
+            self.logger.info("🚀 STARTING TRADING BOT...")
+            self.logger.info(f"📊 MODE: {'TESTNET' if global_config.BINANCE_TESTNET else 'MAINNET'}")
+            self.logger.info(f"📈 STRATEGIES: {', '.join(self.strategies.keys())}")
+            self.logger.info(f"💰 BALANCE: ${self.balance_fetcher.get_usdt_balance():.2f} USDT")
+            self.logger.info(f"⚡ UPDATE INTERVAL: {global_config.PRICE_UPDATE_INTERVAL}s")
+            
             self.telegram_reporter.report_bot_startup()
             
             self.is_running = True
@@ -118,11 +124,20 @@ Current mode: {}
             
             # Check if strategy already has an active position
             if strategy_name in self.order_manager.active_positions:
+                # Show current position status
+                position = self.order_manager.active_positions[strategy_name]
+                current_price = self._get_current_price(strategy_config['symbol'])
+                if current_price:
+                    pnl = self._calculate_pnl(position, current_price)
+                    self.logger.info(f"📊 ACTIVE POSITION | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.4f} | PnL: ${pnl:.2f}")
                 return
             
             # Check balance requirements
             if not self._check_balance_requirements(strategy_config):
                 return
+            
+            # Log market assessment start
+            self.logger.info(f"🔍 ASSESSING MARKET | {strategy_name.upper()} | {strategy_config['symbol']} | {strategy_config['timeframe']}")
             
             # Get market data
             df = self.price_fetcher.get_ohlcv_data(
@@ -137,11 +152,14 @@ Current mode: {}
             # Calculate indicators
             df = self.price_fetcher.calculate_indicators(df)
             
+            # Get current market info
+            current_price = df['close'].iloc[-1]
+            
             # Evaluate entry conditions
             signal = self.signal_processor.evaluate_entry_conditions(df, strategy_config)
             
             if signal:
-                self.logger.info(f"Entry signal detected for {strategy_name}")
+                self.logger.info(f"🚨 ENTRY SIGNAL DETECTED | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | ${signal.entry_price:.4f} | Reason: {signal.reason}")
                 
                 # Report signal to Telegram
                 self.telegram_reporter.report_entry_signal(strategy_name, {
@@ -157,12 +175,19 @@ Current mode: {}
                 position = self.order_manager.execute_signal(signal, strategy_config)
                 
                 if position:
+                    self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:.4f} | Qty: {position.quantity} | SL: ${position.stop_loss:.4f} | TP: ${position.take_profit:.4f}")
+                    
                     # Report position opened
                     from dataclasses import asdict
                     self.telegram_reporter.report_position_opened(asdict(position))
+                else:
+                    self.logger.warning(f"❌ POSITION FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not execute signal")
             else:
+                # Log market assessment result
+                market_info = self._get_market_info(df, strategy_name)
+                self.logger.info(f"📈 MARKET ASSESSMENT | {strategy_name.upper()} | {strategy_config['symbol']} | Price: ${current_price:.4f} | {market_info}")
+                
                 # Report market assessment
-                current_price = df['close'].iloc[-1]
                 self.telegram_reporter.report_market_assessment(strategy_name, {
                     'symbol': strategy_config['symbol'],
                     'current_price': current_price,
@@ -205,18 +230,26 @@ Current mode: {}
                 
                 if should_exit:
                     current_price = df['close'].iloc[-1]
-                    pnl = (current_price - position.entry_price) * position.quantity
-                    if position.side == 'SELL':
-                        pnl = -pnl
+                    pnl = self._calculate_pnl(position, current_price)
+                    
+                    # Determine exit reason
+                    exit_reason = "Stop Loss" if current_price <= position.stop_loss else "Take Profit" if current_price >= position.take_profit else "Exit Signal"
+                    pnl_status = "PROFIT" if pnl > 0 else "LOSS"
+                    
+                    self.logger.info(f"🔄 EXIT TRIGGERED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Exit: ${current_price:.4f} | PnL: ${pnl:.2f} ({pnl_status})")
                     
                     # Close position
-                    if self.order_manager.close_position(strategy_name, "Exit signal triggered"):
+                    if self.order_manager.close_position(strategy_name, exit_reason):
+                        self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | Final PnL: ${pnl:.2f}")
+                        
                         from dataclasses import asdict
                         self.telegram_reporter.report_position_closed(
                             asdict(position), 
-                            "Exit signal triggered", 
+                            exit_reason, 
                             pnl
                         )
+                    else:
+                        self.logger.warning(f"❌ CLOSE FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not close position")
                         
         except Exception as e:
             self.logger.error(f"Error checking exit conditions: {e}")
@@ -260,6 +293,47 @@ Current mode: {}
             self.logger.info(f"Updated configuration for {strategy_name}: {updates}")
         else:
             self.logger.warning(f"Strategy {strategy_name} not found")
+    
+    def _get_current_price(self, symbol: str) -> Optional[float]:
+        """Get current price for a symbol"""
+        try:
+            ticker = self.binance_client.get_symbol_ticker(symbol)
+            if ticker:
+                return float(ticker['price'])
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting current price for {symbol}: {e}")
+            return None
+    
+    def _calculate_pnl(self, position, current_price: float) -> float:
+        """Calculate PnL for a position"""
+        try:
+            if position.side == 'BUY':
+                return (current_price - position.entry_price) * position.quantity
+            else:  # SELL
+                return (position.entry_price - current_price) * position.quantity
+        except Exception as e:
+            self.logger.error(f"Error calculating PnL: {e}")
+            return 0.0
+    
+    def _get_market_info(self, df: pd.DataFrame, strategy_name: str) -> str:
+        """Get market information string for logging"""
+        try:
+            if strategy_name == 'sma_crossover':
+                if 'sma_20' in df.columns and 'sma_50' in df.columns:
+                    sma_20 = df['sma_20'].iloc[-1]
+                    sma_50 = df['sma_50'].iloc[-1]
+                    trend = "Bullish" if sma_20 > sma_50 else "Bearish"
+                    return f"SMA20: ${sma_20:.2f} | SMA50: ${sma_50:.2f} | Trend: {trend}"
+            elif strategy_name == 'rsi_oversold':
+                if 'rsi' in df.columns:
+                    rsi = df['rsi'].iloc[-1]
+                    condition = "Oversold" if rsi < 30 else "Overbought" if rsi > 70 else "Normal"
+                    return f"RSI: {rsi:.2f} | Condition: {condition}"
+            
+            return "No Signal"
+        except Exception as e:
+            return f"Error: {e}"
     
     def get_bot_status(self) -> Dict:
         """Get current bot status"""
