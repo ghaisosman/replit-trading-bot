@@ -57,6 +57,9 @@ class TradeMonitor:
         # Track notified ghosts to prevent repeated notifications
         self.notified_ghost_positions: Dict[str, datetime] = {}  # symbol -> last_notification_time
 
+        # Track ghost trade fingerprints to prevent re-detection of same trades
+        self.ghost_trade_fingerprints: Dict[str, datetime] = {}  # fingerprint -> clear_time
+
     def register_strategy(self, strategy_name: str, symbol: str):
         """Register a strategy and its symbol for monitoring"""
         self.strategy_symbols[strategy_name] = symbol
@@ -241,9 +244,14 @@ class TradeMonitor:
                         # Simple ghost ID using just strategy and symbol to prevent duplicates
                         ghost_id = f"{monitoring_strategy}_{symbol}"
 
-                        # Check if this ghost trade was recently cleared
+                        # Check if this ghost trade was recently cleared by ID
                         if ghost_id in self.recently_cleared_ghosts:
                             self.logger.debug(f"🔍 GHOST CHECK: Ghost trade {ghost_id} was recently cleared, skipping re-detection")
+                            continue
+
+                        # Check if a ghost trade with same characteristics was recently cleared (NEW)
+                        if self._is_ghost_trade_recently_cleared(symbol, position_amt):
+                            self.logger.debug(f"🔍 GHOST CHECK: Ghost trade with same fingerprint was recently cleared, skipping re-detection")
                             continue
 
                         # Check if ghost trade already exists (additional safety check)
@@ -458,11 +466,18 @@ class TradeMonitor:
 
         # Remove ghost trades that no longer exist on Binance
         for ghost_id in ghosts_to_remove:
+            ghost_trade = self.ghost_trades[ghost_id]
+            current_time = datetime.now()
+            
             # Add to recently cleared to prevent immediate re-detection (with longer cooldown)
-            self.recently_cleared_ghosts[ghost_id] = datetime.now()
+            self.recently_cleared_ghosts[ghost_id] = current_time
+            
+            # Generate and store fingerprint to prevent re-detection of same trade (NEW)
+            fingerprint = self._generate_ghost_trade_fingerprint(ghost_trade.symbol, ghost_trade.quantity if ghost_trade.side == 'LONG' else -ghost_trade.quantity)
+            self.ghost_trade_fingerprints[fingerprint] = current_time
+            self.logger.debug(f"🔍 GHOST CLEANUP: Added fingerprint {fingerprint} to prevent re-detection")
             
             # Clean up persistent symbol tracking when position is actually closed
-            ghost_trade = self.ghost_trades[ghost_id]
             if ghost_trade.symbol in self.persistent_ghost_symbols:
                 del self.persistent_ghost_symbols[ghost_trade.symbol]
                 self.logger.debug(f"🔍 GHOST CLEANUP: Removed {ghost_trade.symbol} from persistent tracking")
@@ -520,6 +535,17 @@ class TradeMonitor:
             for ghost_id in ghosts_to_remove:
                 del self.recently_cleared_ghosts[ghost_id]
                 self.logger.debug(f"🔍 GHOST CLEANUP: Removed {ghost_id} from recently cleared list after {cooldown_minutes} minutes")
+
+            # Cleanup old fingerprints (after 2 hours as requested)
+            fingerprints_to_remove = []
+            fingerprint_cooldown_hours = 2  # 2 hours cooldown for fingerprints
+            for fingerprint, clear_time in self.ghost_trade_fingerprints.items():
+                if (current_time - clear_time).total_seconds() > (fingerprint_cooldown_hours * 3600):
+                    fingerprints_to_remove.append(fingerprint)
+
+            for fingerprint in fingerprints_to_remove:
+                del self.ghost_trade_fingerprints[fingerprint]
+                self.logger.debug(f"🔍 FINGERPRINT CLEANUP: Removed {fingerprint} from fingerprint tracking after {fingerprint_cooldown_hours} hours")
 
             # Also cleanup old notification tracking (after 24 hours)
             notifications_to_remove = []
@@ -701,3 +727,27 @@ class TradeMonitor:
         except Exception as e:
             self.logger.error(f"Error getting ticker price for {symbol}: {e}")
             return None
+
+    def _generate_ghost_trade_fingerprint(self, symbol: str, position_amt: float) -> str:
+        """Generate a unique fingerprint for a ghost trade to prevent re-detection"""
+        # Create fingerprint based on symbol, direction, and rounded quantity
+        side = 'LONG' if position_amt > 0 else 'SHORT'
+        # Round quantity to 6 decimal places to handle minor differences
+        rounded_qty = round(abs(position_amt), 6)
+        fingerprint = f"{symbol}_{side}_{rounded_qty}"
+        return fingerprint
+
+    def _is_ghost_trade_recently_cleared(self, symbol: str, position_amt: float) -> bool:
+        """Check if a ghost trade with same characteristics was recently cleared"""
+        fingerprint = self._generate_ghost_trade_fingerprint(symbol, position_amt)
+        
+        if fingerprint in self.ghost_trade_fingerprints:
+            clear_time = self.ghost_trade_fingerprints[fingerprint]
+            time_since_clear = datetime.now() - clear_time
+            cooldown_hours = 2  # 2 hours cooldown as requested
+            
+            if time_since_clear.total_seconds() < (cooldown_hours * 3600):
+                self.logger.debug(f"🔍 GHOST FINGERPRINT: Trade {fingerprint} was cleared {time_since_clear.total_seconds():.0f}s ago, within {cooldown_hours}h cooldown")
+                return True
+                
+        return False
