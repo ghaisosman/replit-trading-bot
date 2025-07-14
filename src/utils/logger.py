@@ -81,61 +81,154 @@ class ColoredFormatter(logging.Formatter):
         
         self.last_log_time = current_time
 
+        # Parse structured messages for better formatting
+        def format_structured_message(msg):
+            """Format structured messages with each component on separate lines"""
+            lines = []
+            
+            # Handle different message types
+            if "TRADE IN PROGRESS" in msg:
+                parts = msg.split(" | ")
+                if len(parts) >= 6:
+                    lines.append("📊 TRADE IN PROGRESS")
+                    lines.append(f"🎯 Strategy: {parts[1]}")
+                    lines.append(f"💱 Symbol: {parts[2]}")
+                    lines.append(f"📈 {parts[3]}")
+                    lines.append(f"💰 {parts[4]}")
+                else:
+                    lines.append(msg)
+            elif "MARKET ASSESSMENT" in msg:
+                parts = msg.split(" | ")
+                if len(parts) >= 6:
+                    lines.append("📈 MARKET ASSESSMENT")
+                    lines.append(f"🎯 Strategy: {parts[1]}")
+                    lines.append(f"💱 Symbol: {parts[2]}")
+                    lines.append(f"💵 {parts[3]}")
+                    lines.append(f"📊 {parts[4]}")
+                    lines.append(f"📈 {parts[5]}")
+                else:
+                    lines.append(msg)
+            elif "POSITION OPENED" in msg:
+                parts = msg.split(" | ")
+                if len(parts) >= 8:
+                    lines.append("🟢 POSITION OPENED")
+                    lines.append(f"🎯 Strategy: {parts[1]}")
+                    lines.append(f"💱 Symbol: {parts[2]}")
+                    lines.append(f"📊 Side: {parts[3]}")
+                    lines.append(f"📈 {parts[4]}")
+                    lines.append(f"📦 {parts[5]}")
+                    lines.append(f"🛡️ {parts[6]}")
+                    lines.append(f"🎯 {parts[7]}")
+                else:
+                    lines.append(msg)
+            elif "POSITION CLOSED" in msg:
+                parts = msg.split(" | ")
+                if len(parts) >= 6:
+                    lines.append("🔴 POSITION CLOSED")
+                    lines.append(f"🎯 Strategy: {parts[1]}")
+                    lines.append(f"💱 Symbol: {parts[2]}")
+                    lines.append(f"💰 {parts[3]}")
+                    lines.append(f"📊 {parts[4]}")
+                    lines.append(f"⏱️ {parts[5]}")
+                else:
+                    lines.append(msg)
+            elif "SCANNING" in msg:
+                parts = msg.split(" | ")
+                if len(parts) >= 3:
+                    lines.append(f"🔍 SCANNING")
+                    lines.append(f"💱 Symbol: {parts[0].split()[-1]}")
+                    lines.append(f"🎯 Strategy: {parts[1]}")
+                    lines.append(f"⏱️ Timeframe: {parts[2]}")
+                else:
+                    lines.append(msg)
+            else:
+                lines.append(msg)
+            
+            return lines
+
         # Create Telegram-style vertical message
         if is_active_position:
             # Active position - special formatting
+            msg_lines = format_structured_message(message)
+            formatted_lines = "║\n".join([f"║ {line}" for line in msg_lines])
             formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║
 ║ ⏰ {timestamp}                                        ║
-║ {message}                                         ║
+║                                                   ║
+{formatted_lines}
+║                                                   ║
 ╚═══════════════════════════════════════════════════╝{reset}
 """
         elif "MARKET ASSESSMENT" in message:
             # Market assessment - compact style
+            msg_lines = format_structured_message(message)
+            formatted_lines = "│\n".join([f"│ {line}" for line in msg_lines])
             formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
 │ 📈 MARKET SCAN                                  │
 │ ⏰ {timestamp}                                      │
-│ {message}                                       │
+│                                                 │
+{formatted_lines}
+│                                                 │
 └─────────────────────────────────────────────────┘{reset}
 """
         elif "TRADE ENTRY" in message or "POSITION OPENED" in message:
             # Trade entry - highlighted
+            msg_lines = format_structured_message(message)
+            formatted_lines = "║\n".join([f"║ {line}" for line in msg_lines])
             formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
 ║ 🟢 TRADE ENTRY                                   ║
 ║ ⏰ {timestamp}                                        ║
-║ {message}                                         ║
+║                                                   ║
+{formatted_lines}
+║                                                   ║
 ╚═══════════════════════════════════════════════════╝{reset}
 """
         elif "TRADE CLOSED" in message or "POSITION CLOSED" in message:
             # Trade closed - highlighted
+            msg_lines = format_structured_message(message)
+            formatted_lines = "║\n".join([f"║ {line}" for line in msg_lines])
             formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
 ║ 🔴 TRADE CLOSED                                  ║
 ║ ⏰ {timestamp}                                        ║
-║ {message}                                         ║
+║                                                   ║
+{formatted_lines}
+║                                                   ║
 ╚═══════════════════════════════════════════════════╝{reset}
 """
         elif record.levelname == 'ERROR':
             # Error - double border
+            msg_lines = [message]
+            formatted_lines = "║\n".join([f"║ {line}" for line in msg_lines])
             formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
 ║ ❌ ERROR                                         ║
 ║ ⏰ {timestamp}                                        ║
-║ {message}                                         ║
+║                                                   ║
+{formatted_lines}
+║                                                   ║
 ╚═══════════════════════════════════════════════════╝{reset}
 """
         elif record.levelname == 'WARNING':
             # Warning - rounded border
+            msg_lines = [message]
+            formatted_lines = "│\n".join([f"│ {line}" for line in msg_lines])
             formatted_message = f"""{separator}{text_color}╭─────────────────────────────────────────────────╮
 │ ⚠️  WARNING                                       │
 │ ⏰ {timestamp}                                      │
-│ {message}                                       │
+│                                                 │
+{formatted_lines}
+│                                                 │
 ╰─────────────────────────────────────────────────╯{reset}
 """
         else:
             # Regular info - simple border
+            msg_lines = [message]
+            formatted_lines = "│\n".join([f"│ {line}" for line in msg_lines])
             formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
 │ ℹ️  INFO                                          │
 │ ⏰ {timestamp}                                      │
-│ {message}                                       │
+│                                                 │
+{formatted_lines}
+│                                                 │
 └─────────────────────────────────────────────────┘{reset}
 """
         
