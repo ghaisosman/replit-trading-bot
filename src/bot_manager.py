@@ -563,20 +563,42 @@ For MAINNET:
                                 break
 
                         if strategy_name:
-                            # CRITICAL: Do NOT automatically recover positions
-                            # This prevents ghost trades from being treated as bot trades
                             side = 'BUY' if position_amt > 0 else 'SELL'
 
-                            self.logger.warning(f"🔍 POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {abs(position_amt)} | Entry: ${entry_price}")
-                            self.logger.warning(f"🚨 POSITION RECOVERY DISABLED: All positions are treated as manual until verified by trade monitoring")
-                            self.logger.warning(f"🔍 This position will be processed by ghost trade detection to determine if it's legitimate")
+                            self.logger.info(f"🔍 POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {abs(position_amt)} | Entry: ${entry_price}")
 
-                            # DO NOT add to order manager - let ghost trade detection handle it
-                            # If it's a legitimate bot position, it should have proper tracking
-                            # If it's a manual position, it will be detected as a ghost trade
+                            # Use enhanced position validation
+                            if self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, abs(position_amt), entry_price):
+                                # This is a legitimate bot position - recover it
+                                self.logger.info(f"✅ LEGITIMATE BOT POSITION | {strategy_name.upper()} | {symbol} | Recovering...")
 
-            self.logger.info(f"✅ POSITION RECOVERY COMPLETE: {recovered_count} positions automatically recovered")
-            self.logger.info(f"🔍 All existing positions will be verified by trade monitoring system")
+                                from src.execution_engine.order_manager import Position
+                                from datetime import datetime
+
+                                recovered_position = Position(
+                                    strategy_name=strategy_name,
+                                    symbol=symbol,
+                                    side=side,
+                                    entry_price=entry_price,
+                                    quantity=abs(position_amt),
+                                    stop_loss=entry_price * 0.985 if side == 'BUY' else entry_price * 1.015,
+                                    take_profit=entry_price * 1.025 if side == 'BUY' else entry_price * 0.975,
+                                    position_side='LONG' if side == 'BUY' else 'SHORT',
+                                    order_id=0,
+                                    entry_time=datetime.now(),
+                                    status='RECOVERED'
+                                )
+
+                                self.order_manager.active_positions[strategy_name] = recovered_position
+                                recovered_count += 1
+
+                                self.logger.info(f"✅ POSITION RECOVERED | {strategy_name.upper()} | {symbol} | Entry: ${entry_price} | Qty: {abs(position_amt)}")
+                            else:
+                                # This is likely a manual position - let ghost trade detection handle it
+                                self.logger.warning(f"🚨 UNVERIFIED POSITION | {strategy_name.upper()} | {symbol} | Will be processed by ghost trade detection")
+
+            self.logger.info(f"✅ POSITION RECOVERY COMPLETE: {recovered_count} legitimate bot positions recovered")
+            self.logger.info(f"🔍 Unverified positions will be processed by trade monitoring system")
 
         except Exception as e:
             self.logger.error(f"Error checking existing positions: {e}")

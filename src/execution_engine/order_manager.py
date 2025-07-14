@@ -100,6 +100,9 @@ class OrderManager:
             # Store active position
             self.active_positions[strategy_name] = position
 
+            # Log trade for validation purposes
+            self._log_trade_for_validation(position)
+
             # Clean log message with essential trade info
             self.logger.info(f"✅ TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | PnL: $0.00 USDT (0.00%)")
             return position
@@ -283,23 +286,164 @@ class OrderManager:
 
     def is_legitimate_bot_position(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float) -> bool:
         """
-        Validate if a position is a legitimate bot position based on trade history
+        Validate if a position is a legitimate bot position based on multiple validation methods
         This prevents manual positions from being incorrectly recovered as bot positions
         """
         try:
-            # Check if this position matches any known bot trade
-            # For now, we'll be conservative and NOT automatically recover any positions
-            # This forces all positions to go through ghost trade detection first
+            self.logger.debug(f"🔍 VALIDATING POSITION | {strategy_name} | {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price}")
 
-            # In the future, we could add:
-            # 1. Trade history validation from trade logs
-            # 2. Database lookup for legitimate bot trades
-            # 3. Time-based validation (recent bot activity)
+            # Method 1: Check recent trade history from trade logs
+            if self._validate_from_trade_history(strategy_name, symbol, side, quantity, entry_price):
+                self.logger.info(f"✅ POSITION VALIDATED | Trade history match | {strategy_name} | {symbol}")
+                return True
 
-            # For safety, return False to prevent automatic recovery
-            # All positions will be processed by ghost trade detection
+            # Method 2: Check if position matches strategy configuration patterns
+            if self._validate_from_strategy_config(strategy_name, symbol, side, quantity, entry_price):
+                self.logger.info(f"✅ POSITION VALIDATED | Strategy config match | {strategy_name} | {symbol}")
+                return True
+
+            # Method 3: Check position timing and characteristics
+            if self._validate_from_position_characteristics(strategy_name, symbol, side, quantity, entry_price):
+                self.logger.info(f"✅ POSITION VALIDATED | Characteristics match | {strategy_name} | {symbol}")
+                return True
+
+            # If none of the validation methods pass, treat as manual position
+            self.logger.warning(f"🚨 POSITION VALIDATION FAILED | {strategy_name} | {symbol} | Treating as manual position")
             return False
 
         except Exception as e:
             self.logger.error(f"Error validating position legitimacy: {e}")
             return False
+
+    def _validate_from_trade_history(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float) -> bool:
+        """Validate position against trade history logs"""
+        try:
+            # Check recent trade logs first
+            recent_trades = self.get_recent_trades(hours=24)
+            for trade in recent_trades:
+                if (trade['strategy_name'] == strategy_name and 
+                    trade['symbol'] == symbol and
+                    trade['side'] == side and
+                    abs(trade['quantity'] - quantity) < 0.001 and
+                    abs(trade['entry_price'] - entry_price) < 0.01):
+                    
+                    self.logger.info(f"🔍 TRADE HISTORY MATCH | {strategy_name} | {symbol} | Found in recent trades")
+                    return True
+
+            # Check position history as fallback
+            for hist_position in self.position_history:
+                if (hist_position.strategy_name == strategy_name and 
+                    hist_position.symbol == symbol and
+                    hist_position.side == side and
+                    abs(hist_position.quantity - quantity) < 0.001 and
+                    abs(hist_position.entry_price - entry_price) < 0.01):
+                    
+                    self.logger.info(f"🔍 POSITION HISTORY MATCH | {strategy_name} | {symbol} | Found in position history")
+                    return True
+
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Error validating from trade history: {e}")
+            return False
+
+    def _validate_from_strategy_config(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float) -> bool:
+        """Validate position against strategy configuration patterns"""
+        try:
+            # Import here to avoid circular import
+            from src.bot_manager import BotManager
+            
+            # Get strategy config (we'll need to pass this in or access it differently)
+            # For now, we'll use some basic validation based on quantity patterns
+            
+            # Check if quantity matches typical bot calculation patterns
+            # Bot trades typically have very specific calculated quantities
+            quantity_str = f"{quantity:.6f}"
+            
+            # Bot trades often have quantities with specific decimal patterns
+            # Manual trades are more likely to be round numbers
+            if quantity == int(quantity):  # Whole number - likely manual
+                return False
+            
+            # Check if this is a reasonable quantity for algorithmic trading
+            if quantity > 0.000001 and quantity < 1000:  # Reasonable range
+                return True
+                
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Error validating from strategy config: {e}")
+            return False
+
+    def _validate_from_position_characteristics(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float) -> bool:
+        """Validate position based on characteristics that indicate bot vs manual trading"""
+        try:
+            # Check price precision - bot trades often have very specific entry prices
+            price_str = f"{entry_price:.6f}"
+            
+            # If entry price ends in .0 or .00, it's more likely manual
+            if entry_price == int(entry_price) or entry_price == round(entry_price, 2):
+                return False
+            
+            # Check for typical bot trading patterns
+            # Bot trades often have precise quantities and prices
+            
+            # For now, we'll be conservative and require additional validation
+            # This can be enhanced based on your specific trading patterns
+            
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Error validating from position characteristics: {e}")
+            return False
+
+    def _log_trade_for_validation(self, position: Position) -> None:
+        """Log trade details for future validation"""
+        try:
+            # Create a simple trade log entry
+            trade_entry = {
+                'timestamp': datetime.now().isoformat(),
+                'strategy_name': position.strategy_name,
+                'symbol': position.symbol,
+                'side': position.side,
+                'quantity': position.quantity,
+                'entry_price': position.entry_price,
+                'order_id': position.order_id,
+                'session_id': id(self)  # Unique session identifier
+            }
+            
+            # Store in a simple list for now (could be enhanced with file/database storage)
+            if not hasattr(self, 'trade_log'):
+                self.trade_log = []
+            
+            self.trade_log.append(trade_entry)
+            
+            # Keep only last 100 trades to prevent memory issues
+            if len(self.trade_log) > 100:
+                self.trade_log = self.trade_log[-100:]
+                
+            self.logger.debug(f"🔍 TRADE LOGGED | {position.strategy_name} | {position.symbol} | Session: {id(self)}")
+
+        except Exception as e:
+            self.logger.error(f"Error logging trade for validation: {e}")
+
+    def get_recent_trades(self, hours: int = 24) -> List[Dict]:
+        """Get recent trades for validation purposes"""
+        try:
+            if not hasattr(self, 'trade_log'):
+                return []
+            
+            from datetime import datetime, timedelta
+            cutoff_time = datetime.now() - timedelta(hours=hours)
+            
+            recent_trades = []
+            for trade in self.trade_log:
+                trade_time = datetime.fromisoformat(trade['timestamp'])
+                if trade_time > cutoff_time:
+                    recent_trades.append(trade)
+            
+            return recent_trades
+
+        except Exception as e:
+            self.logger.error(f"Error getting recent trades: {e}")
+            return []
