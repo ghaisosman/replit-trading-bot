@@ -97,7 +97,7 @@ For MAINNET:
             self.trade_monitor.register_strategy(strategy_name, strategy_config['symbol'])
 
         # Daily reporter
-        from src.reporting.daily_reporter import DailyReporter
+        from src.analytics.daily_reporter import DailyReporter
         self.daily_reporter = DailyReporter(self.telegram_reporter, self.order_manager)
 
 
