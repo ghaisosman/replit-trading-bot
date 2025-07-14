@@ -44,6 +44,12 @@ class OrderManager:
             if not quantity:
                 return None
             
+            # Set leverage before creating order
+            leverage = strategy_config.get('leverage', 1)
+            if not self._set_leverage(strategy_config['symbol'], leverage):
+                self.logger.error(f"Failed to set leverage {leverage}x for {strategy_config['symbol']}")
+                return None
+            
             # Create market order with hedge mode support
             side = 'BUY' if signal.signal_type == SignalType.BUY else 'SELL'
             position_side = 'LONG' if signal.signal_type == SignalType.BUY else 'SHORT'
@@ -185,4 +191,21 @@ class OrderManager:
             
         except Exception as e:
             self.logger.error(f"Error clearing orphan position: {e}")
+            return False
+    
+    def _set_leverage(self, symbol: str, leverage: int) -> bool:
+        """Set leverage for a symbol on Binance Futures"""
+        try:
+            result = self.binance_client.set_leverage(symbol=symbol, leverage=leverage)
+            
+            if result:
+                self.logger.info(f"✅ Set leverage {leverage}x for {symbol}")
+                return True
+            else:
+                # For spot trading, leverage setting returns None but shouldn't block orders
+                self.logger.info(f"Leverage setting not applicable for {symbol}")
+                return True
+                
+        except Exception as e:
+            self.logger.error(f"Error setting leverage {leverage}x for {symbol}: {e}")
             return False

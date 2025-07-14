@@ -245,3 +245,15 @@ class BinanceClientWrapper:
         except BinanceAPIException as e:
             self.logger.error(f"Error canceling order: {e}")
             return None
+    
+    def set_leverage(self, symbol: str, leverage: int) -> Optional[Dict[str, Any]]:
+        """Set leverage for futures trading"""
+        try:
+            if self.is_futures:
+                return self.client.futures_change_leverage(symbol=symbol, leverage=leverage)
+            else:
+                self.logger.warning("Leverage setting not available for spot trading")
+                return None
+        except BinanceAPIException as e:
+            self.logger.error(f"Error setting leverage {leverage}x for {symbol}: {e}")
+            return None
