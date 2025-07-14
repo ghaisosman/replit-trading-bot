@@ -149,8 +149,17 @@ class ColoredFormatter(logging.Formatter):
                 else:
                     lines.append(msg)
             elif "SCANNING" in msg:
-                # Keep SCANNING messages as single horizontal line
-                lines.append(msg)
+                # Format SCANNING messages vertically
+                parts = msg.split(" | ")
+                if len(parts) >= 5:
+                    lines.append("🔍 SCANNING")
+                    lines.append(f"💱 Symbol: {parts[0].split()[-1]}")
+                    lines.append(f"🎯 Strategy: {parts[1]}")
+                    lines.append(f"⏱️ Timeframe: {parts[2]}")
+                    lines.append(f"💵 {parts[3]}")
+                    lines.append(f"⚡ {parts[4]}")
+                else:
+                    lines.append(msg)
             elif "WEB INTERFACE:" in msg:
                 # Handle WEB INTERFACE messages with vertical formatting
                 if "Updated" in msg and "config in shared bot:" in msg:
