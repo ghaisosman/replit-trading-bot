@@ -1,0 +1,43 @@
+2025-07-14 11:48:58,391 - __main__ - INFO - Starting Multi-Strategy Trading Bot
+🧪 TESTNET MODE: Safe for testing
+2025-07-14 11:48:58,548 - src.binance_client.client - INFO - Binance testnet client initialized successfully
+2025-07-14 11:48:58,693 - src.binance_client.client - INFO - ✅ Binance API connection test successful
+2025-07-14 11:48:58,693 - src.bot_manager - INFO - 🔍 VALIDATING API PERMISSIONS...
+2025-07-14 11:48:58,838 - src.binance_client.client - INFO - ✅ API Ping: SUCCESS
+2025-07-14 11:48:58,974 - src.binance_client.client - INFO - ✅ Market Data: SUCCESS
+2025-07-14 11:48:59,109 - src.binance_client.client - ERROR - ❌ API Key Permission Error
+2025-07-14 11:48:59,110 - src.binance_client.client - ERROR - 🔧 Create new testnet API keys at https://testnet.binance.vision/
+2025-07-14 11:48:59,110 - src.bot_manager - INFO - ✅ API VALIDATION COMPLETE
+2025-07-14 11:48:59,110 - src.bot_manager - INFO - 🚀 STARTING TRADING BOT...
+2025-07-14 11:48:59,110 - src.bot_manager - INFO - 📊 MODE: TESTNET
+2025-07-14 11:48:59,110 - src.bot_manager - INFO - 📈 STRATEGIES: sma_crossover, rsi_oversold
+2025-07-14 11:48:59,497 - src.binance_client.client - ERROR - ❌ TESTNET API PERMISSION ERROR
+2025-07-14 11:48:59,497 - src.binance_client.client - ERROR - 🔧 SOLUTION: Get new testnet API keys with TRADING permissions:
+2025-07-14 11:48:59,497 - src.binance_client.client - ERROR -    1. Go to https://testnet.binance.vision/
+2025-07-14 11:48:59,497 - src.binance_client.client - ERROR -    2. API Management → Create API Key
+2025-07-14 11:48:59,497 - src.binance_client.client - ERROR -    3. Enable: Reading + Spot & Margin Trading
+2025-07-14 11:48:59,497 - src.binance_client.client - ERROR -    4. Disable IP restrictions for testing
+2025-07-14 11:48:59,497 - src.binance_client.client - ERROR -    5. Update your Replit Secrets with new keys
+2025-07-14 11:48:59,497 - src.data_fetcher.balance_fetcher - WARNING - No USDT balance found in testnet. Using mock balance for testing.
+2025-07-14 11:48:59,497 - src.bot_manager - INFO - 💰 BALANCE: $1000.00 USDT
+2025-07-14 11:48:59,497 - src.bot_manager - INFO - ⚡ UPDATE INTERVAL: 1s
+2025-07-14 11:49:00,235 - src.binance_client.client - ERROR - ❌ TESTNET API PERMISSION ERROR
+2025-07-14 11:49:00,235 - src.binance_client.client - ERROR - 🔧 SOLUTION: Get new testnet API keys with TRADING permissions:
+2025-07-14 11:49:00,235 - src.binance_client.client - ERROR -    1. Go to https://testnet.binance.vision/
+2025-07-14 11:49:00,235 - src.binance_client.client - ERROR -    2. API Management → Create API Key
+2025-07-14 11:49:00,235 - src.binance_client.client - ERROR -    3. Enable: Reading + Spot & Margin Trading
+2025-07-14 11:49:00,235 - src.binance_client.client - ERROR -    4. Disable IP restrictions for testing
+2025-07-14 11:49:00,235 - src.binance_client.client - ERROR -    5. Update your Replit Secrets with new keys
+2025-07-14 11:49:00,235 - src.data_fetcher.balance_fetcher - WARNING - No USDT balance found in testnet. Using mock balance for testing.
+2025-07-14 11:49:00,236 - src.bot_manager - INFO - 🔍 ASSESSING MARKET | SMA_CROSSOVER | BTCUSDT | 1h
+2025-07-14 11:49:00,810 - src.bot_manager - INFO - 📈 MARKET ASSESSMENT | SMA_CROSSOVER | BTCUSDT | Price: $121581.0800 | SMA20: $120290.48 | SMA50: $118756.33 | Trend: Bullish
+2025-07-14 11:49:01,547 - src.binance_client.client - ERROR - ❌ TESTNET API PERMISSION ERROR
+2025-07-14 11:49:01,547 - src.binance_client.client - ERROR - 🔧 SOLUTION: Get new testnet API keys with TRADING permissions:
+2025-07-14 11:49:01,547 - src.binance_client.client - ERROR -    1. Go to https://testnet.binance.vision/
+2025-07-14 11:49:01,547 - src.binance_client.client - ERROR -    2. API Management → Create API Key
+2025-07-14 11:49:01,547 - src.binance_client.client - ERROR -    3. Enable: Reading + Spot & Margin Trading
+2025-07-14 11:49:01,547 - src.binance_client.client - ERROR -    4. Disable IP restrictions for testing
+2025-07-14 11:49:01,547 - src.binance_client.client - ERROR -    5. Update your Replit Secrets with new keys
+2025-07-14 11:49:01,547 - src.data_fetcher.balance_fetcher - WARNING - No USDT balance found in testnet. Using mock balance for testing.
+2025-07-14 11:49:01,547 - src.bot_manager - INFO - 🔍 ASSESSING MARKET | RSI_OVERSOLD | ETHUSDT | 15m
+2025-07-14 11:49:01,844 - src.bot_manager - INFO - 📈 MARKET ASSESSMENT | RSI_OVERSOLD | ETHUSDT | Price: $3067.7600 | RSI: 58.47 | Condition: Normal
