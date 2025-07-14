@@ -157,6 +157,41 @@ class ColoredFormatter(logging.Formatter):
                     lines.append(f"⏱️ Timeframe: {parts[2]}")
                 else:
                     lines.append(msg)
+            elif "WEB INTERFACE:" in msg:
+                # Handle WEB INTERFACE messages with vertical formatting
+                if "Updated" in msg and "config in shared bot:" in msg:
+                    # Extract strategy name and config details
+                    parts = msg.split("Updated ")
+                    if len(parts) > 1:
+                        strategy_part = parts[1].split(" config in shared bot: ")
+                        if len(strategy_part) == 2:
+                            strategy_name = strategy_part[0]
+                            config_str = strategy_part[1]
+                            
+                            lines.append("📝 WEB INTERFACE:")
+                            lines.append(f"Updated {strategy_name}")
+                            lines.append("config in shared bot:")
+                            
+                            # Parse the config dictionary string
+                            try:
+                                # Remove outer braces and split by commas
+                                config_clean = config_str.strip("{}")
+                                config_items = [item.strip() for item in config_clean.split(",")]
+                                for item in config_items:
+                                    if ":" in item:
+                                        key, value = item.split(":", 1)
+                                        key = key.strip().strip("'\"")
+                                        value = value.strip().strip("'\"")
+                                        lines.append(f"{key}: {value}")
+                            except:
+                                # Fallback if parsing fails
+                                lines.append(config_str)
+                        else:
+                            lines.append(msg)
+                    else:
+                        lines.append(msg)
+                else:
+                    lines.append(msg)
             else:
                 lines.append(msg)
             
