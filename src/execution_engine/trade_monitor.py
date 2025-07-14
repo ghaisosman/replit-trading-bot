@@ -44,10 +44,10 @@ class TradeMonitor:
 
         # Track strategy symbols for monitoring
         self.strategy_symbols: Dict[str, str] = {}  # strategy_name -> symbol
-        
+
         # Track recently cleared ghost trades to prevent immediate re-detection
         self.recently_cleared_ghosts: Dict[str, datetime] = {}  # ghost_id -> clear_time
-        
+
         # Flag to prevent notifications during initial startup scan
         self.startup_scan_complete = False
 
@@ -69,7 +69,7 @@ class TradeMonitor:
             self._check_ghost_trades(suppress_notifications)
             self._process_cycle_countdown(suppress_notifications)
             self._cleanup_recently_cleared_ghosts()
-            
+
             # Mark startup scan as complete after first run, regardless of suppression
             if not self.startup_scan_complete:
                 self.startup_scan_complete = True
@@ -256,12 +256,12 @@ class TradeMonitor:
 
                         # Log detection
                         usdt_value = current_price * abs(position_amt) if current_price else 0
-                        
-                        # Determine if we should notify based on suppression and whether this is truly new
-                        if not suppress_notifications:
-                            # This is a normal anomaly check - send notification
+
+                        # Only send notification if not suppressed AND startup scan is complete
+                        if not suppress_notifications and self.startup_scan_complete:
+                            # This is a normal anomaly check - send notification ONLY ONCE
                             self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
-                            
+
                             # Send Telegram notification
                             self.telegram_reporter.report_ghost_trade_detected(
                                 strategy_name=monitoring_strategy,
@@ -270,13 +270,14 @@ class TradeMonitor:
                                 quantity=abs(position_amt),
                                 current_price=current_price
                             )
-                            
+
                             # Mark as notified to prevent re-notification
                             ghost_trade.detection_notified = True
                             ghost_trade.last_notification_time = datetime.now()
                         else:
                             # This is a suppressed startup scan - just log
-                            self.logger.info(f"👻 POSITION NOTED (STARTUP SCAN) | {monitoring_strategy} | {symbol} | Manual position tracked | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
+                            scan_type = "STARTUP SCAN" if not self.startup_scan_complete else "SUPPRESSED CHECK"
+                            self.logger.info(f"👻 POSITION NOTED ({scan_type}) | {monitoring_strategy} | {symbol} | Manual position tracked | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
                     else:
                         # Update the existing ghost trade but don't re-notify
                         if existing_ghost_id:
@@ -286,7 +287,7 @@ class TradeMonitor:
                                 self.logger.debug(f"🔍 GHOST CHECK: Updating ghost trade quantity for {symbol} from {existing_ghost.quantity:.6f} to {abs(position_amt):.6f}")
                                 existing_ghost.quantity = abs(position_amt)
                                 existing_ghost.side = 'LONG' if position_amt > 0 else 'SHORT'
-                            
+
                         self.logger.debug(f"🔍 GHOST CHECK: Ghost trade already exists for {symbol}, skipping duplicate detection")
                 else:
                     self.logger.debug(f"🔍 GHOST CHECK: Position {symbol} is a known bot position")
@@ -341,7 +342,7 @@ class TradeMonitor:
             # Only clear from tracking if position no longer exists on Binance
             # Don't clear just because cycles expired - let manual positions persist
             should_clear = not position_still_exists
-            
+
             if should_clear:
                 # Extract strategy name from simplified ghost_id (strategy_symbol format)
                 parts = ghost_id.split('_')
@@ -404,15 +405,15 @@ class TradeMonitor:
         try:
             current_time = datetime.now()
             cooldown_minutes = 5  # 5 minutes cooldown before allowing re-detection
-            
+
             ghosts_to_remove = []
             for ghost_id, clear_time in self.recently_cleared_ghosts.items():
                 if (current_time - clear_time).total_seconds() > (cooldown_minutes * 60):
                     ghosts_to_remove.append(ghost_id)
-            
+
             for ghost_id in ghosts_to_remove:
                 del self.recently_cleared_ghosts[ghost_id]
                 self.logger.debug(f"🔍 GHOST CLEANUP: Removed {ghost_id} from recently cleared list")
-                
+
         except Exception as e:
             self.logger.error(f"Error cleaning up recently cleared ghosts: {e}")
