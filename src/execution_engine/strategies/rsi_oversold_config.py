@@ -14,7 +14,7 @@ class RSIOversoldConfig:
             'timeframe': '15m',
             'max_stop_loss': 1.5,  # 1.5% stop loss
             'take_profit_pct': 2.5,  # 2.5% take profit
-            'rsi_oversold_level': 25,  # RSI level for oversold
+            'rsi_oversold_level': 60,  # RSI level for oversold (TESTING - higher for easier triggers)
             'assessment_interval': 60,  # 60 seconds
             'enabled': True,
             'description': 'Buy when RSI is oversold below 25'

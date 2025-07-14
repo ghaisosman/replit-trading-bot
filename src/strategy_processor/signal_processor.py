@@ -87,18 +87,18 @@ class SignalProcessor:
             rsi_current = df['rsi'].iloc[-1]
             rsi_oversold_level = config.get('rsi_oversold_level', 30)
             
-            # Check for oversold condition
+            # Check for oversold condition (TESTING - modified for easier triggers)
             if rsi_current < rsi_oversold_level:
                 stop_loss = current_price * (1 - config['max_stop_loss'] / 100)
                 take_profit = current_price * (1 + config.get('take_profit_pct', 3) / 100)
                 
                 return TradingSignal(
                     signal_type=SignalType.BUY,
-                    confidence=0.6,
+                    confidence=0.8,  # Higher confidence for testing
                     entry_price=current_price,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
-                    reason=f"RSI oversold at {rsi_current:.2f}"
+                    reason=f"RSI TEST ENTRY at {rsi_current:.2f} (below {rsi_oversold_level})"
                 )
             
             return None
@@ -123,7 +123,20 @@ class SignalProcessor:
             if current_price >= take_profit:
                 return True
             
-            # Additional strategy-specific exit logic can be added here
+            # TESTING: Additional aggressive exit conditions for faster testing
+            if 'rsi' in df.columns:
+                rsi_current = df['rsi'].iloc[-1]
+                
+                # Exit if RSI goes above 70 (overbought after our oversold entry)
+                if rsi_current > 70:
+                    self.logger.info(f"TEST EXIT: RSI overbought at {rsi_current:.2f}")
+                    return True
+                
+                # Exit if we have any profit and RSI is rising (quick profit taking for testing)
+                if current_price > entry_price * 1.005:  # 0.5% profit
+                    if len(df) >= 2 and df['rsi'].iloc[-1] > df['rsi'].iloc[-2]:
+                        self.logger.info(f"TEST EXIT: Quick profit + RSI rising")
+                        return True
             
             return False
             
