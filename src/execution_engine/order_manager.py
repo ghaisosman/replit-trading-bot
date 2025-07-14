@@ -85,7 +85,8 @@ class OrderManager:
             # Store active position
             self.active_positions[strategy_name] = position
             
-            self.logger.info(f"Position opened for {strategy_name}: {asdict(position)}")
+            # Clean log message with essential trade info
+            self.logger.info(f"✅ TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | PnL: $0.00 USDT (0.00%)")
             return position
             
         except Exception as e:

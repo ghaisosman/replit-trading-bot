@@ -78,7 +78,7 @@ For MAINNET:
 
         # Running state
         self.is_running = False
-        
+
         # Anomaly detection
         self.trade_monitor = TradeMonitor()
 
@@ -171,8 +171,11 @@ For MAINNET:
                 position = self.order_manager.active_positions[strategy_name]
                 current_price = self._get_current_price(strategy_config['symbol'])
                 if current_price:
-                    pnl = self._calculate_pnl(position, current_price)
-                    self.logger.info(f"📊 ACTIVE POSITION | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.4f} | PnL: ${pnl:.2f} USDT")
+                    # Log position status with PnL
+                    pnl_usdt = self._calculate_pnl(position, current_price)
+                    pnl_percent = (pnl_usdt / (position.entry_price * position.quantity)) * 100 if position.quantity > 0 else 0
+
+                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | PnL: ${pnl_usdt:.2f} USDT ({pnl_percent:+.2f}%)")
                 return
 
             # Check balance requirements
