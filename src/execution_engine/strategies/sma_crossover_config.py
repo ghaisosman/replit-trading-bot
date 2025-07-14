@@ -11,10 +11,10 @@ class SMACrossoverConfig:
             'symbol': 'BTCUSDT',
             'margin': 100.0,  # USDT
             'leverage': 10,
-            'timeframe': '1h',
+            'timeframe': '15m',
             'max_stop_loss': 2.0,  # 2% stop loss
             'take_profit_pct': 3.0,  # 3% take profit
-            'assessment_interval': 300,  # 5 minutes in seconds
+            'assessment_interval': 60,  # 60 seconds
             'enabled': True,
             'description': 'Buy when SMA 20 crosses above SMA 50'
         }
