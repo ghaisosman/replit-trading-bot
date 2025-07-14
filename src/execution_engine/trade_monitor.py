@@ -188,43 +188,32 @@ class TradeMonitor:
                         monitoring_strategy = f"manual_{symbol.lower()}"
                         self.logger.debug(f"🔍 GHOST CHECK: No strategy monitors {symbol}, using generic name: {monitoring_strategy}")
 
-                    # Check if we already have a ghost trade for this exact position
+                    # Check if we already have a ghost trade for this symbol (regardless of quantity differences)
                     existing_ghost_found = False
-                    existing_ghost_id = None
                     for ghost_id, ghost_trade in self.ghost_trades.items():
-                        if (ghost_trade.symbol == symbol and 
-                            abs(ghost_trade.quantity - abs(position_amt)) < 0.001):
+                        if ghost_trade.symbol == symbol:
                             existing_ghost_found = True
-                            existing_ghost_id = ghost_id
-                            
-                            # Check if enough time has passed for a new notification
-                            if ghost_trade.last_notification_time:
-                                time_since_last = datetime.now() - ghost_trade.last_notification_time
-                                if time_since_last.total_seconds() < (ghost_trade.notification_cooldown_minutes * 60):
-                                    self.logger.debug(f"🔍 GHOST CHECK: Ghost trade {symbol} in cooldown period")
-                                    break
-                            
-                            self.logger.debug(f"🔍 GHOST CHECK: Already tracking ghost trade for {symbol}")
+                            self.logger.debug(f"🔍 GHOST CHECK: Already tracking ghost trade for {symbol} with ID {ghost_id}")
                             break
 
-                    # Only create new ghost trade if we don't already have one
+                    # Only create new ghost trade if we don't already have one for this symbol
                     if not existing_ghost_found:
                         side = 'LONG' if position_amt > 0 else 'SHORT'
-                        timestamp = int(datetime.now().timestamp())
-                        expected_ghost_id = f"{monitoring_strategy}_{symbol}_{side}_{abs(position_amt):.6f}_{timestamp}"
+                        # Simple ghost ID using just strategy and symbol to prevent duplicates
+                        ghost_id = f"{monitoring_strategy}_{symbol}"
 
                         ghost_trade = GhostTrade(
                             symbol=symbol,
                             side=side,
                             quantity=abs(position_amt),
                             detected_at=datetime.now(),
-                            cycles_remaining=40,  # 40 cycles (80 seconds)
+                            cycles_remaining=5,  # 5 cycles before clearing
                             detection_notified=True,
                             clearing_notified=False,
                             last_notification_time=datetime.now(),
                             notification_cooldown_minutes=60
                         )
-                        self.ghost_trades[expected_ghost_id] = ghost_trade
+                        self.ghost_trades[ghost_id] = ghost_trade
 
                         # Get current price for USDT value calculation
                         try:
@@ -295,10 +284,10 @@ class TradeMonitor:
 
             # Only clear from tracking if position no longer exists OR cycles expired
             if ghost_trade.cycles_remaining <= 0 or not position_still_exists:
-                # Extract strategy name from ghost_id (everything before the last three underscores)
+                # Extract strategy name from simplified ghost_id (strategy_symbol format)
                 parts = ghost_id.split('_')
-                if len(parts) >= 4:
-                    strategy_name = '_'.join(parts[:-3])  # Join all parts except symbol, side, and quantity
+                if len(parts) >= 2:
+                    strategy_name = '_'.join(parts[:-1])  # All parts except the last (symbol)
                 else:
                     strategy_name = parts[0]
 
