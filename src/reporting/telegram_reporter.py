@@ -19,7 +19,10 @@ class TelegramReporter:
         """Send a message to Telegram"""
         try:
             # Filter out market assessment messages - they should only appear in console logs
-            if "MARKET ASSESSMENT" in message or "SCANNING" in message:
+            if ("MARKET ASSESSMENT" in message or 
+                "SCANNING" in message or 
+                "MARKET SCAN" in message or
+                "📈 MARKET" in message):
                 return True  # Skip sending but return success
             
             url = f"{self.base_url}/sendMessage"
