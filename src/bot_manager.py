@@ -203,9 +203,9 @@ For MAINNET:
             # Start daily reporter scheduler
             self.daily_reporter.start_scheduler()
 
-            # Initial anomaly check AFTER startup notification
-            self.logger.info("🔍 PERFORMING INITIAL ANOMALY CHECK...")
-            self.trade_monitor.check_for_anomalies()
+            # Initial anomaly check AFTER startup notification - SUPPRESS notifications for startup scan
+            self.logger.info("🔍 PERFORMING INITIAL ANOMALY CHECK (SUPPRESSED)...")
+            self.trade_monitor.check_for_anomalies(suppress_notifications=True)
 
             await self._main_trading_loop()
 

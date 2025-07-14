@@ -66,8 +66,8 @@ class TradeMonitor:
             self._check_ghost_trades(suppress_notifications)
             self._process_cycle_countdown(suppress_notifications)
             
-            # Mark startup scan as complete after first run
-            if not self.startup_scan_complete:
+            # Mark startup scan as complete after first run (only if not suppressed)
+            if not self.startup_scan_complete and not suppress_notifications:
                 self.startup_scan_complete = True
                 self.logger.info("🔍 STARTUP SCAN: Initial anomaly scan completed")
 
@@ -236,10 +236,14 @@ class TradeMonitor:
                         # Log detection
                         usdt_value = current_price * abs(position_amt) if current_price else 0
                         
+                        # Only send notifications if:
+                        # 1. Not suppressed AND
+                        # 2. Startup scan is complete AND  
+                        # 3. This is not the initial detection (first time we see this ghost trade)
                         if not suppress_notifications and self.startup_scan_complete:
                             self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
                             
-                            # Send Telegram notification only if not suppressed
+                            # Send Telegram notification only if not suppressed and startup is complete
                             self.telegram_reporter.report_ghost_trade_detected(
                                 strategy_name=monitoring_strategy,
                                 symbol=symbol,
@@ -248,7 +252,8 @@ class TradeMonitor:
                                 current_price=current_price
                             )
                         else:
-                            self.logger.info(f"👻 EXISTING POSITION NOTED | {monitoring_strategy} | {symbol} | Manual position tracked | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
+                            scan_type = "STARTUP SCAN" if not self.startup_scan_complete else "SUPPRESSED CHECK"
+                            self.logger.info(f"👻 POSITION NOTED ({scan_type}) | {monitoring_strategy} | {symbol} | Manual position tracked | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
                     else:
                         # Update the existing ghost trade but don't re-notify
                         if existing_ghost_id:
