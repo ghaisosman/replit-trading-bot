@@ -20,9 +20,13 @@ from src.data_fetcher.price_fetcher import PriceFetcher
 from src.data_fetcher.balance_fetcher import BalanceFetcher
 from src.bot_manager import BotManager
 import logging
+from src.utils.logger import setup_logger
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
+
+# Setup logging for web dashboard
+setup_logger()
 
 # Global bot instance
 bot_manager = None
@@ -158,13 +162,17 @@ def start_bot():
         def run_bot():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            logger = logging.getLogger(__name__)
             try:
+                logger.info("🚀 STARTING BOT FROM WEB INTERFACE")
+                logger.info("📊 Console logs will appear below...")
                 loop.run_until_complete(bot_manager.start())
             except Exception as e:
-                logging.error(f"Bot error: {e}")
+                logger.error(f"Bot error: {e}")
             finally:
                 global bot_running
                 bot_running = False
+                logger.info("🔴 BOT STOPPED FROM WEB INTERFACE")
                 loop.close()
         
         bot_thread = threading.Thread(target=run_bot, daemon=True)
