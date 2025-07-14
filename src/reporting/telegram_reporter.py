@@ -331,48 +331,11 @@ class TelegramReporter:
     def report_ghost_trade_detected(self, strategy_name: str, symbol: str, side: str, quantity: float, current_price: float = None):
         """Report ghost trade detection to Telegram"""
         try:
-            # Get the actual position data from Binance to calculate margin used
-            from src.binance_client.client import BinanceClientWrapper
-
-            margin_used_text = ""
+            # Simple position value calculation without additional Binance API calls
             position_value_text = ""
-
-            try:
-                # Get position info from Binance to calculate actual margin
-                binance_client = BinanceClientWrapper()
-                if binance_client.is_futures:
-                    account_info = binance_client.client.futures_account()
-                    positions = account_info.get('positions', [])
-
-                    for pos in positions:
-                        if pos.get('symbol') == symbol and abs(float(pos.get('positionAmt', 0))) > 0:
-                            # Get the actual margin used (isolated margin or portion of cross margin)
-                            isolated_margin = float(pos.get('isolatedMargin', 0))
-                            initial_margin = float(pos.get('initialMargin', 0))
-
-                            # Use isolated margin if available, otherwise use initial margin
-                            actual_margin = isolated_margin if isolated_margin > 0 else initial_margin
-
-                            if actual_margin > 0:
-                                margin_used_text = f"💸 <b>Margin Used:</b> ${actual_margin:.2f} USDT\n"
-
-                            # Calculate position value (margin * leverage)
-                            if current_price and actual_margin > 0:
-                                # Estimate leverage from position size and margin
-                                position_value = current_price * quantity
-                                leverage = position_value / actual_margin if actual_margin > 0 else 1
-                                position_value_text = f"📦 <b>Position Value:</b> ${position_value:.2f} USDT (≈{leverage:.1f}x)\n"
-                            elif current_price:
-                                position_value = current_price * quantity
-                                position_value_text = f"📦 <b>Position Value:</b> ${position_value:.2f} USDT\n"
-                            break
-
-            except Exception as e:
-                self.logger.debug(f"Could not get detailed position info: {e}")
-                # Fallback to simple calculation
-                if current_price:
-                    position_value = current_price * quantity
-                    position_value_text = f"📦 <b>Position Value:</b> ${position_value:.2f} USDT\n"
+            if current_price:
+                position_value = current_price * quantity
+                position_value_text = f"📦 <b>Position Value:</b> ${position_value:.2f} USDT\n"
 
             message = f"""
 👻 <b>GHOST TRADE DETECTED</b>
@@ -381,7 +344,7 @@ class TelegramReporter:
 💰 <b>Pair:</b> {symbol}
 📊 <b>Direction:</b> {side}
 📏 <b>Quantity:</b> {quantity:.6f} {symbol.replace('USDT', '')}
-{position_value_text}{margin_used_text}⚠️ <b>Status:</b> Manual trade found, not opened by bot
+{position_value_text}⚠️ <b>Status:</b> Manual trade found, not opened by bot
 🔄 <b>Action:</b> Will clear in 2 market cycles
             """
             self.send_message(message)

@@ -59,6 +59,9 @@ class TradeMonitor:
 
         # Track ghost trade fingerprints to prevent re-detection of same trades
         self.ghost_trade_fingerprints: Dict[str, datetime] = {}  # fingerprint -> clear_time
+        
+        # Load persistent ghost fingerprints to survive bot restarts
+        self._load_persistent_ghost_fingerprints()
 
     def register_strategy(self, strategy_name: str, symbol: str):
         """Register a strategy and its symbol for monitoring"""
@@ -310,22 +313,21 @@ class TradeMonitor:
                             time_since_notification = datetime.now() - last_notification
                             recently_notified = time_since_notification.total_seconds() < (notification_cooldown_hours * 3600)
 
-                        # Check if we should send notification
+                        # Mark all ghost trades as notified immediately upon creation to prevent ANY duplicate notifications
+                        ghost_trade.detection_notified = True
+                        ghost_trade.last_notification_time = datetime.now()
+                        self.notified_ghost_positions[symbol] = datetime.now()
+
+                        # Check if we should send notification (but mark as notified regardless)
                         should_notify = (not suppress_notifications and 
                                        self.startup_scan_complete and 
-                                       not ghost_trade.detection_notified and
                                        not recently_notified)
 
-                        # During startup scan, mark all positions as potential ghost trades but don't notify
+                        # During startup scan, just log but don't notify
                         if not self.startup_scan_complete:
                             self.logger.warning(f"🔍 STARTUP POSITION DETECTED | {monitoring_strategy} | {symbol} | Manual position found during startup | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
                             self.logger.warning(f"🚨 CRITICAL: This position was NOT opened by the bot in this session")
                             self.logger.warning(f"🔍 Position will be monitored as ghost trade until manually closed")
-                            
-                            # Mark as notified during startup to prevent later notifications for the same position
-                            ghost_trade.detection_notified = True
-                            ghost_trade.last_notification_time = datetime.now()
-                            self.notified_ghost_positions[symbol] = datetime.now()
 
                         elif should_notify:
                             # This is a normal anomaly check - send notification ONLY ONCE
@@ -341,22 +343,14 @@ class TradeMonitor:
                                     current_price=current_price
                                 )
                                 
-                                # Mark as notified ONLY after successful notification
-                                ghost_trade.detection_notified = True
-                                ghost_trade.last_notification_time = datetime.now()
-                                self.notified_ghost_positions[symbol] = datetime.now()
-                                
-                                self.logger.debug(f"🔍 GHOST NOTIFICATION: Successfully sent and marked as notified for {ghost_id}")
+                                self.logger.debug(f"🔍 GHOST NOTIFICATION: Successfully sent notification for {ghost_id}")
                                 
                             except Exception as e:
                                 self.logger.error(f"Failed to send ghost trade notification: {e}")
-                                # Don't mark as notified if notification failed
                         else:
                             # This is a suppressed check or already notified - just log
                             if not self.startup_scan_complete:
                                 scan_type = "STARTUP SCAN"
-                            elif ghost_trade.detection_notified:
-                                scan_type = "ALREADY NOTIFIED"
                             elif recently_notified:
                                 scan_type = "COOLDOWN ACTIVE"
                             else:
@@ -476,6 +470,9 @@ class TradeMonitor:
             fingerprint = self._generate_ghost_trade_fingerprint(ghost_trade.symbol, ghost_trade.quantity if ghost_trade.side == 'LONG' else -ghost_trade.quantity)
             self.ghost_trade_fingerprints[fingerprint] = current_time
             self.logger.debug(f"🔍 GHOST CLEANUP: Added fingerprint {fingerprint} to prevent re-detection")
+            
+            # Save fingerprints persistently
+            self._save_persistent_ghost_fingerprints()
             
             # Clean up persistent symbol tracking when position is actually closed
             if ghost_trade.symbol in self.persistent_ghost_symbols:
@@ -751,3 +748,58 @@ class TradeMonitor:
                 return True
                 
         return False
+
+    def _load_persistent_ghost_fingerprints(self):
+        """Load persistent ghost fingerprints from file to survive bot restarts"""
+        try:
+            import os
+            import json
+            
+            fingerprint_file = "trading_data/ghost_fingerprints.json"
+            
+            if os.path.exists(fingerprint_file):
+                with open(fingerprint_file, 'r') as f:
+                    data = json.load(f)
+                    
+                # Convert string timestamps back to datetime objects
+                current_time = datetime.now()
+                for fingerprint, timestamp_str in data.items():
+                    try:
+                        clear_time = datetime.fromisoformat(timestamp_str)
+                        # Only load fingerprints that are still within the 2-hour cooldown
+                        if (current_time - clear_time).total_seconds() < (2 * 3600):
+                            self.ghost_trade_fingerprints[fingerprint] = clear_time
+                            self.logger.debug(f"🔍 FINGERPRINT LOADED: {fingerprint} from {timestamp_str}")
+                    except ValueError:
+                        continue
+                        
+                self.logger.info(f"🔍 FINGERPRINT TRACKING: Loaded {len(self.ghost_trade_fingerprints)} persistent ghost fingerprints")
+            else:
+                self.logger.debug(f"🔍 FINGERPRINT TRACKING: No persistent fingerprint file found")
+                
+        except Exception as e:
+            self.logger.error(f"Error loading persistent ghost fingerprints: {e}")
+
+    def _save_persistent_ghost_fingerprints(self):
+        """Save ghost fingerprints to file to persist across bot restarts"""
+        try:
+            import os
+            import json
+            
+            # Ensure directory exists
+            os.makedirs("trading_data", exist_ok=True)
+            
+            fingerprint_file = "trading_data/ghost_fingerprints.json"
+            
+            # Convert datetime objects to strings for JSON serialization
+            data = {}
+            for fingerprint, clear_time in self.ghost_trade_fingerprints.items():
+                data[fingerprint] = clear_time.isoformat()
+            
+            with open(fingerprint_file, 'w') as f:
+                json.dump(data, f, indent=2)
+                
+            self.logger.debug(f"🔍 FINGERPRINT TRACKING: Saved {len(data)} ghost fingerprints to {fingerprint_file}")
+            
+        except Exception as e:
+            self.logger.error(f"Error saving persistent ghost fingerprints: {e}")
