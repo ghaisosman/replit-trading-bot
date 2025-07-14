@@ -293,7 +293,8 @@ For MAINNET:
 
             # Log market assessment start
             margin = strategy_config.get('margin', 50.0)
-            self.logger.info(f"🔍 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f}")
+            leverage = strategy_config.get('leverage', 5)
+            self.logger.info(f"🔍 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x")
 
             # Get market data
             df = self.price_fetcher.get_ohlcv_data(
