@@ -53,6 +53,9 @@ class TradeMonitor:
 
         # Flag to prevent notifications during initial startup scan
         self.startup_scan_complete = False
+        
+        # Track notified ghosts to prevent repeated notifications
+        self.notified_ghost_positions: Dict[str, datetime] = {}  # symbol -> last_notification_time
 
     def register_strategy(self, strategy_name: str, symbol: str):
         """Register a strategy and its symbol for monitoring"""
@@ -290,22 +293,33 @@ class TradeMonitor:
                         # Log detection
                         usdt_value = current_price * abs(position_amt) if current_price else 0
 
-                        # Check if we should send notification (only if not suppressed, startup complete, and not already notified)
+                        # Check if this symbol has been recently notified (prevent spam)
+                        last_notification = self.notified_ghost_positions.get(symbol)
+                        notification_cooldown_hours = 2  # Don't re-notify for 2 hours
+                        
+                        recently_notified = False
+                        if last_notification:
+                            time_since_notification = datetime.now() - last_notification
+                            recently_notified = time_since_notification.total_seconds() < (notification_cooldown_hours * 3600)
+
+                        # Check if we should send notification
                         should_notify = (not suppress_notifications and 
                                        self.startup_scan_complete and 
-                                       not ghost_trade.detection_notified)
+                                       not ghost_trade.detection_notified and
+                                       not recently_notified)
 
-                        # During startup scan, mark all positions as potential ghost trades
+                        # During startup scan, mark all positions as potential ghost trades but don't notify
                         if not self.startup_scan_complete:
                             self.logger.warning(f"🔍 STARTUP POSITION DETECTED | {monitoring_strategy} | {symbol} | Manual position found during startup | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
                             self.logger.warning(f"🚨 CRITICAL: This position was NOT opened by the bot in this session")
                             self.logger.warning(f"🔍 Position will be monitored as ghost trade until manually closed")
+                            
+                            # Mark as notified during startup to prevent later notifications for the same position
+                            ghost_trade.detection_notified = True
+                            ghost_trade.last_notification_time = datetime.now()
+                            self.notified_ghost_positions[symbol] = datetime.now()
 
-                        # Only log when we're about to send a notification
-                        if should_notify:
-                            self.logger.warning(f"🔍 GHOST DEBUG: About to notify for {symbol} | Ghost ID: {ghost_id} | Notified before: {ghost_trade.detection_notified}")
-
-                        if should_notify:
+                        elif should_notify:
                             # This is a normal anomaly check - send notification ONLY ONCE
                             self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
 
@@ -322,9 +336,7 @@ class TradeMonitor:
                                 # Mark as notified ONLY after successful notification
                                 ghost_trade.detection_notified = True
                                 ghost_trade.last_notification_time = datetime.now()
-                                
-                                # Track this symbol as persistently notified to prevent re-notifications
-                                self.persistent_ghost_symbols[symbol] = datetime.now()
+                                self.notified_ghost_positions[symbol] = datetime.now()
                                 
                                 self.logger.debug(f"🔍 GHOST NOTIFICATION: Successfully sent and marked as notified for {ghost_id}")
                                 
@@ -332,11 +344,13 @@ class TradeMonitor:
                                 self.logger.error(f"Failed to send ghost trade notification: {e}")
                                 # Don't mark as notified if notification failed
                         else:
-                            # This is a suppressed startup scan or already notified - just log
+                            # This is a suppressed check or already notified - just log
                             if not self.startup_scan_complete:
                                 scan_type = "STARTUP SCAN"
                             elif ghost_trade.detection_notified:
                                 scan_type = "ALREADY NOTIFIED"
+                            elif recently_notified:
+                                scan_type = "COOLDOWN ACTIVE"
                             else:
                                 scan_type = "SUPPRESSED CHECK"
                             self.logger.debug(f"👻 POSITION NOTED ({scan_type}) | {monitoring_strategy} | {symbol} | Manual position tracked | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
@@ -350,6 +364,7 @@ class TradeMonitor:
                                 self.logger.info(f"🔍 STARTUP SCAN: Marking existing ghost trade {existing_ghost_id} as notified to prevent duplicate notifications")
                                 existing_ghost.detection_notified = True
                                 existing_ghost.last_notification_time = datetime.now()
+                                self.notified_ghost_positions[symbol] = datetime.now()
 
                             # Update quantity if significantly different
                             if abs(existing_ghost.quantity - abs(position_amt)) > 0.001:
@@ -430,6 +445,10 @@ class TradeMonitor:
                         symbol=ghost_trade.symbol
                     )
                     ghost_trade.clearing_notified = True
+                    
+                    # Remove from notification tracking since position is actually closed
+                    if ghost_trade.symbol in self.notified_ghost_positions:
+                        del self.notified_ghost_positions[ghost_trade.symbol]
 
                 ghosts_to_remove.append(ghost_id)
             elif ghost_trade.cycles_remaining <= 0 and not suppress_notifications:
@@ -499,6 +518,16 @@ class TradeMonitor:
             for ghost_id in ghosts_to_remove:
                 del self.recently_cleared_ghosts[ghost_id]
                 self.logger.debug(f"🔍 GHOST CLEANUP: Removed {ghost_id} from recently cleared list")
+
+            # Also cleanup old notification tracking (after 24 hours)
+            notifications_to_remove = []
+            for symbol, notification_time in self.notified_ghost_positions.items():
+                if (current_time - notification_time).total_seconds() > (24 * 3600):
+                    notifications_to_remove.append(symbol)
+
+            for symbol in notifications_to_remove:
+                del self.notified_ghost_positions[symbol]
+                self.logger.debug(f"🔍 NOTIFICATION CLEANUP: Removed {symbol} from notification tracking")
 
         except Exception as e:
             self.logger.error(f"Error cleaning up recently cleared ghosts: {e}")
