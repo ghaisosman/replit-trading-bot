@@ -268,6 +268,8 @@ class TradeMonitor:
                                        self.startup_scan_complete and 
                                        not ghost_trade.detection_notified)
 
+                        self.logger.debug(f"🔍 GHOST DEBUG: {symbol} | suppress={suppress_notifications} | startup_complete={self.startup_scan_complete} | already_notified={ghost_trade.detection_notified} | should_notify={should_notify}")
+
                         if should_notify:
                             # This is a normal anomaly check - send notification ONLY ONCE
                             self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
@@ -297,7 +299,8 @@ class TradeMonitor:
                         # Update the existing ghost trade but don't re-notify
                         if existing_ghost_id:
                             existing_ghost = self.ghost_trades[existing_ghost_id]
-                            # Update quantity if it has changed significantly
+                            self.logger.debug(f"🔍 GHOST DEBUG: Existing ghost for {symbol} | notified={existing_ghost.detection_notified} | qty_change={existing_ghost.quantity} -> {abs(position_amt)}")
+
                             if abs(existing_ghost.quantity - abs(position_amt)) > 0.1:
                                 self.logger.debug(f"🔍 GHOST CHECK: Updating ghost trade quantity for {symbol} from {existing_ghost.quantity:.6f} to {abs(position_amt):.6f}")
                                 existing_ghost.quantity = abs(position_amt)
@@ -306,7 +309,7 @@ class TradeMonitor:
                             # Ensure we don't re-notify for existing ghost trades
                             if not existing_ghost.detection_notified and not suppress_notifications and self.startup_scan_complete:
                                 # This should not happen, but just in case, mark as notified without sending
-                                self.logger.debug(f"🔍 GHOST CHECK: Marking existing ghost trade {ghost_id} as notified to prevent notifications")
+                                self.logger.warning(f"🔍 GHOST CHECK: UNEXPECTED - Existing ghost trade {ghost_id} was not marked as notified! Marking now to prevent notifications")
                                 existing_ghost.detection_notified = True
                                 existing_ghost.last_notification_time = datetime.now()
 
