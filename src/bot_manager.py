@@ -102,6 +102,11 @@ For MAINNET:
         self.order_manager.set_anomaly_detector(self.anomaly_detector)
         self.logger.info("🔍 Anomaly detector initialized and connected to order manager")
 
+        # Register strategies with anomaly detector
+        for strategy_name, strategy_config in self.strategies.items():
+            self.anomaly_detector.register_strategy(strategy_name, strategy_config['symbol'])
+            self.logger.debug(f"🔍 Registered strategy {strategy_name} with symbol {strategy_config['symbol']}")
+
         # Daily reporter
         from src.analytics.daily_reporter import DailyReporter
         self.daily_reporter = DailyReporter(self.telegram_reporter)
@@ -187,10 +192,10 @@ For MAINNET:
 
             # Initial anomaly check AFTER startup notification - SUPPRESS notifications for startup scan
             self.logger.info("🔍 PERFORMING INITIAL ANOMALY CHECK (SUPPRESSED)...")
-            self.trade_monitor.check_for_anomalies(suppress_notifications=True)
+            self.anomaly_detector.check_anomalies(suppress_notifications=True)
 
             # Log startup scan completion status
-            self.logger.info(f"🔍 STARTUP SCAN STATUS: startup_scan_complete = {self.trade_monitor.startup_scan_complete}")
+            self.logger.info(f"🔍 STARTUP SCAN STATUS: startup_protection_complete = {self.anomaly_detector.startup_complete}")
 
             await self._main_trading_loop()
 
@@ -229,7 +234,7 @@ For MAINNET:
                 await self._check_exit_conditions()
 
                 # Check for trade anomalies (orphan/ghost trades)
-                self.trade_monitor.check_for_anomalies()
+                self.anomaly_detector.check_anomalies()
 
                 # Sleep before next iteration
                 await asyncio.sleep(global_config.PRICE_UPDATE_INTERVAL)
@@ -263,8 +268,8 @@ For MAINNET:
             self.strategy_last_assessment[strategy_name] = datetime.now()
 
             # Check if strategy has blocking anomaly
-            if self.trade_monitor.has_blocking_anomaly(strategy_name):
-                anomaly_status = self.trade_monitor.get_anomaly_status(strategy_name)
+            if self.anomaly_detector.has_blocking_anomaly(strategy_name):
+                anomaly_status = self.anomaly_detector.get_anomaly_status(strategy_name)
                 self.logger.info(f"⚠️ STRATEGY BLOCKED | {strategy_name.upper()} | {strategy_config['symbol']} | Status: {anomaly_status}")
                 return
 
