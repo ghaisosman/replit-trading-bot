@@ -187,20 +187,12 @@ class TradeMonitor:
                         monitoring_strategy = f"manual_{symbol.lower()}"
                         self.logger.info(f"🔍 GHOST CHECK: No strategy monitors {symbol}, using generic name: {monitoring_strategy}")
                     
-                    # Check if we already have a ghost trade for this position
-                    existing_ghost_found = False
-                    for gid, ghost in self.ghost_trades.items():
-                        if ghost.symbol == symbol and abs(ghost.quantity - abs(position_amt)) < 0.1:
-                            existing_ghost_found = True
-                            self.logger.info(f"🔍 GHOST CHECK: Already tracking ghost trade for {symbol}")
-                            break
+                    # Generate the expected ghost ID for this position
+                    side = 'LONG' if position_amt > 0 else 'SHORT'
+                    expected_ghost_id = f"{monitoring_strategy}_{symbol}_{side}_{abs(position_amt):.6f}"
                     
-                    # Only create new ghost trade if we don't already have one for this position
-                    if not existing_ghost_found:
-                        side = 'LONG' if position_amt > 0 else 'SHORT'
-                        timestamp = int(datetime.now().timestamp())
-                        ghost_id = f"{monitoring_strategy}_{symbol}_{abs(position_amt):.6f}_{timestamp}"
-                        
+                    # Check if we already have this exact ghost trade
+                    if expected_ghost_id not in self.ghost_trades:
                         ghost_trade = GhostTrade(
                             symbol=symbol,
                             side=side,
@@ -210,7 +202,7 @@ class TradeMonitor:
                             detection_notified=True,
                             clearing_notified=False
                         )
-                        self.ghost_trades[ghost_id] = ghost_trade
+                        self.ghost_trades[expected_ghost_id] = ghost_trade
                         
                         # Get current price for USDT value calculation
                         try:
@@ -230,7 +222,7 @@ class TradeMonitor:
                             current_price=current_price
                         )
                     else:
-                        self.logger.info(f"🔍 GHOST CHECK: Not creating duplicate ghost trade for {symbol}")
+                        self.logger.info(f"🔍 GHOST CHECK: Ghost trade {expected_ghost_id} already exists, skipping duplicate")
                 else:
                     self.logger.info(f"🔍 GHOST CHECK: Position {symbol} is a known bot position")
                         
