@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 Trading Bot Web Dashboard
@@ -163,76 +162,6 @@ def dashboard():
                              active_positions=active_positions)
     except Exception as e:
         return f"Error loading dashboard: {e}"
-
-@app.route('/chart/<symbol>')
-def chart(symbol):
-    """Display trading chart for a symbol"""
-    try:
-        # Get OHLCV data
-        df = price_fetcher.get_ohlcv_data(symbol, '15m', limit=100)
-        if df is None or df.empty:
-            return f"No data available for {symbol}"
-
-        # Calculate indicators
-        df = price_fetcher.calculate_indicators(df)
-
-        # Create candlestick chart
-        fig = go.Figure()
-
-        # Add candlestick
-        fig.add_trace(go.Candlestick(
-            x=df.index,
-            open=df['open'],
-            high=df['high'],
-            low=df['low'],
-            close=df['close'],
-            name='Price'
-        ))
-
-        # Add RSI if available
-        if 'rsi' in df.columns:
-            fig.add_trace(go.Scatter(
-                x=df.index,
-                y=df['rsi'],
-                name='RSI',
-                yaxis='y2',
-                line=dict(color='purple')
-            ))
-
-        # Add MACD if available
-        if 'macd' in df.columns:
-            fig.add_trace(go.Scatter(
-                x=df.index,
-                y=df['macd'],
-                name='MACD',
-                yaxis='y3',
-                line=dict(color='blue')
-            ))
-
-        if 'macd_signal' in df.columns:
-            fig.add_trace(go.Scatter(
-                x=df.index,
-                y=df['macd_signal'],
-                name='MACD Signal',
-                yaxis='y3',
-                line=dict(color='red')
-            ))
-
-        # Update layout
-        fig.update_layout(
-            title=f'{symbol} Trading Chart',
-            yaxis=dict(title='Price', side='left'),
-            yaxis2=dict(title='RSI', side='right', overlaying='y', range=[0, 100]),
-            yaxis3=dict(title='MACD', side='right', overlaying='y', position=0.9),
-            xaxis_rangeslider_visible=False,
-            height=600
-        )
-
-        chart_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
-        return render_template('chart.html', symbol=symbol, chart=chart_json)
-    except Exception as e:
-        return f"Error loading chart: {e}"
 
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
@@ -471,17 +400,6 @@ def update_strategy(strategy_name):
     except Exception as e:
         return jsonify({'success': False, 'message': f'Failed to update strategy: {e}'})
 
-@app.route('/api/default-params', methods=['POST'])
-def update_default_params():
-    """Update default trading parameters"""
-    try:
-        data = request.get_json()
-        trading_config_manager.update_default_params(data)
-
-        return jsonify({'success': True, 'message': 'Default parameters updated'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': f'Failed to update parameters: {e}'})
-
 @app.route('/api/balance')
 def get_balance():
     """Get account balance"""
@@ -490,15 +408,6 @@ def get_balance():
         return jsonify({'balance': balance})
     except Exception as e:
         return jsonify({'error': f'Failed to get balance: {e}'})
-
-@app.route('/api/price/<symbol>')
-def get_price(symbol):
-    """Get current price for symbol"""
-    try:
-        price = get_current_price(symbol)
-        return jsonify({'symbol': symbol, 'price': price})
-    except Exception as e:
-        return jsonify({'error': f'Failed to get price: {e}'})
 
 @app.route('/api/positions')
 def get_positions():
@@ -575,160 +484,6 @@ def get_current_rsi(symbol):
     except Exception as e:
         logging.getLogger(__name__).error(f"Error getting RSI for {symbol}: {e}")
         return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/recent_trades')
-def recent_trades():
-    """Get recent trades data"""
-    try:
-        trades_file = trades_dir / "all_trades.json"
-        if trades_file.exists():
-            with open(trades_file, 'r') as f:
-                trades = json.load(f)
-
-            # Get last 10 trades
-            recent = trades[-10:] if trades else []
-            return jsonify({'success': True, 'trades': recent})
-        else:
-            return jsonify({'success': True, 'trades': []})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-# Initialize ML analyzer
-ml_analyzer = MLTradeAnalyzer()
-
-@app.route('/ml-reports')
-def ml_reports():
-    """ML Reports dashboard page"""
-    return render_template('ml_reports.html')
-
-@app.route('/api/train_models', methods=['POST'])
-def train_ml_models():
-    """Train ML models and return results"""
-    try:
-        results = ml_analyzer.train_models()
-        if "error" in results:
-            return jsonify({'success': False, 'error': results['error']})
-        return jsonify({'success': True, **results})
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'Failed to train models: {e}'})
-
-@app.route('/api/ml_insights')
-def get_ml_insights():
-    """Get ML trading insights"""
-    try:
-        insights = ml_analyzer.generate_insights()
-        if "error" in insights:
-            return jsonify({'success': False, 'error': insights['error']})
-        return jsonify({'success': True, 'insights': insights})
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'Failed to generate insights: {e}'})
-
-@app.route('/api/ml_predictions')
-def get_ml_predictions():
-    """Get ML market predictions"""
-    try:
-        # Sample predictions for current market conditions
-        sample_features = [
-            {
-                'strategy': 'rsi_oversold',
-                'symbol': 'BTCUSDT',
-                'side': 'BUY',
-                'leverage': 5,
-                'position_size_usdt': 100,
-                'rsi_entry': 25,
-                'macd_entry': -0.5,
-                'hour_of_day': datetime.now().hour,
-                'day_of_week': datetime.now().weekday(),
-                'month': datetime.now().month,
-                'market_trend': 'BULLISH',
-                'volatility_score': 0.3,
-                'signal_strength': 0.8
-            },
-            {
-                'strategy': 'macd_divergence',
-                'symbol': 'ETHUSDT',
-                'side': 'BUY',
-                'leverage': 5,
-                'position_size_usdt': 100,
-                'rsi_entry': 45,
-                'macd_entry': 0.2,
-                'hour_of_day': datetime.now().hour,
-                'day_of_week': datetime.now().weekday(),
-                'month': datetime.now().month,
-                'market_trend': 'BULLISH',
-                'volatility_score': 0.4,
-                'signal_strength': 0.7
-            }
-        ]
-
-        predictions = []
-        for features in sample_features:
-            prediction = ml_analyzer.predict_trade_outcome(features)
-            if "error" not in prediction:
-                prediction['symbol'] = features['symbol']
-                prediction['predicted_profitable'] = prediction.get('profit_probability', 0) > 0.5
-                predictions.append(prediction)
-
-        return jsonify({'success': True, 'predictions': predictions})
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'Failed to get predictions: {e}'})
-
-@app.route('/api/daily-report')
-def get_daily_report():
-    """Get daily trading report"""
-    try:
-        from src.analytics.trade_logger import trade_logger
-        from datetime import datetime, timedelta
-
-        # Get yesterday's data by default
-        date = request.args.get('date')
-        if date:
-            report_date = datetime.strptime(date, '%Y-%m-%d')
-        else:
-            report_date = datetime.now() - timedelta(days=1)
-
-        daily_summary = trade_logger.get_daily_summary(report_date)
-        return jsonify(daily_summary)
-    except Exception as e:
-        return jsonify({'error': f'Failed to get daily report: {e}'})
-
-@app.route('/api/daily-report/send', methods=['POST'])
-def send_daily_report():
-    """Send daily report to Telegram"""
-    try:
-        from src.analytics.daily_reporter import DailyReporter
-        from src.reporting.telegram_reporter import TelegramReporter
-        from datetime import datetime, timedelta
-
-        # Get date from request or use yesterday
-        data = request.get_json() or {}
-        date = data.get('date')
-        if date:
-            report_date = datetime.strptime(date, '%Y-%m-%d')
-        else:
-            report_date = datetime.now() - timedelta(days=1)
-
-        # Initialize and send report
-        telegram_reporter = TelegramReporter()
-        daily_reporter = DailyReporter(telegram_reporter)
-        success = daily_reporter.send_manual_report(report_date)
-
-        return jsonify({'success': success, 'message': 'Report sent' if success else 'Failed to send report'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'Failed to send report: {e}'})
-
-@app.route('/api/trade-data/export')
-def export_trade_data():
-    """Export trade data for ML analysis"""
-    try:
-        from src.analytics.trade_logger import trade_logger
-        filename = trade_logger.export_for_ml()
-        if filename:
-            return jsonify({'success': True, 'filename': filename})
-        else:
-            return jsonify({'success': False, 'error': 'No data to export'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'Failed to export data: {e}'})
 
 @app.route('/api/console-log')
 def get_console_log():
@@ -827,52 +582,6 @@ def get_console_log():
         return jsonify({'success': True, 'logs': log_lines})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to get console log: {e}'})
-
-@app.route('/api/current-config')
-def get_current_config():
-    """Get current bot configuration"""
-    try:
-        config_data = {}
-
-        # Get default parameters
-        config_data['default_params'] = trading_config_manager.default_params.to_dict()
-
-        # Get strategy overrides
-        config_data['strategy_overrides'] = trading_config_manager.strategy_overrides.copy()
-
-        # Get final configurations for each strategy
-        config_data['final_configs'] = {}
-        for strategy_name in trading_config_manager.strategy_overrides.keys():
-            base_config = {}
-            final_config = trading_config_manager.get_strategy_config(strategy_name, base_config)
-            config_data['final_configs'][strategy_name] = final_config
-
-        # Check if bot is running and get its active config
-        config_data['bot_status'] = {
-            'running': False,
-            'active_strategies': []
-        }
-
-        if bot_manager and hasattr(bot_manager, 'strategies'):
-            config_data['bot_status']['running'] = getattr(bot_manager, 'is_running', False)
-            config_data['bot_status']['active_strategies'] = list(bot_manager.strategies.keys()) if bot_manager.strategies else []
-
-            # Get actual bot strategy configs
-            if bot_manager.strategies:
-                config_data['bot_active_configs'] = bot_manager.strategies.copy()
-
-        # Also check shared bot manager
-        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-        if shared_bot_manager and hasattr(shared_bot_manager, 'strategies'):
-            config_data['bot_status']['running'] = getattr(shared_bot_manager, 'is_running', False)
-            config_data['bot_status']['active_strategies'] = list(shared_bot_manager.strategies.keys()) if shared_bot_manager.strategies else []
-
-            if shared_bot_manager.strategies:
-                config_data['bot_active_configs'] = shared_bot_manager.strategies.copy()
-
-        return jsonify({'success': True, 'config': config_data})
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'Failed to get configuration: {e}'})
 
 def get_bot_status():
     """Get current bot status"""
