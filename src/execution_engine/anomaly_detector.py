@@ -209,10 +209,19 @@ class AnomalyDetector:
         self.logger.info(f"🔍 Registered strategy for monitoring: {strategy_name} -> {symbol}")
     
     def register_bot_trade(self, symbol: str, strategy_name: str):
-        """Register that bot just placed a trade"""
+        """Register that bot just placed a trade or recovered a position"""
         self.bot_trades_register[symbol] = datetime.now()
-        self.logger.info(f"🔍 BOT TRADE REGISTERED: {symbol} ({strategy_name}) - "
-                        f"Anomaly detection paused for {self.bot_trade_cooldown}s")
+        
+        # For recovered positions during startup, extend protection period
+        if not self.startup_complete:
+            # Extend protection to 5 minutes for recovered positions
+            extended_time = datetime.now() - timedelta(seconds=self.bot_trade_cooldown - 300)
+            self.bot_trades_register[symbol] = extended_time
+            self.logger.info(f"🔍 RECOVERED POSITION REGISTERED: {symbol} ({strategy_name}) - "
+                           f"Extended anomaly protection for 5 minutes")
+        else:
+            self.logger.info(f"🔍 BOT TRADE REGISTERED: {symbol} ({strategy_name}) - "
+                           f"Anomaly detection paused for {self.bot_trade_cooldown}s")
     
     def is_bot_trade_protected(self, symbol: str) -> bool:
         """Check if symbol is protected due to recent bot trade"""

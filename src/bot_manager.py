@@ -551,7 +551,20 @@ For MAINNET:
                                     self.order_manager.active_positions[strategy_name] = recovered_position
                                     recovered_count += 1
 
-                                    self.logger.info(f"✅ POSITION RECOVERED | {strategy_name.upper()} | {symbol} | Entry: ${entry_price:,.4f} | Qty: {quantity:,.6f}")
+                                    # CRITICAL: Notify anomaly detector that this is a legitimate bot position
+                                    self.anomaly_detector.register_bot_trade(symbol, strategy_name)
+                                    
+                                    # Clear any existing ghost anomaly for this position
+                                    from src.execution_engine.anomaly_detector import AnomalyStatus
+                                    ghost_anomaly_id = f"ghost_{strategy_name}_{symbol}"
+                                    existing_anomaly = self.anomaly_detector.db.get_anomaly(ghost_anomaly_id)
+                                    if existing_anomaly:
+                                        self.anomaly_detector.db.update_anomaly(ghost_anomaly_id, 
+                                                                               status=AnomalyStatus.CLEARED,
+                                                                               cleared_at=datetime.now())
+                                        self.logger.info(f"🧹 CLEARED GHOST ANOMALY | {strategy_name.upper()} | {symbol} | Position was recovered as legitimate bot trade")
+
+                                    self.logger.info(f"✅ POSITION RECOVERED | {strategy_name.upper()} | {symbol} | Entry: ${entry_price:,.4f} | Qty: {quantity:,.6f} | Anomaly detector notified")
                                 else:
                                     # This is likely a manual position - let ghost trade detection handle it
                                     self.logger.warning(f"🚨 MANUAL POSITION DETECTED | {strategy_name.upper()} | {symbol} | Not recovering - ghost trade detection will handle it")
