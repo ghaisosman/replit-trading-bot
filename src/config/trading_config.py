@@ -75,7 +75,15 @@ class TradingConfigManager:
         if strategy_name not in self.strategy_overrides:
             self.strategy_overrides[strategy_name] = {}
         
+        # Ensure assessment_interval is properly handled
+        if 'assessment_interval' in updates:
+            updates['assessment_interval'] = int(updates['assessment_interval'])
+        
         self.strategy_overrides[strategy_name].update(updates)
+        
+        # Log the update for debugging
+        import logging
+        logging.getLogger(__name__).info(f"📝 Strategy {strategy_name} config updated: {updates}")
     
     def update_default_params(self, updates: Dict[str, Any]):
         """Update default trading parameters for all strategies"""

@@ -408,6 +408,7 @@
                         document.getElementById('strategyLeverage').value = config.leverage || '';
                         document.getElementById('strategyTimeframe').value = config.timeframe || '';
                         document.getElementById('strategyMaxLoss').value = config.max_loss_pct || 10;
+                        document.getElementById('assessmentInterval').value = config.assessment_interval || 300;
 
                         // Hide all strategy-specific sections first
                         document.getElementById('rsiParameters').style.display = 'none';
@@ -446,10 +447,11 @@
             const strategyName = document.getElementById('strategyName').value;
             const config = {
                 symbol: document.getElementById('strategySymbol').value,
-                margin: parseFloat(document.getElementById('strategyMargin').value),
-                leverage: parseInt(document.getElementById('strategyLeverage').value),
-                timeframe: document.getElementById('strategyTimeframe').value,
-                max_loss_pct: parseFloat(document.getElementById('strategyMaxLoss').value) || 10
+                margin: parseFloat(document.getElementById('strategyMargin').value) || 50,
+                leverage: parseInt(document.getElementById('strategyLeverage').value) || 5,
+                timeframe: document.getElementById('strategyTimeframe').value || '15m',
+                max_loss_pct: parseFloat(document.getElementById('strategyMaxLoss').value) || 10,
+                assessment_interval: parseInt(document.getElementById('assessmentInterval').value) || 300
             };
 
             // Add RSI-specific parameters if RSI strategy
