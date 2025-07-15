@@ -749,11 +749,7 @@ def get_bot_status():
             'strategies': [],
             'balance': 0,
             'error': f'Critical status error: {str(e)}'
-        } {
-                'running': shared_bot_manager.is_running,
-                'active_positions': len(shared_bot_manager.order_manager.active_positions) if shared_bot_manager.order_manager else 0,
-                'strategies': list(shared_bot_manager.strategies.keys()) if shared_bot_manager.strategies else []
-            }
+        }
         except Exception as e:
             logging.getLogger(__name__).debug(f"Error getting shared bot status: {e}")
 
