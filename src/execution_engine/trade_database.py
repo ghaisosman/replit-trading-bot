@@ -120,7 +120,7 @@ class TradeDatabase:
             trades_to_remove = []
             
             for trade_id, trade_data in self.trades.items():
-                entry_time_str = trade_data.get('entry_time')
+                entry_time_str = trade_data.get('entry_time') or trade_data.get('timestamp')
                 if entry_time_str:
                     try:
                         entry_time = datetime.fromisoformat(entry_time_str.replace('Z', '+00:00'))
@@ -138,3 +138,37 @@ class TradeDatabase:
                 
         except Exception as e:
             self.logger.error(f"Error cleaning up old trades: {e}")
+    
+    def cleanup_stale_open_trades(self, hours: int = 24):
+        """Clean up stale open trades that are likely already closed"""
+        try:
+            current_time = datetime.now()
+            trades_to_close = []
+            
+            for trade_id, trade_data in self.trades.items():
+                # Check if trade is marked as OPEN but is old
+                if trade_data.get('trade_status') == 'OPEN':
+                    entry_time_str = trade_data.get('timestamp')
+                    if entry_time_str:
+                        try:
+                            entry_time = datetime.fromisoformat(entry_time_str.replace('Z', '+00:00'))
+                            hours_old = (current_time - entry_time).total_seconds() / 3600
+                            
+                            if hours_old > hours:
+                                trades_to_close.append(trade_id)
+                        except ValueError:
+                            continue
+            
+            # Mark stale trades as closed with unknown exit
+            for trade_id in trades_to_close:
+                self.trades[trade_id]['trade_status'] = 'CLOSED'
+                self.trades[trade_id]['exit_reason'] = 'Stale Trade - Auto Closed'
+                self.trades[trade_id]['pnl_usdt'] = 0
+                self.trades[trade_id]['pnl_percentage'] = 0
+            
+            if trades_to_close:
+                self._save_database()
+                self.logger.info(f"Marked {len(trades_to_close)} stale open trades as closed")
+                
+        except Exception as e:
+            self.logger.error(f"Error cleaning up stale trades: {e}")

@@ -156,7 +156,8 @@ class TradeLogger:
         return trade_id
 
     def log_trade_exit(self, trade_id: str, exit_price: float, exit_reason: str,
-                      pnl_usdt: float, pnl_percentage: float, max_drawdown: float = None):
+                      pnl_usdt: float = None, pnl_percentage: float = None, max_drawdown: float = None,
+                      exit_time: datetime = None):
         """Log trade exit and calculate final metrics"""
 
         # Find the trade record
@@ -170,6 +171,22 @@ class TradeLogger:
             self.logger.error(f"❌ Trade record not found for ID: {trade_id}")
             return
 
+        # Use provided exit_time or current time
+        actual_exit_time = exit_time if exit_time else datetime.now()
+
+        # Calculate accurate P&L if not provided
+        if pnl_usdt is None:
+            if trade_record.side == "BUY":
+                # For BUY: profit when exit price > entry price
+                pnl_usdt = (exit_price - trade_record.entry_price) * trade_record.quantity
+            else:
+                # For SELL: profit when exit price < entry price
+                pnl_usdt = (trade_record.entry_price - exit_price) * trade_record.quantity
+        
+        # Calculate accurate percentage if not provided
+        if pnl_percentage is None:
+            pnl_percentage = (pnl_usdt / trade_record.position_value_usdt) * 100
+
         # Update trade record
         trade_record.exit_price = exit_price
         trade_record.exit_reason = exit_reason
@@ -178,9 +195,8 @@ class TradeLogger:
         trade_record.trade_status = "CLOSED"
         trade_record.max_drawdown = max_drawdown
 
-        # Calculate duration
-        exit_time = datetime.now()
-        duration = exit_time - trade_record.timestamp
+        # Calculate accurate duration
+        duration = actual_exit_time - trade_record.timestamp
         trade_record.duration_minutes = int(duration.total_seconds() / 60)
 
         # Calculate risk-reward ratio
