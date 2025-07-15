@@ -138,7 +138,7 @@ For MAINNET:
 
         # Position logging throttle
         self.last_position_log_time = {}
-        self.position_log_interval = 60  # Log positions only once per minute
+        self.position_log_interval = 60  # Log active positions every 60 seconds until closed
 
         # Initialize anomaly detector for orphan/ghost detection
         self.anomaly_detector = AnomalyDetector(
@@ -374,7 +374,7 @@ For MAINNET:
                     # For futures trading, PnL percentage should be calculated against margin invested, not position value
                     pnl_percent = (pnl_usdt / margin_invested) * 100 if margin_invested > 0 else 0
 
-                    # Show comprehensive position status with proper formatting
+                    # Show comprehensive position status with proper formatting - fixed nested box issue
                     self.logger.info(f"""╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
@@ -506,7 +506,20 @@ For MAINNET:
 
                 # Record this signal time
                 self.last_signal_time[signal_key] = current_time
-                self.logger.info(f"🚨 ENTRY SIGNAL DETECTED | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | ${signal.entry_price:,.1f} | Reason: {signal.reason}")
+                
+                # Entry signal detection format
+                entry_signal_message = f"""╔═══════════════════════════════════════════════════╗
+║ 🚨 ENTRY SIGNAL DETECTED                         ║
+║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
+║                                                   ║
+║ 🎯 Strategy: {strategy_name.upper()}                        ║
+║ 💱 Symbol: {strategy_config['symbol']}                              ║
+║ 📊 Signal Type: {signal.signal_type.value}                         ║
+║ 💵 Entry Price: ${signal.entry_price:,.1f}                          ║
+║ 📝 Reason: {signal.reason}                         ║
+║                                                   ║
+╚═══════════════════════════════════════════════════╝"""
+                self.logger.info(entry_signal_message)
 
                 # Execute the signal with the config that includes the strategy name
                 position = self.order_manager.execute_signal(signal, strategy_config_with_name)
@@ -532,32 +545,34 @@ For MAINNET:
                 if 'rsi' in df.columns:
                     current_rsi = df['rsi'].iloc[-1]
 
-                # Strategy-specific consolidated market assessment
+                # Strategy-specific consolidated market assessment - single message
                 if strategy_name == 'macd_divergence':
                     # Get MACD values for display
                     macd_line = df['macd'].iloc[-1] if 'macd' in df.columns else 0.0
                     macd_signal = df['macd_signal'].iloc[-1] if 'macd_signal' in df.columns else 0.0
                     macd_histogram = df['macd_histogram'].iloc[-1] if 'macd_histogram' in df.columns else 0.0
                     
-                    # Consolidated MACD market assessment
-                    self.logger.info(f"📈 MARKET ASSESSMENT")
-                    self.logger.info(f"Interval {assessment_interval} seconds")
-                    self.logger.info(f"💱 Symbol: {strategy_config['symbol']}")
-                    self.logger.info(f"🎯 {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x")
-                    self.logger.info(f"💵 Price: ${current_price:,.1f}")
-                    self.logger.info(f"📈 MACD: {macd_line:.6f} | Signal: {macd_signal:.6f} | Histogram: {macd_histogram:.6f}")
-                    self.logger.info(f"🔍 SCANNING FOR ENTRY")
+                    # Consolidated MACD market assessment - single message
+                    assessment_message = f"""📈 MARKET ASSESSMENT
+Interval {assessment_interval} seconds
+💱 Symbol: {strategy_config['symbol']}
+🎯 {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x
+💵 Price: ${current_price:,.1f}
+📈 MACD: {macd_line:.6f} | Signal: {macd_signal:.6f} | Histogram: {macd_histogram:.6f}
+🔍 SCANNING FOR ENTRY"""
+                    self.logger.info(assessment_message)
                     
                 elif strategy_name == 'rsi_oversold':
-                    # Consolidated RSI market assessment
-                    self.logger.info(f"📈 MARKET ASSESSMENT")
-                    self.logger.info(f"Interval {assessment_interval} seconds")
-                    self.logger.info(f"💱 Symbol: {strategy_config['symbol']}")
-                    self.logger.info(f"🎯 {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x")
-                    self.logger.info(f"💵 Price: ${current_price:,.1f}")
-                    if current_rsi is not None:
-                        self.logger.info(f"📈 RSI: {current_rsi:.2f}")
-                    self.logger.info(f"🔍 SCANNING FOR ENTRY")
+                    # Consolidated RSI market assessment - single message
+                    rsi_text = f"📈 RSI: {current_rsi:.2f}" if current_rsi is not None else "📈 RSI: N/A"
+                    assessment_message = f"""📈 MARKET ASSESSMENT
+Interval {assessment_interval} seconds
+💱 Symbol: {strategy_config['symbol']}
+🎯 {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x
+💵 Price: ${current_price:,.1f}
+{rsi_text}
+🔍 SCANNING FOR ENTRY"""
+                    self.logger.info(assessment_message)
 
         except Exception as e:
             self.logger.error(f"Error processing strategy {strategy_name}: {e}")

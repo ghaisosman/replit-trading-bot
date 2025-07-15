@@ -161,8 +161,39 @@ class OrderManager:
             # Record the time of this order for ghost detection timing
             self.last_order_time = datetime.now()
 
-            # Clean log message with essential trade info including trade ID
-            self.logger.info(f"✅ TRADE OPENED | {strategy_name.upper()} | {position.symbol} | ID: {position.trade_id} | Entry: ${position.entry_price:.4f}")
+            # Get strategy config for additional details
+            timeframe = strategy_config.get('timeframe', 'N/A')
+            margin = strategy_config.get('margin', 0.0)
+            leverage = strategy_config.get('leverage', 1)
+            
+            # Get current indicator value based on strategy
+            current_indicator = "N/A"
+            try:
+                if 'macd' in strategy_name.lower():
+                    # Try to get current MACD value - this would need to be passed from signal processor
+                    current_indicator = "MACD: N/A"  # Could be enhanced to show actual MACD value
+                elif 'rsi' in strategy_name.lower():
+                    # Try to get current RSI value - this would need to be passed from signal processor  
+                    current_indicator = "RSI: N/A"  # Could be enhanced to show actual RSI value
+            except:
+                current_indicator = "N/A"
+            
+            # Position opened format with requested content
+            position_opened_message = f"""╔═══════════════════════════════════════════════════╗
+║ ✅ POSITION OPENED                               ║
+║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
+║                                                   ║
+║ 🎯 Strategy: {strategy_name.upper()}                        ║
+║ 💱 Symbol: {position.symbol}                              ║
+║ 📊 Side: {position.side}                                   ║
+║ ⏱️ Timeframe: {timeframe}                                ║
+║ 💸 Margin: ${margin:.1f} USDT                          ║
+║ ⚡ Leverage: {leverage}x                                ║
+║ 💵 Entry Price: ${position.entry_price:.4f}                                ║
+║ 📈 Current {current_indicator}                         ║
+║                                                   ║
+╚═══════════════════════════════════════════════════╝"""
+            self.logger.info(position_opened_message)
             return position
 
         except Exception as e:
@@ -257,7 +288,22 @@ class OrderManager:
                 del self.active_positions[strategy_name]
 
             duration_minutes = (datetime.now() - position.entry_time).total_seconds() / 60 if position.entry_time else 0
-            self.logger.info(f"🔴 POSITION CLOSED | {strategy_name} | {symbol} | PnL: ${pnl:.2f} USDT ({pnl_percentage:+.2f}%) | Duration: {duration_minutes:.1f}min")
+            
+            # Position closed format
+            position_closed_message = f"""╔═══════════════════════════════════════════════════╗
+║ 🔴 POSITION CLOSED                               ║
+║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
+║                                                   ║
+║ 🎯 Strategy: {strategy_name.upper()}                        ║
+║ 💱 Symbol: {symbol}                              ║
+║ 📊 Side: {position.side}                                   ║
+║ 💵 Entry: ${position.entry_price:.4f}                                ║
+║ 🚪 Exit: ${current_price:.4f}                                 ║
+║ 💰 PnL: ${pnl:.2f} USDT ({pnl_percentage:+.2f}%)                     ║
+║ 📝 Exit Reason: {reason}                 ║
+║                                                   ║
+╚═══════════════════════════════════════════════════╝"""
+            self.logger.info(position_closed_message)
 
             return {
                 'symbol': symbol,
