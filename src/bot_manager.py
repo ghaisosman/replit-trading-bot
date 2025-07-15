@@ -719,7 +719,7 @@ For MAINNET:
                                 quantity = abs(position_amt)
 
                                 # Re-validate this position with enhanced validation
-                                is_legitimate, trade_id = self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price)```python
+                                is_legitimate, trade_id = self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price)
                                 if is_legitimate and trade_id:
                                     self.logger.info(f"🔍 MISIDENTIFIED POSITION FOUND | {strategy_name.upper()} | {symbol} | Clearing ghost anomaly and recovering position")
 
