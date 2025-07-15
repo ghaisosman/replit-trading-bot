@@ -364,20 +364,26 @@ class OrderManager:
             return None
 
     def _log_trade_entry(self, position: Position) -> None:
-        """Log trade entry for analytics with confirmed trade ID"""
+        """Log trade entry for analytics"""
         try:
-            # Log trade entry for analytics
-            trade_logger.log_trade_entry(
-                trade_id=position.trade_id,
+            # Calculate margin used (position value / leverage)
+            margin_used = (position.entry_price * position.quantity) / 1  # Default leverage if not stored
+            
+            # Log trade entry for analytics - trade_logger generates its own ID
+            generated_trade_id = trade_logger.log_trade_entry(
                 strategy_name=position.strategy_name,
                 symbol=position.symbol,
                 side=position.side,
                 entry_price=position.entry_price,
                 quantity=position.quantity,
-                stop_loss=position.stop_loss,
-                take_profit=position.take_profit
+                margin_used=margin_used,
+                leverage=1  # Default leverage, could be enhanced to store actual leverage
             )
-            self.logger.info(f"📊 TRADE ENTRY LOGGED | ID: {position.trade_id} | {position.strategy_name} | {position.symbol}")
+            
+            # Store the generated trade ID in the position
+            position.trade_id = generated_trade_id
+            
+            self.logger.info(f"📊 TRADE ENTRY LOGGED | ID: {generated_trade_id} | {position.strategy_name} | {position.symbol}")
 
         except Exception as e:
             self.logger.error(f"❌ Error logging trade entry: {e}")
