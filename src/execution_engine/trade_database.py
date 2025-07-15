@@ -1,148 +1,140 @@
 
 import json
 import os
-from datetime import datetime
-from typing import Dict, Optional, Any
-from dataclasses import dataclass, asdict
-import uuid
 import logging
-
-@dataclass
-class TradeRecord:
-    trade_id: str
-    strategy_name: str
-    symbol: str
-    side: str
-    quantity: float
-    entry_price: float
-    entry_time: datetime
-    order_id: Optional[int] = None
-    status: str = "OPEN"
-    exit_price: Optional[float] = None
-    exit_time: Optional[datetime] = None
-    exit_reason: Optional[str] = None
-    pnl: Optional[float] = None
+from typing import Optional, Dict, Any, List
+from datetime import datetime
 
 class TradeDatabase:
-    """Persistent trade database for position recovery"""
+    """Simple trade database for tracking bot trades and validating positions"""
     
-    def __init__(self, db_file: str = "trading_data/trades.json"):
-        self.db_file = db_file
+    def __init__(self, db_file: str = "trading_data/trade_database.json"):
         self.logger = logging.getLogger(__name__)
-        self.trades: Dict[str, TradeRecord] = {}
+        self.db_file = db_file
+        self.trades = {}
         self._ensure_directory()
-        self._load_trades()
+        self._load_database()
     
     def _ensure_directory(self):
-        """Ensure trading_data directory exists"""
+        """Ensure the trading_data directory exists"""
         os.makedirs(os.path.dirname(self.db_file), exist_ok=True)
     
-    def _load_trades(self):
-        """Load trades from JSON file"""
+    def _load_database(self):
+        """Load trades from database file"""
         try:
             if os.path.exists(self.db_file):
                 with open(self.db_file, 'r') as f:
                     data = json.load(f)
-                
-                for trade_id, trade_data in data.items():
-                    # Convert datetime strings back to datetime objects
-                    if 'entry_time' in trade_data and trade_data['entry_time']:
-                        trade_data['entry_time'] = datetime.fromisoformat(trade_data['entry_time'])
-                    if 'exit_time' in trade_data and trade_data['exit_time']:
-                        trade_data['exit_time'] = datetime.fromisoformat(trade_data['exit_time'])
-                    
-                    self.trades[trade_id] = TradeRecord(**trade_data)
-                
-                self.logger.info(f"✅ TRADE DB: Loaded {len(self.trades)} trades from database")
+                    self.trades = data.get('trades', {})
+                    self.logger.debug(f"Loaded {len(self.trades)} trades from database")
             else:
-                self.logger.info("📊 TRADE DB: No existing trade database found, starting fresh")
+                self.logger.info("Trade database file not found, starting with empty database")
+                self.trades = {}
         except Exception as e:
-            self.logger.error(f"❌ TRADE DB: Error loading trades: {e}")
+            self.logger.error(f"Error loading trade database: {e}")
             self.trades = {}
     
-    def _save_trades(self):
-        """Save trades to JSON file"""
+    def _save_database(self):
+        """Save trades to database file"""
         try:
-            data = {}
-            for trade_id, trade_record in self.trades.items():
-                trade_data = asdict(trade_record)
-                # Convert datetime objects to strings for JSON serialization
-                if trade_data['entry_time']:
-                    trade_data['entry_time'] = trade_data['entry_time'].isoformat()
-                if trade_data['exit_time']:
-                    trade_data['exit_time'] = trade_data['exit_time'].isoformat()
-                
-                data[trade_id] = trade_data
-            
+            data = {
+                'trades': self.trades,
+                'last_updated': datetime.now().isoformat()
+            }
             with open(self.db_file, 'w') as f:
                 json.dump(data, f, indent=2)
-            
-            self.logger.debug(f"💾 TRADE DB: Saved {len(self.trades)} trades to database")
+            self.logger.debug(f"Saved {len(self.trades)} trades to database")
         except Exception as e:
-            self.logger.error(f"❌ TRADE DB: Error saving trades: {e}")
+            self.logger.error(f"Error saving trade database: {e}")
     
-    def create_trade(self, strategy_name: str, symbol: str, side: str, 
-                    quantity: float, entry_price: float, order_id: Optional[int] = None) -> str:
-        """Create a new trade record and return trade ID"""
-        trade_id = str(uuid.uuid4())
-        
-        trade_record = TradeRecord(
-            trade_id=trade_id,
-            strategy_name=strategy_name,
-            symbol=symbol,
-            side=side,
-            quantity=quantity,
-            entry_price=entry_price,
-            entry_time=datetime.now(),
-            order_id=order_id,
-            status="OPEN"
-        )
-        
-        self.trades[trade_id] = trade_record
-        self._save_trades()
-        
-        self.logger.info(f"📊 TRADE DB: Created trade {trade_id} | {strategy_name} | {symbol} | {side} | {quantity}")
-        return trade_id
-    
-    def close_trade(self, trade_id: str, exit_price: float, exit_reason: str, pnl: float):
-        """Close a trade record"""
-        if trade_id in self.trades:
-            trade = self.trades[trade_id]
-            trade.exit_price = exit_price
-            trade.exit_time = datetime.now()
-            trade.exit_reason = exit_reason
-            trade.pnl = pnl
-            trade.status = "CLOSED"
-            
-            self._save_trades()
-            self.logger.info(f"📊 TRADE DB: Closed trade {trade_id} | PnL: ${pnl:.2f}")
-        else:
-            self.logger.warning(f"❌ TRADE DB: Trade ID {trade_id} not found for closing")
-    
-    def get_open_trades(self) -> Dict[str, TradeRecord]:
-        """Get all open trades"""
-        return {tid: trade for tid, trade in self.trades.items() if trade.status == "OPEN"}
+    def add_trade(self, trade_id: str, trade_data: Dict[str, Any]):
+        """Add a trade to the database"""
+        try:
+            self.trades[trade_id] = trade_data
+            self._save_database()
+            self.logger.debug(f"Added trade {trade_id} to database")
+        except Exception as e:
+            self.logger.error(f"Error adding trade to database: {e}")
     
     def find_trade_by_position(self, strategy_name: str, symbol: str, side: str, 
-                              quantity: float, entry_price: float, tolerance: float = 0.01) -> Optional[str]:
-        """Find a trade ID that matches the given position parameters"""
-        for trade_id, trade in self.trades.items():
-            if (trade.status == "OPEN" and
-                trade.strategy_name == strategy_name and
-                trade.symbol == symbol and
-                trade.side == side and
-                abs(trade.quantity - quantity) < tolerance and
-                abs(trade.entry_price - entry_price) < tolerance):
-                
-                self.logger.info(f"✅ TRADE DB: Found matching trade {trade_id} for {strategy_name} {symbol}")
-                return trade_id
-        
-        self.logger.debug(f"❌ TRADE DB: No matching trade found for {strategy_name} {symbol} {side} {quantity}")
-        return None
+                             quantity: float, entry_price: float, tolerance: float = 0.01) -> Optional[str]:
+        """Find a trade ID by position details with tolerance for price/quantity matching"""
+        try:
+            self.logger.debug(f"Searching for trade: {strategy_name} | {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price}")
+            
+            for trade_id, trade_data in self.trades.items():
+                # Match strategy and symbol
+                if (trade_data.get('strategy_name') == strategy_name and 
+                    trade_data.get('symbol') == symbol and
+                    trade_data.get('side') == side):
+                    
+                    # Check quantity match with tolerance
+                    db_quantity = trade_data.get('quantity', 0)
+                    quantity_diff = abs(db_quantity - quantity)
+                    quantity_tolerance = max(quantity * tolerance, 0.001)
+                    
+                    # Check price match with tolerance
+                    db_entry_price = trade_data.get('entry_price', 0)
+                    price_diff = abs(db_entry_price - entry_price)
+                    price_tolerance = max(entry_price * tolerance, 0.01)
+                    
+                    if quantity_diff <= quantity_tolerance and price_diff <= price_tolerance:
+                        self.logger.debug(f"Found matching trade: {trade_id}")
+                        return trade_id
+                    else:
+                        self.logger.debug(f"Trade {trade_id} close but not exact match - "
+                                        f"Qty diff: {quantity_diff:.6f} (tol: {quantity_tolerance:.6f}), "
+                                        f"Price diff: {price_diff:.4f} (tol: {price_tolerance:.4f})")
+            
+            self.logger.debug(f"No matching trade found for {strategy_name} | {symbol}")
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error searching for trade: {e}")
+            return None
     
-    def get_trade(self, trade_id: str) -> Optional[TradeRecord]:
-        """Get a specific trade by ID"""
+    def get_trade(self, trade_id: str) -> Optional[Dict[str, Any]]:
+        """Get trade data by ID"""
         return self.trades.get(trade_id)
-
-# Global trade database instance
-trade_db = TradeDatabase()
+    
+    def update_trade(self, trade_id: str, updates: Dict[str, Any]):
+        """Update trade data"""
+        try:
+            if trade_id in self.trades:
+                self.trades[trade_id].update(updates)
+                self._save_database()
+                self.logger.debug(f"Updated trade {trade_id}")
+            else:
+                self.logger.warning(f"Trade {trade_id} not found for update")
+        except Exception as e:
+            self.logger.error(f"Error updating trade: {e}")
+    
+    def get_all_trades(self) -> Dict[str, Dict[str, Any]]:
+        """Get all trades"""
+        return self.trades.copy()
+    
+    def cleanup_old_trades(self, days: int = 30):
+        """Clean up trades older than specified days"""
+        try:
+            current_time = datetime.now()
+            trades_to_remove = []
+            
+            for trade_id, trade_data in self.trades.items():
+                entry_time_str = trade_data.get('entry_time')
+                if entry_time_str:
+                    try:
+                        entry_time = datetime.fromisoformat(entry_time_str.replace('Z', '+00:00'))
+                        if (current_time - entry_time).days > days:
+                            trades_to_remove.append(trade_id)
+                    except ValueError:
+                        continue
+            
+            for trade_id in trades_to_remove:
+                del self.trades[trade_id]
+            
+            if trades_to_remove:
+                self._save_database()
+                self.logger.info(f"Cleaned up {len(trades_to_remove)} old trades")
+                
+        except Exception as e:
+            self.logger.error(f"Error cleaning up old trades: {e}")

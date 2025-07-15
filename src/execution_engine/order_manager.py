@@ -386,13 +386,14 @@ class OrderManager:
 
             # Simple and reliable: Check if trade ID exists in database
             try:
-                from src.execution_engine.trade_database import trade_db
+                from src.execution_engine.trade_database import TradeDatabase
+                trade_db = TradeDatabase()
                 trade_id = trade_db.find_trade_by_position(strategy_name, symbol, side, quantity, entry_price, tolerance=0.01)
             except ImportError as e:
-                self.logger.error(f"Could not import trade_database: {e}")
+                self.logger.warning(f"Trade database not available: {e}")
                 return False, None
             except Exception as e:
-                self.logger.error(f"Error accessing trade database: {e}")
+                self.logger.warning(f"Error accessing trade database: {e}")
                 return False, None
 
             if trade_id:

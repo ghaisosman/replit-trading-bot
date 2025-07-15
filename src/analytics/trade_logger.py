@@ -1,4 +1,3 @@
-
 import json
 import csv
 import logging
@@ -22,33 +21,33 @@ class TradeRecord:
     margin_used: float
     leverage: int
     position_value_usdt: float
-    
+
     # Technical indicators at entry
     rsi_at_entry: Optional[float] = None
     macd_at_entry: Optional[float] = None
     sma_20_at_entry: Optional[float] = None
     sma_50_at_entry: Optional[float] = None
     volume_at_entry: Optional[float] = None
-    
+
     # Trade outcome
     pnl_usdt: Optional[float] = None
     pnl_percentage: Optional[float] = None
     exit_reason: Optional[str] = None
     duration_minutes: Optional[int] = None
-    
+
     # Market conditions
     market_trend: Optional[str] = None  # BULLISH/BEARISH/SIDEWAYS
     volatility_score: Optional[float] = None
-    
+
     # Performance metrics
     risk_reward_ratio: Optional[float] = None
     max_drawdown: Optional[float] = None
-    
+
     # Additional metadata
     entry_signal_strength: Optional[float] = None
     market_phase: Optional[str] = None  # TRENDING/RANGING
     trade_status: str = "OPEN"  # OPEN/CLOSED/STOPPED
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON/CSV export"""
         data = asdict(self)
@@ -58,55 +57,55 @@ class TradeRecord:
 
 class TradeLogger:
     """Comprehensive trade logging for ML analysis"""
-    
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        
+
         # Create data directories
         self.data_dir = Path("trading_data")
         self.trades_dir = self.data_dir / "trades"
         self.reports_dir = self.data_dir / "reports"
-        
+
         # Create directories if they don't exist
         self.data_dir.mkdir(exist_ok=True)
         self.trades_dir.mkdir(exist_ok=True)
         self.reports_dir.mkdir(exist_ok=True)
-        
+
         # File paths
         self.trades_json_file = self.trades_dir / "all_trades.json"
         self.trades_csv_file = self.trades_dir / "all_trades.csv"
-        
+
         # Load existing trades
         self.trades: List[TradeRecord] = []
         self.load_existing_trades()
-        
+
     def load_existing_trades(self):
         """Load existing trades from JSON file"""
         try:
             if self.trades_json_file.exists():
                 with open(self.trades_json_file, 'r') as f:
                     trades_data = json.load(f)
-                    
+
                 for trade_data in trades_data:
                     # Convert timestamp back to datetime
                     trade_data['timestamp'] = datetime.fromisoformat(trade_data['timestamp'])
                     self.trades.append(TradeRecord(**trade_data))
-                    
+
                 self.logger.info(f"📊 Loaded {len(self.trades)} existing trade records")
         except Exception as e:
             self.logger.error(f"❌ Error loading existing trades: {e}")
-            
+
     def log_trade_entry(self, strategy_name: str, symbol: str, side: str, 
                        entry_price: float, quantity: float, margin_used: float, 
                        leverage: int, technical_indicators: Dict[str, float] = None,
                        market_conditions: Dict[str, Any] = None) -> str:
         """Log trade entry with comprehensive data"""
-        
+
         trade_id = f"{strategy_name}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        
+
         # Calculate position value
         position_value_usdt = entry_price * quantity
-        
+
         # Create trade record
         trade_record = TradeRecord(
             trade_id=trade_id,
@@ -122,7 +121,7 @@ class TradeLogger:
             position_value_usdt=position_value_usdt,
             trade_status="OPEN"
         )
-        
+
         # Add technical indicators if provided
         if technical_indicators:
             trade_record.rsi_at_entry = technical_indicators.get('rsi')
@@ -131,38 +130,46 @@ class TradeLogger:
             trade_record.sma_50_at_entry = technical_indicators.get('sma_50')
             trade_record.volume_at_entry = technical_indicators.get('volume')
             trade_record.entry_signal_strength = technical_indicators.get('signal_strength')
-            
+
         # Add market conditions if provided
         if market_conditions:
             trade_record.market_trend = market_conditions.get('trend')
             trade_record.volatility_score = market_conditions.get('volatility')
             trade_record.market_phase = market_conditions.get('phase')
-            
+
         # Add to trades list
         self.trades.append(trade_record)
-        
+
         # Save to files
         self._save_trades()
-        
+
         self.logger.info(f"📝 TRADE ENTRY LOGGED | {trade_id} | {symbol} | {side} | ${entry_price:.4f}")
-        
+
+        # Add to trade database for position validation
+        try:
+            from src.execution_engine.trade_database import TradeDatabase
+            trade_db = TradeDatabase()
+            trade_db.add_trade(trade_id, trade_record.to_dict())
+        except Exception as e:
+            self.logger.warning(f"Could not add trade to database: {e}")
+
         return trade_id
-        
+
     def log_trade_exit(self, trade_id: str, exit_price: float, exit_reason: str,
                       pnl_usdt: float, pnl_percentage: float, max_drawdown: float = None):
         """Log trade exit and calculate final metrics"""
-        
+
         # Find the trade record
         trade_record = None
         for trade in self.trades:
             if trade.trade_id == trade_id:
                 trade_record = trade
                 break
-                
+
         if not trade_record:
             self.logger.error(f"❌ Trade record not found for ID: {trade_id}")
             return
-            
+
         # Update trade record
         trade_record.exit_price = exit_price
         trade_record.exit_reason = exit_reason
@@ -170,12 +177,12 @@ class TradeLogger:
         trade_record.pnl_percentage = pnl_percentage
         trade_record.trade_status = "CLOSED"
         trade_record.max_drawdown = max_drawdown
-        
+
         # Calculate duration
         exit_time = datetime.now()
         duration = exit_time - trade_record.timestamp
         trade_record.duration_minutes = int(duration.total_seconds() / 60)
-        
+
         # Calculate risk-reward ratio
         if trade_record.side == "BUY":
             risk = trade_record.entry_price - (trade_record.entry_price * 0.95)  # Assuming 5% stop loss
@@ -183,15 +190,15 @@ class TradeLogger:
         else:
             risk = (trade_record.entry_price * 1.05) - trade_record.entry_price  # Assuming 5% stop loss
             reward = trade_record.entry_price - exit_price
-            
+
         if risk > 0:
             trade_record.risk_reward_ratio = reward / risk
-            
+
         # Save updated trades
         self._save_trades()
-        
+
         self.logger.info(f"📝 TRADE EXIT LOGGED | {trade_id} | PnL: ${pnl_usdt:.2f} ({pnl_percentage:+.2f}%) | Duration: {trade_record.duration_minutes}min")
-        
+
     def _save_trades(self):
         """Save trades to both JSON and CSV files"""
         try:
@@ -199,26 +206,26 @@ class TradeLogger:
             trades_data = [trade.to_dict() for trade in self.trades]
             with open(self.trades_json_file, 'w') as f:
                 json.dump(trades_data, f, indent=2, default=str)
-                
+
             # Save to CSV
             if trades_data:
                 df = pd.DataFrame(trades_data)
                 df.to_csv(self.trades_csv_file, index=False)
-                
+
         except Exception as e:
             self.logger.error(f"❌ Error saving trades: {e}")
-            
+
     def get_daily_summary(self, date: datetime) -> Dict[str, Any]:
         """Generate daily trading summary"""
         start_date = date.replace(hour=0, minute=0, second=0, microsecond=0)
         end_date = start_date + timedelta(days=1)
-        
+
         # Filter trades for the day
         daily_trades = [
             trade for trade in self.trades
             if start_date <= trade.timestamp < end_date
         ]
-        
+
         if not daily_trades:
             return {
                 'date': date.strftime('%Y-%m-%d'),
@@ -229,15 +236,15 @@ class TradeLogger:
                 'win_rate': 0,
                 'trades': []
             }
-            
+
         # Calculate metrics
         closed_trades = [trade for trade in daily_trades if trade.trade_status == "CLOSED"]
         winning_trades = [trade for trade in closed_trades if trade.pnl_usdt and trade.pnl_usdt > 0]
         losing_trades = [trade for trade in closed_trades if trade.pnl_usdt and trade.pnl_usdt < 0]
-        
+
         total_pnl = sum(trade.pnl_usdt for trade in closed_trades if trade.pnl_usdt)
         win_rate = (len(winning_trades) / len(closed_trades)) * 100 if closed_trades else 0
-        
+
         # Strategy breakdown
         strategy_stats = {}
         for trade in daily_trades:
@@ -252,11 +259,11 @@ class TradeLogger:
             if trade.pnl_usdt:
                 strategy_stats[strategy]['pnl'] += trade.pnl_usdt
             strategy_stats[strategy]['symbols'].add(trade.symbol)
-            
+
         # Convert sets to lists for JSON serialization
         for strategy in strategy_stats:
             strategy_stats[strategy]['symbols'] = list(strategy_stats[strategy]['symbols'])
-            
+
         return {
             'date': date.strftime('%Y-%m-%d'),
             'total_trades': len(daily_trades),
@@ -270,16 +277,16 @@ class TradeLogger:
             'strategy_breakdown': strategy_stats,
             'trades': [trade.to_dict() for trade in daily_trades]
         }
-        
+
     def export_for_ml(self, output_file: str = None) -> str:
         """Export trades data for machine learning analysis"""
         if not output_file:
             output_file = self.trades_dir / f"ml_dataset_{datetime.now().strftime('%Y%m%d')}.csv"
-            
+
         try:
             # Create ML-friendly dataset
             ml_data = []
-            
+
             for trade in self.trades:
                 if trade.trade_status == "CLOSED" and trade.pnl_usdt is not None:
                     ml_record = {
@@ -289,7 +296,7 @@ class TradeLogger:
                         'side': trade.side,
                         'leverage': trade.leverage,
                         'position_size_usdt': trade.position_value_usdt,
-                        
+
                         # Technical indicators
                         'rsi_entry': trade.rsi_at_entry or 0,
                         'macd_entry': trade.macd_at_entry or 0,
@@ -297,17 +304,17 @@ class TradeLogger:
                         'sma_50_entry': trade.sma_50_at_entry or 0,
                         'volume_entry': trade.volume_at_entry or 0,
                         'signal_strength': trade.entry_signal_strength or 0,
-                        
+
                         # Market conditions
                         'market_trend': trade.market_trend or 'UNKNOWN',
                         'volatility_score': trade.volatility_score or 0,
                         'market_phase': trade.market_phase or 'UNKNOWN',
-                        
+
                         # Time features
                         'hour_of_day': trade.timestamp.hour,
                         'day_of_week': trade.timestamp.weekday(),
                         'month': trade.timestamp.month,
-                        
+
                         # Trade outcome (target variables)
                         'pnl_usdt': trade.pnl_usdt,
                         'pnl_percentage': trade.pnl_percentage,
@@ -318,7 +325,7 @@ class TradeLogger:
                         'exit_reason': trade.exit_reason or 'UNKNOWN'
                     }
                     ml_data.append(ml_record)
-                    
+
             # Save to CSV
             if ml_data:
                 df = pd.DataFrame(ml_data)
@@ -328,7 +335,7 @@ class TradeLogger:
             else:
                 self.logger.warning("⚠️ No closed trades available for ML export")
                 return None
-                
+
         except Exception as e:
             self.logger.error(f"❌ Error exporting ML dataset: {e}")
             return None
