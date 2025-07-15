@@ -300,7 +300,8 @@ class OrderManager:
 
             # Apply symbol-specific precision for futures trading
             # Use strategy config symbol if signal symbol is empty
-            actual_symbol = signal.symbol or symbol
+            config_symbol = strategy_config.get('symbol', '')
+            actual_symbol = signal.symbol or config_symbol
             symbol_upper = actual_symbol.upper()
             self.logger.info(f"🔍 PRECISION CHECK: Symbol = {actual_symbol} | Upper = {symbol_upper} | Quantity = {quantity:.6f}")
 
