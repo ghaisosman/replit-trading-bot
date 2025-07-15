@@ -656,6 +656,7 @@ def calculate_rsi(closes, period=14):
 def get_console_log():
     """Get recent console log output"""
     try:
+        logger.debug("API: get_console_log called")
         log_lines = []
 
         # Try multiple log file locations
@@ -757,7 +758,12 @@ def get_console_log():
         return jsonify({'success': True, 'logs': log_lines})
     except Exception as e:
         logger.error(f"Error in get_console_log endpoint: {e}")
-        return jsonify({'success': False, 'error': f'Failed to get console log: {str(e)}'}), 200
+        # Always return JSON even on error
+        try:
+            return jsonify({'success': False, 'error': f'Failed to get console log: {str(e)}'})
+        except:
+            # Ultimate fallback
+            return '{"success": false, "error": "Critical log fetch error"}', 200, {'Content-Type': 'application/json'}
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
@@ -933,10 +939,29 @@ def not_found(error):
 @app.errorhandler(Exception)
 def handle_exception(e):
     """Handle all unhandled exceptions"""
-    logger.error(f"Unhandled exception: {e}")
+    logger.error(f"Unhandled exception in web dashboard: {e}")
     if request.path.startswith('/api/'):
-        return jsonify({'success': False, 'error': str(e)}), 200
+        try:
+            return jsonify({'success': False, 'error': f'Server error: {str(e)}'}), 200
+        except:
+            # Fallback if even JSON serialization fails
+            return '{"success": false, "error": "Critical server error"}', 200, {'Content-Type': 'application/json'}
     return str(e), 500
+
+@app.before_request
+def log_request():
+    """Log all API requests for debugging"""
+    if request.path.startswith('/api/'):
+        logger.debug(f"API Request: {request.method} {request.path}")
+
+@app.after_request
+def log_response(response):
+    """Log API responses and ensure proper headers"""
+    if request.path.startswith('/api/'):
+        logger.debug(f"API Response: {response.status_code} for {request.path}")
+        response.headers['Content-Type'] = 'application/json'
+        response.headers['Cache-Control'] = 'no-cache'
+    return response
 
 if __name__ == '__main__':
     logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")

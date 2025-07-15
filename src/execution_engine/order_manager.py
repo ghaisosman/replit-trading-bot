@@ -286,86 +286,39 @@ class OrderManager:
         except Exception as e:
             self.logger.error(f"Error adding position to history: {e}")
 
-    def _calculate_position_size(self, signal: TradingSignal, strategy_config: Dict) -> Optional[float]:
-        """Calculate position size based on margin and leverage with validation"""
+    def _calculate_position_size(self, signal: TradingSignal, strategy_config: Dict) -> float:
+        """Calculate position size based on margin and leverage with improved precision"""
         try:
-            margin = strategy_config.get('margin')
-            leverage = strategy_config.get('leverage', 1)
-            symbol = strategy_config.get('symbol')
+            margin = strategy_config.get('margin', 50.0)
+            leverage = strategy_config.get('leverage', 5)
 
-            # Enhanced validation with detailed logging
-            if not margin:
-                self.logger.error(f"❌ Missing margin in strategy config for {symbol}")
-                return None
+            # Calculate base position size in quote currency (USDT)
+            position_value_usdt = margin * leverage
 
-            if not leverage or leverage <= 0:
-                self.logger.error(f"❌ Invalid leverage ({leverage}) for {symbol}")
-                return None
+            # Calculate quantity in base currency
+            quantity = position_value_usdt / signal.entry_price
 
-            if not symbol:
-                self.logger.error("❌ Missing symbol in strategy config")
-                return None
-
-            if not signal or not hasattr(signal, 'entry_price') or not signal.entry_price or signal.entry_price <= 0:
-                self.logger.error(f"❌ Invalid signal entry price: {getattr(signal, 'entry_price', 'None')}")
-                return None
-
-            # Convert to float to ensure proper calculation
-            margin = float(margin)
-            leverage = float(leverage)
-            entry_price = float(signal.entry_price)
-
-            # Calculate notional value
-            notional_value = margin * leverage
-
-            # Calculate quantity based on entry price
-            quantity = notional_value / entry_price
-
-            self.logger.debug(f"🔍 POSITION CALC: {symbol} | Margin: ${margin} | Leverage: {leverage}x | Entry: ${entry_price} | Notional: ${notional_value} | Raw Qty: {quantity}")
-
-            # Apply symbol-specific precision with minimum quantity enforcement
-            if symbol == 'BTCUSDT':
+            # Apply symbol-specific precision
+            if 'SOL' in signal.symbol:
+                # SOL typically uses 1 decimal place for quantity
+                quantity = round(quantity, 1)
+            elif 'BTC' in signal.symbol:
+                # BTC typically uses 3 decimal places for quantity
                 quantity = round(quantity, 3)
-                min_qty = 0.001  # Minimum BTC quantity
-            elif symbol == 'ETHUSDT':
-                quantity = round(quantity, 2)
-                min_qty = 0.01  # Minimum ETH quantity
-            elif symbol == 'SOLUSDT':
-                quantity = round(quantity, 1)  # Changed from 0 to 1 decimal for SOL
-                min_qty = 0.1  # Minimum SOL quantity
-            elif symbol == 'ADAUSDT':
-                quantity = round(quantity, 0)
-                min_qty = 1.0  # Minimum ADA quantity
-            elif symbol.endswith('USDT'):
-                quantity = round(quantity, 2)
-                min_qty = 0.01  # Default minimum
             else:
-                quantity = round(quantity, 3)
-                min_qty = 0.001  # Default minimum
+                # Default to 2 decimal places
+                quantity = round(quantity, 2)
 
-            # Validate final quantity
-            if quantity <= 0:
-                self.logger.error(f"❌ Zero or negative quantity calculated: {quantity} for {symbol}")
-                return None
+            # Ensure minimum quantity
+            if quantity < 0.1:
+                quantity = 0.1
 
-            if quantity < min_qty:
-                self.logger.error(f"❌ Quantity {quantity} below minimum {min_qty} for {symbol}")
-                return None
-
-            self.logger.info(f"✅ Position size calculated for {symbol}: {quantity} (Margin: ${margin}, Entry: ${entry_price})")
+            self.logger.info(f"✅ Position size calculated for {signal.symbol}: {quantity} (Margin: ${margin}, Entry: ${signal.entry_price})")
             return quantity
 
-        except ZeroDivisionError:
-            self.logger.error(f"❌ Division by zero in position calculation: entry_price={getattr(signal, 'entry_price', 'None')}")
-            return None
-        except (ValueError, TypeError) as e:
-            self.logger.error(f"❌ Value/Type error in position calculation: {e}")
-            return None
         except Exception as e:
-            self.logger.error(f"❌ Unexpected error calculating position size: {e}")
-            import traceback
-            self.logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            return None
+            self.logger.error(f"Error calculating position size: {e}")
+            return 0.0
 
     def get_active_positions(self) -> Dict[str, Position]:
         """Get all active positions with thread safety"""
