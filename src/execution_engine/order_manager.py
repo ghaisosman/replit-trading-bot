@@ -166,17 +166,12 @@ class OrderManager:
             margin = strategy_config.get('margin', 0.0)
             leverage = strategy_config.get('leverage', 1)
             
-            # Get current indicator value based on strategy
+            # Get current indicator value based on strategy - this would be enhanced to receive actual values
             current_indicator = "N/A"
-            try:
-                if 'macd' in strategy_name.lower():
-                    # Try to get current MACD value - this would need to be passed from signal processor
-                    current_indicator = "MACD: N/A"  # Could be enhanced to show actual MACD value
-                elif 'rsi' in strategy_name.lower():
-                    # Try to get current RSI value - this would need to be passed from signal processor  
-                    current_indicator = "RSI: N/A"  # Could be enhanced to show actual RSI value
-            except:
-                current_indicator = "N/A"
+            if 'macd' in strategy_name.lower():
+                current_indicator = "MACD: N/A"  # Placeholder - could be enhanced to show actual MACD values
+            elif 'rsi' in strategy_name.lower():
+                current_indicator = "RSI: N/A"  # Placeholder - could be enhanced to show actual RSI value
             
             # Position opened format with requested content
             position_opened_message = f"""╔═══════════════════════════════════════════════════╗

@@ -554,7 +554,7 @@ For MAINNET:
                     
                     # Consolidated MACD market assessment - single message
                     assessment_message = f"""📈 MARKET ASSESSMENT
-Interval {assessment_interval} seconds
+Interval: every {assessment_interval} seconds
 💱 Symbol: {strategy_config['symbol']}
 🎯 {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x
 💵 Price: ${current_price:,.1f}
@@ -566,7 +566,7 @@ Interval {assessment_interval} seconds
                     # Consolidated RSI market assessment - single message
                     rsi_text = f"📈 RSI: {current_rsi:.2f}" if current_rsi is not None else "📈 RSI: N/A"
                     assessment_message = f"""📈 MARKET ASSESSMENT
-Interval {assessment_interval} seconds
+Interval: every {assessment_interval} seconds
 💱 Symbol: {strategy_config['symbol']}
 🎯 {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x
 💵 Price: ${current_price:,.1f}
