@@ -118,6 +118,8 @@ class SignalProcessor:
                 # Take profit will be determined by RSI level in exit conditions
                 take_profit = current_price * 0.95  # Placeholder, real TP is RSI-based
 
+                self.logger.info(f"🔍 RSI SHORT SIGNAL CALC | Entry: ${current_price:.4f} | SL%: {stop_loss_pct:.2f}% | SL: ${stop_loss:.4f}")
+
                 return TradingSignal(
                     signal_type=SignalType.SELL,
                     confidence=0.8,

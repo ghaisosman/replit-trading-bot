@@ -447,17 +447,7 @@ For MAINNET:
                 if position:
                     self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:,.1f} | Qty: {position.quantity:,.1f} | SL: ${position.stop_loss:,.1f} | TP: ${position.take_profit:,.1f}")
 
-                    # Send entry signal notification when position is actually opened
-                    self.telegram_reporter.report_entry_signal(strategy_name, {
-                        'symbol': strategy_config['symbol'],
-                        'signal_type': signal.signal_type.value,
-                        'entry_price': signal.entry_price,
-                        'stop_loss': signal.stop_loss,
-                        'take_profit': signal.take_profit,
-                        'reason': signal.reason
-                    })
-
-                    # Report position opened
+                    # Send ONLY position opened notification (no separate entry signal notification)
                     from dataclasses import asdict
                     self.telegram_reporter.report_position_opened(asdict(position))
                 else:
@@ -498,7 +488,7 @@ For MAINNET:
                     # Check exit conditions
                     exit_reason = self.signal_processor.evaluate_exit_conditions(
                         df, 
-                        {'entry_price': position.entry_price, 'stop_loss': position.stop_loss, 'take_profit': position.take_profit}, 
+                        {'entry_price': position.entry_price, 'stop_loss': position.stop_loss, 'take_profit': position.take_profit, 'side': position.side}, 
                         strategy_config
                     )
 
