@@ -680,8 +680,9 @@ def get_console_log():
     try:
         # Try multiple possible log file locations
         possible_log_files = [
+            "trading_bot.log",
+            "trading_data/bot.log",
             "logs/trading_bot.log",
-            "trading_bot.log", 
             "logs/bot.log",
             "bot.log"
         ]
