@@ -65,6 +65,13 @@ class TradeMonitor:
         self.recent_bot_trades: Dict[str, datetime] = {}  # symbol -> trade_timestamp
         self.ghost_detection_delay_seconds = 60  # 60 second delay after bot trades for better confirmation
 
+        # Memory management limits to prevent leaks
+        self.max_ghost_trades = 100
+        self.max_recently_cleared = 50
+        self.max_notified_positions = 50
+        self.max_fingerprints = 200
+        self.max_recent_bot_trades = 20
+
         # Load persistent ghost fingerprints to survive bot restarts
         self._load_persistent_ghost_fingerprints()
 
@@ -562,6 +569,13 @@ class TradeMonitor:
         try:
             current_time = datetime.now()
             cooldown_minutes = 60  # 60 minutes cooldown before allowing re-detection (increased from 15)
+
+            # Enforce memory limits by removing oldest entries if needed
+            if len(self.recently_cleared_ghosts) > self.max_recently_cleared:
+                # Sort by time and keep only the most recent entries
+                sorted_items = sorted(self.recently_cleared_ghosts.items(), key=lambda x: x[1], reverse=True)
+                self.recently_cleared_ghosts = dict(sorted_items[:self.max_recently_cleared])
+                self.logger.debug(f"🔍 MEMORY CLEANUP: Trimmed recently_cleared_ghosts to {self.max_recently_cleared} entries")
 
             ghosts_to_remove = []
             for ghost_id, clear_time in self.recently_cleared_ghosts.items():

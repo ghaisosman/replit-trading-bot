@@ -263,10 +263,23 @@ For MAINNET:
                 # Sleep before next iteration
                 await asyncio.sleep(global_config.PRICE_UPDATE_INTERVAL)
 
+            except (ConnectionError, TimeoutError) as e:
+                self.logger.error(f"❌ Network Error: {e}")
+                self.telegram_reporter.report_error("Network Error", str(e))
+                await self.stop(f"Network error: {str(e)}")
+                break
+            except (KeyError, AttributeError) as e:
+                self.logger.error(f"❌ Configuration Error: {e}")
+                self.telegram_reporter.report_error("Configuration Error", str(e))
+                await asyncio.sleep(10)  # Wait longer for config issues
+            except (ValueError, TypeError) as e:
+                self.logger.error(f"❌ Data Processing Error: {e}")
+                self.telegram_reporter.report_error("Data Error", str(e))
+                await asyncio.sleep(5)
             except Exception as e:
-                error_msg = f"Main Loop Error: {str(e)}"
+                error_msg = f"Unexpected Error: {str(e)}"
                 self.logger.error(error_msg)
-                self.telegram_reporter.report_error("Main Loop Error", str(e))
+                self.telegram_reporter.report_error("Unexpected Error", str(e))
 
                 # Log memory usage for debugging
                 try:
@@ -277,8 +290,9 @@ For MAINNET:
                 except ImportError:
                     pass
 
-                # If it's a critical error, stop the bot
-                if "API" in str(e) or "connection" in str(e).lower() or "auth" in str(e).lower():
+                # Check if it's a critical error that requires shutdown
+                error_str = str(e).lower()
+                if any(keyword in error_str for keyword in ["api", "connection", "auth", "permission", "key"]):
                     await self.stop(f"Critical error: {str(e)}")
                     break
 

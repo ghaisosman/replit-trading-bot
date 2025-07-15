@@ -705,16 +705,51 @@ def get_console_log():
         return jsonify({'success': False, 'error': f'Failed to get console log: {e}'})
 
 def get_bot_status():
-    """Get current bot status"""
+    """Get current bot status with enhanced error handling"""
     global bot_running, bot_manager, shared_bot_manager
 
-    # Always get fresh reference to shared bot manager
-    shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+    try:
+        # Always get fresh reference to shared bot manager
+        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
 
-    # Check shared bot manager first
-    if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
-        try:
-            return {
+        # Check shared bot manager first
+        if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
+            try:
+                status = {
+                    'is_running': getattr(shared_bot_manager, 'is_running', False),
+                    'active_positions': len(getattr(shared_bot_manager.order_manager, 'active_positions', {})) if hasattr(shared_bot_manager, 'order_manager') else 0,
+                    'strategies': list(getattr(shared_bot_manager, 'strategies', {}).keys()) if hasattr(shared_bot_manager, 'strategies') else [],
+                    'balance': 0  # Will be updated separately
+                }
+                return status
+            except Exception as e:
+                logger.error(f"Error getting shared bot status: {e}")
+                return {
+                    'is_running': False,
+                    'active_positions': 0,
+                    'strategies': [],
+                    'balance': 0,
+                    'error': f'Status error: {str(e)}'
+                }
+        
+        # Fallback status
+        return {
+            'is_running': bot_running,
+            'active_positions': 0,
+            'strategies': [],
+            'balance': 0,
+            'error': 'Bot manager not available'
+        }
+    
+    except Exception as e:
+        logger.error(f"Critical error in get_bot_status: {e}")
+        return {
+            'is_running': False,
+            'active_positions': 0,
+            'strategies': [],
+            'balance': 0,
+            'error': f'Critical status error: {str(e)}'
+        } {
                 'running': shared_bot_manager.is_running,
                 'active_positions': len(shared_bot_manager.order_manager.active_positions) if shared_bot_manager.order_manager else 0,
                 'strategies': list(shared_bot_manager.strategies.keys()) if shared_bot_manager.strategies else []

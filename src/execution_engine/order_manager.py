@@ -1,5 +1,6 @@
 
 import logging
+import threading
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -31,6 +32,9 @@ class OrderManager:
         self.active_positions: Dict[str, Position] = {}  # strategy_name -> Position
         self.position_history: List[Position] = []
         self.last_order_time = None  # Track when last order was placed
+        
+        # Thread safety for position management
+        self._position_lock = threading.RLock()
         
         # Memory management - limit history size
         self.max_history_size = 1000
@@ -140,8 +144,9 @@ class OrderManager:
                 status="OPEN"
             )
 
-            # Store active position
-            self.active_positions[strategy_name] = position
+            # Store active position with thread safety
+            with self._position_lock:
+                self.active_positions[strategy_name] = position
 
             # Register bot trade with anomaly detector to pause ghost detection
             if hasattr(self, 'anomaly_detector') and self.anomaly_detector:
@@ -249,7 +254,8 @@ class OrderManager:
 
             # Move to history and remove from active (with memory management)
             self._add_to_history(position)
-            del self.active_positions[strategy_name]
+            with self._position_lock:
+                del self.active_positions[strategy_name]
 
             duration_minutes = (datetime.now() - position.entry_time).total_seconds() / 60 if position.entry_time else 0
             self.logger.info(f"🔴 POSITION CLOSED | {strategy_name} | {symbol} | PnL: ${pnl:.2f} USDT ({pnl_percentage:+.2f}%) | Duration: {duration_minutes:.1f}min")
@@ -288,44 +294,84 @@ class OrderManager:
             leverage = strategy_config.get('leverage', 1)
             symbol = strategy_config.get('symbol')
 
-            if not all([margin, leverage, symbol]) or not signal.entry_price:
-                self.logger.error("Missing required parameters for position size calculation")
+            # Enhanced validation with detailed logging
+            if not margin:
+                self.logger.error(f"❌ Missing margin in strategy config for {symbol}")
                 return None
+            
+            if not leverage or leverage <= 0:
+                self.logger.error(f"❌ Invalid leverage ({leverage}) for {symbol}")
+                return None
+                
+            if not symbol:
+                self.logger.error("❌ Missing symbol in strategy config")
+                return None
+                
+            if not signal or not hasattr(signal, 'entry_price') or not signal.entry_price or signal.entry_price <= 0:
+                self.logger.error(f"❌ Invalid signal entry price: {getattr(signal, 'entry_price', 'None')}")
+                return None
+
+            # Convert to float to ensure proper calculation
+            margin = float(margin)
+            leverage = float(leverage)
+            entry_price = float(signal.entry_price)
 
             # Calculate notional value
             notional_value = margin * leverage
-
+            
             # Calculate quantity based on entry price
-            quantity = notional_value / signal.entry_price
+            quantity = notional_value / entry_price
+            
+            self.logger.debug(f"🔍 POSITION CALC: {symbol} | Margin: ${margin} | Leverage: {leverage}x | Entry: ${entry_price} | Notional: ${notional_value} | Raw Qty: {quantity}")
 
-            # Apply symbol-specific precision based on Binance Futures requirements
+            # Apply symbol-specific precision with minimum quantity enforcement
             if symbol == 'BTCUSDT':
-                quantity = round(quantity, 3)  # BTC Futures requires 3 decimal places
+                quantity = round(quantity, 3)
+                min_qty = 0.001  # Minimum BTC quantity
             elif symbol == 'ETHUSDT':
-                quantity = round(quantity, 2)  # ETH Futures requires 2 decimal places  
+                quantity = round(quantity, 2)
+                min_qty = 0.01  # Minimum ETH quantity
             elif symbol == 'SOLUSDT':
-                quantity = round(quantity, 0)  # SOL Futures requires whole numbers only
+                quantity = round(quantity, 1)  # Changed from 0 to 1 decimal for SOL
+                min_qty = 0.1  # Minimum SOL quantity
             elif symbol == 'ADAUSDT':
-                quantity = round(quantity, 0)  # ADA requires whole numbers
+                quantity = round(quantity, 0)
+                min_qty = 1.0  # Minimum ADA quantity
             elif symbol.endswith('USDT'):
-                quantity = round(quantity, 2)  # Most USDT pairs use 2 decimal places
+                quantity = round(quantity, 2)
+                min_qty = 0.01  # Default minimum
             else:
-                quantity = round(quantity, 3)  # Default fallback
+                quantity = round(quantity, 3)
+                min_qty = 0.001  # Default minimum
 
+            # Validate final quantity
             if quantity <= 0:
-                self.logger.error(f"Invalid calculated quantity: {quantity}")
+                self.logger.error(f"❌ Zero or negative quantity calculated: {quantity} for {symbol}")
+                return None
+                
+            if quantity < min_qty:
+                self.logger.error(f"❌ Quantity {quantity} below minimum {min_qty} for {symbol}")
                 return None
 
-            self.logger.info(f"Calculated position size for {symbol}: {quantity}")
+            self.logger.info(f"✅ Position size calculated for {symbol}: {quantity} (Margin: ${margin}, Entry: ${entry_price})")
             return quantity
 
+        except ZeroDivisionError:
+            self.logger.error(f"❌ Division by zero in position calculation: entry_price={getattr(signal, 'entry_price', 'None')}")
+            return None
+        except (ValueError, TypeError) as e:
+            self.logger.error(f"❌ Value/Type error in position calculation: {e}")
+            return None
         except Exception as e:
-            self.logger.error(f"Error calculating position size: {e}")
+            self.logger.error(f"❌ Unexpected error calculating position size: {e}")
+            import traceback
+            self.logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return None
 
     def get_active_positions(self) -> Dict[str, Position]:
-        """Get all active positions"""
-        return self.active_positions.copy()
+        """Get all active positions with thread safety"""
+        with self._position_lock:
+            return self.active_positions.copy()
 
     def get_position_history(self) -> List[Position]:
         """Get position history"""
