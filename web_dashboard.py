@@ -504,16 +504,15 @@ def get_positions():
     try:
         positions = []
 
-        # Always try to get the latest shared bot manager
-        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+        # Try shared bot manager first
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
 
-        # Check shared bot manager first
-        if shared_bot_manager and hasattr(shared_bot_manager, 'order_manager') and shared_bot_manager.order_manager:
-            active_positions = shared_bot_manager.order_manager.active_positions
+        if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
+            active_positions = current_bot.order_manager.active_positions
 
             for strategy_name, position in active_positions.items():
                 # Get current price
-                current_price = get_current_price(position.symbol)
+                current_price = price_fetcher.get_current_price(position.symbol)
 
                 # Calculate PnL
                 if current_price:
@@ -529,13 +528,8 @@ def get_positions():
                     # Calculate position value in USDT
                     position_value_usdt = current_price * quantity
 
-                    # Get leverage from strategy config
-                    strategy_config = shared_bot_manager.strategies.get(strategy_name, {}) if hasattr(shared_bot_manager, 'strategies') else {}
-                    leverage = strategy_config.get('leverage', 5)  # Default 5x leverage
-                    margin_invested = position_value_usdt / leverage
-
-                    # Calculate PnL percentage against margin invested (correct for futures)
-                    pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
+                    # Calculate PnL percentage based on position value
+                    pnl_percent = (pnl / position_value_usdt) * 100 if position_value_usdt > 0 else 0
 
                     positions.append({
                         'strategy': position.strategy_name,
@@ -545,50 +539,6 @@ def get_positions():
                         'current_price': current_price,
                         'quantity': quantity,
                         'position_value_usdt': position_value_usdt,
-                        'margin_invested': margin_invested,
-                        'pnl': pnl,
-                        'pnl_percent': pnl_percent
-                    })
-
-        # Fallback to standalone bot
-        elif bot_manager and hasattr(bot_manager, 'order_manager') and bot_manager.order_manager:
-            active_positions = bot_manager.order_manager.active_positions
-
-            for strategy_name, position in active_positions.items():
-                # Get current price
-                current_price = get_current_price(position.symbol)
-
-                # Calculate PnL
-                if current_price:
-                    entry_price = position.entry_price
-                    quantity = position.quantity
-                    side = position.side
-
-                    if side == 'BUY':
-                        pnl = (current_price - entry_price) * quantity
-                    else:  # SELL
-                        pnl = (entry_price - current_price) * quantity
-
-                    # Calculate position value in USDT
-                    position_value_usdt = current_price * quantity
-
-                    # Get leverage from strategy config
-                    strategy_config = bot_manager.strategies.get(strategy_name, {}) if hasattr(bot_manager, 'strategies') else {}
-                    leverage = strategy_config.get('leverage', 5)  # Default 5x leverage
-                    margin_invested = position_value_usdt / leverage
-
-                    # Calculate PnL percentage against margin invested (correct for futures)
-                    pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
-
-                    positions.append({
-                        'strategy': position.strategy_name,
-                        'symbol': position.symbol,
-                        'side': position.side,
-                        'entry_price': entry_price,
-                        'current_price': current_price,
-                        'quantity': quantity,
-                        'position_value_usdt': position_value_usdt,
-                        'margin_invested': margin_invested,
                         'pnl': pnl,
                         'pnl_percent': pnl_percent
                     })
