@@ -345,57 +345,61 @@ def bot_status():
 @app.route('/api/strategies')
 def get_strategies():
     """Get all strategy configurations"""
-    if IMPORTS_AVAILABLE:
-        strategies = {}
-        for name, overrides in trading_config_manager.strategy_overrides.items():
-            base_config = {
-                **trading_config_manager.default_params.to_dict(),
-                **overrides
-            }
+    try:
+        if IMPORTS_AVAILABLE:
+            strategies = {}
+            for name, overrides in trading_config_manager.strategy_overrides.items():
+                base_config = {
+                    **trading_config_manager.default_params.to_dict(),
+                    **overrides
+                }
 
-            # Add strategy-specific parameters from config files
-            try:
-                if 'rsi' in name.lower():
-                    from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
-                    rsi_config = RSIOversoldConfig.get_config()
-                    base_config.update({
-                        'max_loss_pct': rsi_config.get('max_loss_pct', 10),
-                        'rsi_long_entry': rsi_config.get('rsi_long_entry', 40),
-                        'rsi_long_exit': rsi_config.get('rsi_long_exit', 70),
-                        'rsi_short_entry': rsi_config.get('rsi_short_entry', 60),
-                        'rsi_short_exit': rsi_config.get('rsi_short_exit', 30)
-                    })
-                elif 'macd' in name.lower():
-                    from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
-                    macd_config = MACDDivergenceConfig.get_config()
-                    base_config.update({
-                        'max_loss_pct': macd_config.get('max_loss_pct', 10),
-                        'macd_fast': macd_config.get('macd_fast', 12),
-                        'macd_slow': macd_config.get('macd_slow', 26),
-                        'macd_signal': macd_config.get('macd_signal', 9),
-                        'min_histogram_threshold': macd_config.get('min_histogram_threshold', 0.0001),
-                        'min_distance_threshold': macd_config.get('min_distance_threshold', 0.005),
-                        'confirmation_candles': macd_config.get('confirmation_candles', 2)
-                    })
-            except ImportError as e:
-                logger.warning(f"Could not import strategy config for {name}: {e}")
+                # Add strategy-specific parameters from config files
+                try:
+                    if 'rsi' in name.lower():
+                        from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
+                        rsi_config = RSIOversoldConfig.get_config()
+                        base_config.update({
+                            'max_loss_pct': rsi_config.get('max_loss_pct', 10),
+                            'rsi_long_entry': rsi_config.get('rsi_long_entry', 40),
+                            'rsi_long_exit': rsi_config.get('rsi_long_exit', 70),
+                            'rsi_short_entry': rsi_config.get('rsi_short_entry', 60),
+                            'rsi_short_exit': rsi_config.get('rsi_short_exit', 30)
+                        })
+                    elif 'macd' in name.lower():
+                        from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
+                        macd_config = MACDDivergenceConfig.get_config()
+                        base_config.update({
+                            'max_loss_pct': macd_config.get('max_loss_pct', 10),
+                            'macd_fast': macd_config.get('macd_fast', 12),
+                            'macd_slow': macd_config.get('macd_slow', 26),
+                            'macd_signal': macd_config.get('macd_signal', 9),
+                            'min_histogram_threshold': macd_config.get('min_histogram_threshold', 0.0001),
+                            'min_distance_threshold': macd_config.get('min_distance_threshold', 0.005),
+                            'confirmation_candles': macd_config.get('confirmation_candles', 2)
+                        })
+                except ImportError as e:
+                    logger.warning(f"Could not import strategy config for {name}: {e}")
 
-            strategies[name] = base_config
-        return jsonify(strategies)
-    else:
-        # Return default strategies for demo with strategy-specific parameters
-        return jsonify({
-            'rsi_oversold': {
-                'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
-                'max_loss_pct': 10, 'rsi_long_entry': 40, 'rsi_long_exit': 70,
-                'rsi_short_entry': 60, 'rsi_short_exit': 30
-            },
-            'macd_divergence': {
-                'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m',
-                'max_loss_pct': 10, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
-                'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2
-            }
-        })
+                strategies[name] = base_config
+            return jsonify(strategies)
+        else:
+            # Return default strategies for demo with strategy-specific parameters
+            return jsonify({
+                'rsi_oversold': {
+                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
+                    'max_loss_pct': 10, 'rsi_long_entry': 40, 'rsi_long_exit': 70,
+                    'rsi_short_entry': 60, 'rsi_short_exit': 30
+                },
+                'macd_divergence': {
+                    'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m',
+                    'max_loss_pct': 10, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
+                    'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2
+                }
+            })
+    except Exception as e:
+        logger.error(f"Error in get_strategies endpoint: {e}")
+        return jsonify({'error': str(e), 'strategies': {}}), 200
 
 @app.route('/api/strategies/<strategy_name>', methods=['POST'])
 def update_strategy(strategy_name):
@@ -567,8 +571,8 @@ def get_positions():
 
         return jsonify({'success': True, 'positions': positions})
     except Exception as e:
-        logging.getLogger(__name__).error(f"Error getting positions: {e}")
-        return jsonify({'success': False, 'error': str(e)})
+        logger.error(f"Error in get_positions endpoint: {e}")
+        return jsonify({'success': False, 'error': str(e), 'positions': []}), 200
 
 @app.route('/api/rsi/<symbol>')
 def get_rsi(symbol):
@@ -593,8 +597,8 @@ def get_rsi(symbol):
 
         return jsonify({'success': True, 'rsi': round(rsi, 2)})
     except Exception as e:
-        logger.error(f"Error calculating RSI for {symbol}: {e}")
-        return jsonify({'success': False, 'error': f'Failed to calculate RSI: {str(e)}'})
+        logger.error(f"Error in get_rsi endpoint for {symbol}: {e}")
+        return jsonify({'success': False, 'error': f'Failed to calculate RSI: {str(e)}'}), 200
 
 def calculate_rsi(closes, period=14):
     """Calculate RSI (Relative Strength Index) - matches bot's calculation"""
@@ -872,8 +876,8 @@ def get_strategy_config(strategy_name):
         return jsonify(default_config)
 
     except Exception as e:
-        logging.getLogger(__name__).error(f"Error getting strategy config: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in get_strategy_config endpoint for {strategy_name}: {e}")
+        return jsonify({'error': str(e), 'strategy_name': strategy_name}), 200
 
 if __name__ == '__main__':
     logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
