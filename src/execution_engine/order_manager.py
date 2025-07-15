@@ -299,12 +299,12 @@ class OrderManager:
             quantity = position_value_usdt / signal.entry_price
 
             # Apply symbol-specific precision for futures trading
-            if 'SOL' in signal.symbol:
+            if signal.symbol.startswith('SOL'):
                 # SOL futures uses 0 decimal places (whole numbers only)
                 original_quantity = quantity
                 quantity = float(max(1, int(round(quantity))))  # Ensure it's a float for API consistency
                 self.logger.info(f"🔧 SOL PRECISION: Original {original_quantity:.3f} → Fixed to {quantity}")
-            elif 'BTC' in signal.symbol:
+            elif signal.symbol.startswith('BTC'):
                 # BTC futures typically uses 3 decimal places for quantity
                 quantity = round(quantity, 3)
                 if quantity < 0.001:

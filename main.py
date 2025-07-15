@@ -6,7 +6,10 @@ import threading
 import time
 from src.bot_manager import BotManager
 from src.utils.logger import setup_logger
-from web_dashboard import app
+
+# Import web dashboard after setting up the module reference
+import web_dashboard
+app = web_dashboard.app
 
 # Global bot manager for signal handling and web interface access
 bot_manager = None
@@ -71,6 +74,7 @@ async def main():
 
         # Make bot manager accessible to web interface
         sys.modules['__main__'].bot_manager = bot_manager
+        web_dashboard.bot_manager = bot_manager
 
         # Start the bot in a task so we can handle shutdown signals
         logger.info("🚀 Starting trading bot main loop...")

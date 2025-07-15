@@ -737,7 +737,7 @@ def get_console_log():
             logs = bot_manager.log_handler.get_recent_logs(50)
             if not logs:
                 logs = ['No recent logs available - bot may be starting up...']
-                
+
             return jsonify({
                 'success': True,
                 'logs': logs
@@ -771,7 +771,7 @@ def get_bot_status():
             try:
                 status = {
                     'is_running': getattr(shared_bot_manager, 'is_running', False),
-                    'active_positions': len(getattr(shared_bot_manager.order_manager, 'active_positions', {})) if hasattr(shared_bot_manager, 'order_manager') else 0,
+                    'active_positions': len(getattr(shared_bot_manager.order_manager, 'active_positions', {})) if hasattr(shared_botmanager, 'order_manager') else 0,
                     'strategies': list(getattr(shared_bot_manager, 'strategies', {}).keys()) if hasattr(shared_bot_manager, 'strategies') else [],
                     'balance': 0  # Will be updated separately
                 }
@@ -906,6 +906,18 @@ def health_check():
             'message': f'Health check failed: {str(e)}'
         }), 500
 
+def get_bot_manager():
+    """Get bot manager from main module"""
+    try:
+        # Try to get from global variable first
+        if 'bot_manager' in globals() and globals()['bot_manager'] is not None:
+            return globals()['bot_manager']
+
+        # Fallback to main module
+        import __main__
+        return getattr(__main__, 'bot_manager', None)
+    except:
+        return None
 
 
 @app.before_request
@@ -932,7 +944,7 @@ def create_json_error_response(error_message, status_code=500):
 def api_error_handler(func):
     """Decorator to ensure all API endpoints return JSON on errors"""
     from functools import wraps
-    
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:
@@ -951,7 +963,7 @@ def ensure_json_response(response):
             response.headers['Content-Type'] = 'application/json'
             response.headers['Cache-Control'] = 'no-cache'
             response.headers['Access-Control-Allow-Origin'] = '*'
-            
+
             # Check if response contains HTML (error page)
             if hasattr(response, 'data') and response.data:
                 response_text = response.data.decode('utf-8') if isinstance(response.data, bytes) else str(response.data)
@@ -966,7 +978,7 @@ def ensure_json_response(response):
                     response.headers['Content-Type'] = 'application/json'
                     if response.status_code < 400:
                         response.status_code = 500
-        
+
         return response
     except Exception as e:
         logger.error(f"Critical error in after_request: {e}")
@@ -1019,17 +1031,17 @@ def finalize_api_response(response):
                     response.headers['Content-Type'] = 'application/json'
             except:
                 pass
-        
+
         # Always set JSON headers for API endpoints
         response.headers['Content-Type'] = 'application/json'
         response.headers['Cache-Control'] = 'no-cache'
         response.headers['Access-Control-Allow-Origin'] = '*'
-    
+
     return response
 
 if __name__ == '__main__':
     import socket
-    
+
     def is_port_in_use(port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
@@ -1037,7 +1049,7 @@ if __name__ == '__main__':
                 return False
             except socket.error:
                 return True
-    
+
     # Check if port 5000 is already in use
     if is_port_in_use(5000):
         logger.warning("🌐 Port 5000 is already in use. This usually means main.py is already running the web dashboard.")
