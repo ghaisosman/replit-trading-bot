@@ -23,32 +23,32 @@ def _persist_config_to_file():
         config_file_path = 'src/config/trading_config.py'
         with open(config_file_path, 'r') as f:
             lines = f.readlines()
-        
+
         # Find the start and end of strategy_overrides
         start_idx = None
         end_idx = None
         brace_count = 0
-        
+
         for i, line in enumerate(lines):
             if 'self.strategy_overrides = {' in line:
                 start_idx = i
                 brace_count = line.count('{') - line.count('}')
                 continue
-            
+
             if start_idx is not None:
                 brace_count += line.count('{') - line.count('}')
                 if brace_count == 0:
                     end_idx = i
                     break
-        
+
         if start_idx is None or end_idx is None:
             logger.error("Could not find strategy_overrides section in config file")
             return False
-        
+
         # Build the new strategy_overrides section
         new_lines = []
         new_lines.append("        self.strategy_overrides = {\n")
-        
+
         for strategy_name, overrides in trading_config_manager.strategy_overrides.items():
             new_lines.append(f"            '{strategy_name}': {{\n")
             for key, value in overrides.items():
@@ -57,19 +57,19 @@ def _persist_config_to_file():
                 else:
                     new_lines.append(f"                '{key}': {value},\n")
             new_lines.append("            },\n")
-        
+
         new_lines.append("        }\n")
-        
+
         # Replace the section
         new_content = lines[:start_idx] + new_lines + lines[end_idx + 1:]
-        
+
         # Write back to file
         with open(config_file_path, 'w') as f:
             f.writelines(new_content)
-            
+
         logger.info("💾 Configuration persisted to trading_config.py")
         return True
-        
+
     except Exception as e:
         logger.error(f"❌ Failed to persist config to file: {e}")
         return False
@@ -124,23 +124,23 @@ def dashboard():
         # Get active positions from both shared and standalone bot
         active_positions = []
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-        
+
         if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
             for strategy_name, position in current_bot.order_manager.active_positions.items():
                 current_price = get_current_price(position.symbol)
                 pnl = calculate_pnl(position, current_price) if current_price else 0
-                
+
                 # Calculate position value and margin invested
                 position_value = position.entry_price * position.quantity
-                
+
                 # Get leverage from strategy config
                 strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
                 leverage = strategy_config.get('leverage', 5)  # Default 5x leverage
                 margin_invested = position_value / leverage
-                
+
                 # Calculate PnL percentage against margin invested (correct for futures)
                 pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
-                
+
                 active_positions.append({
                     'strategy': strategy_name,
                     'symbol': position.symbol,
@@ -444,13 +444,13 @@ def update_strategy(strategy_name):
 
         # Update running bot configuration if available
         bot_updated = False
-        
+
         # Check shared bot manager first
         if shared_bot_manager and hasattr(shared_bot_manager, 'strategies') and strategy_name in shared_bot_manager.strategies:
             shared_bot_manager.strategies[strategy_name].update(data)
             logger.info(f"📝 WEB INTERFACE: Updated {strategy_name} config in shared bot: {data}")
             bot_updated = True
-        
+
         # Fallback to standalone bot
         elif bot_manager and strategy_name in bot_manager.strategies:
             bot_manager.strategies[strategy_name].update(data)
@@ -503,39 +503,73 @@ def get_positions():
     """Get active positions"""
     try:
         positions = []
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-        
-        if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
-            for strategy_name, position in current_bot.order_manager.active_positions.items():
-                current_price = get_current_price(position.symbol)
-                pnl = calculate_pnl(position, current_price) if current_price else 0
-                
-                # Calculate position value and margin invested
-                position_value = position.entry_price * position.quantity
-                
-                # Get leverage from strategy config
-                strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
-                leverage = strategy_config.get('leverage', 5)  # Default 5x leverage
-                margin_invested = position_value / leverage
-                
-                # Calculate PnL percentage against margin invested (correct for futures)
-                pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
-                
-                positions.append({
-                    'strategy': strategy_name,
-                    'symbol': position.symbol,
-                    'side': position.side,
-                    'entry_price': position.entry_price,
-                    'quantity': position.quantity,
-                    'position_value_usdt': position_value,  # Add position value in USDT
-                    'margin_invested': margin_invested,     # Add margin invested
-                    'current_price': current_price,
-                    'pnl': pnl,
-                    'pnl_percent': pnl_percent
-                })
+
+        if shared_bot_manager and hasattr(shared_bot_manager, 'order_manager'):
+            active_positions = shared_bot_manager.order_manager.active_positions
+
+            for trade_id, position in active_positions.items():
+                # Get current price
+                current_price = price_fetcher.get_current_price(position['symbol'])
+
+                # Calculate PnL
+                if current_price:
+                    entry_price = position['entry_price']
+                    quantity = position['quantity']
+                    side = position['side']
+
+                    if side == 'BUY':
+                        pnl = (current_price - entry_price) * quantity
+                    else:  # SELL
+                        pnl = (entry_price - current_price) * quantity
+
+                    # Calculate position value in USDT
+                    position_value_usdt = current_price * quantity
+
+                    # Calculate PnL percentage based on position value
+                    pnl_percent = (pnl / position_value_usdt) * 100 if position_value_usdt > 0 else 0
+
+                    positions.append({
+                        'strategy': position['strategy_name'],
+                        'symbol': position['symbol'],
+                        'side': position['side'],
+                        'entry_price': entry_price,
+                        'current_price': current_price,
+                        'quantity': quantity,
+                        'position_value_usdt': position_value_usdt,
+                        'pnl': pnl,
+                        'pnl_percent': pnl_percent
+                    })
+
         return jsonify({'success': True, 'positions': positions})
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Failed to get positions: {e}'})
+        logging.getLogger(__name__).error(f"Error getting positions: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/rsi/<symbol>')
+def get_current_rsi(symbol):
+    """Get current RSI for a symbol"""
+    try:
+        # Get OHLCV data for RSI calculation
+        df = price_fetcher.get_ohlcv_data(symbol, '15m', limit=50)
+        if df is None or df.empty:
+            return jsonify({'success': False, 'error': 'No data available'})
+
+        # Calculate RSI
+        df = price_fetcher.calculate_indicators(df)
+
+        if 'rsi' not in df.columns:
+            return jsonify({'success': False, 'error': 'RSI calculation failed'})
+
+        current_rsi = df['rsi'].iloc[-1]
+
+        return jsonify({
+            'success': True, 
+            'rsi': round(current_rsi, 1),
+            'symbol': symbol
+        })
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Error getting RSI for {symbol}: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/recent_trades')
 def recent_trades():
@@ -621,7 +655,7 @@ def get_ml_predictions():
                 'signal_strength': 0.7
             }
         ]
-        
+
         predictions = []
         for features in sample_features:
             prediction = ml_analyzer.predict_trade_outcome(features)
@@ -629,7 +663,7 @@ def get_ml_predictions():
                 prediction['symbol'] = features['symbol']
                 prediction['predicted_profitable'] = prediction.get('profit_probability', 0) > 0.5
                 predictions.append(prediction)
-        
+
         return jsonify({'success': True, 'predictions': predictions})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to get predictions: {e}'})
@@ -696,14 +730,14 @@ def get_console_log():
     """Get recent console log output"""
     try:
         log_lines = []
-        
+
         # Try multiple log file locations
         log_file_paths = [
             "trading_bot.log",
             "trading_data/bot.log", 
             "bot.log"
         ]
-        
+
         for log_file_path in log_file_paths:
             if os.path.exists(log_file_path):
                 try:
@@ -716,14 +750,14 @@ def get_console_log():
                 except Exception as e:
                     logger.debug(f"Could not read log file {log_file_path}: {e}")
                     continue
-        
+
         # If no file logs found, try to capture live logger output
         if not log_lines:
             # Check if we have access to a logger with handlers
             try:
                 import logging
                 root_logger = logging.getLogger()
-                
+
                 # Look for file handlers
                 for handler in root_logger.handlers:
                     if hasattr(handler, 'baseFilename'):
@@ -738,7 +772,7 @@ def get_console_log():
                             continue
             except Exception as e:
                 logger.debug(f"Could not access logger handlers: {e}")
-        
+
         # Final fallback: provide basic status info with better context
         if not log_lines:
             current_bot = shared_bot_manager if shared_bot_manager else bot_manager
@@ -747,7 +781,7 @@ def get_console_log():
                     # Get more detailed status
                     active_positions = len(current_bot.order_manager.active_positions) if current_bot.order_manager else 0
                     strategies = list(current_bot.strategies.keys()) if hasattr(current_bot, 'strategies') and current_bot.strategies else []
-                    
+
                     log_lines = [
                         "╔═══════════════════════════════════════════════════╗",
                         "║ 🤖 BOT STATUS                                    ║",
@@ -784,7 +818,7 @@ def get_console_log():
                     "║                                                   ║",
                     "╚═══════════════════════════════════════════════════╝"
                 ]
-        
+
         return jsonify({'success': True, 'logs': log_lines})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to get console log: {e}'})
@@ -794,43 +828,43 @@ def get_current_config():
     """Get current bot configuration"""
     try:
         config_data = {}
-        
+
         # Get default parameters
         config_data['default_params'] = trading_config_manager.default_params.to_dict()
-        
+
         # Get strategy overrides
         config_data['strategy_overrides'] = trading_config_manager.strategy_overrides.copy()
-        
+
         # Get final configurations for each strategy
         config_data['final_configs'] = {}
         for strategy_name in trading_config_manager.strategy_overrides.keys():
             base_config = {}
             final_config = trading_config_manager.get_strategy_config(strategy_name, base_config)
             config_data['final_configs'][strategy_name] = final_config
-        
+
         # Check if bot is running and get its active config
         config_data['bot_status'] = {
             'running': False,
             'active_strategies': []
         }
-        
+
         if bot_manager and hasattr(bot_manager, 'strategies'):
             config_data['bot_status']['running'] = getattr(bot_manager, 'is_running', False)
             config_data['bot_status']['active_strategies'] = list(bot_manager.strategies.keys()) if bot_manager.strategies else []
-            
+
             # Get actual bot strategy configs
             if bot_manager.strategies:
                 config_data['bot_active_configs'] = bot_manager.strategies.copy()
-        
+
         # Also check shared bot manager
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
         if shared_bot_manager and hasattr(shared_bot_manager, 'strategies'):
             config_data['bot_status']['running'] = getattr(shared_bot_manager, 'is_running', False)
             config_data['bot_status']['active_strategies'] = list(shared_bot_manager.strategies.keys()) if shared_bot_manager.strategies else []
-            
+
             if shared_bot_manager.strategies:
                 config_data['bot_active_configs'] = shared_bot_manager.strategies.copy()
-        
+
         return jsonify({'success': True, 'config': config_data})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to get configuration: {e}'})

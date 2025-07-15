@@ -125,7 +125,7 @@
                                             <th>Current Price</th>
                                             <th>PnL (USDT)</th>
                                             <th>PnL (%)</th>
-                                            <th>Actions</th>
+                                            <th>Current RSI</th>
                                         </tr>
                                     </thead>
                                     <tbody id="positionsTableBody">
@@ -669,7 +669,7 @@
             }
 
             let html = '';
-            positions.forEach(function(position) {
+            positions.forEach(function(position, index) {
                 let pnlClass = position.pnl > 0 ? 'text-success' : 'text-danger';
                 let sideClass = position.side === 'BUY' ? 'success' : 'danger';
 
@@ -682,10 +682,41 @@
                 html += '<td>' + (position.current_price ? '$' + position.current_price.toFixed(1) : 'N/A') + '</td>';
                 html += '<td class="' + pnlClass + '">$' + position.pnl.toFixed(1) + '</td>';
                 html += '<td class="' + pnlClass + '">' + (position.pnl_percent > 0 ? '+' : '') + position.pnl_percent.toFixed(1) + '%</td>';
-                html += '<td><button class="btn btn-info btn-sm" onclick="window.open(\'/chart/' + position.symbol + '\', \'_blank\')"><i class="fas fa-chart-area"></i></button></td>';
+                html += '<td><span id="rsi-' + index + '" class="badge bg-secondary">Loading...</span></td>';
                 html += '</tr>';
             });
             $('#positionsTableBody').html(html);
+
+            // Fetch RSI for each position
+            positions.forEach(function(position, index) {
+                fetchRSI(position.symbol, index);
+            });
+        }
+
+        function fetchRSI(symbol, index) {
+            $.get('/api/rsi/' + symbol, function(data) {
+                if (data.success) {
+                    let rsiValue = data.rsi;
+                    let rsiClass = 'bg-secondary';
+                    
+                    // Color code RSI values
+                    if (rsiValue <= 30) {
+                        rsiClass = 'bg-success'; // Oversold - green
+                    } else if (rsiValue >= 70) {
+                        rsiClass = 'bg-danger'; // Overbought - red
+                    } else if (rsiValue <= 40) {
+                        rsiClass = 'bg-info'; // Low - blue
+                    } else if (rsiValue >= 60) {
+                        rsiClass = 'bg-warning'; // High - yellow
+                    }
+                    
+                    $('#rsi-' + index).removeClass('bg-secondary').addClass(rsiClass).text('RSI: ' + rsiValue);
+                } else {
+                    $('#rsi-' + index).removeClass('bg-secondary').addClass('bg-danger').text('Error');
+                }
+            }).fail(function() {
+                $('#rsi-' + index).removeClass('bg-secondary').addClass('bg-danger').text('N/A');
+            });
         }
 
         // Console log functions
