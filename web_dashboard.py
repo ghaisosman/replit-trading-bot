@@ -881,18 +881,44 @@ def get_strategy_config(strategy_name):
 
 
 
+@app.before_request
+def ensure_json_for_api():
+    """Ensure API requests are handled properly"""
+    if request.path.startswith('/api/'):
+        # Set content type expectation
+        request.environ['HTTP_ACCEPT'] = 'application/json'
+
+@app.after_request  
+def ensure_json_response(response):
+    """Force JSON responses for API endpoints"""
+    try:
+        if request.path.startswith('/api/'):
+            # If response is not already JSON, force it
+            if not response.is_json and response.status_code != 200:
+                return jsonify({'success': False, 'error': 'Server error'}), 200
+            # Ensure proper headers
+            response.headers['Content-Type'] = 'application/json'
+        return response
+    except Exception as e:
+        logger.error(f"Error in after_request: {e}")
+        if request.path.startswith('/api/'):
+            return jsonify({'success': False, 'error': 'Response error'}), 200
+        return response
+
 @app.errorhandler(500)
 def internal_error(error):
     """Handle internal server errors with JSON response"""
     logger.error(f"Internal server error: {error}")
-    return jsonify({'success': False, 'error': 'Internal server error'}), 200
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'error': 'Internal server error'}), 200
+    return str(error), 500
 
 @app.errorhandler(404)
 def not_found(error):
     """Handle 404 errors with JSON response for API routes"""
     if request.path.startswith('/api/'):
         return jsonify({'success': False, 'error': 'Endpoint not found'}), 200
-    return error
+    return str(error), 404
 
 @app.errorhandler(Exception)
 def handle_exception(e):
