@@ -299,8 +299,10 @@ class OrderManager:
             quantity = position_value_usdt / signal.entry_price
 
             # Apply symbol-specific precision for futures trading
-            symbol_upper = signal.symbol.upper()
-            self.logger.info(f"🔍 PRECISION CHECK: Symbol = {signal.symbol} | Upper = {symbol_upper} | Quantity = {quantity:.6f}")
+            # Use strategy config symbol if signal symbol is empty
+            actual_symbol = signal.symbol or symbol
+            symbol_upper = actual_symbol.upper()
+            self.logger.info(f"🔍 PRECISION CHECK: Symbol = {actual_symbol} | Upper = {symbol_upper} | Quantity = {quantity:.6f}")
 
             if 'SOLUSDT' in symbol_upper or 'SOL' in symbol_upper:
                 # SOL futures uses 0 decimal places (whole numbers only)
