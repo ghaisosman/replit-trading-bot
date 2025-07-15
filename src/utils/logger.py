@@ -98,32 +98,30 @@ class ColoredFormatter(logging.Formatter):
                 else:
                     lines.append(msg)
             elif "MARKET ASSESSMENT" in msg:
-                parts = msg.split(" | ")
-                if len(parts) >= 6:
-                    lines.append("📈 MARKET ASSESSMENT")
-                    lines.append(f"🎯 Strategy: {parts[1]}")
-                    lines.append(f"💱 Symbol: {parts[2]}")
-                    lines.append(f"💵 {parts[3]}")
-                    lines.append(f"📊 {parts[4]}")
-                    lines.append(f"📈 {parts[5]}")
-                elif len(parts) >= 4:
-                    # Handle shorter format: "MARKET ASSESSMENT | STRATEGY | SYMBOL | Price: $xxx | Info"
-                    lines.append("📈 MARKET ASSESSMENT")
-                    lines.append(f"🎯 Strategy: {parts[1]}")
-                    lines.append(f"💱 Symbol: {parts[2]}")
-                    lines.append(f"💵 {parts[3]}")
-                    if len(parts) > 4:
+                # Handle market assessment messages - group related info
+                if " | " in msg:
+                    parts = msg.split(" | ")
+                    if len(parts) >= 6:
+                        lines.append("📈 MARKET ASSESSMENT")
+                        lines.append(f"🎯 Strategy: {parts[1]}")
+                        lines.append(f"💱 Symbol: {parts[2]}")
+                        lines.append(f"💵 {parts[3]}")
                         lines.append(f"📊 {parts[4]}")
+                        lines.append(f"📈 {parts[5]}")
+                    elif len(parts) >= 4:
+                        lines.append("📈 MARKET ASSESSMENT")
+                        lines.append(f"🎯 Strategy: {parts[1]}")
+                        lines.append(f"💱 Symbol: {parts[2]}")
+                        lines.append(f"💵 {parts[3]}")
+                        if len(parts) > 4:
+                            lines.append(f"📊 {parts[4]}")
+                    else:
+                        lines.append("📈 MARKET ASSESSMENT")
+                        for part in parts[1:]:  # Skip first part which is "MARKET ASSESSMENT"
+                            if part.strip():
+                                lines.append(f"📊 {part.strip()}")
                 else:
-                    # Split the message by spaces and format each part
-                    msg_clean = msg.replace("📈 MARKET ASSESSMENT | ", "")
-                    parts = msg_clean.split(" | ")
-                    lines.append("📈 MARKET ASSESSMENT")
-                    for part in parts:
-                        if part.strip():
-                            lines.append(f"📊 {part.strip()}")
-                    if not parts:
-                        lines.append(msg)
+                    lines.append(msg)
             elif "POSITION OPENED" in msg:
                 parts = msg.split(" | ")
                 if len(parts) >= 8:
@@ -214,10 +212,17 @@ class ColoredFormatter(logging.Formatter):
 ╚═══════════════════════════════════════════════════╝{reset}
 """
         elif "MARKET ASSESSMENT" in message:
-            # Market assessment - compact style
+            # Market assessment - group all related info in one block
             msg_lines = format_structured_message(message)
-            formatted_lines = "│\n".join([f"│ {line}" for line in msg_lines])
-            formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
+            
+            # Check if this is part of a multi-line market assessment
+            if len(msg_lines) == 1 and not " | " in message:
+                # This is likely a standalone component, format simply
+                formatted_message = f"{separator}{text_color}│ {message}{reset}\n"
+            else:
+                # Full market assessment block
+                formatted_lines = "│\n".join([f"│ {line}" for line in msg_lines])
+                formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
 │ 📈 MARKET SCAN                                  │
 │ ⏰ {timestamp}                                      │
 │                                                 │
