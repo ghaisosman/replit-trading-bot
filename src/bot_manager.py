@@ -318,6 +318,13 @@ For MAINNET:
                     self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: Price fetch failed")
                 return
 
+            # Check for conflicting positions on the same symbol
+            symbol = strategy_config['symbol']
+            existing_position = self.order_manager.get_position_on_symbol(symbol)
+            if existing_position:
+                self.logger.info(f"⚠️ SYMBOL CONFLICT | {strategy_name.upper()} | {symbol} | Already trading via {existing_position.strategy_name} | Skipping duplicate")
+                return
+
             # Check balance requirements
             if not self._check_balance_requirements(strategy_config):
                 return
@@ -705,7 +712,7 @@ For MAINNET:
                                 strategy_name = name
                                 break
 
-                        ifstrategy_name:
+                        if strategy_name:
                             side = 'BUY' if position_amt > 0 else 'SELL'
 
                             self.logger.info(f"🔍 POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {abs(position_amt)} | Entry: ${entry_price}")

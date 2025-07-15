@@ -37,9 +37,19 @@ class OrderManager:
         try:
             # Check if strategy already has an active position
             strategy_name = strategy_config['name']
+            symbol = strategy_config['symbol']
+            signal_side = 'BUY' if signal.signal_type == SignalType.BUY else 'SELL'
+            
             if strategy_name in self.active_positions:
                 self.logger.info(f"Strategy {strategy_name} already has an active position")
                 return None
+            
+            # Additional check: Prevent duplicate trades on same symbol/side across all strategies
+            for existing_strategy, existing_position in self.active_positions.items():
+                if (existing_position.symbol == symbol and 
+                    existing_position.side == signal_side):
+                    self.logger.warning(f"❌ DUPLICATE TRADE PREVENTED | {strategy_name} | {symbol} | {signal_side} | Already have position in {existing_strategy}")
+                    return None
 
             # Calculate position size
             quantity = self._calculate_position_size(signal, strategy_config)
@@ -253,6 +263,21 @@ class OrderManager:
     def get_position_history(self) -> List[Position]:
         """Get position history"""
         return self.position_history.copy()
+    
+    def has_position_on_symbol(self, symbol: str, side: str = None) -> bool:
+        """Check if there's already a position on this symbol (optionally with specific side)"""
+        for position in self.active_positions.values():
+            if position.symbol == symbol:
+                if side is None or position.side == side:
+                    return True
+        return False
+    
+    def get_position_on_symbol(self, symbol: str) -> Optional[Position]:
+        """Get existing position on symbol if any"""
+        for position in self.active_positions.values():
+            if position.symbol == symbol:
+                return position
+        return None
 
     def clear_orphan_position(self, strategy_name: str) -> bool:
         """Clear an orphan position (bot opened, manually closed)"""
