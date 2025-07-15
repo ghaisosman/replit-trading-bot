@@ -28,7 +28,7 @@ bot_manager = None
 bot_thread = None
 bot_running = False
 
-# Import the shared bot manager from main if it exists
+# Import the shared bot manager from main.py if it exists
 import sys
 shared_bot_manager = None
 
@@ -769,10 +769,50 @@ def get_bot_status():
                 }
 
         # Fallback status
-        return {
+return {
             'is_running': False,
             'active_positions': 0,
             'strategies': [],
             'balance': 0,
             'error': 'Bot manager not available'
         }
+
+def get_current_price(symbol):
+    """Get current price for a symbol"""
+    try:
+        if IMPORTS_AVAILABLE:
+            return price_fetcher.get_current_price(symbol)
+        return None
+    except:
+        return None
+
+def calculate_pnl(position, current_price):
+    """Calculate P&L for a position"""
+    if not current_price:
+        return 0
+
+    if position.side == 'BUY':  # Long position
+        return (current_price - position.entry_price) * position.quantity
+    else:  # Short position
+        return (position.entry_price - current_price) * position.quantity
+
+@app.route('/api/ml_insights')
+def get_ml_insights():
+    """Get ML insights"""
+    try:
+        # Mock data for ML insights
+        insights = {
+            'prediction_accuracy': 78.5,
+            'next_signal': 'BUY SOLUSDT',
+            'confidence': 85.2,
+            'model_status': 'active'
+        }
+        return jsonify({'success': True, 'insights': insights})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+if __name__ == '__main__':
+    logger.warning("🌐 WEB DASHBOARD: This module is designed to be imported by main.py")
+    logger.info("💡 Please run 'python main.py' instead - it includes the web dashboard")
+    print("⚠️  web_dashboard.py should not be run directly")
+    print("💡 Run 'python main.py' instead - it includes the web dashboard")</replit_final_file>
