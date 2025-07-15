@@ -516,3 +516,5 @@ class OrderManager:
                 'trade_id': position.trade_id,
             }
             self.logger.debug(f"📜 TRADE DATA: {json.dumps(trade_data, indent=2)}")
+        except Exception as e:
+            self.logger.error(f"Error logging trade validation data: {e}")
