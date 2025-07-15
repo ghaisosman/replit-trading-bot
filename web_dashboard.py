@@ -771,8 +771,7 @@ def get_bot_status():
             try:
                 status = {
                     'is_running': getattr(shared_bot_manager, 'is_running', False),
-                    'active_positions': len(getattr(shared_bot_manager.order_manager, 'active_positions', {}))```python
- if hasattr(shared_bot_manager, 'order_manager') else 0,
+                    'active_positions': len(getattr(shared_bot_manager.order_manager, 'active_positions', {})) if hasattr(shared_bot_manager, 'order_manager') else 0,
                     'strategies': list(getattr(shared_bot_manager, 'strategies', {}).keys()) if hasattr(shared_bot_manager, 'strategies') else [],
                     'balance': 0  # Will be updated separately
                 }
