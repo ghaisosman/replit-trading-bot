@@ -14,7 +14,7 @@ from src.execution_engine.strategies.macd_divergence_config import MACDDivergenc
 from src.reporting.telegram_reporter import TelegramReporter
 from src.config.trading_config import trading_config_manager
 from src.execution_engine.trade_monitor import TradeMonitor
-fromsrc.execution_engine.anomaly_detector import AnomalyDetector
+from src.execution_engine.anomaly_detector import AnomalyDetector
 
 
 class BotManager:
