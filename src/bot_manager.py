@@ -298,11 +298,13 @@ For MAINNET:
                 if current_price:
                     pnl_usdt = self._calculate_pnl(position, current_price)
                     position_value_usdt = position.entry_price * position.quantity
-                    pnl_percent = (pnl_usdt / position_value_usdt) * 100 if position_value_usdt > 0 else 0
-
+                    
                     # Calculate margin invested (assuming 5x leverage as default)
                     leverage = strategy_config.get('leverage', 5)
                     margin_invested = position_value_usdt / leverage
+                    
+                    # For futures trading, PnL percentage should be calculated against margin invested, not position value
+                    pnl_percent = (pnl_usdt / margin_invested) * 100 if margin_invested > 0 else 0
                     
                     # Show comprehensive position status with proper formatting
                     self.logger.info(f"""╔═══════════════════════════════════════════════════╗
