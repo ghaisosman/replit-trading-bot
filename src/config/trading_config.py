@@ -78,12 +78,19 @@ class TradingConfigManager:
         # Ensure assessment_interval is properly handled
         if 'assessment_interval' in updates:
             updates['assessment_interval'] = int(updates['assessment_interval'])
+            # Validate assessment interval (60 seconds to 1 hour)
+            if updates['assessment_interval'] < 60:
+                updates['assessment_interval'] = 60
+            elif updates['assessment_interval'] > 3600:
+                updates['assessment_interval'] = 3600
         
         self.strategy_overrides[strategy_name].update(updates)
         
         # Log the update for debugging
         import logging
         logging.getLogger(__name__).info(f"📝 Strategy {strategy_name} config updated: {updates}")
+        if 'assessment_interval' in updates:
+            logging.getLogger(__name__).info(f"📅 {strategy_name} assessment interval set to {updates['assessment_interval']} seconds")
     
     def update_default_params(self, updates: Dict[str, Any]):
         """Update default trading parameters for all strategies"""

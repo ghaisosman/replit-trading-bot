@@ -609,14 +609,26 @@ For MAINNET:
             self.telegram_reporter.report_error("Exit Check Error", str(e))
 
     def _should_assess_strategy(self, strategy_name: str, strategy_config: Dict) -> bool:
-        """Check if strategy should be assessed based on timing"""
+        """Check if it's time to assess this strategy using strategy-specific intervals"""
+        current_time = datetime.now()
+
+        # Check if we have a last assessment time for this strategy
         if strategy_name not in self.strategy_last_assessment:
             return True
 
-        last_assessment = self.strategy_last_assessment[strategy_name]
-        assessment_interval = strategy_config.get('assessment_interval', 300)  # Default 5 minutes if not configured
+        # Check if enough time has passed since last assessment
+        time_since_last = current_time - self.strategy_last_assessment[strategy_name]
 
-        return (datetime.now() - last_assessment).seconds >= assessment_interval
+        # Use strategy-specific assessment interval from config
+        assessment_interval = strategy_config.get('assessment_interval', 300)  # Default 5 minutes
+
+        should_assess = time_since_last.total_seconds() >= assessment_interval
+
+        # Log assessment timing for debugging
+        if should_assess:
+            self.logger.debug(f"🔍 {strategy_name.upper()} assessment interval ({assessment_interval}s) reached - proceeding with market scan")
+
+        return should_assess
 
     def _check_balance_requirements(self, strategy_config: Dict) -> bool:
         """Check if there's sufficient balance for the strategy with error handling"""
