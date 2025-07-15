@@ -757,3 +757,24 @@ def get_current_price(symbol):
     """Get current price for symbol"""
     try:
         ticker = binance_client.get_symbol_ticker(symbol)
+        return float(ticker['price']) if ticker else None
+    except:
+        return None
+
+def calculate_pnl(position, current_price):
+    """Calculate PnL for position - matches console calculation"""
+    if not current_price:
+        return 0
+
+    # For futures trading, PnL calculation
+    if position.side == 'BUY':  # Long position
+        pnl = (current_price - position.entry_price) * position.quantity
+    else:  # Short position (SELL)
+        pnl = (position.entry_price - current_price) * position.quantity
+
+    return pnl
+
+if __name__ == '__main__':
+    logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
+    logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
