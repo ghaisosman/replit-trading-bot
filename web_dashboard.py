@@ -394,6 +394,54 @@ def get_positions():
         logging.getLogger(__name__).error(f"Error getting positions: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/rsi/<symbol>')
+def get_rsi(symbol):
+    """Get RSI value for a symbol"""
+    try:
+        # Import RSI calculation utilities
+        import pandas as pd
+        
+        # Get historical data for RSI calculation
+        klines = binance_client.get_klines(symbol=symbol, interval='1h', limit=15)
+        if not klines:
+            return jsonify({'success': False, 'error': f'Could not fetch klines for {symbol}'})
+        
+        # Convert to pandas DataFrame for easier calculation
+        closes = [float(kline[4]) for kline in klines]
+        
+        if len(closes) < 14:
+            return jsonify({'success': False, 'error': f'Not enough data points for RSI calculation for {symbol}'})
+        
+        # Calculate RSI
+        rsi = calculate_rsi(closes)
+        
+        return jsonify({'success': True, 'rsi': round(rsi, 2)})
+    except Exception as e:
+        logger.error(f"Error calculating RSI for {symbol}: {e}")
+        return jsonify({'success': False, 'error': f'Failed to calculate RSI: {str(e)}'})
+
+def calculate_rsi(closes, period=14):
+    """Calculate RSI (Relative Strength Index)"""
+    if len(closes) < period + 1:
+        return 50.0  # Default RSI if not enough data
+    
+    deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
+    
+    gains = [delta if delta > 0 else 0 for delta in deltas]
+    losses = [-delta if delta < 0 else 0 for delta in deltas]
+    
+    # Calculate average gains and losses
+    avg_gain = sum(gains[-period:]) / period
+    avg_loss = sum(losses[-period:]) / period
+    
+    if avg_loss == 0:
+        return 100.0
+    
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    
+    return rsi
+
 @app.route('/api/console-log')
 def get_console_log():
     """Get recent console log output"""
