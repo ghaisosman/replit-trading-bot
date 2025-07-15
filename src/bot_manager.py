@@ -300,12 +300,45 @@ For MAINNET:
                     position_value_usdt = position.entry_price * position.quantity
                     pnl_percent = (pnl_usdt / position_value_usdt) * 100 if position_value_usdt > 0 else 0
 
-                    # Show comprehensive position status
-                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: ${pnl_usdt:.2f} USDT ({pnl_percent:+.2f}%)")
+                    # Calculate margin invested (assuming 5x leverage as default)
+                    leverage = strategy_config.get('leverage', 5)
+                    margin_invested = position_value_usdt / leverage
+                    
+                    # Show comprehensive position status with proper formatting
+                    self.logger.info(f"""╔═══════════════════════════════════════════════════╗
+║ 📊 ACTIVE POSITION                                ║
+║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
+║                                                   ║
+║ 📊 TRADE IN PROGRESS                             ║
+║ 🎯 Strategy: {strategy_name.upper()}                        ║
+║ 💱 Symbol: {position.symbol}                              ║
+║ 📊 Side: {position.side}                                 ║
+║ 💵 Entry: ${position.entry_price:.1f}                          ║
+║ 📊 Current: ${current_price:.1f}                           ║
+║ 💸 Margin: ${margin_invested:.1f} USDT                    ║
+║ 💰 PnL: ${pnl_usdt:.1f} USDT ({pnl_percent:+.1f}%)              ║
+║                                                   ║
+╚═══════════════════════════════════════════════════╝""")
                 else:
                     # Fallback if price fetch fails
                     position_value_usdt = position.entry_price * position.quantity
-                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: Price fetch failed")
+                    leverage = strategy_config.get('leverage', 5)
+                    margin_invested = position_value_usdt / leverage
+                    
+                    self.logger.info(f"""╔═══════════════════════════════════════════════════╗
+║ 📊 ACTIVE POSITION                                ║
+║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
+║                                                   ║
+║ 📊 TRADE IN PROGRESS                             ║
+║ 🎯 Strategy: {strategy_name.upper()}                        ║
+║ 💱 Symbol: {position.symbol}                              ║
+║ 📊 Side: {position.side}                                 ║
+║ 💵 Entry: ${position.entry_price:.1f}                          ║
+║ 📊 Current: Price fetch failed                    ║
+║ 💸 Margin: ${margin_invested:.1f} USDT                    ║
+║ 💰 PnL: Unable to calculate                      ║
+║                                                   ║
+╚═══════════════════════════════════════════════════╝""")
 
                 # Update last log time
                 self.last_position_log_time[strategy_name] = current_time
