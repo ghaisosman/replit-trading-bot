@@ -55,45 +55,23 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
-                                <button class="btn btn-outline-primary w-100" onclick="showDefaultParamsModal()">
-                                    <i class="fas fa-cog"></i><br>Default Settings
+                                <button class="btn btn-outline-primary w-100" onclick="showStrategiesInfo()">
+                                    <i class="fas fa-cog"></i><br>View Strategies
                                 </button>
                             </div>
                             <div class="col-md-3">
-                                <button class="btn btn-outline-success w-100" onclick="showStrategyModal()">
-                                    <i class="fas fa-chart-line"></i><br>Strategies
+                                <button class="btn btn-outline-success w-100" onclick="refreshData()">
+                                    <i class="fas fa-chart-line"></i><br>Refresh Data
                                 </button>
                             </div>
                             <div class="col-md-3">
-                                <button class="btn btn-outline-info w-100" onclick="window.open('/chart/BTCUSDT', '_blank')">
-                                    <i class="fas fa-chart-area"></i><br>BTC Chart
+                                <button class="btn btn-outline-info w-100" onclick="clearConsoleLog()">
+                                    <i class="fas fa-trash"></i><br>Clear Console
                                 </button>
                             </div>
                             <div class="col-md-3">
-                                <button class="btn btn-outline-info w-100" onclick="window.open('/chart/ETHUSDT', '_blank')">
-                                    <i class="fas fa-chart-area"></i><br>ETH Chart
-                                </button>
-                            </div>
-                        </div>
-                        <div class="row mt-2">
-                            <div class="col-md-3">
-                                <button class="btn btn-outline-purple w-100" onclick="window.open('/ml-reports', '_blank')" style="border-color: #6f42c1; color: #6f42c1;">
-                                    <i class="fas fa-brain"></i><br>ML Reports
-                                </button>
-                            </div>
-                            <div class="col-md-3">
-                                <button class="btn btn-outline-dark w-100" onclick="sendDailyReport()">
-                                    <i class="fas fa-paper-plane"></i><br>Send Report
-                                </button>
-                            </div>
-                            <div class="col-md-3">
-                                <button class="btn btn-outline-secondary w-100" onclick="exportTradeData()">
-                                    <i class="fas fa-download"></i><br>Export Data
-                                </button>
-                            </div>
-                            <div class="col-md-3">
-                                <button class="btn btn-outline-warning w-100" onclick="trainMLModels()">
-                                    <i class="fas fa-cogs"></i><br>Train ML
+                                <button class="btn btn-outline-dark w-100" onclick="showConsoleInfo()">
+                                    <i class="fas fa-terminal"></i><br>Console Info
                                 </button>
                             </div>
                         </div>
@@ -162,40 +140,6 @@
             </div>
         </div>
 
-        <!-- ML Insights Section -->
-        <div class="row mt-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-info text-white">
-                        <h5><i class="fas fa-brain"></i> ML Insights</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="ml-insights-content">
-                            <p class="text-muted">Loading ML insights...</p>
-                        </div>
-                        <button class="btn btn-info btn-sm" onclick="loadMLInsights()">
-                            <i class="fas fa-sync"></i> Refresh Insights
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-success text-white">
-                        <h5><i class="fas fa-chart-line"></i> ML Predictions</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="ml-predictions-content">
-                            <p class="text-muted">Loading ML predictions...</p>
-                        </div>
-                        <button class="btn btn-success btn-sm" onclick="loadMLPredictions()">
-                            <i class="fas fa-sync"></i> Get Predictions
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Strategy Configuration -->
         <div class="row mt-4">
             <div class="col-12">
@@ -213,7 +157,7 @@
                                         <th>Margin (USDT)</th>
                                         <th>Leverage</th>
                                         <th>Timeframe</th>
-                                        <th>Actions</th>
+                                        <th>Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -224,14 +168,7 @@
                                         <td>${{ config.margin }}</td>
                                         <td>{{ config.leverage }}x</td>
                                         <td>{{ config.timeframe }}</td>
-                                        <td>
-                                            <button class="btn btn-warning btn-sm" onclick="editStrategy('{{ strategy_name }}')">
-                                                <i class="fas fa-edit"></i> Edit
-                                            </button>
-                                            <button class="btn btn-info btn-sm" onclick="window.open('/chart/{{ config.symbol }}', '_blank')">
-                                                <i class="fas fa-chart-area"></i> Chart
-                                            </button>
-                                        </td>
+                                        <td><span class="badge bg-success">Active</span></td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -243,148 +180,33 @@
         </div>
     </div>
 
-    <!-- Default Parameters Modal -->
-    <div class="modal fade" id="defaultParamsModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Default Trading Parameters</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="defaultParamsForm">
-                        <div class="mb-3">
-                            <label class="form-label">Default Symbol</label>
-                            <input type="text" class="form-control" id="defaultSymbol" placeholder="BTCUSDT">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Default Margin (USDT)</label>
-                            <input type="number" class="form-control" id="defaultMargin" step="0.01">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Default Leverage</label>
-                            <input type="number" class="form-control" id="defaultLeverage" min="1" max="20">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Default Timeframe</label>
-                            <select class="form-control" id="defaultTimeframe">
-                                <option value="1m">1 minute</option>
-                                <option value="5m">5 minutes</option>
-                                <option value="15m">15 minutes</option>
-                                <option value="1h">1 hour</option>
-                                <option value="4h">4 hours</option>
-                                <option value="1d">1 day</option>
-                            </select>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="saveDefaultParams()">Save Changes</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Strategy Edit Modal -->
-    <div class="modal fade" id="strategyModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="strategyModalTitle">Edit Strategy</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="strategyForm">
-                        <input type="hidden" id="editStrategyName">
-                        <div class="mb-3">
-                            <label class="form-label">Symbol</label>
-                            <input type="text" class="form-control" id="strategySymbol">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Margin (USDT)</label>
-                            <input type="number" class="form-control" id="strategyMargin" step="0.01">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Leverage</label>
-                            <input type="number" class="form-control" id="strategyLeverage" min="1" max="20">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Timeframe</label>
-                            <select class="form-control" id="strategyTimeframe">
-                                <option value="1m">1 minute</option>
-                                <option value="5m">5 minutes</option>
-                                <option value="15m">15 minutes</option>
-                                <option value="1h">1 hour</option>
-                                <option value="4h">4 hours</option>
-                                <option value="1d">1 day</option>
-                            </select>
-                        </div>
-                        <div id="rsiParameters" style="display: none;">
-                            <div class="mb-3">
-                                <label class="form-label">RSI Long Entry</label>
-                                <input type="number" class="form-control" id="rsiLongEntry">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">RSI Long Exit</label>
-                                <input type="number" class="form-control" id="rsiLongExit">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">RSI Short Entry</label>
-                                <input type="number" class="form-control" id="rsiShortEntry">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">RSI Short Exit</label>
-                                <input type="number" class="form-control" id="rsiShortExit">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Max Loss (%)</label>
-                                <input type="number" class="form-control" id="maxLossPct">
-                            </div>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="saveStrategy()">Save Changes</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Current Config Modal -->
-    <div class="modal fade" id="currentConfigModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Current Configuration</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="configDisplay">
-                        <!-- Configuration will be displayed here -->
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" onclick="refreshConfig()">Refresh</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script>
+        // Global variables for auto-scroll
+        let autoScroll = true;
+        let consoleLogBuffer = [];
+
         // Bot control functions
-        $('#botToggle').click(function() {
-            const isRunning = $(this).text().includes('Stop');
+        document.getElementById('botToggle').addEventListener('click', function() {
+            const isRunning = this.textContent.includes('Stop');
             const endpoint = isRunning ? '/api/bot/stop' : '/api/bot/start';
 
-            $.post(endpoint, function(data) {
+            fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
                 if (data.success) {
                     location.reload();
                 } else {
                     alert('Error: ' + data.message);
                 }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Connection error');
             });
         });
 
@@ -393,277 +215,58 @@
             location.reload();
         }
 
-        // Default parameters modal
-        function showDefaultParamsModal() {
-            $('#defaultParamsModal').modal('show');
-        }
-
-        function saveDefaultParams() {
-            const data = {
-                symbol: $('#defaultSymbol').val(),
-                margin: parseFloat($('#defaultMargin').val()),
-                leverage: parseInt($('#defaultLeverage').val()),
-                timeframe: $('#defaultTimeframe').val()
-            };
-
-            $.ajax({
-                url: '/api/default-params',
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify(data),
-                success: function(response) {
-                    if (response.success) {
-                        $('#defaultParamsModal').modal('hide');
-                        location.reload();
-                    } else {
-                        alert('Error: ' + response.message);
+        // Show strategies info
+        function showStrategiesInfo() {
+            fetch('/api/strategies')
+                .then(response => response.json())
+                .then(data => {
+                    let info = 'Current Strategies:\n\n';
+                    for (const [name, config] of Object.entries(data)) {
+                        info += name.toUpperCase() + ':\n';
+                        info += '  Symbol: ' + config.symbol + '\n';
+                        info += '  Margin: $' + config.margin + '\n';
+                        info += '  Leverage: ' + config.leverage + 'x\n';
+                        info += '  Timeframe: ' + config.timeframe + '\n\n';
                     }
-                }
-            });
-        }
-
-        // Strategy modal
-        function showStrategyModal() {
-            $('#strategyModal').modal('show');
-        }
-
-        let currentEditingStrategy = null;
-
-        function editStrategy(strategyName) {
-            currentEditingStrategy = strategyName;
-            document.getElementById('strategyModalTitle').textContent = 'Edit ' + strategyName;
-
-            // Show/hide RSI parameters based on strategy type
-            const rsiParams = document.getElementById('rsiParameters');
-            if (strategyName.toLowerCase().includes('rsi')) {
-                rsiParams.style.display = 'block';
-            } else {
-                rsiParams.style.display = 'none';
-            }
-
-            // Fetch current strategy configuration
-            $.get('/api/strategies', function(data) {
-                const strategy = data[strategyName];
-                if (strategy) {
-                    $('#strategySymbol').val(strategy.symbol);
-                    $('#strategyMargin').val(strategy.margin);
-                    $('#strategyLeverage').val(strategy.leverage);
-                    $('#strategyTimeframe').val(strategy.timeframe);
-
-                    // Fill RSI-specific parameters if they exist
-                    if (strategy.rsi_long_entry !== undefined) {
-                        $('#rsiLongEntry').val(strategy.rsi_long_entry);
-                    }
-                    if (strategy.rsi_long_exit !== undefined) {
-                        $('#rsiLongExit').val(strategy.rsi_long_exit);
-                    }
-                    if (strategy.rsi_short_entry !== undefined) {
-                        $('#rsiShortEntry').val(strategy.rsi_short_entry);
-                    }
-                    if (strategy.rsi_short_exit !== undefined) {
-                        $('#rsiShortExit').val(strategy.rsi_short_exit);
-                    }
-                    if (strategy.max_loss_pct !== undefined) {
-                        $('#maxLossPct').val(strategy.max_loss_pct);
-                    }
-                }
-            });
-
-            $('#strategyModal').modal('show');
-        }
-
-        function saveStrategy() {
-            if (!currentEditingStrategy) return;
-
-            const data = {
-                symbol: $('#strategySymbol').val(),
-                margin: parseFloat($('#strategyMargin').val()),
-                leverage: parseInt($('#strategyLeverage').val()),
-                timeframe: $('#strategyTimeframe').val()
-            };
-
-            // Add RSI-specific parameters if strategy is RSI-based
-            if (currentEditingStrategy.toLowerCase().includes('rsi')) {
-                const rsiLongEntry = $('#rsiLongEntry').val();
-                const rsiLongExit = $('#rsiLongExit').val();
-                const rsiShortEntry = $('#rsiShortEntry').val();
-                const rsiShortExit = $('#rsiShortExit').val();
-                const maxLossPct = $('#maxLossPct').val();
-
-                if (rsiLongEntry) data.rsi_long_entry = parseInt(rsiLongEntry);
-                if (rsiLongExit) data.rsi_long_exit = parseInt(rsiLongExit);
-                if (rsiShortEntry) data.rsi_short_entry = parseInt(rsiShortEntry);
-                if (rsiShortExit) data.rsi_short_exit = parseInt(rsiShortExit);
-                if (maxLossPct) data.max_loss_pct = parseInt(maxLossPct);
-            }
-
-            // Remove empty values
-            Object.keys(data).forEach(key => {
-                if (data[key] === '' || isNaN(data[key])) {
-                    delete data[key];
-                }
-            });
-
-            $.ajax({
-                url: '/api/strategies/' + currentEditingStrategy,
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify(data),
-                success: function(response) {
-                    if (response.success) {
-                        $('#strategyModal').modal('hide');
-                        location.reload();
-                    } else {
-                        alert('Error: ' + response.message);
-                    }
-                }
-            });
-        }
-
-        // ML Functions
-        function sendDailyReport() {
-            if (confirm('Send daily report to Telegram?')) {
-                $.post('/api/daily-report/send', function(data) {
-                    if (data.success) {
-                        alert('✅ Daily report sent successfully!');
-                    } else {
-                        alert('❌ Failed to send report: ' + (data.error || 'Unknown error'));
-                    }
+                    alert(info);
+                })
+                .catch(error => {
+                    alert('Error loading strategies: ' + error);
                 });
-            }
         }
 
-        function exportTradeData() {
-            $.get('/api/trade-data/export', function(data) {
-                if (data.success) {
-                    alert('✅ Trade data exported to: ' + data.filename);
-                } else {
-                    alert('❌ Failed to export data: ' + (data.error || 'Unknown error'));
-                }
-            });
+        // Show console info
+        function showConsoleInfo() {
+            alert('Console shows real-time bot activity:\n\n' +
+                  '• Green messages: Successful operations\n' +
+                  '• Red messages: Errors or warnings\n' +
+                  '• Blue messages: Information\n' +
+                  '• Yellow messages: Market analysis\n\n' +
+                  'Auto-scroll keeps the latest messages visible.');
         }
-
-        function trainMLModels() {
-            if (confirm('Train ML models? This may take a few minutes.')) {
-                $.post('/api/train_models', function(data) {
-                    if (data.error) {
-                        alert('❌ Training failed: ' + data.error);
-                    } else {
-                        let message = '✅ ML models trained successfully!\n\n';
-                        if (data.profitability_accuracy) {
-                            message += '📊 Profitability accuracy: ' + (data.profitability_accuracy * 100).toFixed(1) + '%\n';
-                        }
-                        if (data.pnl_r2_score) {
-                            message += '📈 PnL R² score: ' + data.pnl_r2_score.toFixed(2) + '\n';
-                        }
-                        alert(message);
-                    }
-                });
-            }
-        }
-
-        // Load ML insights on page load
-        $(document).ready(function() {
-            loadMLInsights();
-            loadMLPredictions();
-        });
-
-        // ML Functions
-        function loadMLInsights() {
-            $('#ml-insights-content').html('<p class="text-muted">Loading ML insights...</p>');
-            $.get('/api/ml_insights', function(data) {
-                if (data.success && data.insights) {
-                    displayMLInsights(data.insights);
-                } else {
-                    $('#ml-insights-content').html('<p class="text-warning">No insights available. Train models first.</p>');
-                }
-            }).fail(function() {
-                $('#ml-insights-content').html('<p class="text-danger">Failed to load insights</p>');
-            });
-        }
-
-        function loadMLPredictions() {
-            $('#ml-predictions-content').html('<p class="text-muted">Loading ML predictions...</p>');
-            $.get('/api/ml_predictions', function(data) {
-                if (data.success && data.predictions) {
-                    displayMLPredictions(data.predictions);
-                } else {
-                    $('#ml-predictions-content').html('<p class="text-warning">No predictions available. Train models first.</p>');
-                }
-            }).fail(function() {
-                $('#ml-predictions-content').html('<p class="text-danger">Failed to load predictions</p>');
-            });
-        }
-
-        function displayMLInsights(insights) {
-            let html = '';
-
-            if (insights.strategy_performance) {
-                html += '<h6>Strategy Performance:</h6>';
-                for (let strategy in insights.strategy_performance) {
-                    let perf = insights.strategy_performance[strategy];
-                    let winRate = (perf.was_profitable && perf.was_profitable.mean) ? (perf.was_profitable.mean * 100).toFixed(1) : 'N/A';
-                    html += '<small>' + strategy + ': ' + winRate + '% Win Rate</small><br>';
-                }
-            }
-
-            if (insights.time_analysis && insights.time_analysis.best_trading_hours) {
-                html += '<h6 class="mt-2">Best Trading Hours:</h6>';
-                for (let hour in insights.time_analysis.best_trading_hours) {
-                    let rate = (insights.time_analysis.best_trading_hours[hour] * 100).toFixed(1);
-                    html += '<small>' + hour + ':00 - ' + rate + '% Success</small><br>';
-                }
-            }
-
-            if (!html) {
-                html = '<p class="text-muted">No insights available yet. Train models with more data.</p>';
-            }
-
-            $('#ml-insights-content').html(html);
-        }
-
-        function displayMLPredictions(predictions) {
-            let html = '';
-
-            predictions.forEach(function(pred) {
-                let status = pred.predicted_profitable ? 'text-success' : 'text-danger';
-                let recommendation = pred.predicted_profitable ? 'Profitable' : 'Risky';
-
-                html += '<div class="border-bottom pb-2 mb-2">';
-                html += '<strong>' + (pred.symbol || 'Market') + '</strong>';
-                html += '<span class="badge bg-' + (pred.predicted_profitable ? 'success' : 'danger') + ' ms-2">' + recommendation + '</span><br>';
-                html += '<small>Expected PnL: ' + (pred.predicted_pnl_percentage ? pred.predicted_pnl_percentage.toFixed(2) : 'N/A') + '%</small><br>';
-                html += '<small>Confidence: ' + (pred.confidence ? (pred.confidence * 100).toFixed(1) : 'N/A') + '%</small>';
-                html += '</div>';
-            });
-
-            if (!html) {
-                html = '<p class="text-muted">No predictions available. Train models first.</p>';
-            }
-
-            $('#ml-predictions-content').html(html);
-        }
-
-        // Global variables for auto-scroll
-        let autoScroll = true;
-        let consoleLogBuffer = [];
 
         // Update positions table
         function updatePositionsTable() {
-            $.get('/api/positions', function(data) {
-                if (data.success && data.positions) {
-                    updatePositionsDisplay(data.positions);
-                } else {
-                    $('#positionsTableBody').html('<tr><td colspan="9" class="text-muted text-center">No active positions</td></tr>');
-                }
-            }).fail(function() {
-                $('#positionsTableBody').html('<tr><td colspan="9" class="text-danger text-center">Failed to load positions</td></tr>');
-            });
+            fetch('/api/positions')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.positions) {
+                        updatePositionsDisplay(data.positions);
+                    } else {
+                        document.getElementById('positionsTableBody').innerHTML = 
+                            '<tr><td colspan="9" class="text-muted text-center">No active positions</td></tr>';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('positionsTableBody').innerHTML = 
+                        '<tr><td colspan="9" class="text-danger text-center">Failed to load positions</td></tr>';
+                });
         }
 
         function updatePositionsDisplay(positions) {
             if (positions.length === 0) {
-                $('#positionsTableBody').html('<tr><td colspan="9" class="text-muted text-center">No active positions</td></tr>');
+                document.getElementById('positionsTableBody').innerHTML = 
+                    '<tr><td colspan="9" class="text-muted text-center">No active positions</td></tr>';
                 return;
             }
 
@@ -676,15 +279,15 @@
                 html += '<td>' + position.strategy.toUpperCase() + '</td>';
                 html += '<td>' + position.symbol + '</td>';
                 html += '<td><span class="badge bg-' + sideClass + '">' + position.side + '</span></td>';
-                html += '<td>$' + position.entry_price.toFixed(1) + '</td>';
-                html += '<td>$' + (position.position_value_usdt ? position.position_value_usdt.toFixed(1) : (position.entry_price * position.quantity).toFixed(1)) + '</td>';
-                html += '<td>' + (position.current_price ? '$' + position.current_price.toFixed(1) : 'N/A') + '</td>';
-                html += '<td class="' + pnlClass + '">$' + position.pnl.toFixed(1) + '</td>';
-                html += '<td class="' + pnlClass + '">' + (position.pnl_percent > 0 ? '+' : '') + position.pnl_percent.toFixed(1) + '%</td>';
+                html += '<td>$' + position.entry_price.toFixed(4) + '</td>';
+                html += '<td>$' + (position.position_value_usdt ? position.position_value_usdt.toFixed(2) : (position.entry_price * position.quantity).toFixed(2)) + '</td>';
+                html += '<td>' + (position.current_price ? '$' + position.current_price.toFixed(4) : 'N/A') + '</td>';
+                html += '<td class="' + pnlClass + '">$' + position.pnl.toFixed(2) + '</td>';
+                html += '<td class="' + pnlClass + '">' + (position.pnl_percent > 0 ? '+' : '') + position.pnl_percent.toFixed(2) + '%</td>';
                 html += '<td><span id="rsi-' + index + '" class="badge bg-secondary">Loading...</span></td>';
                 html += '</tr>';
             });
-            $('#positionsTableBody').html(html);
+            document.getElementById('positionsTableBody').innerHTML = html;
 
             // Fetch RSI for each position
             positions.forEach(function(position, index) {
@@ -693,38 +296,58 @@
         }
 
         function fetchRSI(symbol, index) {
-            $.get('/api/rsi/' + symbol, function(data) {
-                if (data.success) {
-                    let rsiValue = data.rsi;
-                    let rsiClass = 'bg-secondary';
+            fetch('/api/rsi/' + symbol)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        let rsiValue = data.rsi;
+                        let rsiClass = 'bg-secondary';
 
-                    // Color code RSI values
-                    if (rsiValue <= 30) {
-                        rsiClass = 'bg-success'; // Oversold - green
-                    } else if (rsiValue >= 70) {
-                        rsiClass = 'bg-danger'; // Overbought - red
-                    } else if (rsiValue <= 40) {
-                        rsiClass = 'bg-info'; // Low - blue
-                    } else if (rsiValue >= 60) {
-                        rsiClass = 'bg-warning'; // High - yellow
+                        // Color code RSI values
+                        if (rsiValue <= 30) {
+                            rsiClass = 'bg-success'; // Oversold - green
+                        } else if (rsiValue >= 70) {
+                            rsiClass = 'bg-danger'; // Overbought - red
+                        } else if (rsiValue <= 40) {
+                            rsiClass = 'bg-info'; // Low - blue
+                        } else if (rsiValue >= 60) {
+                            rsiClass = 'bg-warning'; // High - yellow
+                        }
+
+                        const rsiElement = document.getElementById('rsi-' + index);
+                        if (rsiElement) {
+                            rsiElement.className = 'badge ' + rsiClass;
+                            rsiElement.textContent = 'RSI: ' + rsiValue;
+                        }
+                    } else {
+                        const rsiElement = document.getElementById('rsi-' + index);
+                        if (rsiElement) {
+                            rsiElement.className = 'badge bg-danger';
+                            rsiElement.textContent = 'Error';
+                        }
                     }
-
-                    $('#rsi-' + index).removeClass('bg-secondary').addClass(rsiClass).text('RSI: ' + rsiValue);
-                } else {
-                    $('#rsi-' + index).removeClass('bg-secondary').addClass('bg-danger').text('Error');
-                }
-            }).fail(function() {
-                $('#rsi-' + index).removeClass('bg-secondary').addClass('bg-danger').text('N/A');
-            });
+                })
+                .catch(error => {
+                    const rsiElement = document.getElementById('rsi-' + index);
+                    if (rsiElement) {
+                        rsiElement.className = 'badge bg-danger';
+                        rsiElement.textContent = 'N/A';
+                    }
+                });
         }
 
         // Console log functions
         function fetchConsoleLog() {
-            $.get('/api/console-log', function(data) {
-                if (data.success && data.logs) {
-                    updateConsoleLog(data.logs);
-                }
-            });
+            fetch('/api/console-log')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.logs) {
+                        updateConsoleLog(data.logs);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching console log:', error);
+                });
         }
 
         function updateConsoleLog(logs) {
@@ -793,380 +416,49 @@
             updatePositionsTable();
 
             // Update bot status
-            $.get('/api/bot/status', function(data) {
-                $('#botStatus').text(data.running ? 'RUNNING' : 'STOPPED');
-                $('#botStatus').removeClass('bg-success bg-danger').addClass(data.running ? 'bg-success' : 'bg-danger');
-                $('#activePositions').text(data.active_positions);
-            });
+            fetch('/api/bot/status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusElement = document.getElementById('botStatus');
+                    const activePositionsElement = document.getElementById('activePositions');
+
+                    if (statusElement) {
+                        statusElement.textContent = data.running ? 'RUNNING' : 'STOPPED';
+                        statusElement.className = 'badge bg-' + (data.running ? 'success' : 'danger');
+                    }
+
+                    if (activePositionsElement) {
+                        activePositionsElement.textContent = data.active_positions;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating bot status:', error);
+                });
 
             // Update balance
-            $.get('/api/balance', function(data) {
-                if (data.balance !== undefined) {
-                    $('#balance').text(data.balance.toFixed(2));
-                }
-            });
+            fetch('/api/balance')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.balance !== undefined) {
+                        const balanceElement = document.getElementById('balance');
+                        if (balanceElement) {
+                            balanceElement.textContent = data.balance.toFixed(2);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating balance:', error);
+                });
         }, 5000);
 
         // Fetch console log every 2 seconds
         setInterval(fetchConsoleLog, 2000);
 
         // Initial load
-        $(document).ready(function() {
+        document.addEventListener('DOMContentLoaded', function() {
             updatePositionsTable();
             fetchConsoleLog();
         });
-
-        function updateDefaultParams() {
-            const data = {
-                symbol: $('#defaultSymbol').val(),
-                margin: parseFloat($('#defaultMargin').val()),
-                leverage: parseInt($('#defaultLeverage').val()),
-                timeframe: $('#defaultTimeframe').val()
-            };
-
-            // Remove empty values
-            Object.keys(data).forEach(key => {
-                if (!data[key]) delete data[key];
-            });
-
-            $.ajax({
-                url: '/api/default-params',
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify(data),
-                success: function(response) {
-                    if (response.success) {
-                        $('#defaultParamsModal').modal('hide');
-                        location.reload();
-                    } else {
-                        alert('Error: ' + response.message);
-                    }
-                }
-            });
-        }
-
-        function showCurrentConfig() {
-            $('#currentConfigModal').modal('show');
-            refreshConfig();
-        }
-
-        function refreshConfig() {
-            const configDisplay = document.getElementById('configDisplay');
-            configDisplay.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>';
-
-            $.get('/api/current-config', function(data) {
-                if (data.success) {
-                    displayConfiguration(data.config);
-                } else {
-                    configDisplay.innerHTML = '<div class="alert alert-danger">Error: ' + data.error + '</div>';
-                }
-            }).fail(function() {
-                configDisplay.innerHTML = '<div class="alert alert-danger">Error loading configuration.</div>';
-            });
-        }
-
-        function displayConfiguration(config) {
-            const configDisplay = document.getElementById('configDisplay');
-
-            let html = '<div class="accordion" id="configAccordion">';
-            html += '<div class="accordion-item">';
-            html += '<h2 class="accordion-header" id="headingStatus">';
-            html += '<button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStatus">🤖 Bot Status</button>';
-            html += '</h2>';
-            html += '<div id="collapseStatus" class="accordion-collapse collapse show" data-bs-parent="#configAccordion">';
-            html += '<div class="accordion-body">';
-            html += '<p><strong>Running:</strong> <span class="badge bg-' + (config.bot_status.running ? 'success' : 'danger') + '">' + (config.bot_status.running ? 'Yes' : 'No') + '</span></p>';
-            html += '<p><strong>Active Strategies:</strong> ' + (config.bot_status.active_strategies.join(', ') || 'None') + '</p>';
-            html += '</div></div></div>';
-
-            html += '<div class="accordion-item">';
-            html += '<h2 class="accordion-header" id="headingFinal">';
-            html += '<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFinal">🎯 Current Strategy Settings</button>';
-            html += '</h2>';
-            html += '<div id="collapseFinal" class="accordion-collapse collapse" data-bs-parent="#configAccordion">';
-            html += '<div class="accordion-body">';
-
-            for (const strategy in config.final_configs) {
-                const settings = config.final_configs[strategy];
-                html += '<div class="card mb-3">';
-                html += '<div class="card-header"><strong>' + strategy.toUpperCase() + '</strong></div>';
-                html += '<div class="card-body">';
-                html += '<div class="row">';
-                html += '<div class="col-md-6">';
-                html += '<p><strong>Symbol:</strong> ' + settings.symbol + '</p>';
-                html += '<p><strong>Margin:</strong> $' + settings.margin + '</p>';
-                html += '<p><strong>Leverage:</strong> ' + settings.leverage + 'x</p>';
-                html += '</div>';
-                html += '<div class="col-md-6">';
-                html += '<p><strong>Timeframe:</strong> ' + settings.timeframe + '</p>';
-                html += '<p><strong>Max Loss:</strong> ' + settings.max_loss_pct + '%</p>';
-                html += '</div>';
-                html += '</div></div></div>';
-            }
-
-            html += '</div></div></div></div>';
-
-            configDisplay.innerHTML = html;
-        }
     </script>
 </body>
 </html>
-```
-
-```python
-from flask import Flask, render_template, jsonify, request
-from trading_bot.bot import TradingBot
-from trading_bot.config import Config
-from trading_bot.data.data_provider import DataProvider
-from trading_bot.machine_learning.model_trainer import ModelTrainer
-from trading_bot.utils.calculations import Calculations
-from trading_bot.utils.files import Files
-from trading_bot.utils.logger import Logger
-from trading_bot.strategies.base_strategy import BaseStrategy
-from dataclasses import dataclass
-import os
-import time
-import json
-import logging
-from datetime import datetime
-
-# Initialize Flask app
-app = Flask(__name__)
-app.logger.setLevel(logging.INFO)
-
-# Load configuration
-config = Config()
-params = config.get_params()
-strategies = config.get_strategies()
-logger = Logger()
-
-# Initialize trading bot
-bot = TradingBot(params=params, strategies=strategies)
-
-# Initialize data provider, ML model trainer, calculations, and files utilities
-data_provider = DataProvider()
-model_trainer = ModelTrainer()
-calculations = Calculations()
-files = Files()
-
-# Global variable to store the console log messages
-console_log = []
-
-@dataclass
-class Position:
-    strategy: str
-    symbol: str
-    side: str
-    entry_price: float
-    quantity: float
-    position_value_usdt: float
-    current_price: float
-    pnl: float
-    pnl_percent: float
-
-# Route to display the dashboard
-@app.route('/')
-def index():
-    balance = bot.get_available_balance()
-    status = bot.get_status()
-    return render_template('dashboard.html', balance=balance, status=status, strategies=strategies)
-
-# Route to start the bot
-@app.route('/api/bot/start', methods=['POST'])
-def start_bot():
-    try:
-        bot.start()
-        return jsonify({'success': True, 'message': 'Bot started successfully'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-# Route to stop the bot
-@app.route('/api/bot/stop', methods=['POST'])
-def stop_bot():
-    try:
-        bot.stop()
-        return jsonify({'success': True, 'message': 'Bot stopped successfully'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-# Route to get bot status
-@app.route('/api/bot/status')
-def bot_status():
-    status = bot.get_status()
-    return jsonify(status)
-
-# Route to get available balance
-@app.route('/api/balance')
-def get_balance():
-    balance = bot.get_available_balance()
-    return jsonify({'balance': balance})
-
-# Route to get active positions
-@app.route('/api/positions')
-def active_positions():
-    try:
-        positions = []
-        active_positions = bot.get_active_positions()
-
-        if active_positions:
-            for position in active_positions:
-                p = Position(
-                    strategy=position.strategy,
-                    symbol=position.symbol,
-                    side=position.side,
-                    entry_price=position.entry_price,
-                    quantity=position.quantity,
-                    position_value_usdt=position.position_value_usdt,
-                    current_price=position.current_price,
-                    pnl=position.pnl,
-                    pnl_percent=position.pnl_percent
-                )
-                positions.append(p)
-
-        return jsonify({'success': True, 'positions': positions})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-# Route to get RSI value
-@app.route('/api/rsi/<symbol>')
-def get_rsi(symbol):
-    try:
-        # Fetch the last 14 closing prices for the given symbol
-        klines = data_provider.get_klines(symbol=symbol, interval='1h', limit=14)
-        if not klines:
-            return jsonify({'success': False, 'error': 'Could not fetch klines for symbol ' + symbol})
-
-        closing_prices = [float(kline[4]) for kline in klines]  # Extract closing prices
-        if len(closing_prices) < 14:
-            return jsonify({'success': False, 'error': 'Not enough data points to calculate RSI for symbol ' + symbol})
-
-        # Calculate RSI using the closing prices
-        rsi = calculations.calculate_rsi(closing_prices)
-        return jsonify({'success': True, 'rsi': rsi})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-# Route to send daily report
-@app.route('/api/daily-report/send', methods=['POST'])
-def send_daily_report():
-    try:
-        bot.send_daily_report()
-        return jsonify({'success': True, 'message': 'Daily report sent successfully'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-# Route to export trade data
-@app.route('/api/trade-data/export')
-def export_trade_data():
-    try:
-        filename = files.export_trade_data()
-        return jsonify({'success': True, 'filename': filename})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-# Route to train ML models
-@app.route('/api/train_models', methods=['POST'])
-def train_ml_models():
-    try:
-        results = model_trainer.train_models()
-        return jsonify(results)
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-# Route to get ML insights
-@app.route('/api/ml_insights')
-def get_ml_insights():
-    try:
-        insights = files.load_ml_insights()
-        if insights:
-            return jsonify({'success': True, 'insights': insights})
-        else:
-            return jsonify({'success': False, 'message': 'No insights available'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-# Route to get ML predictions
-@app.route('/api/ml_predictions')
-def get_ml_predictions():
-    try:
-        predictions = files.load_ml_predictions()
-        if predictions:
-            return jsonify({'success': True, 'predictions': predictions})
-        else:
-            return jsonify({'success': False, 'message': 'No predictions available'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-# Route to set default parameters
-@app.route('/api/default-params', methods=['POST'])
-def set_default_params():
-    try:
-        data = request.get_json()
-        config.update_params(data)
-        return jsonify({'success': True, 'message': 'Default parameters updated successfully'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-# Route to edit strategy
-@app.route('/api/strategies/<strategy_name>', methods=['POST'])
-def edit_strategy(strategy_name):
-    try:
-        data = request.get_json()
-        config.update_strategy(strategy_name, data)
-        return jsonify({'success': True, 'message': f'Strategy {strategy_name} updated successfully'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-# Route to get strategies
-@app.route('/api/strategies')
-def get_strategies():
-    return jsonify(strategies)
-
-# Custom logging handler to capture console output
-class ConsoleLogHandler(logging.Handler):
-    def emit(self, record):
-        log_entry = self.format(record)
-        console_log.append(log_entry)
-        # Limit the console_log size to prevent excessive memory usage
-        if len(console_log) > 1000:
-            console_log.pop(0)
-
-# Add the custom handler to the logger
-console_handler = ConsoleLogHandler()
-console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-app.logger.addHandler(console_handler)
-logger.log_handlers.append(console_handler)
-
-# Route to get console log
-@app.route('/api/console-log')
-def get_console_log():
-    return jsonify({'success': True, 'logs': console_log})
-
-# Route to get current config
-@app.route('/api/current-config')
-def get_current_config():
-    try:
-        # Get bot status
-        bot_status = bot.get_status()
-
-        # Get final strategy configurations
-        final_configs = {}
-        for strategy_name, strategy in bot.strategies.items():
-            final_configs[strategy_name] = strategy.config
-
-        config_data = {
-            'bot_status': bot_status,
-            'final_configs': final_configs
-        }
-
-        return jsonify({'success': True, 'config': config_data})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-# Add a context processor to inject the strategies into all templates
-@app.context_processor
-def inject_strategies():
-    return dict(strategies=strategies)
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))

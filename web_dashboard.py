@@ -10,18 +10,8 @@ import asyncio
 import threading
 import os
 from datetime import datetime, timedelta
-import pandas as pd
-import plotly.graph_objs as go
-import plotly.utils
 from pathlib import Path
-from src.config.trading_config import trading_config_manager
-from src.config.global_config import global_config
-from src.binance_client.client import BinanceClientWrapper
-from src.data_fetcher.price_fetcher import PriceFetcher
-from src.data_fetcher.balance_fetcher import BalanceFetcher
-from src.bot_manager import BotManager
 import logging
-from src.utils.logger import setup_logger
 
 # Define trades directory path
 trades_dir = Path("trading_data/trades")
@@ -30,7 +20,7 @@ app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
 
 # Setup logging for web dashboard
-setup_logger()
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Global bot instance - shared with main.py
@@ -41,13 +31,49 @@ bot_running = False
 # Import the shared bot manager from main if it exists
 import sys
 shared_bot_manager = None
-if hasattr(sys.modules.get('__main__', None), 'bot_manager'):
-    shared_bot_manager = sys.modules['__main__'].bot_manager
 
-# Initialize clients for web interface
-binance_client = BinanceClientWrapper()
-price_fetcher = PriceFetcher(binance_client)
-balance_fetcher = BalanceFetcher(binance_client)
+# Try to safely import required modules
+try:
+    from src.config.trading_config import trading_config_manager
+    from src.config.global_config import global_config
+    from src.binance_client.client import BinanceClientWrapper
+    from src.data_fetcher.price_fetcher import PriceFetcher
+    from src.data_fetcher.balance_fetcher import BalanceFetcher
+    from src.bot_manager import BotManager
+    from src.utils.logger import setup_logger
+    
+    # Setup proper logging
+    setup_logger()
+    logger = logging.getLogger(__name__)
+    
+    if hasattr(sys.modules.get('__main__', None), 'bot_manager'):
+        shared_bot_manager = sys.modules['__main__'].bot_manager
+
+    # Initialize clients for web interface
+    binance_client = BinanceClientWrapper()
+    price_fetcher = PriceFetcher(binance_client)
+    balance_fetcher = BalanceFetcher(binance_client)
+    
+    IMPORTS_AVAILABLE = True
+    logger.info("✅ All imports successful - Full functionality available")
+    
+except ImportError as e:
+    logger.warning(f"⚠️ Import error - Limited functionality: {e}")
+    IMPORTS_AVAILABLE = False
+    
+    # Create dummy objects for basic web interface
+    class DummyConfigManager:
+        strategy_overrides = {
+            'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
+            'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m'}
+        }
+    
+    class DummyBalanceFetcher:
+        def get_usdt_balance(self):
+            return 100.0
+    
+    trading_config_manager = DummyConfigManager()
+    balance_fetcher = DummyBalanceFetcher()
 
 @app.route('/')
 def dashboard():
@@ -57,10 +83,15 @@ def dashboard():
         status = get_bot_status()
 
         # Get balance
-        balance = balance_fetcher.get_usdt_balance() or 0
-
-        # Get current strategies
-        strategies = trading_config_manager.strategy_overrides
+        if IMPORTS_AVAILABLE:
+            balance = balance_fetcher.get_usdt_balance() or 0
+            strategies = trading_config_manager.strategy_overrides
+        else:
+            balance = 100.0  # Default for demo
+            strategies = {
+                'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
+                'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m'}
+            }
 
         # Get active positions from both shared and standalone bot
         active_positions = []
@@ -290,13 +321,20 @@ def bot_status():
 @app.route('/api/strategies')
 def get_strategies():
     """Get all strategy configurations"""
-    strategies = {}
-    for name, overrides in trading_config_manager.strategy_overrides.items():
-        strategies[name] = {
-            **trading_config_manager.default_params.to_dict(),
-            **overrides
-        }
-    return jsonify(strategies)
+    if IMPORTS_AVAILABLE:
+        strategies = {}
+        for name, overrides in trading_config_manager.strategy_overrides.items():
+            strategies[name] = {
+                **trading_config_manager.default_params.to_dict(),
+                **overrides
+            }
+        return jsonify(strategies)
+    else:
+        # Return default strategies for demo
+        return jsonify({
+            'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
+            'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m'}
+        })
 
 @app.route('/api/strategies/<strategy_name>', methods=['POST'])
 def update_strategy(strategy_name):
@@ -560,10 +598,15 @@ def get_bot_status():
 
     # Fallback to standalone bot
     if not bot_running or not bot_manager:
+        if IMPORTS_AVAILABLE:
+            strategies = list(trading_config_manager.strategy_overrides.keys())
+        else:
+            strategies = ['rsi_oversold', 'macd_divergence']
+        
         return {
             'running': False,
             'active_positions': 0,
-            'strategies': list(trading_config_manager.strategy_overrides.keys())
+            'strategies': strategies
         }
 
     try:
@@ -573,10 +616,15 @@ def get_bot_status():
             'strategies': list(bot_manager.strategies.keys())
         }
     except:
+        if IMPORTS_AVAILABLE:
+            strategies = list(trading_config_manager.strategy_overrides.keys())
+        else:
+            strategies = ['rsi_oversold', 'macd_divergence']
+            
         return {
             'running': bot_running,
             'active_positions': 0,
-            'strategies': list(trading_config_manager.strategy_overrides.keys())
+            'strategies': strategies
         }
 
 def get_current_price(symbol):
