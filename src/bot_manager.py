@@ -712,8 +712,7 @@ For MAINNET:
                                 self.order_manager.active_positions[strategy_name] = recovered_position
                                 recovered_count += 1
 
-                                self.logger.info(f"✅ POSITION RECOVERED | {strategy_name.upper()} | {symbol} | Entry: ${entry_price} | Qty:```python
-{abs(position_amt)}")
+                                self.logger.info(f"✅ POSITION RECOVERED | {strategy_name.upper()} | {symbol} | Entry: ${entry_price} | Qty: {abs(position_amt)}")
                             else:
                                 # This is likely a manual position - let ghost trade detection handle it
                                 self.logger.warning(f"🚨 UNVERIFIED POSITION | {strategy_name.upper()} | {symbol} | Will be processed by ghost trade detection")
