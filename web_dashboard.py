@@ -452,15 +452,21 @@ def update_strategy(strategy_name):
                 rsi_updates = {k: v for k, v in data.items() if k.startswith('rsi_') or k == 'max_loss_pct'}
                 if rsi_updates:
                     logger.info(f"📝 WEB INTERFACE: Updating RSI strategy config: {rsi_updates}")
+                    # Save to config file
+                    RSIOversoldConfig.update_config(rsi_updates)
 
             elif 'macd' in strategy_name.lower():
                 from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
                 macd_updates = {k: v for k, v in data.items() if k.startswith('macd_') or k.startswith('min_') or k in ['confirmation_candles', 'max_loss_pct']}
                 if macd_updates:
                     logger.info(f"📝 WEB INTERFACE: Updating MACD strategy config: {macd_updates}")
+                    # Save to config file
+                    MACDDivergenceConfig.update_config(macd_updates)
 
         except ImportError as e:
             logger.warning(f"Could not update strategy-specific config for {strategy_name}: {e}")
+        except Exception as e:
+            logger.error(f"Error updating strategy config file for {strategy_name}: {e}")
 
         # Always try to get the latest shared bot manager
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)

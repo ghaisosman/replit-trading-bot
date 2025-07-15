@@ -465,6 +465,11 @@
                 config.confirmation_candles = parseInt(document.getElementById('macdConfirmationCandles').value) || 2;
             }
 
+            // Disable the save button to prevent double-submission
+            const saveButton = document.querySelector('#strategyModal .btn-primary');
+            saveButton.disabled = true;
+            saveButton.textContent = 'Saving...';
+
             fetch('/api/strategies/' + strategyName, {
                 method: 'POST',
                 headers: {
@@ -475,15 +480,25 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Strategy updated successfully!');
+                    alert('Strategy updated successfully! Changes have been saved to configuration files.');
                     bootstrap.Modal.getInstance(document.getElementById('strategyModal')).hide();
-                    location.reload();
+                    
+                    // Wait a moment for the save to complete, then reload
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
                 } else {
                     alert('Error updating strategy: ' + data.message);
+                    // Re-enable the save button on error
+                    saveButton.disabled = false;
+                    saveButton.textContent = 'Save Changes';
                 }
             })
             .catch(error => {
                 alert('Error saving strategy: ' + error);
+                // Re-enable the save button on error
+                saveButton.disabled = false;
+                saveButton.textContent = 'Save Changes';
             });
         }
 
