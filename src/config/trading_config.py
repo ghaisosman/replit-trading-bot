@@ -34,6 +34,11 @@ class TradingConfigManager:
                 'margin': 12.5,
                 'leverage': 25,
                 'timeframe': '15m',
+                'rsi_long_entry': 40,
+                'rsi_long_exit': 55,
+                'rsi_short_entry': 60,
+                'rsi_short_exit': 45,
+                'max_loss_pct': 10,
             },
             'macd_divergence': {
                 'symbol': 'BTCUSDT',
