@@ -301,7 +301,8 @@ class OrderManager:
             # Apply symbol-specific precision for futures trading
             if 'SOL' in signal.symbol:
                 # SOL futures uses 0 decimal places (whole numbers only)
-                quantity = max(1.0, round(quantity, 0))  # Ensure at least 1 SOL
+                quantity = max(1.0, round(quantity))  # Ensure at least 1 SOL, convert to int
+                self.logger.info(f"🔧 SOL PRECISION: Original {position_value_usdt / signal.entry_price:.3f} → Fixed to {quantity}")
             elif 'BTC' in signal.symbol:
                 # BTC futures typically uses 3 decimal places for quantity
                 quantity = round(quantity, 3)
