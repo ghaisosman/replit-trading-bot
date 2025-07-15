@@ -733,7 +733,7 @@ def get_bot_status():
 
         # Fallback status
         return {
-            'is_running': bot_running,
+            'is_running': False,
             'active_positions': 0,
             'strategies': [],
             'balance': 0,
@@ -748,37 +748,6 @@ def get_bot_status():
             'strategies': [],
             'balance': 0,
             'error': f'Critical status error: {str(e)}'
-        }
-
-    # Fallback to standalone bot
-    if not bot_running or not bot_manager:
-        if IMPORTS_AVAILABLE:
-            strategies = list(trading_config_manager.strategy_overrides.keys())
-        else:
-            strategies = ['rsi_oversold', 'macd_divergence']
-
-        return {
-            'running': False,
-            'active_positions': 0,
-            'strategies': strategies
-        }
-
-    try:
-        return {
-            'running': True,
-            'active_positions': len(bot_manager.order_manager.active_positions),
-            'strategies': list(bot_manager.strategies.keys())
-        }
-    except:
-        if IMPORTS_AVAILABLE:
-            strategies = list(trading_config_manager.strategy_overrides.keys())
-        else:
-            strategies = ['rsi_oversold', 'macd_divergence']
-
-        return {
-            'running': bot_running,
-            'active_positions': 0,
-            'strategies': strategies
         }
 
 def get_current_price(symbol):
@@ -1112,8 +1081,9 @@ def get_shared_bot_status():
         logger.error(f"Error getting shared bot status: {e}")
         return {'is_running': False, 'active_positions': 0, 'strategies': [], 'balance': 0}
 
+# Cleaned up duplicate get_bot_status function and route to resolve conflict.
 @app.route('/api/bot_status')
-def get_bot_status():
+def get_bot_status_route():
     try:
         # Check if bot is running by looking for active processes
         import psutil
