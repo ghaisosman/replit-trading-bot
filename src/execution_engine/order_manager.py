@@ -468,3 +468,14 @@ class OrderManager:
         """Set anomaly detector reference for ghost trade prevention"""
         self.anomaly_detector = anomaly_detector
         self.logger.debug("🔍 ANOMALY DETECTOR: Reference set in order manager")
+
+    def get_latest_price(self, symbol: str) -> Optional[float]:
+        """Get latest price for a symbol from Binance"""
+        try:
+            ticker = self.binance_client.get_symbol_ticker(symbol)
+            if ticker and 'price' in ticker:
+                return float(ticker['price'])
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting latest price for {symbol}: {e}")
+            return None

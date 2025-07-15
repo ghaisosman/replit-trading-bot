@@ -279,12 +279,17 @@ For MAINNET:
                 position = self.order_manager.active_positions[strategy_name]
                 current_price = self._get_current_price(strategy_config['symbol'])
                 if current_price:
-                    # Log active position
-                    pnl_usdt = self._calculate_pnl(position, current_price) if current_price else 0
+                    # Log active position with proper PnL calculation
+                    pnl_usdt = self._calculate_pnl(position, current_price)
                     position_value_usdt = position.entry_price * position.quantity
                     pnl_percent = (pnl_usdt / position_value_usdt) * 100 if position_value_usdt > 0 else 0
 
-                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:,.1f} | Value: ${position_value_usdt:,.1f} USDT | PnL: ${pnl_usdt:,.1f} USDT ({pnl_percent:+.1f}%)")
+                    # Show comprehensive position status
+                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: ${pnl_usdt:.2f} USDT ({pnl_percent:+.2f}%)")
+                else:
+                    # Fallback if price fetch fails
+                    position_value_usdt = position.entry_price * position.quantity
+                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: Price fetch failed")
                 return
 
             # Check balance requirements
@@ -448,22 +453,35 @@ For MAINNET:
         """Get current price for a symbol"""
         try:
             ticker = self.binance_client.get_symbol_ticker(symbol)
-            if ticker:
-                return float(ticker['price'])
-            return None
+            if ticker and 'price' in ticker:
+                price = float(ticker['price'])
+                self.logger.debug(f"🔍 PRICE FETCH | {symbol} | Current: ${price:.4f}")
+                return price
+            else:
+                self.logger.warning(f"❌ PRICE FETCH FAILED | {symbol} | Invalid ticker response: {ticker}")
+                return None
         except Exception as e:
-            self.logger.error(f"Error getting current price for {symbol}: {e}")
+            self.logger.error(f"❌ PRICE FETCH ERROR | {symbol} | {e}")
             return None
 
     def _calculate_pnl(self, position, current_price: float) -> float:
-        """Calculate PnL for a position"""
+        """Calculate PnL for a position (futures trading)"""
         try:
-            if position.side == 'BUY':
-                return (current_price - position.entry_price) * position.quantity
-            else:  # SELL
-                return (position.entry_price - current_price) * position.quantity
+            if not current_price or current_price <= 0:
+                self.logger.warning(f"❌ PnL CALC | Invalid current price: {current_price}")
+                return 0.0
+
+            # For futures trading, PnL calculation
+            if position.side == 'BUY':  # Long position
+                pnl = (current_price - position.entry_price) * position.quantity
+            else:  # Short position (SELL)
+                pnl = (position.entry_price - current_price) * position.quantity
+
+            self.logger.debug(f"🔍 PnL CALC | {position.symbol} | Side: {position.side} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.4f} | Qty: {position.quantity} | PnL: ${pnl:.2f}")
+            return pnl
+
         except Exception as e:
-            self.logger.error(f"Error calculating PnL: {e}")
+            self.logger.error(f"❌ PnL CALCULATION ERROR | {position.symbol} | {e}")
             return 0.0
 
     def _get_market_info(self, df: pd.DataFrame, strategy_name: str) -> str:
