@@ -538,7 +538,10 @@ def get_positions():
                     margin_invested = position_value_usdt / leverage
 
                     # For futures trading, PnL percentage should be calculated against margin invested, not position value
-                    pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0</old_str>
+                    pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
+
+                    positions.append({
+                        'strategy': position.strategy_name,</old_str>
 
                     positions.append({
                         'strategy': position.strategy_name,
