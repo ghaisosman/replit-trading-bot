@@ -600,6 +600,23 @@ class AnomalyDetector:
         anomaly = anomalies[0]  # Get first active anomaly
         return f"{anomaly.type.value.upper()} ({anomaly.cycles_remaining} cycles remaining)"
     
+    def clear_anomaly_by_id(self, anomaly_id: str, reason: str = "Manual clear") -> bool:
+        """Manually clear a specific anomaly by ID"""
+        try:
+            existing_anomaly = self.db.get_anomaly(anomaly_id)
+            if existing_anomaly:
+                self.db.update_anomaly(anomaly_id, 
+                                     status=AnomalyStatus.CLEARED,
+                                     cleared_at=datetime.now())
+                self.logger.info(f"🧹 MANUALLY CLEARED ANOMALY | {anomaly_id} | Reason: {reason}")
+                return True
+            else:
+                self.logger.warning(f"❌ ANOMALY NOT FOUND | {anomaly_id}")
+                return False
+        except Exception as e:
+            self.logger.error(f"Error clearing anomaly {anomaly_id}: {e}")
+            return False
+
     def get_anomaly_summary(self) -> Dict:
         """Get summary of all anomalies"""
         active_anomalies = self.db.get_active_anomalies()

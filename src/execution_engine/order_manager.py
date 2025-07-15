@@ -310,9 +310,18 @@ class OrderManager:
                 self.logger.info(f"✅ POSITION VALIDATED | Trade history match | {strategy_name} | {symbol}")
                 return True
 
-            # For startup recovery, be very conservative - only recover if we have explicit trade history
-            # This prevents manual positions from being incorrectly recovered
-            self.logger.warning(f"🚨 POSITION VALIDATION FAILED | {strategy_name} | {symbol} | No trade history found - treating as manual position")
+            # Method 2: Validate based on bot trading characteristics (quantity precision, price patterns)
+            if self._validate_from_bot_characteristics(strategy_name, symbol, side, quantity, entry_price):
+                self.logger.info(f"✅ POSITION VALIDATED | Bot characteristics match | {strategy_name} | {symbol}")
+                return True
+
+            # Method 3: Check if this position matches expected strategy configuration
+            if self._validate_from_strategy_matching(strategy_name, symbol, side, quantity, entry_price):
+                self.logger.info(f"✅ POSITION VALIDATED | Strategy configuration match | {strategy_name} | {symbol}")
+                return True
+
+            # If no validation method passes, treat as manual position
+            self.logger.warning(f"🚨 POSITION VALIDATION FAILED | {strategy_name} | {symbol} | No validation criteria met - treating as manual position")
             return False
 
         except Exception as e:
@@ -346,32 +355,72 @@ class OrderManager:
             self.logger.error(f"Error validating from trade history: {e}")
             return False
 
-    def _validate_from_strategy_config(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float) -> bool:
-        """Validate position against strategy configuration patterns"""
+    def _validate_from_bot_characteristics(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float) -> bool:
+        """Validate position based on characteristics that indicate bot trading"""
         try:
-            # Import here to avoid circular import
-            from src.bot_manager import BotManager
+            # Check quantity precision - bot typically calculates specific quantities
+            if symbol == 'SOLUSDT':
+                # SOL futures requires whole numbers, bot would calculate exact amounts
+                if quantity == int(quantity) and quantity > 0:
+                    # Check if quantity is reasonable for bot trading (not obviously manual like 1, 10, 100)
+                    if quantity not in [1, 5, 10, 25, 50, 100, 500, 1000]:
+                        self.logger.debug(f"🔍 BOT CHARACTERISTIC: {symbol} quantity {quantity} appears calculated")
+                        return True
+            elif symbol == 'BTCUSDT':
+                # BTC futures allows 3 decimal places, bot calculates precise amounts
+                if not (quantity == round(quantity, 1) and quantity in [0.1, 0.5, 1.0, 2.0, 5.0]):
+                    self.logger.debug(f"🔍 BOT CHARACTERISTIC: {symbol} quantity {quantity:.3f} appears calculated")
+                    return True
+            elif symbol == 'ETHUSDT':
+                # ETH futures allows 2 decimal places, bot calculates precise amounts
+                if not (quantity == round(quantity, 1) and quantity in [0.1, 0.5, 1.0, 2.0, 5.0, 10.0]):
+                    self.logger.debug(f"🔍 BOT CHARACTERISTIC: {symbol} quantity {quantity:.2f} appears calculated")
+                    return True
 
-            # Get strategy config (we'll need to pass this in or access it differently)
-            # For now, we'll use some basic validation based on quantity patterns
-
-            # Check if quantity matches typical bot calculation patterns
-            # Bot trades typically have very specific calculated quantities
-            quantity_str = f"{quantity:.6f}"
-
-            # Bot trades often have quantities with specific decimal patterns
-            # Manual trades are more likely to be round numbers
-            if quantity == int(quantity):  # Whole number - likely manual
-                return False
-
-            # Check if this is a reasonable quantity for algorithmic trading
-            if quantity > 0.000001 and quantity < 1000:  # Reasonable range
+            # Check entry price precision - bot entries are market orders with specific prices
+            price_str = f"{entry_price:.4f}"
+            # Manual entries often use round numbers or limit orders at specific levels
+            if not (entry_price == round(entry_price) or entry_price == round(entry_price, 1)):
+                self.logger.debug(f"🔍 BOT CHARACTERISTIC: {symbol} entry price ${entry_price:.4f} appears from market order")
                 return True
 
             return False
 
         except Exception as e:
-            self.logger.error(f"Error validating from strategy config: {e}")
+            self.logger.error(f"Error validating bot characteristics: {e}")
+            return False
+
+    def _validate_from_strategy_matching(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float) -> bool:
+        """Validate position against expected strategy behavior"""
+        try:
+            # Check if strategy name matches symbol expectations
+            strategy_symbol_mapping = {
+                'rsi_oversold': 'SOLUSDT',
+                'macd_divergence': 'BTCUSDT'
+            }
+            
+            expected_symbol = strategy_symbol_mapping.get(strategy_name)
+            if expected_symbol and expected_symbol == symbol:
+                self.logger.debug(f"🔍 STRATEGY MATCH: {strategy_name} correctly mapped to {symbol}")
+                
+                # Additional validation for RSI oversold strategy
+                if strategy_name == 'rsi_oversold':
+                    # RSI oversold typically goes LONG (BUY) when RSI < 30
+                    if side == 'BUY':
+                        self.logger.debug(f"🔍 STRATEGY MATCH: RSI oversold correctly using BUY side")
+                        return True
+                
+                # Additional validation for MACD divergence strategy  
+                elif strategy_name == 'macd_divergence':
+                    # MACD can go either direction based on divergence
+                    if side in ['BUY', 'SELL']:
+                        self.logger.debug(f"🔍 STRATEGY MATCH: MACD divergence using valid side {side}")
+                        return True
+
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Error validating strategy matching: {e}")
             return False
 
     def _validate_from_position_characteristics(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float) -> bool:

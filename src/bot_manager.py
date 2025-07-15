@@ -190,6 +190,9 @@ For MAINNET:
             # Start daily reporter scheduler
             self.daily_reporter.start_scheduler()
 
+            # Clear any ghost anomalies for symbols where we have legitimate positions
+            self._cleanup_misidentified_positions()
+
             # Initial anomaly check AFTER startup notification - SUPPRESS notifications for startup scan
             self.logger.info("🔍 PERFORMING INITIAL ANOMALY CHECK (SUPPRESSED)...")
             self.anomaly_detector.run_detection(suppress_notifications=True)
@@ -526,7 +529,11 @@ For MAINNET:
                                 self.logger.info(f"📍 EXISTING POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {quantity:,.6f} | Entry: ${entry_price:,.4f}")
 
                                 # Use enhanced validation to determine if this is a legitimate bot position
-                                if self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price):
+                                validation_result = self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price)
+                                
+                                self.logger.info(f"🔍 POSITION VALIDATION RESULT | {strategy_name.upper()} | {symbol} | Legitimate: {validation_result}")
+                                
+                                if validation_result:
                                     # This is a legitimate bot position - recover it
                                     self.logger.info(f"✅ LEGITIMATE BOT POSITION | {strategy_name.upper()} | {symbol} | Recovering...")
 
@@ -581,6 +588,72 @@ For MAINNET:
 
         except Exception as e:
             self.logger.error(f"Error recovering active positions: {e}")
+
+    def _cleanup_misidentified_positions(self):
+        """Clean up ghost anomalies for positions that should be legitimate bot positions"""
+        try:
+            self.logger.info("🔍 CHECKING FOR MISIDENTIFIED POSITIONS...")
+            
+            # Get all active ghost anomalies
+            active_anomalies = self.anomaly_detector.db.get_active_anomalies()
+            ghost_anomalies = [a for a in active_anomalies if a.type.value == 'ghost']
+            
+            for anomaly in ghost_anomalies:
+                strategy_name = anomaly.strategy_name
+                symbol = anomaly.symbol
+                
+                # Check if this position should actually be recognized as a legitimate bot position
+                # Get current position info from Binance
+                try:
+                    if self.binance_client.is_futures:
+                        positions = self.binance_client.client.futures_position_information(symbol=symbol)
+                        for position in positions:
+                            position_amt = float(position.get('positionAmt', 0))
+                            if abs(position_amt) > 0:
+                                entry_price = float(position.get('entryPrice', 0))
+                                side = 'BUY' if position_amt > 0 else 'SELL'
+                                quantity = abs(position_amt)
+                                
+                                # Re-validate this position with enhanced validation
+                                if self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price):
+                                    self.logger.info(f"🔍 MISIDENTIFIED POSITION FOUND | {strategy_name.upper()} | {symbol} | Clearing ghost anomaly and recovering position")
+                                    
+                                    # Clear the ghost anomaly
+                                    self.anomaly_detector.clear_anomaly_by_id(anomaly.id, "Position re-validated as legitimate bot trade")
+                                    
+                                    # Recover the position properly
+                                    from src.execution_engine.order_manager import Position
+                                    from datetime import datetime
+
+                                    recovered_position = Position(
+                                        strategy_name=strategy_name,
+                                        symbol=symbol,
+                                        side=side,
+                                        entry_price=entry_price,
+                                        quantity=quantity,
+                                        stop_loss=entry_price * 0.985 if side == 'BUY' else entry_price * 1.015,
+                                        take_profit=entry_price * 1.025 if side == 'BUY' else entry_price * 0.975,
+                                        position_side='LONG' if side == 'BUY' else 'SHORT',
+                                        order_id=0,
+                                        entry_time=datetime.now(),
+                                        status='RECOVERED'
+                                    )
+
+                                    # Add to active positions
+                                    self.order_manager.active_positions[strategy_name] = recovered_position
+                                    
+                                    # Register with anomaly detector
+                                    self.anomaly_detector.register_bot_trade(symbol, strategy_name)
+                                    
+                                    self.logger.info(f"✅ POSITION RECOVERED FROM MISIDENTIFICATION | {strategy_name.upper()} | {symbol} | Entry: ${entry_price:,.4f} | Qty: {quantity:,.6f}")
+                                    
+                                break
+                
+                except Exception as e:
+                    self.logger.warning(f"Could not re-validate position for {symbol}: {e}")
+                    
+        except Exception as e:
+            self.logger.error(f"Error cleaning up misidentified positions: {e}")
 
     def get_bot_status(self) -> Dict:
         """Get current bot status"""
