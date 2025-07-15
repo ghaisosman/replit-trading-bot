@@ -1,0 +1,34 @@
+{
+  "trades": {
+    "rsi_oversold_SOLUSDT_20250715_112435": {
+      "trade_id": "rsi_oversold_SOLUSDT_20250715_112435",
+      "timestamp": "2025-07-15T11:24:35.973500",
+      "strategy_name": "rsi_oversold",
+      "symbol": "SOLUSDT",
+      "side": "BUY",
+      "entry_price": 158.87,
+      "exit_price": null,
+      "quantity": 2.0,
+      "margin_used": 317.74,
+      "leverage": 1,
+      "position_value_usdt": 317.74,
+      "rsi_at_entry": null,
+      "macd_at_entry": null,
+      "sma_20_at_entry": null,
+      "sma_50_at_entry": null,
+      "volume_at_entry": null,
+      "pnl_usdt": null,
+      "pnl_percentage": null,
+      "exit_reason": null,
+      "duration_minutes": null,
+      "market_trend": null,
+      "volatility_score": null,
+      "risk_reward_ratio": null,
+      "max_drawdown": null,
+      "entry_signal_strength": null,
+      "market_phase": null,
+      "trade_status": "OPEN"
+    }
+  },
+  "last_updated": "2025-07-15T11:24:36.013999"
+}
