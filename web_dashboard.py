@@ -1009,7 +1009,6 @@ def handle_exception(e):
         return create_json_error_response(f"Server error: {str(e)}", 500)
     return f"Server error: {e}", 500
 
-@app.before_first_request
 def setup_logging():
     """Setup logging when Flask starts"""
     if not app.debug:
@@ -1021,6 +1020,9 @@ def setup_logging():
         file_handler.setLevel(logging.INFO)
         app.logger.addHandler(file_handler)
         app.logger.setLevel(logging.INFO)
+
+# Call setup_logging immediately instead of using deprecated decorator
+setup_logging()
 
 # Override Flask's default error handlers for API routes
 @app.before_request
