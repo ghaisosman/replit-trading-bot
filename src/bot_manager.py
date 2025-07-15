@@ -86,7 +86,7 @@ For MAINNET:
 
         # Strategy assessment timers
         self.strategy_last_assessment = {}
-        
+
         # Signal cooldown tracking to prevent duplicate signals
         self.last_signal_time = {}
         self.signal_cooldown_minutes = 15  # 15 minute cooldown between same signals
@@ -443,14 +443,14 @@ For MAINNET:
                 # Check signal cooldown to prevent spam
                 signal_key = f"{strategy_name}_{strategy_config['symbol']}_{signal.signal_type.value}"
                 current_time = datetime.now()
-                
+
                 if signal_key in self.last_signal_time:
                     time_since_last_signal = (current_time - self.last_signal_time[signal_key]).total_seconds()
                     if time_since_last_signal < (self.signal_cooldown_minutes * 60):
                         remaining_cooldown = (self.signal_cooldown_minutes * 60) - time_since_last_signal
                         self.logger.info(f"🔄 SIGNAL COOLDOWN | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | {remaining_cooldown:.0f}s remaining")
                         return
-                
+
                 # Record this signal time
                 self.last_signal_time[signal_key] = current_time
                 self.logger.info(f"🚨 ENTRY SIGNAL DETECTED | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | ${signal.entry_price:,.1f} | Reason: {signal.reason}")
@@ -467,10 +467,25 @@ For MAINNET:
                 else:
                     self.logger.warning(f"❌ POSITION FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not execute signal")
             else:
-                # Log market assessment result (console only, no Telegram)
-                market_info = self._get_market_info(df, strategy_name)
+                # Get current RSI for logging
+                current_rsi = None
+                if 'rsi' in df.columns:
+                    current_rsi = df['rsi'].iloc[-1]
+
+                # Log market assessment
+                self.logger.info(f"📈 MARKET ASSESSMENT")
+                self.logger.info(f"🎯 Strategy: {strategy_name.upper()}")
+                self.logger.info(f"💱 Symbol: {strategy_config['symbol']}")
+                self.logger.info(f"💵 Price: ${current_price:,.1f}")
+                if current_rsi is not None:
+                    self.logger.info(f"📈 RSI: {current_rsi:.2f}")
                 margin = strategy_config.get('margin', 50.0)
-                self.logger.info(f"📈 MARKET ASSESSMENT | {strategy_name.upper()} | {strategy_config['symbol']} | Price: ${current_price:,.1f} | Margin: ${margin:.1f} | {market_info}")
+                self.logger.info(f"📊 Margin: ${margin:.1f}")
+
+                if strategy_name == 'rsi_oversold':
+                    self.logger.info(f"📈 RSI Analysis")
+                elif strategy_name == 'macd_divergence':
+                    self.logger.info(f"📈 MACD Analysis")
 
         except Exception as e:
             self.logger.error(f"Error processing strategy {strategy_name}: {e}")
@@ -862,3 +877,85 @@ For MAINNET:
 
         except Exception as e:
             self.logger.error(f"Error synchronizing existing positions: {e}")
+
+    async def _monitor_active_positions(self):
+        """Monitor active positions for exit conditions"""
+        try:
+            active_positions = self.order_manager.get_active_positions()
+
+            for strategy_name, position in active_positions.items():
+                try:
+                    # Get current market data
+                    symbol = position.symbol
+                    strategy_config = self.strategies[strategy_name]
+
+                    # Fetch fresh market data
+                    df = await self.price_fetcher.get_market_data(
+                        symbol=symbol,
+                        timeframe=strategy_config['timeframe'],
+                        limit=100
+                    )
+
+                    if df is None or df.empty:
+                        self.logger.warning(f"No market data for position monitoring: {symbol}")
+                        continue
+
+                    # Get current price
+                    current_price = df['close'].iloc[-1]
+
+                    # Calculate PnL
+                    pnl = self.order_manager.calculate_pnl(position, current_price)
+                    margin_invested = position.entry_price * position.quantity / strategy_config.get('leverage', 1)
+                    pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
+
+                    # Get current RSI for logging
+                    current_rsi = None
+                    if 'rsi' in df.columns:
+                        current_rsi = df['rsi'].iloc[-1]
+
+                    # Log position status with RSI
+                    self.logger.info(f"📊 TRADE IN PROGRESS")
+                    self.logger.info(f"🎯 Strategy: {strategy_name.upper()}")
+                    self.logger.info(f"💱 Symbol: {symbol}")
+                    self.logger.info(f"📊 Side: {position.side}")
+                    self.logger.info(f"💵 Entry: ${position.entry_price:.4f}")
+                    self.logger.info(f"📊 Current: ${current_price:.4f}")
+                    if current_rsi is not None:
+                        self.logger.info(f"📈 RSI: {current_rsi:.2f}")
+                    self.logger.info(f"💸 Margin: ${margin_invested:.1f} USDT")
+                    self.logger.info(f"💰 PnL: ${pnl:.1f} USDT ({pnl_percent:+.1f}%)")
+
+                    # Check exit conditions
+                    position_dict = {
+                        'entry_price': position.entry_price,
+                        'stop_loss': position.stop_loss,
+                        'take_profit': position.take_profit,
+                        'side': position.side
+                    }
+
+                    exit_reason = self.signal_processor.evaluate_exit_conditions(df, position_dict, strategy_config)
+
+                    if exit_reason:
+                        self.logger.info(f"🚪 EXIT SIGNAL: {exit_reason}")
+
+                        # Close position
+                        await self.order_manager.close_position(strategy_name, exit_reason)
+
+                        # Send exit notification
+                        await self.telegram_reporter.report_trade_exit(
+                            strategy_name=strategy_name,
+                            symbol=symbol,
+                            side=position.side,
+                            entry_price=position.entry_price,
+                            exit_price=current_price,
+                            pnl=pnl,
+                            pnl_percent=pnl_percent,
+                            exit_reason=exit_reason
+                        )
+
+                except Exception as e:
+                    self.logger.error(f"Error monitoring position {strategy_name}: {e}")
+                    continue
+
+        except Exception as e:
+            self.logger.error(f"Error in position monitoring: {e}")

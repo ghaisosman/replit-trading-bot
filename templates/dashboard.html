@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -428,7 +427,7 @@
                             document.getElementById('macdMinDistance').value = config.min_distance_threshold || 0.005;
                             document.getElementById('macdConfirmationCandles').value = config.confirmation_candles || 2;
                         }
-                        
+
                         const modal = new bootstrap.Modal(document.getElementById('strategyModal'));
                         modal.show();
                     }
@@ -670,7 +669,12 @@
 
             // Update bot status
             fetch('/api/bot/status')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     const statusElement = document.getElementById('botStatus');
                     const activePositionsElement = document.getElementById('activePositions');
@@ -690,7 +694,12 @@
 
             // Update balance
             fetch('/api/balance')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.balance !== undefined) {
                         const balanceElement = document.getElementById('balance');

@@ -573,22 +573,22 @@ def get_positions():
 def get_rsi(symbol):
     """Get RSI value for a symbol"""
     try:
-        # Import RSI calculation utilities
-        import pandas as pd
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Binance client not available'})
 
-        # Get historical data for RSI calculation
-        klines = binance_client.get_klines(symbol=symbol, interval='1h', limit=15)
+        # Get more historical data for accurate RSI calculation (same as bot uses)
+        klines = binance_client.get_klines(symbol=symbol, interval='15m', limit=100)
         if not klines:
             return jsonify({'success': False, 'error': f'Could not fetch klines for {symbol}'})
 
-        # Convert to pandas DataFrame for easier calculation
+        # Convert to closes
         closes = [float(kline[4]) for kline in klines]
 
-        if len(closes) < 14:
+        if len(closes) < 50:
             return jsonify({'success': False, 'error': f'Not enough data points for RSI calculation for {symbol}'})
 
-        # Calculate RSI
-        rsi = calculate_rsi(closes)
+        # Calculate RSI using the same method as the bot
+        rsi = calculate_rsi(closes, period=14)
 
         return jsonify({'success': True, 'rsi': round(rsi, 2)})
     except Exception as e:
@@ -596,18 +596,38 @@ def get_rsi(symbol):
         return jsonify({'success': False, 'error': f'Failed to calculate RSI: {str(e)}'})
 
 def calculate_rsi(closes, period=14):
-    """Calculate RSI (Relative Strength Index)"""
+    """Calculate RSI (Relative Strength Index) - matches bot's calculation"""
     if len(closes) < period + 1:
         return 50.0  # Default RSI if not enough data
 
-    deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
+    # Calculate price changes
+    deltas = []
+    for i in range(1, len(closes)):
+        deltas.append(closes[i] - closes[i-1])
 
-    gains = [delta if delta > 0 else 0 for delta in deltas]
-    losses = [-delta if delta < 0 else 0 for delta in deltas]
+    # Separate gains and losses
+    gains = []
+    losses = []
+    for delta in deltas:
+        if delta > 0:
+            gains.append(delta)
+            losses.append(0)
+        else:
+            gains.append(0)
+            losses.append(abs(delta))
 
-    # Calculate average gains and losses
-    avg_gain = sum(gains[-period:]) / period
-    avg_loss = sum(losses[-period:]) / period
+    # Use exponential moving average like the bot does
+    if len(gains) < period:
+        return 50.0
+
+    # Calculate initial averages
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
+
+    # Calculate RSI using smoothed averages for remaining periods
+    for i in range(period, len(gains)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
 
     if avg_loss == 0:
         return 100.0
@@ -667,53 +687,66 @@ def get_console_log():
 
         # Final fallback: provide basic status info with better context
         if not log_lines:
-            current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-            if current_bot:
-                if hasattr(current_bot, 'is_running') and current_bot.is_running:
-                    # Get more detailed status
-                    active_positions = len(current_bot.order_manager.active_positions) if current_bot.order_manager else 0
-                    strategies = list(current_bot.strategies.keys()) if hasattr(current_bot, 'strategies') and current_bot.strategies else []
+            try:
+                current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+                if current_bot:
+                    if hasattr(current_bot, 'is_running') and current_bot.is_running:
+                        # Get more detailed status
+                        active_positions = len(current_bot.order_manager.active_positions) if current_bot.order_manager else 0
+                        strategies = list(current_bot.strategies.keys()) if hasattr(current_bot, 'strategies') and current_bot.strategies else []
 
-                    log_lines = [
-                        "╔═══════════════════════════════════════════════════╗",
-                        "║ 🤖 BOT STATUS                                    ║",
-                        f"║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║",
-                        "║                                                   ║",
-                        "║ 🟢 Status: RUNNING                               ║",
-                        f"║ 📊 Active Positions: {active_positions}                         ║",
-                        f"║ 🎯 Active Strategies: {', '.join(strategies)}║" if strategies else "║ 🎯 Active Strategies: Loading...                ║",
-                        "║                                                   ║",
-                        "║ 💡 Console logs will appear here when bot        ║",
-                        "║    performs market analysis and trading          ║",
-                        "║                                                   ║",
-                        "╚═══════════════════════════════════════════════════╝"
-                    ]
+                        log_lines = [
+                            "╔═══════════════════════════════════════════════════╗",
+                            "║ 🤖 BOT STATUS                                    ║",
+                            f"║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║",
+                            "║                                                   ║",
+                            "║ 🟢 Status: RUNNING                               ║",
+                            f"║ 📊 Active Positions: {active_positions}                         ║",
+                            f"║ 🎯 Active Strategies: {', '.join(strategies)}║" if strategies else "║ 🎯 Active Strategies: Loading...                ║",
+                            "║                                                   ║",
+                            "║ 💡 Console logs will appear here when bot        ║",
+                            "║    performs market analysis and trading          ║",
+                            "║                                                   ║",
+                            "╚═══════════════════════════════════════════════════╝"
+                        ]
+                    else:
+                        log_lines = [
+                            "╔═══════════════════════════════════════════════════╗",
+                            "║ 🤖 BOT STATUS                                    ║",
+                            f"║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║",
+                            "║                                                   ║",
+                            "║ 🔴 Status: STOPPED                               ║",
+                            "║ 💡 Use the Start Bot button to begin trading     ║",
+                            "║                                                   ║",
+                            "╚═══════════════════════════════════════════════════╝"
+                        ]
                 else:
                     log_lines = [
                         "╔═══════════════════════════════════════════════════╗",
                         "║ 🤖 BOT STATUS                                    ║",
                         f"║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║",
                         "║                                                   ║",
-                        "║ 🔴 Status: STOPPED                               ║",
-                        "║ 💡 Use the Start Bot button to begin trading     ║",
+                        "║ ⚪ Status: NOT INITIALIZED                        ║",
+                        "║ 💡 Bot is starting up...                         ║",
                         "║                                                   ║",
                         "╚═══════════════════════════════════════════════════╝"
                     ]
-            else:
+            except Exception as fallback_error:
                 log_lines = [
                     "╔═══════════════════════════════════════════════════╗",
                     "║ 🤖 BOT STATUS                                    ║",
                     f"║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║",
                     "║                                                   ║",
-                    "║ ⚪ Status: NOT INITIALIZED                        ║",
-                    "║ 💡 Bot is starting up...                         ║",
+                    "║ ⚠️ Status: UNKNOWN                                ║",
+                    "║ 💡 Checking bot status...                         ║",
                     "║                                                   ║",
                     "╚═══════════════════════════════════════════════════╝"
                 ]
 
         return jsonify({'success': True, 'logs': log_lines})
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Failed to get console log: {e}'})
+        logger.error(f"Error in console log endpoint: {e}")
+        return jsonify({'success': False, 'error': f'Failed to get console log: {str(e)}'})
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
