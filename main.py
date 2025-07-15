@@ -116,18 +116,46 @@ async def main():
         logger.info("🌐 Web interface remains active despite bot error")
 
 if __name__ == "__main__":
-    import threading
-    import time
+    # Setup logging first
+    setup_logger()
+    logger = logging.getLogger(__name__)
 
-    # Start the web dashboard in a separate thread
-    def start_web_dashboard():
-        time.sleep(2)  # Give the main bot time to initialize
-        import subprocess
-        subprocess.run(["python", "web_dashboard.py"])
+    # Initialize bot_manager as None initially
+    bot_manager = None
 
-    # Start web dashboard thread
-    web_thread = threading.Thread(target=start_web_dashboard, daemon=True)
+    # Make it globally accessible for web interface
+    sys.modules[__name__].bot_manager = None
+
+    # Start web dashboard in persistent background thread
+    web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
     web_thread.start()
 
-    # Start the main trading bot
-    asyncio.run(main())
+    # Give web dashboard time to start
+    time.sleep(3)
+    logger.info("🌐 Persistent Web Dashboard started - accessible via Replit webview")
+
+    try:
+        # Start the main trading bot
+        asyncio.run(main())
+
+    except KeyboardInterrupt:
+        logger.info("🔴 BOT STOPPED: Manual shutdown via console (Ctrl+C)")
+        # Keep web interface running
+        logger.info("🌐 Web interface remains active for bot control")
+        
+        # Keep process alive for web interface
+        try:
+            while web_server_running:
+                time.sleep(5)
+        except KeyboardInterrupt:
+            logger.info("🔴 Final shutdown - terminating web interface")
+
+    except Exception as e:
+        logger.error(f"Bot error: {e}")
+        # Keep web interface running even on error
+        logger.info("🌐 Web interface remains active despite bot error")
+        try:
+            while web_server_running:
+                time.sleep(5)
+        except KeyboardInterrupt:
+            logger.info("🔴 Final shutdown - terminating web interface")
