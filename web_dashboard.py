@@ -888,6 +888,11 @@ def get_strategy_config(strategy_name):
         logger.error(f"Error in get_strategy_config endpoint for {strategy_name}: {e}")
         return jsonify({'error': str(e), 'strategy_name': strategy_name}), 200
 
+@app.route('/ml_reports')
+def ml_reports():
+    """ML Reports page"""
+    return render_template('ml_reports.html')
+
 @app.route('/api/health')
 def health_check():
     """Health check endpoint to verify API connectivity"""
@@ -1075,6 +1080,73 @@ if __name__ == '__main__':
         logger.info("🌐 WEB DASHBOARD: Starting standalone web interface on http://0.0.0.0:5000")
         logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
         app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+
+@app.route('/api/ml_insights')
+def get_ml_insights():
+    """Get ML insights"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML functionality not available'})
+        
+        # Try to import ML analyzer
+        try:
+            from src.analytics.ml_analyzer import ml_analyzer
+            insights = ml_analyzer.generate_insights()
+            return jsonify({'success': True, 'insights': insights})
+        except ImportError:
+            return jsonify({'success': False, 'error': 'ML analyzer not available - install scikit-learn'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/ml_predictions')
+def get_ml_predictions():
+    """Get ML predictions"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML functionality not available'})
+        
+        # Try to import ML analyzer
+        try:
+            from src.analytics.ml_analyzer import ml_analyzer
+            # Sample prediction for active strategies
+            predictions = []
+            for strategy_name in ['rsi_oversold', 'macd_divergence']:
+                sample_features = {
+                    'strategy': strategy_name,
+                    'symbol': 'BTCUSDT',
+                    'side': 'BUY',
+                    'leverage': 5,
+                    'position_size_usdt': 100,
+                    'hour_of_day': datetime.now().hour
+                }
+                prediction = ml_analyzer.predict_trade_outcome(sample_features)
+                if 'error' not in prediction:
+                    predictions.append(prediction)
+            
+            return jsonify({'success': True, 'predictions': predictions})
+        except ImportError:
+            return jsonify({'success': False, 'error': 'ML analyzer not available - install scikit-learn'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/train_models', methods=['POST'])
+def train_models():
+    """Train ML models"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML functionality not available'})
+        
+        # Try to import ML analyzer
+        try:
+            from src.analytics.ml_analyzer import ml_analyzer
+            results = ml_analyzer.train_models()
+            if 'error' in results:
+                return jsonify({'success': False, 'error': results['error']})
+            return jsonify({'success': True, 'results': results})
+        except ImportError:
+            return jsonify({'success': False, 'error': 'ML analyzer not available - install scikit-learn'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 def get_shared_bot_status():
     """Get bot status from shared bot manager"""
