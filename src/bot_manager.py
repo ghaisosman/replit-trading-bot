@@ -528,14 +528,12 @@ For MAINNET:
 
                                 self.logger.info(f"📍 EXISTING POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {quantity:,.6f} | Entry: ${entry_price:,.4f}")
 
-                                # Use enhanced validation to determine if this is a legitimate bot position
-                                validation_result = self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price)
-                                
-                                self.logger.info(f"🔍 POSITION VALIDATION RESULT | {strategy_name.upper()} | {symbol} | Legitimate: {validation_result}")
-                                
-                                if validation_result:
+                                # Check if this position has a trade ID in our database
+                                is_legitimate, trade_id = self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price)
+
+                                if is_legitimate and trade_id:
                                     # This is a legitimate bot position - recover it
-                                    self.logger.info(f"✅ LEGITIMATE BOT POSITION | {strategy_name.upper()} | {symbol} | Recovering...")
+                                    self.logger.info(f"✅ LEGITIMATE BOT POSITION | Trade ID: {trade_id} | {strategy_name.upper()} | {symbol}")
 
                                     from src.execution_engine.order_manager import Position
                                     from datetime import datetime
@@ -551,30 +549,21 @@ For MAINNET:
                                         position_side='LONG' if side == 'BUY' else 'SHORT',
                                         order_id=0,  # Unknown on recovery
                                         entry_time=datetime.now(),  # Current time as fallback
-                                        status='RECOVERED'
+                                        status='RECOVERED',
+                                        trade_id=trade_id  # Include the trade ID
                                     )
 
                                     # Add to active positions
                                     self.order_manager.active_positions[strategy_name] = recovered_position
                                     recovered_count += 1
 
-                                    # CRITICAL: Notify anomaly detector that this is a legitimate bot position
+                                    # Notify anomaly detector that this is a legitimate bot position
                                     self.anomaly_detector.register_bot_trade(symbol, strategy_name)
-                                    
-                                    # Clear any existing ghost anomaly for this position
-                                    from src.execution_engine.anomaly_detector import AnomalyStatus
-                                    ghost_anomaly_id = f"ghost_{strategy_name}_{symbol}"
-                                    existing_anomaly = self.anomaly_detector.db.get_anomaly(ghost_anomaly_id)
-                                    if existing_anomaly:
-                                        self.anomaly_detector.db.update_anomaly(ghost_anomaly_id, 
-                                                                               status=AnomalyStatus.CLEARED,
-                                                                               cleared_at=datetime.now())
-                                        self.logger.info(f"🧹 CLEARED GHOST ANOMALY | {strategy_name.upper()} | {symbol} | Position was recovered as legitimate bot trade")
 
-                                    self.logger.info(f"✅ POSITION RECOVERED | {strategy_name.upper()} | {symbol} | Entry: ${entry_price:,.4f} | Qty: {quantity:,.6f} | Anomaly detector notified")
+                                    self.logger.info(f"✅ POSITION RECOVERED | Trade ID: {trade_id} | {strategy_name.upper()} | {symbol} | Entry: ${entry_price:,.4f} | Qty: {quantity:,.6f}")
                                 else:
-                                    # This is likely a manual position - let ghost trade detection handle it
-                                    self.logger.warning(f"🚨 MANUAL POSITION DETECTED | {strategy_name.upper()} | {symbol} | Not recovering - ghost trade detection will handle it")
+                                    # No trade ID found - this is a manual position
+                                    self.logger.warning(f"🚨 MANUAL POSITION | No Trade ID | {strategy_name.upper()} | {symbol} | Ghost detection will handle it")
 
                                 break  # Only one position per strategy
 
@@ -593,15 +582,15 @@ For MAINNET:
         """Clean up ghost anomalies for positions that should be legitimate bot positions"""
         try:
             self.logger.info("🔍 CHECKING FOR MISIDENTIFIED POSITIONS...")
-            
+
             # Get all active ghost anomalies
             active_anomalies = self.anomaly_detector.db.get_active_anomalies()
             ghost_anomalies = [a for a in active_anomalies if a.type.value == 'ghost']
-            
+
             for anomaly in ghost_anomalies:
                 strategy_name = anomaly.strategy_name
                 symbol = anomaly.symbol
-                
+
                 # Check if this position should actually be recognized as a legitimate bot position
                 # Get current position info from Binance
                 try:
@@ -613,14 +602,14 @@ For MAINNET:
                                 entry_price = float(position.get('entryPrice', 0))
                                 side = 'BUY' if position_amt > 0 else 'SELL'
                                 quantity = abs(position_amt)
-                                
+
                                 # Re-validate this position with enhanced validation
                                 if self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price):
                                     self.logger.info(f"🔍 MISIDENTIFIED POSITION FOUND | {strategy_name.upper()} | {symbol} | Clearing ghost anomaly and recovering position")
-                                    
+
                                     # Clear the ghost anomaly
                                     self.anomaly_detector.clear_anomaly_by_id(anomaly.id, "Position re-validated as legitimate bot trade")
-                                    
+
                                     # Recover the position properly
                                     from src.execution_engine.order_manager import Position
                                     from datetime import datetime
@@ -641,17 +630,17 @@ For MAINNET:
 
                                     # Add to active positions
                                     self.order_manager.active_positions[strategy_name] = recovered_position
-                                    
+
                                     # Register with anomaly detector
                                     self.anomaly_detector.register_bot_trade(symbol, strategy_name)
-                                    
+
                                     self.logger.info(f"✅ POSITION RECOVERED FROM MISIDENTIFICATION | {strategy_name.upper()} | {symbol} | Entry: ${entry_price:,.4f} | Qty: {quantity:,.6f}")
-                                    
+
                                 break
-                
+
                 except Exception as e:
                     self.logger.warning(f"Could not re-validate position for {symbol}: {e}")
-                    
+
         except Exception as e:
             self.logger.error(f"Error cleaning up misidentified positions: {e}")
 
@@ -722,7 +711,7 @@ For MAINNET:
                                 self.logger.info(f"✅ POSITION RECOVERED | {strategy_name.upper()} | {symbol} | Entry: ${entry_price} | Qty: {abs(position_amt)}")
                             else:
                                 # This is likely a manual position - let ghost trade detection handle it
-                                self.logger.warning(f"🚨 UNVERIFIED POSITION | {strategy_name.upper()} | {symbol} | Will be processed by ghost trade detection")
+                                self.logger.warning(f"🚨 UNVERIFIED POSITION | {strategy_name.upper()} | {symbol} | Will be processed by ghost trade detection")```python
 
             self.logger.info(f"✅ POSITION RECOVERY COMPLETE: {recovered_count} legitimate bot positions recovered")
             self.logger.info(f"🔍 Unverified positions will be processed by trade monitoring system")
