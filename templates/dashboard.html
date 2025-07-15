@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -431,7 +432,7 @@
 
         function editStrategy(strategyName) {
             currentEditingStrategy = strategyName;
-            document.getElementById('strategyModalTitle').textContent = `Edit ${strategyName}`;
+            document.getElementById('strategyModalTitle').textContent = 'Edit ' + strategyName;
 
             // Show/hide RSI parameters based on strategy type
             const rsiParams = document.getElementById('rsiParameters');
@@ -545,7 +546,7 @@
 
         function trainMLModels() {
             if (confirm('Train ML models? This may take a few minutes.')) {
-                $.post('/api/ml/train', function(data) {
+                $.post('/api/train_models', function(data) {
                     if (data.error) {
                         alert('❌ Training failed: ' + data.error);
                     } else {
@@ -603,7 +604,7 @@
                 for (let strategy in insights.strategy_performance) {
                     let perf = insights.strategy_performance[strategy];
                     let winRate = (perf.was_profitable && perf.was_profitable.mean) ? (perf.was_profitable.mean * 100).toFixed(1) : 'N/A';
-                    html += `<small>${strategy}: ${winRate}% Win Rate</small><br>`;
+                    html += '<small>' + strategy + ': ' + winRate + '% Win Rate</small><br>';
                 }
             }
 
@@ -611,7 +612,7 @@
                 html += '<h6 class="mt-2">Best Trading Hours:</h6>';
                 for (let hour in insights.time_analysis.best_trading_hours) {
                     let rate = (insights.time_analysis.best_trading_hours[hour] * 100).toFixed(1);
-                    html += `<small>${hour}:00 - ${rate}% Success</small><br>`;
+                    html += '<small>' + hour + ':00 - ' + rate + '% Success</small><br>';
                 }
             }
 
@@ -629,14 +630,12 @@
                 let status = pred.predicted_profitable ? 'text-success' : 'text-danger';
                 let recommendation = pred.predicted_profitable ? 'Profitable' : 'Risky';
 
-                html += `
-                    <div class="border-bottom pb-2 mb-2">
-                        <strong>${pred.symbol || 'Market'}</strong>
-                        <span class="badge bg-${pred.predicted_profitable ? 'success' : 'danger'} ms-2">${recommendation}</span><br>
-                        <small>Expected PnL: ${pred.predicted_pnl_percentage ? pred.predicted_pnl_percentage.toFixed(2) : 'N/A'}%</small><br>
-                        <small>Confidence: ${pred.confidence ? (pred.confidence * 100).toFixed(1) : 'N/A'}%</small>
-                    </div>
-                `;
+                html += '<div class="border-bottom pb-2 mb-2">';
+                html += '<strong>' + (pred.symbol || 'Market') + '</strong>';
+                html += '<span class="badge bg-' + (pred.predicted_profitable ? 'success' : 'danger') + ' ms-2">' + recommendation + '</span><br>';
+                html += '<small>Expected PnL: ' + (pred.predicted_pnl_percentage ? pred.predicted_pnl_percentage.toFixed(2) : 'N/A') + '%</small><br>';
+                html += '<small>Confidence: ' + (pred.confidence ? (pred.confidence * 100).toFixed(1) : 'N/A') + '%</small>';
+                html += '</div>';
             });
 
             if (!html) {
@@ -674,23 +673,17 @@
                 let pnlClass = position.pnl > 0 ? 'text-success' : 'text-danger';
                 let sideClass = position.side === 'BUY' ? 'success' : 'danger';
 
-                html += `
-                    <tr>
-                        <td>${position.strategy.toUpperCase()}</td>
-                        <td>${position.symbol}</td>
-                        <td><span class="badge bg-${sideClass}">${position.side}</span></td>
-                        <td>$${position.entry_price.toFixed(1)}</td>
-                        <td>$${position.position_value_usdt ? position.position_value_usdt.toFixed(1) : (position.entry_price * position.quantity).toFixed(1)}</td>
-                        <td>${position.current_price ? '$' + position.current_price.toFixed(1) : 'N/A'}</td>
-                        <td class="${pnlClass}">$${position.pnl.toFixed(1)}</td>
-                        <td class="${pnlClass}">${position.pnl_percent > 0 ? '+' : ''}${position.pnl_percent.toFixed(1)}%</td>
-                        <td>
-                            <button class="btn btn-info btn-sm" onclick="window.open('/chart/${position.symbol}', '_blank')">
-                                <i class="fas fa-chart-area"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
+                html += '<tr>';
+                html += '<td>' + position.strategy.toUpperCase() + '</td>';
+                html += '<td>' + position.symbol + '</td>';
+                html += '<td><span class="badge bg-' + sideClass + '">' + position.side + '</span></td>';
+                html += '<td>$' + position.entry_price.toFixed(1) + '</td>';
+                html += '<td>$' + (position.position_value_usdt ? position.position_value_usdt.toFixed(1) : (position.entry_price * position.quantity).toFixed(1)) + '</td>';
+                html += '<td>' + (position.current_price ? '$' + position.current_price.toFixed(1) : 'N/A') + '</td>';
+                html += '<td class="' + pnlClass + '">$' + position.pnl.toFixed(1) + '</td>';
+                html += '<td class="' + pnlClass + '">' + (position.pnl_percent > 0 ? '+' : '') + position.pnl_percent.toFixed(1) + '%</td>';
+                html += '<td><button class="btn btn-info btn-sm" onclick="window.open(\'/chart/' + position.symbol + '\', \'_blank\')"><i class="fas fa-chart-area"></i></button></td>';
+                html += '</tr>';
             });
             $('#positionsTableBody').html(html);
         }
@@ -761,7 +754,7 @@
         function toggleAutoScroll() {
             autoScroll = !autoScroll;
             const btn = document.getElementById('autoScrollBtn');
-            btn.innerHTML = `<i class="fas fa-arrows-alt-v"></i> Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
+            btn.innerHTML = '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: ' + (autoScroll ? 'ON' : 'OFF');
             btn.className = autoScroll ? 'btn btn-sm btn-outline-light' : 'btn btn-sm btn-outline-secondary';
         }
 
@@ -810,8 +803,7 @@
                 url: '/api/default-params',
                 method: 'POST',
                 contentType: 'application/json',
-```text
-        data: JSON.stringify(data),
+                data: JSON.stringify(data),
                 success: function(response) {
                     if (response.success) {
                         $('#defaultParamsModal').modal('hide');
@@ -830,85 +822,59 @@
 
         function refreshConfig() {
             const configDisplay = document.getElementById('configDisplay');
-            configDisplay.innerHTML = `
-                <div class="text-center">
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                </div>
-            `;
+            configDisplay.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>';
 
             $.get('/api/current-config', function(data) {
                 if (data.success) {
                     displayConfiguration(data.config);
                 } else {
-                    configDisplay.innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
+                    configDisplay.innerHTML = '<div class="alert alert-danger">Error: ' + data.error + '</div>';
                 }
             }).fail(function() {
-                configDisplay.innerHTML = `<div class="alert alert-danger">Error loading configuration.</div>`;
+                configDisplay.innerHTML = '<div class="alert alert-danger">Error loading configuration.</div>';
             });
         }
 
         function displayConfiguration(config) {
             const configDisplay = document.getElementById('configDisplay');
 
-            let html = `
-                <div class="accordion" id="configAccordion">
-                    <!-- Bot Status -->
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingStatus">
-                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStatus">
-                                🤖 Bot Status
-                            </button>
-                        </h2>
-                        <div id="collapseStatus" class="accordion-collapse collapse show" data-bs-parent="#configAccordion">
-                            <div class="accordion-body">
-                                <p><strong>Running:</strong> <span class="badge bg-${config.bot_status.running ? 'success' : 'danger'}">${config.bot_status.running ? 'Yes' : 'No'}</span></p>
-                                <p><strong>Active Strategies:</strong> ${config.bot_status.active_strategies.join(', ') || 'None'}</p>
-                            </div>
-                        </div>
-                    </div>
+            let html = '<div class="accordion" id="configAccordion">';
+            html += '<div class="accordion-item">';
+            html += '<h2 class="accordion-header" id="headingStatus">';
+            html += '<button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStatus">🤖 Bot Status</button>';
+            html += '</h2>';
+            html += '<div id="collapseStatus" class="accordion-collapse collapse show" data-bs-parent="#configAccordion">';
+            html += '<div class="accordion-body">';
+            html += '<p><strong>Running:</strong> <span class="badge bg-' + (config.bot_status.running ? 'success' : 'danger') + '">' + (config.bot_status.running ? 'Yes' : 'No') + '</span></p>';
+            html += '<p><strong>Active Strategies:</strong> ' + (config.bot_status.active_strategies.join(', ') || 'None') + '</p>';
+            html += '</div></div></div>';
 
-                    <!-- Final Strategy Configurations -->
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingFinal">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFinal">
-                                🎯 Current Strategy Settings
-                            </button>
-                        </h2>
-                        <div id="collapseFinal" class="accordion-collapse collapse" data-bs-parent="#configAccordion">
-                            <div class="accordion-body">
-            `;
+            html += '<div class="accordion-item">';
+            html += '<h2 class="accordion-header" id="headingFinal">';
+            html += '<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFinal">🎯 Current Strategy Settings</button>';
+            html += '</h2>';
+            html += '<div id="collapseFinal" class="accordion-collapse collapse" data-bs-parent="#configAccordion">';
+            html += '<div class="accordion-body">';
 
-            for (const [strategy, settings] of Object.entries(config.final_configs)) {
-                html += `
-                    <div class="card mb-3">
-                        <div class="card-header">
-                            <strong>${strategy.toUpperCase()}</strong>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <p><strong>Symbol:</strong> ${settings.symbol}</p>
-                                    <p><strong>Margin:</strong> $${settings.margin}</p>
-                                    <p><strong>Leverage:</strong> ${settings.leverage}x</p>
-                                </div>
-                                <div class="col-md-6">
-                                    <p><strong>Timeframe:</strong> ${settings.timeframe}</p>
-                                    <p><strong>Max Loss:</strong> ${settings.max_loss_pct}%</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
+            for (const strategy in config.final_configs) {
+                const settings = config.final_configs[strategy];
+                html += '<div class="card mb-3">';
+                html += '<div class="card-header"><strong>' + strategy.toUpperCase() + '</strong></div>';
+                html += '<div class="card-body">';
+                html += '<div class="row">';
+                html += '<div class="col-md-6">';
+                html += '<p><strong>Symbol:</strong> ' + settings.symbol + '</p>';
+                html += '<p><strong>Margin:</strong> $' + settings.margin + '</p>';
+                html += '<p><strong>Leverage:</strong> ' + settings.leverage + 'x</p>';
+                html += '</div>';
+                html += '<div class="col-md-6">';
+                html += '<p><strong>Timeframe:</strong> ' + settings.timeframe + '</p>';
+                html += '<p><strong>Max Loss:</strong> ' + settings.max_loss_pct + '%</p>';
+                html += '</div>';
+                html += '</div></div></div>';
             }
 
-            html += `
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
+            html += '</div></div></div></div>';
 
             configDisplay.innerHTML = html;
         }
