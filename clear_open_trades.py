@@ -1,25 +1,26 @@
 
 #!/usr/bin/env python3
 """
-Clear Open Trades Script
-Manually clear all open trades from the database for a fresh start
+Clear Open Trades - FIXED VERSION
+Properly clear all open trades from both trade database and trade logger
 """
 
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from src.execution_engine.trade_database import TradeDatabase
 from src.analytics.trade_logger import trade_logger
+from src.execution_engine.trade_database import TradeDatabase
+from datetime import datetime
 import json
 
 
 def clear_open_trades():
     """Clear all open trades from both trade database and trade logger"""
-    print("🧹 CLEARING OPEN TRADES")
-    print("=" * 40)
+    print("🧹 CLEARING OPEN TRADES - FIXED VERSION")
+    print("=" * 50)
     
-    # 1. Clear from Trade Database
+    # 1. Clear from Trade Database (PROPERLY)
     print("\n1️⃣ Clearing Trade Database...")
     trade_db = TradeDatabase()
     
@@ -30,16 +31,19 @@ def clear_open_trades():
     
     print(f"   Found {len(open_trades_db)} open trades in database")
     
-    # Mark all as closed
+    # Mark all as closed with proper data
     for trade_id in open_trades_db:
         trade_db.trades[trade_id]['trade_status'] = 'CLOSED'
         trade_db.trades[trade_id]['exit_reason'] = 'Manual Cleanup'
-        trade_db.trades[trade_id]['pnl_usdt'] = 0
-        trade_db.trades[trade_id]['pnl_percentage'] = 0
-        print(f"   ✅ Marked {trade_id} as closed")
+        trade_db.trades[trade_id]['exit_price'] = trade_db.trades[trade_id].get('entry_price', 0)
+        trade_db.trades[trade_id]['pnl_usdt'] = 0.0
+        trade_db.trades[trade_id]['pnl_percentage'] = 0.0
+        trade_db.trades[trade_id]['duration_minutes'] = 0
+        print(f"   ✅ Marked {trade_id} as CLOSED")
     
+    # Force save the database
     trade_db._save_database()
-    print(f"   💾 Saved database with {len(open_trades_db)} trades marked as closed")
+    print(f"   💾 Database saved with {len(open_trades_db)} trades marked as CLOSED")
     
     # 2. Clear from Trade Logger
     print("\n2️⃣ Clearing Trade Logger...")
@@ -56,12 +60,14 @@ def clear_open_trades():
         if trade.trade_status == "OPEN":
             trade.trade_status = "CLOSED"
             trade.exit_reason = "Manual Cleanup"
-            trade.pnl_usdt = 0
-            trade.pnl_percentage = 0
-            print(f"   ✅ Marked {trade.trade_id} as closed")
+            trade.exit_price = trade.entry_price
+            trade.pnl_usdt = 0.0
+            trade.pnl_percentage = 0.0
+            trade.duration_minutes = 0
+            print(f"   ✅ Marked {trade.trade_id} as CLOSED")
     
     trade_logger._save_trades()
-    print(f"   💾 Saved trade logger with {len(open_trades_logger)} trades marked as closed")
+    print(f"   💾 Trade logger saved with {len(open_trades_logger)} trades marked as CLOSED")
     
     print(f"\n✅ CLEANUP COMPLETE!")
     print(f"   📊 Database: {len(open_trades_db)} trades cleared")
@@ -96,17 +102,29 @@ def verify_cleanup():
         print(f"\n✅ SUCCESS! All trades are now marked as closed")
         print(f"🚀 You now have a clean slate for fresh trading!")
     else:
-        print(f"\n⚠️  Warning: Still have open trades that need attention")
+        print(f"\n❌ STILL HAVE ISSUES:")
+        print(f"   Database still has {open_db_count} open trades")
+        print(f"   Logger still has {open_logger_count} open trades")
 
 
-if __name__ == "__main__":
-    print("🧹 MANUAL TRADE CLEANUP TOOL")
-    print("This will mark ALL open trades as closed")
-    print("=" * 50)
+def main():
+    print("🧹 TRADE CLEANUP TOOL - FIXED VERSION")
+    print("=" * 40)
     
-    confirm = input("Are you sure you want to proceed? (yes/no): ")
-    if confirm.lower() == 'yes':
+    # Show current status first
+    print("\n📊 CURRENT STATUS:")
+    verify_cleanup()
+    
+    # Ask for confirmation
+    print("\n" + "="*50)
+    confirm = input("Do you want to clear all open trades? (y/N): ")
+    
+    if confirm.lower() == 'y':
         clear_open_trades()
         verify_cleanup()
     else:
-        print("❌ Cleanup cancelled")
+        print("❌ Operation cancelled")
+
+
+if __name__ == "__main__":
+    main()
