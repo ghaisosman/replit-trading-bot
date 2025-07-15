@@ -316,40 +316,29 @@ def stop_bot():
 def bot_status():
     """Get current bot status"""
     try:
-        global bot_running, bot_manager, shared_bot_manager
-        try:
-            # Always try to get fresh reference
-            shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+        # Always try to get fresh reference
+        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
 
-            current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-            if current_bot and hasattr(current_bot, 'is_running'):
-                status = {
-                    'running': getattr(current_bot, 'is_running', False),
-                    'active_positions': len(getattr(current_bot.order_manager, 'active_positions', {})) if hasattr(current_bot, 'order_manager') and current_bot.order_manager else 0,
-                    'strategies': list(getattr(current_bot, 'strategies', {}).keys()) if hasattr(current_bot, 'strategies') else [],
-                }
-                return jsonify(status)
-            else:
-                return jsonify({
-                    'running': False,
-                    'active_positions': 0,
-                    'strategies': []
-                })
-        except Exception as e:
-            logger.error(f"Error getting bot status: {str(e)}")
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        if current_bot and hasattr(current_bot, 'is_running'):
+            status = {
+                'running': getattr(current_bot, 'is_running', False),
+                'active_positions': len(getattr(current_bot.order_manager, 'active_positions', {})) if hasattr(current_bot, 'order_manager') and current_bot.order_manager else 0,
+                'strategies': list(getattr(current_bot, 'strategies', {}).keys()) if hasattr(current_bot, 'strategies') else [],
+            }
+            return jsonify(status)
+        else:
             return jsonify({
                 'running': False,
                 'active_positions': 0,
-                'strategies': [],
-                'error': str(e)
+                'strategies': []
             })
     except Exception as e:
-        logger.error(f"Error in api_bot_status: {e}")
         return jsonify({
             'running': False,
             'active_positions': 0,
             'strategies': [],
-            'error': f'API error: {str(e)}'
+            'error': str(e)
         })
 
 @app.route('/api/strategies')
@@ -515,16 +504,11 @@ def get_balance():
 
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
         if current_bot and hasattr(current_bot, 'balance_fetcher'):
-            try:
-                balance = current_bot.balance_fetcher.get_usdt_balance() or 0
-                return jsonify({'balance': balance, 'success': True})
-            except Exception as fetch_error:
-                logger.error(f"Error fetching balance: {str(fetch_error)}")
-                return jsonify({'balance': 0, 'success': False, 'error': str(fetch_error)})
+            balance = current_bot.balance_fetcher.get_usdt_balance() or 0
+            return jsonify({'balance': balance, 'success': True})
         else:
             return jsonify({'balance': 0, 'success': False, 'error': 'Bot not available'})
     except Exception as e:
-        logger.error(f"Error getting balance: {str(e)}")
         return jsonify({'balance': 0, 'success': False, 'error': str(e)})
 
 @app.route('/api/positions')
@@ -674,13 +658,11 @@ def get_console_log():
                         recent_lines = lines[-150:] if len(lines) > 150 else lines
                         log_lines = [line.rstrip('\n\r') for line in recent_lines if line.strip()]
                     break
-                except Exception as e:
-                    logger.debug(f"Could not read log file {log_file_path}: {str(e)}")
+                except Exception:
                     continue
 
         # If no file logs found, try to capture live logger output
         if not log_lines:
-            # Check if we have access to a logger with handlers
             try:
                 import logging
                 root_logger = logging.getLogger()
@@ -694,19 +676,17 @@ def get_console_log():
                                 recent_lines = lines[-150:] if len(lines) > 150 else lines
                                 log_lines = [line.rstrip('\n\r') for line in recent_lines if line.strip()]
                             break
-                        except Exception as e:
-                            logger.debug(f"Could not read handler log file: {e}")
+                        except Exception:
                             continue
-            except Exception as e:
-                logger.debug(f"Could not access logger handlers: {e}")
+            except Exception:
+                pass
 
-        # Final fallback: provide basic status info with better context
+        # Final fallback: provide basic status info
         if not log_lines:
             try:
                 current_bot = shared_bot_manager if shared_bot_manager else bot_manager
                 if current_bot:
                     if hasattr(current_bot, 'is_running') and current_bot.is_running:
-                        # Get more detailed status
                         active_positions = len(current_bot.order_manager.active_positions) if current_bot.order_manager else 0
                         strategies = list(current_bot.strategies.keys()) if hasattr(current_bot, 'strategies') and current_bot.strategies else []
 
@@ -746,7 +726,7 @@ def get_console_log():
                         "║                                                   ║",
                         "╚═══════════════════════════════════════════════════╝"
                     ]
-            except Exception as fallback_error:
+            except Exception:
                 log_lines = [
                     "╔═══════════════════════════════════════════════════╗",
                     "║ 🤖 BOT STATUS                                    ║",
@@ -760,7 +740,6 @@ def get_console_log():
 
         return jsonify({'success': True, 'logs': log_lines})
     except Exception as e:
-        logger.error(f"Error in console log endpoint: {str(e)}")
         return jsonify({'success': False, 'error': f'Failed to get console log: {str(e)}'})
 
 def get_bot_status():
