@@ -1,0 +1,11 @@
+{
+  "max_loss_pct": 10,
+  "macd_fast": 12,
+  "macd_slow": 26,
+  "macd_signal": 9,
+  "min_histogram_threshold": 1e-05,
+  "min_distance_threshold": 0.001,
+  "confirmation_candles": 1,
+  "min_volume": 1000000,
+  "cooldown_period": 300
+}
