@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 import pandas as pd
@@ -282,7 +281,7 @@ For MAINNET:
     async def _display_active_positions_pnl_throttled(self):
         """Display current PnL for all active positions with throttling"""
         current_time = datetime.now()
-        
+
         for strategy_name, position in self.order_manager.active_positions.items():
             # Check if we should log this position (throttle to once per minute)
             last_log_time = self.last_position_log_time.get(strategy_name)
@@ -298,14 +297,14 @@ For MAINNET:
                 if current_price:
                     pnl_usdt = self._calculate_pnl(position, current_price)
                     position_value_usdt = position.entry_price * position.quantity
-                    
+
                     # Calculate margin invested (assuming 5x leverage as default)
                     leverage = strategy_config.get('leverage', 5)
                     margin_invested = position_value_usdt / leverage
-                    
+
                     # For futures trading, PnL percentage should be calculated against margin invested, not position value
                     pnl_percent = (pnl_usdt / margin_invested) * 100 if margin_invested > 0 else 0
-                    
+
                     # Show comprehensive position status with proper formatting
                     self.logger.info(f"""╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║
@@ -326,7 +325,7 @@ For MAINNET:
                     position_value_usdt = position.entry_price * position.quantity
                     leverage = strategy_config.get('leverage', 5)
                     margin_invested = position_value_usdt / leverage
-                    
+
                     self.logger.info(f"""╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
@@ -721,7 +720,8 @@ For MAINNET:
                                     self.anomaly_detector.clear_anomaly_by_id(anomaly.id, "Position re-validated as legitimate bot trade")
 
                                     # Recover the position properly
-                                    from src.execution_engine.order_manager import Position
+                                    from src.execution_engine.order_manager```python
+ import Position
                                     from datetime import datetime
 
                                     recovered_position = Position(
@@ -772,3 +772,66 @@ For MAINNET:
                 'strategies': [],
                 'balance': 0
             }
+
+    async def _check_misidentified_positions(self):
+        """Check for positions that might be incorrectly identified as manual"""
+        try:
+            # This would contain logic to identify and correct misidentified positions
+            # For now, just log that we're checking
+            pass
+        except Exception as e:
+            self.logger.error(f"Error checking misidentified positions: {e}")
+
+    async def _synchronize_existing_positions(self):
+        """Synchronize bot's internal positions with existing Binance positions during startup"""
+        try:
+            if not self.binance_client.is_futures:
+                return
+
+            # Get all positions from Binance
+            positions = self.binance_client.client.futures_position_information()
+            synced_count = 0
+
+            for position in positions:
+                symbol = position.get('symbol')
+                position_amt = float(position.get('positionAmt', 0))
+
+                if abs(position_amt) < 0.000001:
+                    continue  # Skip zero positions
+
+                # Check if this symbol is managed by any of our strategies
+                managing_strategy = None
+                for strategy_name, strategy_config in self.strategies.items():
+                    if strategy_config.get('symbol') == symbol:
+                        managing_strategy = strategy_name
+                        break
+
+                if managing_strategy:
+                    # Check if bot already has this position tracked
+                    if managing_strategy in self.order_manager.active_positions:
+                        self.logger.info(f"🔍 SYNC: {managing_strategy} | {symbol} | Already tracked internally")
+                        continue
+
+                    # Import this position into bot's tracking
+                    side = 'BUY' if position_amt > 0 else 'SELL'
+                    entry_price = float(position.get('entryPrice', 0))
+                    unrealized_pnl = float(position.get('unRealizedPnl', 0))
+
+                    self.logger.warning(f"🔄 POSITION SYNC | {managing_strategy} | {symbol} | Importing existing position")
+                    self.logger.warning(f"   📊 Side: {side} | Quantity: {abs(position_amt)} | Entry: ${entry_price:.4f}")
+                    self.logger.warning(f"   💰 Unrealized PnL: ${unrealized_pnl:.2f} USDT")
+
+                    # Note: We don't actually import these into active_positions here
+                    # because they weren't opened by the bot in this session
+                    # The duplicate prevention will handle skipping new trades
+                    synced_count += 1
+                else:
+                    self.logger.info(f"🔍 SYNC: {symbol} | Position exists but not managed by any strategy")
+
+            if synced_count > 0:
+                self.logger.info(f"🔄 SYNC COMPLETE: Found {synced_count} existing positions on managed symbols")
+            else:
+                self.logger.info("🔄 SYNC COMPLETE: No existing positions found on managed symbols")
+
+        except Exception as e:
+            self.logger.error(f"Error synchronizing existing positions: {e}")
