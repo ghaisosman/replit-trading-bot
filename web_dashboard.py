@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 Trading Bot Web Dashboard
@@ -73,6 +74,7 @@ def _persist_config_to_file():
     except Exception as e:
         logger.error(f"❌ Failed to persist config to file: {e}")
         return False
+
 from src.config.global_config import global_config
 from src.binance_client.client import BinanceClientWrapper
 from src.data_fetcher.price_fetcher import PriceFetcher
