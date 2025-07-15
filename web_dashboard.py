@@ -349,7 +349,7 @@ def get_strategies():
                 **trading_config_manager.default_params.to_dict(),
                 **overrides
             }
-            
+
             # Add strategy-specific parameters from config files
             try:
                 if 'rsi' in name.lower():
@@ -376,7 +376,7 @@ def get_strategies():
                     })
             except ImportError as e:
                 logger.warning(f"Could not import strategy config for {name}: {e}")
-            
+
             strategies[name] = base_config
         return jsonify(strategies)
     else:
@@ -410,18 +410,18 @@ def update_strategy(strategy_name):
                 data['margin'] = float(data['margin'])
                 if data['margin'] <= 0:
                     return jsonify({'success': False, 'message': 'Margin must be positive'})
-            
+
             if 'leverage' in data:
                 data['leverage'] = int(data['leverage'])
                 if data['leverage'] <= 0 or data['leverage'] > 125:
                     return jsonify({'success': False, 'message': 'Leverage must be between 1 and 125'})
-            
+
             # Validate RSI parameters
             if 'rsi_long_entry' in data:
                 data['rsi_long_entry'] = int(data['rsi_long_entry'])
                 if data['rsi_long_entry'] < 10 or data['rsi_long_entry'] > 50:
                     return jsonify({'success': False, 'message': 'RSI Long Entry must be between 10 and 50'})
-            
+
             if 'rsi_short_entry' in data:
                 data['rsi_short_entry'] = int(data['rsi_short_entry'])
                 if data['rsi_short_entry'] < 50 or data['rsi_short_entry'] > 90:
@@ -539,9 +539,6 @@ def get_positions():
 
                     # For futures trading, PnL percentage should be calculated against margin invested, not position value
                     pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
-
-                    positions.append({
-                        'strategy': position.strategy_name,</old_str>
 
                     positions.append({
                         'strategy': position.strategy_name,
@@ -760,24 +757,3 @@ def get_current_price(symbol):
     """Get current price for symbol"""
     try:
         ticker = binance_client.get_symbol_ticker(symbol)
-        return float(ticker['price']) if ticker else None
-    except:
-        return None
-
-def calculate_pnl(position, current_price):
-    """Calculate PnL for position - matches console calculation"""
-    if not current_price:
-        return 0
-
-    # For futures trading, PnL calculation
-    if position.side == 'BUY':  # Long position
-        pnl = (current_price - position.entry_price) * position.quantity
-    else:  # Short position (SELL)
-        pnl = (position.entry_price - current_price) * position.quantity
-
-    return pnl
-
-if __name__ == '__main__':
-    logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
-    logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
