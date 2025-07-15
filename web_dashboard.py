@@ -346,12 +346,8 @@ def get_bot_status():
             'active_positions': active_positions
         })
     except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': str(e),
-            'strategies': 0,
-            'active_positions': 0
-        })
+        logger.error(f"Error in get_bot_status: {e}")
+        return create_json_error_response(f"Status error: {str(e)}", 500)
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -572,12 +568,8 @@ def get_balance():
             })
 
     except Exception as e:
-        return jsonify({
-            'balance': 0.0,
-            'free': 0.0,
-            'locked': 0.0,
-            'message': f'API error: {str(e)}'
-        })
+        logger.error(f"Error in get_balance: {e}")
+        return create_json_error_response(f"Balance API error: {str(e)}", 500)
 
 @app.route('/api/positions')
 def get_positions():
@@ -738,10 +730,8 @@ def get_console_log():
             })
 
     except Exception as e:
-        return jsonify({
-            'logs': [],
-            'message': f'API error: {str(e)}'
-        })
+        logger.error(f"Error in get_console_log: {e}")
+        return create_json_error_response(f"Console log API error: {str(e)}", 500)
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
@@ -879,81 +869,100 @@ def get_strategy_config(strategy_name):
 def ensure_json_for_api():
     """Ensure API requests are handled properly"""
     if request.path.startswith('/api/'):
-        # Set content type expectation
         request.environ['HTTP_ACCEPT'] = 'application/json'
 
-@app.after_request  
+def create_json_error_response(error_message, status_code=500):
+    """Create a guaranteed JSON error response"""
+    try:
+        return jsonify({'success': False, 'error': error_message}), status_code
+    except:
+        # Ultimate fallback - raw JSON string
+        from flask import Response
+        return Response(
+            f'{{"success": false, "error": "{error_message}"}}',
+            status=status_code,
+            mimetype='application/json'
+        )
+
+@app.after_request
 def ensure_json_response(response):
-    """Force JSON responses for API endpoints"""
+    """Force JSON responses for API endpoints with comprehensive error handling"""
     try:
         if request.path.startswith('/api/'):
-            # Ensure proper headers for all API responses
+            # Force JSON content type for all API responses
             response.headers['Content-Type'] = 'application/json'
             response.headers['Cache-Control'] = 'no-cache'
             response.headers['Access-Control-Allow-Origin'] = '*'
             
-            # If response is HTML (error page), convert to JSON error
-            if response.content_type and 'text/html' in response.content_type:
-                error_data = {'success': False, 'error': f'Server error: {response.status_code}'}
-                response.data = json.dumps(error_data)
-                response.headers['Content-Type'] = 'application/json'
-                if response.status_code < 400:
-                    response.status_code = 500
+            # Check if response contains HTML (error page)
+            if hasattr(response, 'data') and response.data:
+                response_text = response.data.decode('utf-8') if isinstance(response.data, bytes) else str(response.data)
+                if '<!DOCTYPE' in response_text or '<html' in response_text:
+                    # Convert HTML error to JSON
+                    error_data = {'success': False, 'error': f'Server error (status: {response.status_code})'}
+                    response.data = json.dumps(error_data)
+                    response.headers['Content-Type'] = 'application/json'
+                    if response.status_code < 400:
+                        response.status_code = 500
         
         return response
     except Exception as e:
-        logger.error(f"Error in after_request: {e}")
-        # Create a new response for API endpoints
+        logger.error(f"Critical error in after_request: {e}")
         if request.path.startswith('/api/'):
-            from flask import Response
-            return Response(
-                '{"success": false, "error": "Critical response error"}',
-                status=500,
-                mimetype='application/json'
-            )
+            return create_json_error_response("Critical response processing error", 500)
         return response
 
 @app.errorhandler(500)
 def internal_error(error):
-    """Handle internal server errors with JSON response"""
+    """Handle internal server errors"""
     logger.error(f"Internal server error: {error}")
-    try:
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
-    except:
-        return '{"success": false, "error": "Internal server error"}', 500, {'Content-Type': 'application/json'}
+    if request.path.startswith('/api/'):
+        return create_json_error_response("Internal server error", 500)
+    return f"Internal server error: {error}", 500
 
 @app.errorhandler(404)
 def not_found(error):
-    """Handle 404 errors with JSON response for API routes"""
-    try:
-        return jsonify({'success': False, 'error': 'Endpoint not found'}), 404
-    except:
-        return '{"success": false, "error": "Endpoint not found"}', 404, {'Content-Type': 'application/json'}
+    """Handle 404 errors"""
+    if request.path.startswith('/api/'):
+        return create_json_error_response("Endpoint not found", 404)
+    return f"Page not found: {error}", 404
 
 @app.errorhandler(Exception)
 def handle_exception(e):
     """Handle all unhandled exceptions"""
-    logger.error(f"Unhandled exception in web dashboard: {e}")
-    try:
-        return jsonify({'success': False, 'error': f'Server error: {str(e)}'}), 500
-    except Exception as json_error:
-        logger.error(f"JSON serialization error: {json_error}")
-        # Fallback if even JSON serialization fails
-        return '{"success": false, "error": "Critical server error"}', 500, {'Content-Type': 'application/json'}
-
-@app.before_request
-def log_request():
-    """Log all API requests for debugging"""
+    logger.error(f"Unhandled exception: {e}")
     if request.path.startswith('/api/'):
-        logger.debug(f"API Request: {request.method} {request.path}")
+        return create_json_error_response(f"Server error: {str(e)}", 500)
+    return f"Server error: {e}", 500
+
+# Override Flask's default error handlers for API routes
+@app.before_request
+def intercept_api_errors():
+    """Intercept and handle API errors before they reach Flask's default handlers"""
+    if request.path.startswith('/api/'):
+        # Set a flag to identify API requests
+        request.is_api = True
 
 @app.after_request
-def log_response(response):
-    """Log API responses and ensure proper headers"""
-    if request.path.startswith('/api/'):
-        logger.debug(f"API Response: {response.status_code} for {request.path}")
+def finalize_api_response(response):
+    """Final processing for API responses"""
+    if hasattr(request, 'is_api') and request.is_api:
+        # Ensure all API responses are JSON
+        if response.status_code >= 400:
+            # For error responses, ensure JSON format
+            try:
+                if response.headers.get('Content-Type', '').startswith('text/html'):
+                    error_data = {'success': False, 'error': f'Server error (status: {response.status_code})'}
+                    response.data = json.dumps(error_data)
+                    response.headers['Content-Type'] = 'application/json'
+            except:
+                pass
+        
+        # Always set JSON headers for API endpoints
         response.headers['Content-Type'] = 'application/json'
         response.headers['Cache-Control'] = 'no-cache'
+        response.headers['Access-Control-Allow-Origin'] = '*'
+    
     return response
 
 if __name__ == '__main__':
