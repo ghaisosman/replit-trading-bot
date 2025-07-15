@@ -523,16 +523,22 @@ def get_positions():
                     quantity = position.quantity
                     side = position.side
 
-                    if side == 'BUY':
+                    # For futures trading, PnL calculation (matches console calculation)
+                    if side == 'BUY':  # Long position
                         pnl = (current_price - entry_price) * quantity
-                    else:  # SELL
+                    else:  # Short position (SELL)
                         pnl = (entry_price - current_price) * quantity
 
-                    # Calculate position value in USDT
-                    position_value_usdt = current_price * quantity
+                    # Calculate position value and margin invested
+                    position_value_usdt = entry_price * quantity
 
-                    # Calculate PnL percentage based on position value
-                    pnl_percent = (pnl / position_value_usdt) * 100 if position_value_usdt > 0 else 0
+                    # Get leverage from strategy config (default 5x if not found)
+                    strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
+                    leverage = strategy_config.get('leverage', 5)
+                    margin_invested = position_value_usdt / leverage
+
+                    # For futures trading, PnL percentage should be calculated against margin invested, not position value
+                    pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0</old_str>
 
                     positions.append({
                         'strategy': position.strategy_name,
@@ -542,6 +548,7 @@ def get_positions():
                         'current_price': current_price,
                         'quantity': quantity,
                         'position_value_usdt': position_value_usdt,
+                        'margin_invested': margin_invested,
                         'pnl': pnl,
                         'pnl_percent': pnl_percent
                     })
@@ -755,14 +762,17 @@ def get_current_price(symbol):
         return None
 
 def calculate_pnl(position, current_price):
-    """Calculate PnL for position"""
+    """Calculate PnL for position - matches console calculation"""
     if not current_price:
         return 0
 
-    if position.side == 'BUY':
-        return (current_price - position.entry_price) * position.quantity
-    else:
-        return (position.entry_price - current_price) * position.quantity
+    # For futures trading, PnL calculation
+    if position.side == 'BUY':  # Long position
+        pnl = (current_price - position.entry_price) * position.quantity
+    else:  # Short position (SELL)
+        pnl = (position.entry_price - current_price) * position.quantity
+
+    return pnl
 
 if __name__ == '__main__':
     logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
