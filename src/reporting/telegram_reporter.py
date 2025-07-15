@@ -217,23 +217,41 @@ class TelegramReporter:
         """Report entry signal detection to Telegram"""
         try:
             # Create unique signal identifier to prevent duplicates
-            signal_id = f"{strategy_name}_{signal_data['symbol']}_{signal_data['signal_type']}_{signal_data['entry_price']:.4f}"
+            signal_id = f"{strategy_name}_{signal_data['symbol']}_{signal_data['signal_type']}"
             current_time = datetime.now()
 
-            # Check if we recently sent this exact signal
-            if hasattr(self, 'last_signal_times'):
-                if signal_id in self.last_signal_times:
-                    time_since_last = (current_time - self.last_signal_times[signal_id]).total_seconds()
-                    if time_since_last < 300:  # Prevent duplicate signals within 5 minutes
-                        self.logger.info(f"🔍 TELEGRAM DEBUG: Duplicate signal blocked - {signal_id} sent {time_since_last:.0f}s ago")
-                        return
-            else:
+            # Initialize signal tracking if not exists
+            if not hasattr(self, 'last_signal_times'):
                 self.last_signal_times = {}
 
-            # Only send entry signal notifications when a position is actually opened
-            # This prevents false signals from being sent to Telegram
-            self.logger.info(f"🔍 TELEGRAM DEBUG: Entry signal notification suppressed - only send when position actually opens")
-            return
+            # Check if we recently sent this signal type for this strategy/symbol
+            if signal_id in self.last_signal_times:
+                time_since_last = (current_time - self.last_signal_times[signal_id]).total_seconds()
+                if time_since_last < 900:  # Prevent duplicate signals within 15 minutes
+                    self.logger.info(f"🔍 TELEGRAM DEBUG: Duplicate signal blocked - {signal_id} sent {time_since_last:.0f}s ago, cooldown active")
+                    return
+
+            # Mark this signal as sent
+            self.last_signal_times[signal_id] = current_time
+
+            # Send the signal notification
+            message = f"""
+🚨 <b>ENTRY SIGNAL DETECTED</b>
+⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
+🎯 <b>Strategy:</b> {strategy_name.upper()}
+💰 <b>Pair:</b> {signal_data['symbol']}
+📊 <b>Signal:</b> {signal_data['signal_type']}
+💵 <b>Entry Price:</b> ${signal_data['entry_price']:.4f}
+🛡️ <b>Stop Loss:</b> ${signal_data['stop_loss']:.4f}
+🎯 <b>Take Profit:</b> ${signal_data['take_profit']:.4f}
+📝 <b>Reason:</b> {signal_data['reason']}
+            """
+            
+            result = self.send_message(message)
+            if result:
+                self.logger.info(f"🔍 TELEGRAM DEBUG: Entry signal notification sent for {signal_id}")
+            else:
+                self.logger.warning(f"🔍 TELEGRAM DEBUG: Failed to send entry signal notification for {signal_id}")
 
         except Exception as e:
             self.logger.error(f"Failed to send entry signal report: {e}")

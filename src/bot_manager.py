@@ -86,6 +86,10 @@ For MAINNET:
 
         # Strategy assessment timers
         self.strategy_last_assessment = {}
+        
+        # Signal cooldown tracking to prevent duplicate signals
+        self.last_signal_time = {}
+        self.signal_cooldown_minutes = 15  # 15 minute cooldown between same signals
 
         # Running state
         self.is_running = False
@@ -422,6 +426,19 @@ For MAINNET:
             signal = self.signal_processor.evaluate_entry_conditions(df, strategy_config)
 
             if signal:
+                # Check signal cooldown to prevent spam
+                signal_key = f"{strategy_name}_{strategy_config['symbol']}_{signal.signal_type.value}"
+                current_time = datetime.now()
+                
+                if signal_key in self.last_signal_time:
+                    time_since_last_signal = (current_time - self.last_signal_time[signal_key]).total_seconds()
+                    if time_since_last_signal < (self.signal_cooldown_minutes * 60):
+                        remaining_cooldown = (self.signal_cooldown_minutes * 60) - time_since_last_signal
+                        self.logger.info(f"🔄 SIGNAL COOLDOWN | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | {remaining_cooldown:.0f}s remaining")
+                        return
+                
+                # Record this signal time
+                self.last_signal_time[signal_key] = current_time
                 self.logger.info(f"🚨 ENTRY SIGNAL DETECTED | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | ${signal.entry_price:,.1f} | Reason: {signal.reason}")
 
                 # Execute the signal first
@@ -430,7 +447,7 @@ For MAINNET:
                 if position:
                     self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:,.1f} | Qty: {position.quantity:,.1f} | SL: ${position.stop_loss:,.1f} | TP: ${position.take_profit:,.1f}")
 
-                    # Send entry signal notification ONCE when position is actually opened
+                    # Send entry signal notification when position is actually opened
                     self.telegram_reporter.report_entry_signal(strategy_name, {
                         'symbol': strategy_config['symbol'],
                         'signal_type': signal.signal_type.value,
