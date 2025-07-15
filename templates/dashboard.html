@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -677,11 +676,11 @@
                 html += '<td>' + position.strategy.toUpperCase() + '</td>';
                 html += '<td>' + position.symbol + '</td>';
                 html += '<td><span class="badge bg-' + sideClass + '">' + position.side + '</span></td>';
-                html += '<td>$' + position.entry_price.toFixed(1) + '</td>';
-                html += '<td>$' + (position.position_value_usdt ? position.position_value_usdt.toFixed(1) : (position.entry_price * position.quantity).toFixed(1)) + '</td>';
-                html += '<td>' + (position.current_price ? '$' + position.current_price.toFixed(1) : 'N/A') + '</td>';
-                html += '<td class="' + pnlClass + '">$' + position.pnl.toFixed(1) + '</td>';
-                html += '<td class="' + pnlClass + '">' + (position.pnl_percent > 0 ? '+' : '') + position.pnl_percent.toFixed(1) + '%</td>';
+                html += '<td>$' + position.entry_price.toFixed(4) + '</td>';
+                html += '<td>$' + position.position_value_usdt.toFixed(2) + '</td>';
+                html += '<td>$' + (position.current_price || 0).toFixed(4) + '</td>';
+                html += '<td class="' + pnlClass + '">$' + position.pnl.toFixed(2) + '</td>';
+                html += '<td class="' + pnlClass + '">' + position.pnl_percent.toFixed(1) + '%</td>';
                 html += '<td><span id="rsi-' + index + '" class="badge bg-secondary">Loading...</span></td>';
                 html += '</tr>';
             });
@@ -698,7 +697,7 @@
                 if (data.success) {
                     let rsiValue = data.rsi;
                     let rsiClass = 'bg-secondary';
-                    
+
                     // Color code RSI values
                     if (rsiValue <= 30) {
                         rsiClass = 'bg-success'; // Oversold - green
@@ -709,7 +708,7 @@
                     } else if (rsiValue >= 60) {
                         rsiClass = 'bg-warning'; // High - yellow
                     }
-                    
+
                     $('#rsi-' + index).removeClass('bg-secondary').addClass(rsiClass).text('RSI: ' + rsiValue);
                 } else {
                     $('#rsi-' + index).removeClass('bg-secondary').addClass('bg-danger').text('Error');
