@@ -720,8 +720,7 @@ For MAINNET:
                                     self.anomaly_detector.clear_anomaly_by_id(anomaly.id, "Position re-validated as legitimate bot trade")
 
                                     # Recover the position properly
-                                    from src.execution_engine.order_manager```python
- import Position
+                                    from src.execution_engine.order_manager import Position
                                     from datetime import datetime
 
                                     recovered_position = Position(
