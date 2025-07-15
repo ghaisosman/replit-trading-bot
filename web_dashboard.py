@@ -771,8 +771,7 @@ def get_bot_status():
             try:
                 status = {
                     'is_running': getattr(shared_bot_manager, 'is_running', False),
-                    'active_positions': len(getattr(shared_bot_manager.order_manager, 'active_positions', {}))```python
- if hasattr(shared_bot_manager, 'order_manager') else 0,
+                    'active_positions': len(getattr(shared_bot_manager.order_manager, 'active_positions', {})) if hasattr(shared_bot_manager, 'order_manager') else 0,
                     'strategies': list(getattr(shared_bot_manager, 'strategies', {}).keys()) if hasattr(shared_bot_manager, 'strategies') else [],
                     'balance': 0  # Will be updated separately
                 }
@@ -1009,6 +1008,19 @@ def handle_exception(e):
     if request.path.startswith('/api/'):
         return create_json_error_response(f"Server error: {str(e)}", 500)
     return f"Server error: {e}", 500
+
+@app.before_first_request
+def setup_logging():
+    """Setup logging when Flask starts"""
+    if not app.debug:
+        import logging
+        file_handler = logging.FileHandler('web_dashboard.log')
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        ))
+        file_handler.setLevel(logging.INFO)
+        app.logger.addHandler(file_handler)
+        app.logger.setLevel(logging.INFO)
 
 # Override Flask's default error handlers for API routes
 @app.before_request
