@@ -315,32 +315,41 @@ def stop_bot():
 @app.route('/api/bot/status')
 def bot_status():
     """Get current bot status"""
-    global bot_running, bot_manager, shared_bot_manager
     try:
-        # Always try to get fresh reference
-        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-        
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-        if current_bot and hasattr(current_bot, 'is_running'):
-            status = {
-                'running': getattr(current_bot, 'is_running', False),
-                'active_positions': len(getattr(current_bot.order_manager, 'active_positions', {})) if hasattr(current_bot, 'order_manager') and current_bot.order_manager else 0,
-                'strategies': list(getattr(current_bot, 'strategies', {}).keys()) if hasattr(current_bot, 'strategies') else [],
-            }
-            return jsonify(status)
-        else:
+        global bot_running, bot_manager, shared_bot_manager
+        try:
+            # Always try to get fresh reference
+            shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+
+            current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+            if current_bot and hasattr(current_bot, 'is_running'):
+                status = {
+                    'running': getattr(current_bot, 'is_running', False),
+                    'active_positions': len(getattr(current_bot.order_manager, 'active_positions', {})) if hasattr(current_bot, 'order_manager') and current_bot.order_manager else 0,
+                    'strategies': list(getattr(current_bot, 'strategies', {}).keys()) if hasattr(current_bot, 'strategies') else [],
+                }
+                return jsonify(status)
+            else:
+                return jsonify({
+                    'running': False,
+                    'active_positions': 0,
+                    'strategies': []
+                })
+        except Exception as e:
+            logger.error(f"Error getting bot status: {str(e)}")
             return jsonify({
                 'running': False,
                 'active_positions': 0,
-                'strategies': []
+                'strategies': [],
+                'error': str(e)
             })
     except Exception as e:
-        logger.error(f"Error getting bot status: {str(e)}")
+        logger.error(f"Error in api_bot_status: {e}")
         return jsonify({
             'running': False,
             'active_positions': 0,
             'strategies': [],
-            'error': str(e)
+            'error': f'API error: {str(e)}'
         })
 
 @app.route('/api/strategies')
@@ -503,7 +512,7 @@ def get_balance():
     try:
         # Always try to get fresh reference
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-        
+
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
         if current_bot and hasattr(current_bot, 'balance_fetcher'):
             try:
@@ -781,7 +790,7 @@ def get_bot_status():
                     'balance': 0,
                     'error': f'Status error: {str(e)}'
                 }
-        
+
         # Fallback status
         return {
             'is_running': bot_running,
@@ -790,7 +799,7 @@ def get_bot_status():
             'balance': 0,
             'error': 'Bot manager not available'
         }
-    
+
     except Exception as e:
         logger.error(f"Critical error in get_bot_status: {e}")
         return {
