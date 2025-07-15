@@ -345,16 +345,53 @@ def get_strategies():
     if IMPORTS_AVAILABLE:
         strategies = {}
         for name, overrides in trading_config_manager.strategy_overrides.items():
-            strategies[name] = {
+            base_config = {
                 **trading_config_manager.default_params.to_dict(),
                 **overrides
             }
+            
+            # Add strategy-specific parameters from config files
+            try:
+                if 'rsi' in name.lower():
+                    from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
+                    rsi_config = RSIOversoldConfig.get_config()
+                    base_config.update({
+                        'max_loss_pct': rsi_config.get('max_loss_pct', 10),
+                        'rsi_long_entry': rsi_config.get('rsi_long_entry', 40),
+                        'rsi_long_exit': rsi_config.get('rsi_long_exit', 70),
+                        'rsi_short_entry': rsi_config.get('rsi_short_entry', 60),
+                        'rsi_short_exit': rsi_config.get('rsi_short_exit', 30)
+                    })
+                elif 'macd' in name.lower():
+                    from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
+                    macd_config = MACDDivergenceConfig.get_config()
+                    base_config.update({
+                        'max_loss_pct': macd_config.get('max_loss_pct', 10),
+                        'macd_fast': macd_config.get('macd_fast', 12),
+                        'macd_slow': macd_config.get('macd_slow', 26),
+                        'macd_signal': macd_config.get('macd_signal', 9),
+                        'min_histogram_threshold': macd_config.get('min_histogram_threshold', 0.0001),
+                        'min_distance_threshold': macd_config.get('min_distance_threshold', 0.005),
+                        'confirmation_candles': macd_config.get('confirmation_candles', 2)
+                    })
+            except ImportError as e:
+                logger.warning(f"Could not import strategy config for {name}: {e}")
+            
+            strategies[name] = base_config
         return jsonify(strategies)
     else:
-        # Return default strategies for demo
+        # Return default strategies for demo with strategy-specific parameters
         return jsonify({
-            'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
-            'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m'}
+            'rsi_oversold': {
+                'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
+                'max_loss_pct': 10, 'rsi_long_entry': 40, 'rsi_long_exit': 70,
+                'rsi_short_entry': 60, 'rsi_short_exit': 30
+            },
+            'macd_divergence': {
+                'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m',
+                'max_loss_pct': 10, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
+                'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2
+            }
         })
 
 @app.route('/api/strategies/<strategy_name>', methods=['POST'])
@@ -363,8 +400,63 @@ def update_strategy(strategy_name):
     try:
         data = request.get_json()
 
-        # Update strategy parameters in config manager
-        trading_config_manager.update_strategy_params(strategy_name, data)
+        # Validate data to prevent errors
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'})
+
+        # Basic parameter validation
+        try:
+            if 'margin' in data:
+                data['margin'] = float(data['margin'])
+                if data['margin'] <= 0:
+                    return jsonify({'success': False, 'message': 'Margin must be positive'})
+            
+            if 'leverage' in data:
+                data['leverage'] = int(data['leverage'])
+                if data['leverage'] <= 0 or data['leverage'] > 125:
+                    return jsonify({'success': False, 'message': 'Leverage must be between 1 and 125'})
+            
+            # Validate RSI parameters
+            if 'rsi_long_entry' in data:
+                data['rsi_long_entry'] = int(data['rsi_long_entry'])
+                if data['rsi_long_entry'] < 10 or data['rsi_long_entry'] > 50:
+                    return jsonify({'success': False, 'message': 'RSI Long Entry must be between 10 and 50'})
+            
+            if 'rsi_short_entry' in data:
+                data['rsi_short_entry'] = int(data['rsi_short_entry'])
+                if data['rsi_short_entry'] < 50 or data['rsi_short_entry'] > 90:
+                    return jsonify({'success': False, 'message': 'RSI Short Entry must be between 50 and 90'})
+
+            # Validate MACD parameters
+            if 'macd_fast' in data:
+                data['macd_fast'] = int(data['macd_fast'])
+                if data['macd_fast'] < 5 or data['macd_fast'] > 20:
+                    return jsonify({'success': False, 'message': 'MACD Fast must be between 5 and 20'})
+
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': f'Invalid parameter value: {ve}'})
+
+        # Update strategy parameters in config manager (basic params only)
+        basic_params = {k: v for k, v in data.items() if k in ['symbol', 'margin', 'leverage', 'timeframe']}
+        if basic_params:
+            trading_config_manager.update_strategy_params(strategy_name, basic_params)
+
+        # Update strategy-specific config files safely
+        try:
+            if 'rsi' in strategy_name.lower():
+                from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
+                rsi_updates = {k: v for k, v in data.items() if k.startswith('rsi_') or k == 'max_loss_pct'}
+                if rsi_updates:
+                    logger.info(f"📝 WEB INTERFACE: Updating RSI strategy config: {rsi_updates}")
+
+            elif 'macd' in strategy_name.lower():
+                from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
+                macd_updates = {k: v for k, v in data.items() if k.startswith('macd_') or k.startswith('min_') or k in ['confirmation_candles', 'max_loss_pct']}
+                if macd_updates:
+                    logger.info(f"📝 WEB INTERFACE: Updating MACD strategy config: {macd_updates}")
+
+        except ImportError as e:
+            logger.warning(f"Could not update strategy-specific config for {strategy_name}: {e}")
 
         # Always try to get the latest shared bot manager
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
@@ -379,12 +471,12 @@ def update_strategy(strategy_name):
             bot_updated = True
 
         # Fallback to standalone bot
-        elif bot_manager and strategy_name in bot_manager.strategies:
+        elif bot_manager and hasattr(bot_manager, 'strategies') and strategy_name in bot_manager.strategies:
             bot_manager.strategies[strategy_name].update(data)
             logger.info(f"📝 WEB INTERFACE: Updated {strategy_name} config in standalone bot: {data}")
             bot_updated = True
 
-        message = f'Strategy {strategy_name} updated'
+        message = f'Strategy {strategy_name} updated successfully'
         if bot_updated:
             message += ' (applied to running bot immediately)'
         else:
@@ -392,6 +484,7 @@ def update_strategy(strategy_name):
 
         return jsonify({'success': True, 'message': message})
     except Exception as e:
+        logger.error(f"Error updating strategy {strategy_name}: {e}")
         return jsonify({'success': False, 'message': f'Failed to update strategy: {e}'})
 
 @app.route('/api/balance')

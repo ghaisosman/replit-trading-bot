@@ -239,6 +239,70 @@
                                 <option value="1d">1 day</option>
                             </select>
                         </div>
+                        <div class="mb-3">
+                            <label for="strategyMaxLoss" class="form-label">Max Loss % (of margin)</label>
+                            <input type="number" class="form-control" id="strategyMaxLoss" step="0.1" min="1" max="50" placeholder="e.g., 10">
+                        </div>
+
+                        <!-- RSI Strategy Parameters (shown only for RSI strategies) -->
+                        <div id="rsiParameters" style="display: none;">
+                            <h6 class="text-primary mt-3">RSI Strategy Parameters</h6>
+                            <div class="row">
+                                <div class="col-6">
+                                    <label for="rsiLongEntry" class="form-label">RSI Long Entry</label>
+                                    <input type="number" class="form-control" id="rsiLongEntry" min="10" max="50" placeholder="e.g., 40">
+                                </div>
+                                <div class="col-6">
+                                    <label for="rsiLongExit" class="form-label">RSI Long Exit</label>
+                                    <input type="number" class="form-control" id="rsiLongExit" min="50" max="90" placeholder="e.g., 70">
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-6">
+                                    <label for="rsiShortEntry" class="form-label">RSI Short Entry</label>
+                                    <input type="number" class="form-control" id="rsiShortEntry" min="50" max="90" placeholder="e.g., 60">
+                                </div>
+                                <div class="col-6">
+                                    <label for="rsiShortExit" class="form-label">RSI Short Exit</label>
+                                    <input type="number" class="form-control" id="rsiShortExit" min="10" max="50" placeholder="e.g., 30">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- MACD Strategy Parameters (shown only for MACD strategies) -->
+                        <div id="macdParameters" style="display: none;">
+                            <h6 class="text-primary mt-3">MACD Strategy Parameters</h6>
+                            <div class="row">
+                                <div class="col-4">
+                                    <label for="macdFast" class="form-label">MACD Fast</label>
+                                    <input type="number" class="form-control" id="macdFast" min="5" max="20" placeholder="e.g., 12">
+                                </div>
+                                <div class="col-4">
+                                    <label for="macdSlow" class="form-label">MACD Slow</label>
+                                    <input type="number" class="form-control" id="macdSlow" min="20" max="40" placeholder="e.g., 26">
+                                </div>
+                                <div class="col-4">
+                                    <label for="macdSignal" class="form-label">MACD Signal</label>
+                                    <input type="number" class="form-control" id="macdSignal" min="5" max="15" placeholder="e.g., 9">
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-6">
+                                    <label for="macdMinHistogram" class="form-label">Min Histogram Threshold</label>
+                                    <input type="number" class="form-control" id="macdMinHistogram" step="0.0001" min="0.0001" max="0.01" placeholder="e.g., 0.0001">
+                                </div>
+                                <div class="col-6">
+                                    <label for="macdMinDistance" class="form-label">Min Distance Threshold (%)</label>
+                                    <input type="number" class="form-control" id="macdMinDistance" step="0.001" min="0.001" max="5" placeholder="e.g., 0.005">
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-6">
+                                    <label for="macdConfirmationCandles" class="form-label">Confirmation Candles</label>
+                                    <input type="number" class="form-control" id="macdConfirmationCandles" min="1" max="5" placeholder="e.g., 2">
+                                </div>
+                            </div>
+                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">
@@ -333,11 +397,37 @@
                 .then(data => {
                     const config = data[strategyName];
                     if (config) {
+                        // Basic parameters
                         document.getElementById('strategyName').value = strategyName;
-                        document.getElementById('strategySymbol').value = config.symbol;
-                        document.getElementById('strategyMargin').value = config.margin;
-                        document.getElementById('strategyLeverage').value = config.leverage;
-                        document.getElementById('strategyTimeframe').value = config.timeframe;
+                        document.getElementById('strategySymbol').value = config.symbol || '';
+                        document.getElementById('strategyMargin').value = config.margin || '';
+                        document.getElementById('strategyLeverage').value = config.leverage || '';
+                        document.getElementById('strategyTimeframe').value = config.timeframe || '';
+                        document.getElementById('strategyMaxLoss').value = config.max_loss_pct || 10;
+
+                        // Hide all strategy-specific sections first
+                        document.getElementById('rsiParameters').style.display = 'none';
+                        document.getElementById('macdParameters').style.display = 'none';
+
+                        // Show and populate RSI parameters if it's an RSI strategy
+                        if (strategyName.toLowerCase().includes('rsi')) {
+                            document.getElementById('rsiParameters').style.display = 'block';
+                            document.getElementById('rsiLongEntry').value = config.rsi_long_entry || 40;
+                            document.getElementById('rsiLongExit').value = config.rsi_long_exit || 70;
+                            document.getElementById('rsiShortEntry').value = config.rsi_short_entry || 60;
+                            document.getElementById('rsiShortExit').value = config.rsi_short_exit || 30;
+                        }
+
+                        // Show and populate MACD parameters if it's a MACD strategy
+                        if (strategyName.toLowerCase().includes('macd')) {
+                            document.getElementById('macdParameters').style.display = 'block';
+                            document.getElementById('macdFast').value = config.macd_fast || 12;
+                            document.getElementById('macdSlow').value = config.macd_slow || 26;
+                            document.getElementById('macdSignal').value = config.macd_signal || 9;
+                            document.getElementById('macdMinHistogram').value = config.min_histogram_threshold || 0.0001;
+                            document.getElementById('macdMinDistance').value = config.min_distance_threshold || 0.005;
+                            document.getElementById('macdConfirmationCandles').value = config.confirmation_candles || 2;
+                        }
                         
                         const modal = new bootstrap.Modal(document.getElementById('strategyModal'));
                         modal.show();
@@ -354,8 +444,27 @@
                 symbol: document.getElementById('strategySymbol').value,
                 margin: parseFloat(document.getElementById('strategyMargin').value),
                 leverage: parseInt(document.getElementById('strategyLeverage').value),
-                timeframe: document.getElementById('strategyTimeframe').value
+                timeframe: document.getElementById('strategyTimeframe').value,
+                max_loss_pct: parseFloat(document.getElementById('strategyMaxLoss').value) || 10
             };
+
+            // Add RSI-specific parameters if RSI strategy
+            if (strategyName.toLowerCase().includes('rsi')) {
+                config.rsi_long_entry = parseInt(document.getElementById('rsiLongEntry').value) || 40;
+                config.rsi_long_exit = parseInt(document.getElementById('rsiLongExit').value) || 70;
+                config.rsi_short_entry = parseInt(document.getElementById('rsiShortEntry').value) || 60;
+                config.rsi_short_exit = parseInt(document.getElementById('rsiShortExit').value) || 30;
+            }
+
+            // Add MACD-specific parameters if MACD strategy
+            if (strategyName.toLowerCase().includes('macd')) {
+                config.macd_fast = parseInt(document.getElementById('macdFast').value) || 12;
+                config.macd_slow = parseInt(document.getElementById('macdSlow').value) || 26;
+                config.macd_signal = parseInt(document.getElementById('macdSignal').value) || 9;
+                config.min_histogram_threshold = parseFloat(document.getElementById('macdMinHistogram').value) || 0.0001;
+                config.min_distance_threshold = parseFloat(document.getElementById('macdMinDistance').value) || 0.005;
+                config.confirmation_candles = parseInt(document.getElementById('macdConfirmationCandles').value) || 2;
+            }
 
             fetch('/api/strategies/' + strategyName, {
                 method: 'POST',
