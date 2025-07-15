@@ -83,10 +83,13 @@ class TelegramReporter:
     def report_bot_startup(self, pairs: List[str], strategies: List[str], balance: float, open_trades: int, source: str = "Unknown"):
         """Report bot startup to Telegram"""
         try:
-            # Prevent duplicate startup notifications
-            if self.startup_notification_sent:
-                self.logger.info(f"🔍 TELEGRAM DEBUG: Startup notification already sent, skipping duplicate")
-                return True
+            # Prevent duplicate startup notifications - use a more robust check
+            current_time = datetime.now()
+            if hasattr(self, 'last_startup_time'):
+                time_since_last = (current_time - self.last_startup_time).total_seconds()
+                if time_since_last < 300:  # Prevent duplicates within 5 minutes
+                    self.logger.info(f"🔍 TELEGRAM DEBUG: Startup notification sent {time_since_last:.0f}s ago, skipping duplicate")
+                    return True
 
             self.logger.info(f"🔍 TELEGRAM DEBUG: report_bot_startup() called")
             self.logger.info(f"🔍 TELEGRAM DEBUG: pairs={pairs}, strategies={strategies}, balance={balance}, open_trades={open_trades}")
@@ -108,10 +111,10 @@ class TelegramReporter:
             result = self.send_message(message)
             self.logger.info(f"🔍 TELEGRAM DEBUG: send_message() returned: {result}")
 
-            # Mark startup notification as sent if successful
+            # Mark startup notification time if successful
             if result:
-                self.startup_notification_sent = True
-                self.logger.info(f"🔍 TELEGRAM DEBUG: Startup notification marked as sent")
+                self.last_startup_time = current_time
+                self.logger.info(f"🔍 TELEGRAM DEBUG: Startup notification time recorded")
 
             return result
         except Exception as e:
@@ -213,6 +216,20 @@ class TelegramReporter:
     def report_entry_signal(self, strategy_name: str, signal_data: dict):
         """Report entry signal detection to Telegram"""
         try:
+            # Create unique signal identifier to prevent duplicates
+            signal_id = f"{strategy_name}_{signal_data['symbol']}_{signal_data['signal_type']}_{signal_data['entry_price']:.4f}"
+            current_time = datetime.now()
+            
+            # Check if we recently sent this exact signal
+            if hasattr(self, 'last_signal_times'):
+                if signal_id in self.last_signal_times:
+                    time_since_last = (current_time - self.last_signal_times[signal_id]).total_seconds()
+                    if time_since_last < 60:  # Prevent duplicate signals within 1 minute
+                        self.logger.info(f"🔍 TELEGRAM DEBUG: Duplicate signal blocked - {signal_id} sent {time_since_last:.0f}s ago")
+                        return
+            else:
+                self.last_signal_times = {}
+            
             # Escape special HTML characters in reason
             reason = signal_data['reason'].replace('<', '&lt;').replace('>', '&gt;').replace('&', '&amp;')
             
@@ -227,7 +244,12 @@ class TelegramReporter:
 🎯 <b>Take Profit:</b> ${signal_data['take_profit']:.4f}
 📝 <b>Reason:</b> {reason}
             """
-            self.send_message(message)
+            
+            success = self.send_message(message)
+            if success:
+                self.last_signal_times[signal_id] = current_time
+                self.logger.info(f"🔍 TELEGRAM DEBUG: Signal sent and recorded - {signal_id}")
+                
         except Exception as e:
             self.logger.error(f"Failed to send entry signal report: {e}")
 

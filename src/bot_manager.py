@@ -171,20 +171,22 @@ For MAINNET:
             pairs = [config['symbol'] for config in self.strategies.values()]
 
             # Send startup notification ONCE with correct open trades count
-            if not self.startup_notified:
-                self.logger.info(f"📱 SENDING TELEGRAM STARTUP NOTIFICATION ({startup_source})")
+            self.logger.info(f"📱 SENDING TELEGRAM STARTUP NOTIFICATION ({startup_source})")
 
-                try:
-                    self.telegram_reporter.report_bot_startup(
-                        pairs=pairs,
-                        strategies=strategies,
-                        balance=balance_info,
-                        open_trades=len(self.order_manager.active_positions)
-                    )
+            try:
+                success = self.telegram_reporter.report_bot_startup(
+                    pairs=pairs,
+                    strategies=strategies,
+                    balance=balance_info,
+                    open_trades=len(self.order_manager.active_positions)
+                )
+                if success:
                     self.logger.info("✅ TELEGRAM STARTUP NOTIFICATION SENT SUCCESSFULLY")
                     self.startup_notified = True
-                except Exception as e:
-                    self.logger.error(f"❌ FAILED TO SEND TELEGRAM STARTUP NOTIFICATION: {e}")
+                else:
+                    self.logger.warning("⚠️ TELEGRAM STARTUP NOTIFICATION FAILED OR BLOCKED")
+            except Exception as e:
+                self.logger.error(f"❌ FAILED TO SEND TELEGRAM STARTUP NOTIFICATION: {e}")
 
             self.is_running = True
             self.logger.info(f"🔍 BOT STATUS: is_running = {self.is_running}")
@@ -422,18 +424,19 @@ For MAINNET:
             if signal:
                 self.logger.info(f"🚨 ENTRY SIGNAL DETECTED | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | ${signal.entry_price:,.1f} | Reason: {signal.reason}")
 
-                # Entry signals are still reported to Telegram
-                self.telegram_reporter.report_entry_signal(strategy_name, {
-                    'symbol': strategy_config['symbol'],
-                    'signal_type': signal.signal_type.value,
-                    'entry_price': signal.entry_price,
-                    'stop_loss': signal.stop_loss,
-                    'take_profit': signal.take_profit,
-                    'reason': signal.reason
-                })
-
-                # Execute the signal
+                # Execute the signal first
                 position = self.order_manager.execute_signal(signal, strategy_config)
+
+                # Only send Telegram notification if position was actually opened
+                if position:
+                    self.telegram_reporter.report_entry_signal(strategy_name, {
+                        'symbol': strategy_config['symbol'],
+                        'signal_type': signal.signal_type.value,
+                        'entry_price': signal.entry_price,
+                        'stop_loss': signal.stop_loss,
+                        'take_profit': signal.take_profit,
+                        'reason': signal.reason
+                    })
 
                 if position:
                     self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:,.1f} | Qty: {position.quantity:,.1f} | SL: ${position.stop_loss:,.1f} | TP: ${position.take_profit:,.1f}")
