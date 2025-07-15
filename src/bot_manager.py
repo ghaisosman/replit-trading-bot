@@ -436,8 +436,12 @@ For MAINNET:
             # Get current market info
             current_price = df['close'].iloc[-1]
 
+            # Ensure strategy name is in config for signal processor
+            strategy_config_with_name = strategy_config.copy()
+            strategy_config_with_name['name'] = strategy_name
+            
             # Evaluate entry conditions
-            signal = self.signal_processor.evaluate_entry_conditions(df, strategy_config)
+            signal = self.signal_processor.evaluate_entry_conditions(df, strategy_config_with_name)
 
             if signal:
                 # Check signal cooldown to prevent spam
@@ -514,11 +518,15 @@ For MAINNET:
                     # Calculate indicators
                     df = self.price_fetcher.calculate_indicators(df)
 
+                    # Ensure strategy name is in config for exit conditions
+                    strategy_config_with_name = strategy_config.copy()
+                    strategy_config_with_name['name'] = strategy_name
+                    
                     # Check exit conditions
                     exit_reason = self.signal_processor.evaluate_exit_conditions(
                         df, 
                         {'entry_price': position.entry_price, 'stop_loss': position.stop_loss, 'take_profit': position.take_profit, 'side': position.side}, 
-                        strategy_config
+                        strategy_config_with_name
                     )
 
                     if exit_reason:

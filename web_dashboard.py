@@ -335,7 +335,7 @@ def bot_status():
                 'strategies': []
             })
     except Exception as e:
-        logger.error(f"Error getting bot status: {e}")
+        logger.error(f"Error getting bot status: {str(e)}")
         return jsonify({
             'running': False,
             'active_positions': 0,
@@ -510,12 +510,12 @@ def get_balance():
                 balance = current_bot.balance_fetcher.get_usdt_balance() or 0
                 return jsonify({'balance': balance, 'success': True})
             except Exception as fetch_error:
-                logger.error(f"Error fetching balance: {fetch_error}")
+                logger.error(f"Error fetching balance: {str(fetch_error)}")
                 return jsonify({'balance': 0, 'success': False, 'error': str(fetch_error)})
         else:
             return jsonify({'balance': 0, 'success': False, 'error': 'Bot not available'})
     except Exception as e:
-        logger.error(f"Error getting balance: {e}")
+        logger.error(f"Error getting balance: {str(e)}")
         return jsonify({'balance': 0, 'success': False, 'error': str(e)})
 
 @app.route('/api/positions')
@@ -666,7 +666,7 @@ def get_console_log():
                         log_lines = [line.rstrip('\n\r') for line in recent_lines if line.strip()]
                     break
                 except Exception as e:
-                    logger.debug(f"Could not read log file {log_file_path}: {e}")
+                    logger.debug(f"Could not read log file {log_file_path}: {str(e)}")
                     continue
 
         # If no file logs found, try to capture live logger output
@@ -751,7 +751,7 @@ def get_console_log():
 
         return jsonify({'success': True, 'logs': log_lines})
     except Exception as e:
-        logger.error(f"Error in console log endpoint: {e}")
+        logger.error(f"Error in console log endpoint: {str(e)}")
         return jsonify({'success': False, 'error': f'Failed to get console log: {str(e)}'})
 
 def get_bot_status():
