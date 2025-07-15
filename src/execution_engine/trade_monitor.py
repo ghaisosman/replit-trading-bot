@@ -655,8 +655,6 @@ class TradeMonitor:
         try:
             self.logger.debug(f"🔍 CLEAR EXPIRED: Checking for expired anomalies")
             self.logger.debug(f"🔍 CLEAR EXPIRED: Current orphan trades: {len(self.orphan_trades)}")
-```python
-# The TradeMonitor class is modified to include memory management for tracking dictionaries to prevent memory leaks and ensure stability.
             self.logger.debug(f"🔍 CLEAR EXPIRED: Current ghost trades: {len(self.ghost_trades)}")
 
             # Clear expired orphan trades
