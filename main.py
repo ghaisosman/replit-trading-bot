@@ -5,6 +5,7 @@ import signal
 import sys
 import threading
 import time
+import psutil
 from src.bot_manager import BotManager
 from src.utils.logger import setup_logger
 

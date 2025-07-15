@@ -685,21 +685,21 @@ def get_console_log():
             "logs/bot.log",
             "bot.log"
         ]
-        
+
         log_content = []
         log_file_found = None
-        
+
         for log_file in possible_log_files:
             if os.path.exists(log_file):
                 log_file_found = log_file
                 try:
                     with open(log_file, 'r', encoding='utf-8') as f:
                         lines = f.readlines()
-                    
+
                     # Get last 50 lines and clean them
                     recent_lines = lines[-50:] if len(lines) > 50 else lines
                     log_content = []
-                    
+
                     for line in recent_lines:
                         clean_line = line.strip()
                         if clean_line:
@@ -712,39 +712,33 @@ def get_console_log():
                             clean_line = re.sub(r'\s+', ' ', clean_line).strip()
                             if clean_line and not clean_line.isspace():
                                 log_content.append(clean_line)
-                    break
-                except Exception as read_error:
+
+                    break  # Found working log file
+
+                except Exception as e:
+                    logger.warning(f"Could not read log file {log_file}: {e}")
                     continue
-        
-        if log_content:
+
+        if not log_file_found:
             return jsonify({
-                'logs': log_content,
-                'last_updated': datetime.now().isoformat(),
-                'source': log_file_found
-            })
-        else:
-            # If no log file found, try to get from web log handler if available
-            try:
-                from src.bot_manager import WebLogHandler
-                # This would require the WebLogHandler to be accessible
-                return jsonify({
-                    'logs': ['Bot is running but log file not accessible', 'Check console for live output'],
-                    'last_updated': datetime.now().isoformat(),
-                    'source': 'fallback'
-                })
-            except:
-                return jsonify({
-                    'logs': ['Bot is running - log file location not found', 'Console output available in terminal'],
-                    'last_updated': datetime.now().isoformat(),
-                    'source': 'none'
-                })
-    except Exception as e:
-        # Return safe fallback instead of error
+                'success': False, 
+                'error': 'No log file found',
+                'checked_paths': possible_log_files
+            }), 404
+
         return jsonify({
-            'logs': [f'Log system error: {str(e)}', 'Bot may still be running normally'],
-            'last_updated': datetime.now().isoformat(),
+            'success': True,
+            'logs': log_content,
+            'source': log_file_found,
+            'count': len(log_content)
+        })
+
+    except Exception as e:
+        logger.error(f"Error reading console log: {e}")
+        return jsonify({
+            'success': False, 
             'error': str(e)
-        }), 200
+        }), 500
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
@@ -782,357 +776,3 @@ def get_bot_status():
             'balance': 0,
             'error': 'Bot manager not available'
         }
-
-    except Exception as e:
-        logger.error(f"Critical error in get_bot_status: {e}")
-        return {
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': [],
-            'balance': 0,
-            'error': f'Critical status error: {str(e)}'
-        }
-
-def get_current_price(symbol):
-    """Get current price for symbol"""
-    try:
-        ticker = binance_client.get_symbol_ticker(symbol)
-        return float(ticker['price']) if ticker else None
-    except:
-        return None
-
-def calculate_pnl(position, current_price):
-    """Calculate PnL for position - matches console calculation"""
-    if not current_price:
-        return 0
-
-    # For futures trading, PnL calculation
-    if position.side == 'BUY':  # Long position
-        pnl = (current_price - position.entry_price) * position.quantity
-    else:  # Short position (SELL)
-        pnl = (position.entry_price - current_price) * position.quantity
-
-    return pnl
-
-@app.route('/api/strategies/<strategy_name>/config')
-def get_strategy_config(strategy_name):
-    """Get configuration for a specific strategy"""
-    try:
-        # Get strategy configuration from bot manager
-        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-
-        if shared_bot_manager and hasattr(shared_bot_manager, 'strategies'):
-            strategy_config = shared_bot_manager.strategies.get(strategy_name, {})
-            # Ensure strategy_name and symbol are always included
-            if 'strategy_name' not in strategy_config:
-                strategy_config['strategy_name'] = strategy_name
-            if 'symbol' not in strategy_config:
-                strategy_config['symbol'] = strategy_config.get('symbol', 'BTCUSDT')
-            return jsonify(strategy_config)
-
-        # Fallback to default config if bot not running
-        default_config = {
-            'strategy_name': strategy_name,
-            'symbol': 'BTCUSDT',
-            'margin': 50.0,
-            'leverage': 5,
-            'timeframe': '15m',
-            'max_loss_pct': 10.0
-        }
-        return jsonify(default_config)
-
-    except Exception as e:
-        logger.error(f"Error in get_strategy_config endpoint for {strategy_name}: {e}")
-        return jsonify({'error': str(e), 'strategy_name': strategy_name}), 200
-
-@app.route('/ml_reports')
-def ml_reports():
-    """ML Reports page"""
-    return render_template('ml_reports.html')
-
-@app.route('/api/health')
-def health_check():
-    """Health check endpoint to verify API connectivity"""
-    try:
-        return jsonify({
-            'success': True,
-            'status': 'healthy',
-            'timestamp': datetime.now().isoformat(),
-            'message': 'API is responding correctly'
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'status': 'error',
-            'timestamp': datetime.now().isoformat(),
-            'message': f'Health check failed: {str(e)}'
-        }), 500
-
-def get_bot_manager():
-    """Get bot manager from main module"""
-    try:
-        # Try to get from global variable first
-        if 'bot_manager' in globals() and globals()['bot_manager'] is not None:
-            return globals()['bot_manager']
-
-        # Fallback to main module
-        import __main__
-        return getattr(__main__, 'bot_manager', None)
-    except:
-        return None
-
-@app.before_request
-def ensure_json_for_api():
-    """Ensure API requests are handled properly"""
-    if request.path.startswith('/api/'):
-        request.environ['HTTP_ACCEPT'] = 'application/json'
-        # Add a flag to identify API requests
-        request.is_api_request = True
-
-def create_json_error_response(error_message, status_code=500):
-    """Create a guaranteed JSON error response"""
-    try:
-        return jsonify({'success': False, 'error': error_message}), status_code
-    except:
-        # Ultimate fallback - raw JSON string
-        from flask import Response
-        return Response(
-            f'{{"success": false, "error": "{error_message}"}}',
-            status=status_code,
-            mimetype='application/json'
-        )
-
-def api_error_handler(func):
-    """Decorator to ensure all API endpoints return JSON on errors"""
-    from functools import wraps
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            logger.error(f"API endpoint error in {func.__name__}: {e}")
-            return create_json_error_response(f"API error: {str(e)}", 500)
-    return wrapper
-
-@app.after_request
-def ensure_json_response(response):
-    """Force JSON responses for API endpoints with comprehensive error handling"""
-    try:
-        if request.path.startswith('/api/') or hasattr(request, 'is_api_request'):
-            # Force JSON content type for all API responses
-            response.headers['Content-Type'] = 'application/json'
-            response.headers['Cache-Control'] = 'no-cache'
-            response.headers['Access-Control-Allow-Origin'] = '*'
-
-            # Check if response contains HTML (error page)
-            if hasattr(response, 'data') and response.data:
-                response_text = response.data.decode('utf-8') if isinstance(response.data, bytes) else str(response.data)
-                if '<!DOCTYPE' in response_text or '<html' in response_text or 'Internal Server Error' in response_text:
-                    # Convert HTML error to JSON
-                    error_data = {
-                        'success': False, 
-                        'error': f'Server error (status: {response.status_code})',
-                        'message': 'API endpoint error'
-                    }
-                    response.data = json.dumps(error_data)
-                    response.headers['Content-Type'] = 'application/json'
-                    if response.status_code < 400:
-                        response.status_code = 500
-
-        return response
-    except Exception as e:
-        logger.error(f"Critical error in after_request: {e}")
-        if request.path.startswith('/api/'):
-            return create_json_error_response("Critical response processing error", 500)
-        return response
-
-@app.errorhandler(500)
-def internal_error(error):
-    """Handle internal server errors"""
-    logger.error(f"Internal server error: {error}")
-    if request.path.startswith('/api/'):
-        return create_json_error_response("Internal server error", 500)
-    return f"Internal server error: {error}", 500
-
-@app.errorhandler(404)
-def not_found(error):
-    """Handle 404 errors"""
-    if request.path.startswith('/api/'):
-        return create_json_error_response("Endpoint not found", 404)
-    return f"Page not found: {error}", 404
-
-@app.errorhandler(Exception)
-def handle_exception(e):
-    """Handle all unhandled exceptions"""
-    logger.error(f"Unhandled exception: {e}")
-    if request.path.startswith('/api/'):
-        return create_json_error_response(f"Server error: {str(e)}", 500)
-    return f"Server error: {e}", 500
-
-def setup_logging():
-    """Setup logging when Flask starts"""
-    if not app.debug:
-        import logging
-        file_handler = logging.FileHandler('web_dashboard.log')
-        file_handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-        ))
-        file_handler.setLevel(logging.INFO)
-        app.logger.addHandler(file_handler)
-        app.logger.setLevel(logging.INFO)
-
-# Call setup_logging immediately instead of using deprecated decorator
-setup_logging()
-
-# Override Flask's default error handlers for API routes
-@app.before_request
-def intercept_api_errors():
-    """Intercept and handle API errors before they reach Flask's default handlers"""
-    if request.path.startswith('/api/'):
-        # Set a flag to identify API requests
-        request.is_api = True
-
-@app.after_request
-def finalize_api_response(response):
-    """Final processing for API responses"""
-    if hasattr(request, 'is_api') and request.is_api:
-        # Ensure all API responses are JSON
-        if response.status_code >= 400:
-            # For error responses, ensure JSON format
-            try:
-                if response.headers.get('Content-Type', '').startswith('text/html'):
-                    error_data = {'success': False, 'error': f'Server error (status: {response.status_code})'}
-                    response.data = json.dumps(error_data)
-                    response.headers['Content-Type'] = 'application/json'
-            except:
-                pass
-
-        # Always set JSON headers for API endpoints
-        response.headers['Content-Type'] = 'application/json'
-        response.headers['Cache-Control'] = 'no-cache'
-        response.headers['Access-Control-Allow-Origin'] = '*'
-
-    return response
-
-# This module is designed to be imported by main.py only
-# No standalone execution allowed to prevent port conflicts
-
-@app.route('/api/ml_insights')
-def get_ml_insights():
-    """Get ML insights"""
-    try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'ML functionality not available'})
-
-        # Try to import ML analyzer
-        try:
-            from src.analytics.ml_analyzer import ml_analyzer
-            insights = ml_analyzer.generate_insights()
-            return jsonify({'success': True, 'insights': insights})
-        except ImportError:
-            return jsonify({'success': False, 'error': 'ML analyzer not available - install scikit-learn'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/ml_predictions')
-def get_ml_predictions():
-    """Get ML predictions"""
-    try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'ML functionality not available'})
-
-        # Try to import ML analyzer
-        try:
-            from src.analytics.ml_analyzer import ml_analyzer
-            # Sample prediction for active strategies
-            predictions = []
-            for strategy_name in ['rsi_oversold', 'macd_divergence']:
-                sample_features = {
-                    'strategy': strategy_name,
-                    'symbol': 'BTCUSDT',
-                    'side': 'BUY',
-                    'leverage': 5,
-                    'position_size_usdt': 100,
-                    'hour_of_day': datetime.now().hour
-                }
-                prediction = ml_analyzer.predict_trade_outcome(sample_features)
-                if 'error' not in prediction:
-                    predictions.append(prediction)
-
-            return jsonify({'success': True, 'predictions': predictions})
-        except ImportError:
-            return jsonify({'success': False, 'error': 'ML analyzer not available - install scikit-learn'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/train_models', methods=['POST'])
-def train_models():
-    """Train ML models"""
-    try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'ML functionality not available'})
-
-        # Try to import ML analyzer
-        try:
-            from src.analytics.ml_analyzer import ml_analyzer
-            results = ml_analyzer.train_models()
-            if 'error' in results:
-                return jsonify({'success': False, 'error': results['error']})
-            return jsonify({'success': True, 'results': results})
-        except ImportError:
-            return jsonify({'success': False, 'error': 'ML analyzer not available - install scikit-learn'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-def get_shared_bot_status():
-    """Get bot status from shared bot manager"""
-    try:
-        # Try to get bot manager from main module
-        import sys
-        main_module = sys.modules.get('__main__')
-        if main_module and hasattr(main_module, 'bot_manager') and main_module.bot_manager:
-            bot_manager = main_module.bot_manager
-            if hasattr(bot_manager, 'get_bot_status'):
-                return bot_manager.get_bot_status()
-
-        # Fallback to global bot_manager if available
-        if 'bot_manager' in globals() and bot_manager and hasattr(bot_manager, 'get_bot_status'):
-            return bot_manager.get_bot_status()
-
-        return {'is_running': False, 'active_positions': 0, 'strategies': [], 'balance': 0}
-    except Exception as e:
-        logger.error(f"Error getting shared bot status: {e}")
-        return {'is_running': False, 'active_positions': 0, 'strategies': [], 'balance': 0}
-
-# Cleaned up duplicate get_bot_status function and route to resolve conflict.
-@app.route('/api/bot_status')
-def get_bot_status_route():
-    try:
-        # Check if bot is running by looking for active processes
-        import psutil
-        bot_running = False
-        try:
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                try:
-                    if proc.info['cmdline'] and any('main.py' in str(cmd) for cmd in proc.info['cmdline']):
-                        bot_running = True
-                        break
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-        except Exception:
-            # Fallback if psutil fails
-            bot_running = True  # Assume running if we can't check
-
-        return jsonify({
-            'status': 'running' if bot_running else 'stopped',
-            'uptime': '00:00:00',
-            'last_update': datetime.now().isoformat()
-        })
-    except Exception as e:
-        return jsonify({
-            'status': 'unknown',
-            'uptime': '00:00:00',
-            'last_update': datetime.now().isoformat(),
-            'error': str(e)
-        }), 200  # Return 200 instead of 500 to prevent dashboard errors
