@@ -26,12 +26,58 @@ def signal_handler(signum, frame):
     if shutdown_event:
         shutdown_event.set()
 
+def check_port_available(port):
+    """Check if a port is available"""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(('0.0.0.0', port))
+            return True
+        except OSError:
+            return False
+
 def run_web_dashboard():
     """Run web dashboard in separate thread - keeps running even if bot stops"""
     global web_server_running
     logger = logging.getLogger(__name__)
 
     try:
+        # Check if port 5000 is available before starting
+        if not check_port_available(5000):
+            logger.error("🚨 PORT 5000 UNAVAILABLE: Attempting to clean up...")
+            
+            # Try to kill any processes using port 5000
+            import subprocess
+            try:
+                # Kill processes using port 5000
+                result = subprocess.run(['lsof', '-ti:5000'], capture_output=True, text=True, check=False)
+                if result.stdout.strip():
+                    pids = result.stdout.strip().split('\n')
+                    for pid in pids:
+                        if pid.isdigit():
+                            subprocess.run(['kill', '-9', pid], check=False)
+                            logger.info(f"🔄 Killed process {pid} using port 5000")
+                
+                # Also kill any Python processes that might be web dashboard related
+                subprocess.run(['pkill', '-f', 'web_dashboard'], check=False)
+                subprocess.run(['pkill', '-f', 'flask'], check=False)
+                
+                # Wait a moment for cleanup
+                import time
+                time.sleep(2)
+                
+                # Check again
+                if not check_port_available(5000):
+                    logger.error("🚨 CRITICAL: Port 5000 still unavailable after cleanup")
+                    logger.error("💡 Please restart the entire Repl to clear port conflicts")
+                    return
+                else:
+                    logger.info("✅ Port 5000 cleared successfully")
+                    
+            except Exception as cleanup_error:
+                logger.error(f"Error during port cleanup: {cleanup_error}")
+                return
+
         web_server_running = True
         logger.info("🌐 WEB DASHBOARD: Starting persistent web interface on http://0.0.0.0:5000")
         logger.info("🌐 WEB DASHBOARD: Dashboard will remain active even when bot stops")
@@ -42,8 +88,12 @@ def run_web_dashboard():
         flask_log.setLevel(flask_logging.WARNING)
 
         app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
+        
     except Exception as e:
         logger.error(f"Web dashboard error: {e}")
+        if "Address already in use" in str(e):
+            logger.error("🚨 CRITICAL: Port conflict persists")
+            logger.info("💡 Please restart the Repl to resolve port conflicts")
     finally:
         web_server_running = False
 

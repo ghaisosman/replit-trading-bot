@@ -1015,11 +1015,8 @@ def finalize_api_response(response):
 
     return response
 
-if __name__ == '__main__':
-    logger.warning("🌐 WEB DASHBOARD: This module is designed to be imported by main.py")
-    logger.info("💡 Please run 'python main.py' instead - it includes the web dashboard")
-    print("⚠️  web_dashboard.py should not be run directly")
-    print("💡 Run 'python main.py' instead - it includes the web dashboard")
+# This module is designed to be imported by main.py only
+# No standalone execution allowed to prevent port conflicts
 
 @app.route('/api/ml_insights')
 def get_ml_insights():
