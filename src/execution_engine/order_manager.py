@@ -1,4 +1,3 @@
-
 import logging
 import threading
 from typing import Dict, List, Optional, Any, Tuple
@@ -32,10 +31,10 @@ class OrderManager:
         self.active_positions: Dict[str, Position] = {}  # strategy_name -> Position
         self.position_history: List[Position] = []
         self.last_order_time = None  # Track when last order was placed
-        
+
         # Thread safety for position management
         self._position_lock = threading.RLock()
-        
+
         # Memory management - limit history size
         self.max_history_size = 1000
 
@@ -50,17 +49,17 @@ class OrderManager:
             # Check if strategy already has an active position
             strategy_name = strategy_config.get('name')
             symbol = strategy_config.get('symbol')
-            
+
             if not strategy_name or not symbol:
                 self.logger.error("Missing strategy name or symbol in config")
                 return None
 
             signal_side = 'BUY' if signal.signal_type == SignalType.BUY else 'SELL'
-            
+
             if strategy_name in self.active_positions:
                 self.logger.info(f"Strategy {strategy_name} already has an active position")
                 return None
-            
+
             # Enhanced duplicate trade prevention: Check both bot's internal positions AND Binance positions
             for existing_strategy, existing_position in self.active_positions.items():
                 if (existing_position.symbol == symbol and 
@@ -277,13 +276,13 @@ class OrderManager:
         """Add position to history with memory management"""
         try:
             self.position_history.append(position)
-            
+
             # Limit history size to prevent memory issues
             if len(self.position_history) > self.max_history_size:
                 # Remove oldest entries, keep last max_history_size entries
                 self.position_history = self.position_history[-self.max_history_size:]
                 self.logger.debug(f"Position history trimmed to {self.max_history_size} entries")
-                
+
         except Exception as e:
             self.logger.error(f"Error adding position to history: {e}")
 
@@ -298,15 +297,15 @@ class OrderManager:
             if not margin:
                 self.logger.error(f"❌ Missing margin in strategy config for {symbol}")
                 return None
-            
+
             if not leverage or leverage <= 0:
                 self.logger.error(f"❌ Invalid leverage ({leverage}) for {symbol}")
                 return None
-                
+
             if not symbol:
                 self.logger.error("❌ Missing symbol in strategy config")
                 return None
-                
+
             if not signal or not hasattr(signal, 'entry_price') or not signal.entry_price or signal.entry_price <= 0:
                 self.logger.error(f"❌ Invalid signal entry price: {getattr(signal, 'entry_price', 'None')}")
                 return None
@@ -318,10 +317,10 @@ class OrderManager:
 
             # Calculate notional value
             notional_value = margin * leverage
-            
+
             # Calculate quantity based on entry price
             quantity = notional_value / entry_price
-            
+
             self.logger.debug(f"🔍 POSITION CALC: {symbol} | Margin: ${margin} | Leverage: {leverage}x | Entry: ${entry_price} | Notional: ${notional_value} | Raw Qty: {quantity}")
 
             # Apply symbol-specific precision with minimum quantity enforcement
@@ -348,7 +347,7 @@ class OrderManager:
             if quantity <= 0:
                 self.logger.error(f"❌ Zero or negative quantity calculated: {quantity} for {symbol}")
                 return None
-                
+
             if quantity < min_qty:
                 self.logger.error(f"❌ Quantity {quantity} below minimum {min_qty} for {symbol}")
                 return None
@@ -376,7 +375,7 @@ class OrderManager:
     def get_position_history(self) -> List[Position]:
         """Get position history"""
         return self.position_history.copy()
-    
+
     def has_position_on_symbol(self, symbol: str, side: str = None) -> bool:
         """Check if there's already a position on this symbol (optionally with specific side)"""
         try:
@@ -388,7 +387,7 @@ class OrderManager:
         except Exception as e:
             self.logger.error(f"Error checking position on symbol: {e}")
             return False
-    
+
     def get_position_on_symbol(self, symbol: str) -> Optional[Position]:
         """Get existing position on symbol if any"""
         try:
@@ -478,7 +477,7 @@ class OrderManager:
         try:
             # Calculate margin used (position value / leverage)
             margin_used = (position.entry_price * position.quantity) / 1  # Default leverage if not stored
-            
+
             # Log trade entry for analytics - trade_logger generates its own ID
             from src.analytics.trade_logger import trade_logger
             generated_trade_id = trade_logger.log_trade_entry(
@@ -490,10 +489,10 @@ class OrderManager:
                 margin_used=margin_used,
                 leverage=1  # Default leverage, could be enhanced to store actual leverage
             )
-            
+
             # Store the generated trade ID in the position
             position.trade_id = generated_trade_id
-            
+
             self.logger.info(f"📊 TRADE ENTRY LOGGED | ID: {generated_trade_id} | {position.strategy_name} | {position.symbol}")
 
         except Exception as e:
@@ -517,6 +516,3 @@ class OrderManager:
                 'trade_id': position.trade_id,
             }
             self.logger.debug(f"📜 TRADE DATA: {json.dumps(trade_data, indent=2)}")
-
-        except Exception as e:
-            self.logger.error(f"❌ Error logging trade data: {e}")

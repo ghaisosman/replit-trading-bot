@@ -1,4 +1,3 @@
-# Applying the changes to fix the syntax error and implement the 30-second ghost trade detection pause after bot trades.
 import logging
 from typing import Dict, List, Optional, Set
 from datetime import datetime, timedelta
@@ -33,26 +32,29 @@ class GhostTrade:
 class TradeMonitor:
     """Monitors for orphan and ghost trades"""
 
-    def __init__(self, binance_client: BinanceClientWrapper, order_manager: OrderManager, telegram_reporter: TelegramReporter):
+    def __init__(self, binance_client: BinanceClientWrapper, order_manager: OrderManager, 
+                 telegram_reporter: TelegramReporter):
         self.binance_client = binance_client
         self.order_manager = order_manager
         self.telegram_reporter = telegram_reporter
         self.logger = logging.getLogger(__name__)
 
-        # Track detected anomalies
-        self.orphan_trades: Dict[str, OrphanTrade] = {}  # strategy_name -> OrphanTrade
-        self.ghost_trades: Dict[str, GhostTrade] = {}    # unique_id -> GhostTrade
+        # Tracking dictionaries for anomalies with size limits
+        self.orphan_trades: Dict[str, OrphanTrade] = {}
+        self.ghost_trades: Dict[str, GhostTrade] = {}
+        self.recently_cleared_ghosts: Dict[str, datetime] = {}
+        self.recent_bot_trades: Dict[str, datetime] = {}
+        self.ghost_notification_times: Dict[str, datetime] = {}
+        self.notified_ghost_positions: Dict[str, datetime] = {}
+        self.strategy_symbols: Dict[str, str] = {}
 
-        # Track strategy symbols for monitoring
-        self.strategy_symbols: Dict[str, str] = {}  # strategy_name -> symbol
+        # Memory management limits
+        self.max_tracking_items = 1000  # Maximum items per dictionary
+        self.memory_cleanup_interval = 300  # Cleanup every 5 minutes
+        self.last_memory_cleanup = datetime.now()
 
-        # Track recently cleared ghost trades to prevent immediate re-detection
-        self.recently_cleared_ghosts: Dict[str, datetime] = {}  # ghost_id -> clear_time
-
-        # Track persistent ghost trades by symbol to prevent duplicate notifications
-        self.persistent_ghost_symbols: Dict[str, datetime] = {}  # symbol -> first_detection_time
-
-        # Flag to prevent notifications during initial startup scan
+        # Configuration
+        self.ghost_detection_delay_seconds = 60  # 60 second delay after bot trades for better confirmation
         self.startup_scan_complete = False
 
         # Track notified ghosts to prevent repeated notifications
@@ -63,7 +65,6 @@ class TradeMonitor:
 
         # Track recent bot trades to prevent immediate ghost detection
         self.recent_bot_trades: Dict[str, datetime] = {}  # symbol -> trade_timestamp
-        self.ghost_detection_delay_seconds = 60  # 60 second delay after bot trades for better confirmation
 
         # Memory management limits to prevent leaks
         self.max_ghost_trades = 100
@@ -83,13 +84,13 @@ class TradeMonitor:
         """Register that the bot just placed a trade on this symbol"""
         self.recent_bot_trades[symbol] = datetime.now()
         self.logger.info(f"🔍 BOT TRADE REGISTERED | {symbol} | Ghost detection paused for {self.ghost_detection_delay_seconds} seconds")
-        
+
         # Also clear any existing ghost trade for this symbol since bot just placed a trade
         ghosts_to_clear = []
         for ghost_id, ghost_trade in self.ghost_trades.items():
             if ghost_trade.symbol == symbol:
                 ghosts_to_clear.append(ghost_id)
-        
+
         for ghost_id in ghosts_to_clear:
             del self.ghost_trades[ghost_id]
             self.logger.info(f"🔍 GHOST TRADE CLEARED | {symbol} | Removed due to bot trade placement")
@@ -565,42 +566,24 @@ class TradeMonitor:
         return None
 
     def _cleanup_recently_cleared_ghosts(self):
-        """Clean up recently cleared ghost trades after cooldown period"""
+        """Clean up recently cleared ghosts after 24 hours"""
         try:
             current_time = datetime.now()
-            cooldown_minutes = 60  # 60 minutes cooldown before allowing re-detection (increased from 15)
 
-            # Enforce memory limits by removing oldest entries if needed
-            if len(self.recently_cleared_ghosts) > self.max_recently_cleared:
-                # Sort by time and keep only the most recent entries
-                sorted_items = sorted(self.recently_cleared_ghosts.items(), key=lambda x: x[1], reverse=True)
-                self.recently_cleared_ghosts = dict(sorted_items[:self.max_recently_cleared])
-                self.logger.debug(f"🔍 MEMORY CLEANUP: Trimmed recently_cleared_ghosts to {self.max_recently_cleared} entries")
-
+            # Remove cleared ghosts older than 24 hours
             ghosts_to_remove = []
-            for ghost_id, clear_time in self.recently_cleared_ghosts.items():
-                if (current_time - clear_time).total_seconds() > (cooldown_minutes * 60):
-                    ghosts_to_remove.append(ghost_id)
+            for symbol, cleared_time in self.recently_cleared_ghosts.items():
+                if (current_time - cleared_time).total_seconds() > 86400:  # 24 hours
+                    ghosts_to_remove.append(symbol)
 
-            for ghost_id in ghosts_to_remove:
-                del self.recently_cleared_ghosts[ghost_id]
-                self.logger.debug(f"🔍 GHOST CLEANUP: Removed {ghost_id} from recently cleared list after {cooldown_minutes} minutes")
+            for symbol in ghosts_to_remove:
+                del self.recently_cleared_ghosts[symbol]
+                self.logger.debug(f"🔍 GHOST CLEANUP: Removed {symbol} from recently cleared after 24 hours")
 
-            # Cleanup old fingerprints (after 2 hours as requested)
-            fingerprints_to_remove = []
-            fingerprint_cooldown_hours = 2  # 2 hours cooldown for fingerprints
-            for fingerprint, clear_time in self.ghost_trade_fingerprints.items():
-                if (current_time - clear_time).total_seconds() > (fingerprint_cooldown_hours * 3600):
-                    fingerprints_to_remove.append(fingerprint)
-
-            for fingerprint in fingerprints_to_remove:
-                del self.ghost_trade_fingerprints[fingerprint]
-                self.logger.debug(f"🔍 FINGERPRINT CLEANUP: Removed {fingerprint} from fingerprint tracking after {fingerprint_cooldown_hours} hours")
-
-            # Also cleanup old notification tracking (after 24 hours)
+            # Also cleanup notification tracking
             notifications_to_remove = []
             for symbol, notification_time in self.notified_ghost_positions.items():
-                if (current_time - notification_time).total_seconds() > (24 * 3600):
+                if (current_time - notification_time).total_seconds() > 86400:  # 24 hours
                     notifications_to_remove.append(symbol)
 
             for symbol in notifications_to_remove:
@@ -618,14 +601,62 @@ class TradeMonitor:
                 del self.recent_bot_trades[symbol]
                 self.logger.debug(f"🔍 BOT TRADE CLEANUP: Removed {symbol} from recent trades tracking after {cleanup_threshold}s")
 
+            # Memory management cleanup
+            self._perform_memory_cleanup()
+
         except Exception as e:
             self.logger.error(f"Error cleaning up recently cleared ghosts: {e}")
+
+    def _perform_memory_cleanup(self):
+        """Perform memory cleanup to prevent unlimited growth"""
+        try:
+            current_time = datetime.now()
+
+            # Check if cleanup is needed
+            if (current_time - self.last_memory_cleanup).total_seconds() < self.memory_cleanup_interval:
+                return
+
+            # Clean up each tracking dictionary if it exceeds limits
+            tracking_dicts = [
+                ('orphan_trades', self.orphan_trades),
+                ('ghost_trades', self.ghost_trades),
+                ('recently_cleared_ghosts', self.recently_cleared_ghosts),
+                ('recent_bot_trades', self.recent_bot_trades),
+                ('ghost_notification_times', self.ghost_notification_times),
+                ('notified_ghost_positions', self.notified_ghost_positions)
+            ]
+
+            for dict_name, tracking_dict in tracking_dicts:
+                if len(tracking_dict) > self.max_tracking_items:
+                    # Remove oldest entries
+                    if dict_name in ['orphan_trades', 'ghost_trades']:
+                        # For trade objects, sort by detected_at
+                        sorted_items = sorted(tracking_dict.items(), 
+                                            key=lambda x: x[1].detected_at if hasattr(x[1], 'detected_at') else datetime.min)
+                    else:
+                        # For datetime dictionaries
+                        sorted_items = sorted(tracking_dict.items(), key=lambda x: x[1])
+
+                    # Keep only the most recent max_tracking_items
+                    items_to_remove = len(tracking_dict) - self.max_tracking_items
+                    for i in range(items_to_remove):
+                        key_to_remove = sorted_items[i][0]
+                        del tracking_dict[key_to_remove]
+
+                    self.logger.warning(f"🧹 MEMORY CLEANUP: Removed {items_to_remove} old entries from {dict_name}")
+
+            self.last_memory_cleanup = current_time
+
+        except Exception as e:
+            self.logger.error(f"Error in memory cleanup: {e}")
 
     def _clear_expired_anomalies(self):
         """Clear expired anomalies (after countdown reaches 0)"""
         try:
             self.logger.debug(f"🔍 CLEAR EXPIRED: Checking for expired anomalies")
             self.logger.debug(f"🔍 CLEAR EXPIRED: Current orphan trades: {len(self.orphan_trades)}")
+```python
+# The TradeMonitor class is modified to include memory management for tracking dictionaries to prevent memory leaks and ensure stability.
             self.logger.debug(f"🔍 CLEAR EXPIRED: Current ghost trades: {len(self.ghost_trades)}")
 
             # Clear expired orphan trades
