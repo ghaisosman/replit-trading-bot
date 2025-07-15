@@ -334,12 +334,13 @@ def bot_status():
                 'strategies': []
             })
     except Exception as e:
+        logger.error(f"Error in bot_status endpoint: {e}")
         return jsonify({
             'running': False,
             'active_positions': 0,
             'strategies': [],
             'error': str(e)
-        })
+        }), 200
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -509,7 +510,8 @@ def get_balance():
         else:
             return jsonify({'balance': 0, 'success': False, 'error': 'Bot not available'})
     except Exception as e:
-        return jsonify({'balance': 0, 'success': False, 'error': str(e)})
+        logger.error(f"Error in get_balance endpoint: {e}")
+        return jsonify({'balance': 0, 'success': False, 'error': str(e)}), 200
 
 @app.route('/api/positions')
 def get_positions():
@@ -740,7 +742,8 @@ def get_console_log():
 
         return jsonify({'success': True, 'logs': log_lines})
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Failed to get console log: {str(e)}'})
+        logger.error(f"Error in get_console_log endpoint: {e}")
+        return jsonify({'success': False, 'error': f'Failed to get console log: {str(e)}'}), 200
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
