@@ -611,15 +611,26 @@
         // Console log functions
         function fetchConsoleLog() {
             fetch('/api/console-log')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    if (data.success && data.logs) {
+                    if (data && data.logs) {
                         updateConsoleLog(data.logs);
                     }
                 })
                 .catch(error => {
-                    if (error && (error.message || error.toString())) {
-                        console.error('Error fetching console log:', error.message || error.toString());
+                    console.error('Error fetching console log:', error.message || error.toString());
+                    // Don't spam the console with errors, just show once
+                    if (!window.consoleErrorShown) {
+                        const consoleElement = document.getElementById('consoleLog');
+                        if (consoleElement) {
+                            consoleElement.innerHTML = '<div class="text-warning">Console log unavailable - bot may be stopped</div>';
+                            window.consoleErrorShown = true;
+                        }
                     }
                 });
         }
@@ -689,11 +700,11 @@
         setInterval(function() {
             updatePositionsTable();
 
-            // Update bot status
+            // Update bot status with better error handling
             fetch('/api/bot/status')
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Network response was not ok');
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     return response.json();
                 })
@@ -701,31 +712,36 @@
                     const statusElement = document.getElementById('botStatus');
                     const activePositionsElement = document.getElementById('activePositions');
 
-                    if (statusElement) {
-                        statusElement.textContent = data.running ? 'RUNNING' : 'STOPPED';
-                        statusElement.className = 'badge bg-' + (data.running ? 'success' : 'danger');
+                    if (statusElement && data) {
+                        const isRunning = data.running || data.status === 'running';
+                        statusElement.textContent = isRunning ? 'RUNNING' : 'STOPPED';
+                        statusElement.className = 'badge bg-' + (isRunning ? 'success' : 'danger');
                     }
 
-                    if (activePositionsElement) {
-                        activePositionsElement.textContent = data.active_positions;
+                    if (activePositionsElement && data) {
+                        activePositionsElement.textContent = data.active_positions || 0;
                     }
                 })
                 .catch(error => {
-                    if (error && (error.message || error.toString())) {
-                        console.error('Error updating bot status:', error.message || error.toString());
+                    console.error('Error updating bot status:', error.message || error.toString());
+                    // Update UI to show error state
+                    const statusElement = document.getElementById('botStatus');
+                    if (statusElement) {
+                        statusElement.textContent = 'ERROR';
+                        statusElement.className = 'badge bg-warning';
                     }
                 });
 
-            // Update balance
+            // Update balance with better error handling
             fetch('/api/balance')
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Network response was not ok');
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     return response.json();
                 })
                 .then(data => {
-                    if (data.balance !== undefined) {
+                    if (data && data.balance !== undefined) {
                         const balanceElement = document.getElementById('balance');
                         if (balanceElement) {
                             balanceElement.textContent = data.balance.toFixed(2);
@@ -733,8 +749,11 @@
                     }
                 })
                 .catch(error => {
-                    if (error && (error.message || error.toString())) {
-                        console.error('Error updating balance:', error.message || error.toString());
+                    console.error('Error updating balance:', error.message || error.toString());
+                    // Update UI to show error state
+                    const balanceElement = document.getElementById('balance');
+                    if (balanceElement) {
+                        balanceElement.textContent = 'ERROR';
                     }
                 });
         }, 5000);

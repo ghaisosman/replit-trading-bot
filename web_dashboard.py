@@ -326,11 +326,12 @@ def get_bot_status():
                 'status': 'stopped',
                 'message': 'Bot manager not initialized',
                 'strategies': 0,
-                'active_positions': 0
+                'active_positions': 0,
+                'running': False
             })
 
         is_running = getattr(bot_manager, 'is_running', False)
-        strategies_count = len(getattr(bot_manager, 'strategies', []))
+        strategies_count = len(getattr(bot_manager, 'strategies', {}))
 
         # Safe access to order manager
         active_positions = 0
@@ -343,11 +344,18 @@ def get_bot_status():
         return jsonify({
             'status': 'running' if is_running else 'stopped',
             'strategies': strategies_count,
-            'active_positions': active_positions
+            'active_positions': active_positions,
+            'running': is_running
         })
     except Exception as e:
         logger.error(f"Error in get_bot_status: {e}")
-        return create_json_error_response(f"Status error: {str(e)}", 500)
+        return jsonify({
+            'status': 'error',
+            'message': f'Status error: {str(e)}',
+            'strategies': 0,
+            'active_positions': 0,
+            'running': False
+        }), 500
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -569,7 +577,12 @@ def get_balance():
 
     except Exception as e:
         logger.error(f"Error in get_balance: {e}")
-        return create_json_error_response(f"Balance API error: {str(e)}", 500)
+        return jsonify({
+            'balance': 0.0,
+            'free': 0.0,
+            'locked': 0.0,
+            'message': f'Balance API error: {str(e)}'
+        }), 500
 
 @app.route('/api/positions')
 def get_positions():
@@ -707,6 +720,7 @@ def get_console_log():
 
         if not bot_manager:
             return jsonify({
+                'success': True,
                 'logs': [],
                 'message': 'Bot manager not available'
             })
@@ -714,6 +728,7 @@ def get_console_log():
         # Safe access to log handler
         if not hasattr(bot_manager, 'log_handler') or not bot_manager.log_handler:
             return jsonify({
+                'success': True,
                 'logs': [],
                 'message': 'Log handler not initialized'
             })
@@ -721,17 +736,23 @@ def get_console_log():
         try:
             logs = bot_manager.log_handler.get_recent_logs(50)
             return jsonify({
+                'success': True,
                 'logs': logs or []
             })
         except Exception as log_error:
             return jsonify({
+                'success': False,
                 'logs': [],
                 'message': f'Log fetch error: {str(log_error)}'
             })
 
     except Exception as e:
         logger.error(f"Error in get_console_log: {e}")
-        return create_json_error_response(f"Console log API error: {str(e)}", 500)
+        return jsonify({
+            'success': False,
+            'logs': [],
+            'message': f'Console log API error: {str(e)}'
+        }), 500
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
@@ -863,6 +884,24 @@ def get_strategy_config(strategy_name):
         logger.error(f"Error in get_strategy_config endpoint for {strategy_name}: {e}")
         return jsonify({'error': str(e), 'strategy_name': strategy_name}), 200
 
+@app.route('/api/health')
+def health_check():
+    """Health check endpoint to verify API connectivity"""
+    try:
+        return jsonify({
+            'success': True,
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'message': 'API is responding correctly'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'status': 'error',
+            'timestamp': datetime.now().isoformat(),
+            'message': f'Health check failed: {str(e)}'
+        }), 500
+
 
 
 @app.before_request
@@ -870,6 +909,8 @@ def ensure_json_for_api():
     """Ensure API requests are handled properly"""
     if request.path.startswith('/api/'):
         request.environ['HTTP_ACCEPT'] = 'application/json'
+        # Add a flag to identify API requests
+        request.is_api_request = True
 
 def create_json_error_response(error_message, status_code=500):
     """Create a guaranteed JSON error response"""
@@ -884,11 +925,24 @@ def create_json_error_response(error_message, status_code=500):
             mimetype='application/json'
         )
 
+def api_error_handler(func):
+    """Decorator to ensure all API endpoints return JSON on errors"""
+    from functools import wraps
+    
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"API endpoint error in {func.__name__}: {e}")
+            return create_json_error_response(f"API error: {str(e)}", 500)
+    return wrapper
+
 @app.after_request
 def ensure_json_response(response):
     """Force JSON responses for API endpoints with comprehensive error handling"""
     try:
-        if request.path.startswith('/api/'):
+        if request.path.startswith('/api/') or hasattr(request, 'is_api_request'):
             # Force JSON content type for all API responses
             response.headers['Content-Type'] = 'application/json'
             response.headers['Cache-Control'] = 'no-cache'
@@ -897,9 +951,13 @@ def ensure_json_response(response):
             # Check if response contains HTML (error page)
             if hasattr(response, 'data') and response.data:
                 response_text = response.data.decode('utf-8') if isinstance(response.data, bytes) else str(response.data)
-                if '<!DOCTYPE' in response_text or '<html' in response_text:
+                if '<!DOCTYPE' in response_text or '<html' in response_text or 'Internal Server Error' in response_text:
                     # Convert HTML error to JSON
-                    error_data = {'success': False, 'error': f'Server error (status: {response.status_code})'}
+                    error_data = {
+                        'success': False, 
+                        'error': f'Server error (status: {response.status_code})',
+                        'message': 'API endpoint error'
+                    }
                     response.data = json.dumps(error_data)
                     response.headers['Content-Type'] = 'application/json'
                     if response.status_code < 400:
