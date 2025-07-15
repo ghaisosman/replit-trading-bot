@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 Trading Bot Web Dashboard
@@ -81,7 +82,6 @@ from src.data_fetcher.balance_fetcher import BalanceFetcher
 from src.bot_manager import BotManager
 import logging
 from src.utils.logger import setup_logger
-from src.analytics.ml_analyzer import MLTradeAnalyzer
 
 # Define trades directory path
 trades_dir = Path("trading_data/trades")
@@ -457,32 +457,6 @@ def get_positions():
         return jsonify({'success': True, 'positions': positions})
     except Exception as e:
         logging.getLogger(__name__).error(f"Error getting positions: {e}")
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/rsi/<symbol>')
-def get_current_rsi(symbol):
-    """Get current RSI for a symbol"""
-    try:
-        # Get OHLCV data for RSI calculation
-        df = price_fetcher.get_ohlcv_data(symbol, '15m', limit=50)
-        if df is None or df.empty:
-            return jsonify({'success': False, 'error': 'No data available'})
-
-        # Calculate RSI
-        df = price_fetcher.calculate_indicators(df)
-
-        if 'rsi' not in df.columns:
-            return jsonify({'success': False, 'error': 'RSI calculation failed'})
-
-        current_rsi = df['rsi'].iloc[-1]
-
-        return jsonify({
-            'success': True, 
-            'rsi': round(current_rsi, 1),
-            'symbol': symbol
-        })
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Error getting RSI for {symbol}: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/console-log')
