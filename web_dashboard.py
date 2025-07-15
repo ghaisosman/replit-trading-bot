@@ -879,6 +879,52 @@ def get_strategy_config(strategy_name):
         logger.error(f"Error in get_strategy_config endpoint for {strategy_name}: {e}")
         return jsonify({'error': str(e), 'strategy_name': strategy_name}), 200
 
+@app.before_request
+def before_request():
+    """Middleware to ensure API requests are handled properly"""
+    pass
+
+@app.after_request
+def after_request(response):
+    """Middleware to intercept HTML responses for API routes and convert to JSON"""
+    try:
+        if request.path.startswith('/api/'):
+            # If response is not JSON and is an error, convert to JSON
+            if (response.status_code >= 400 or 
+                response.content_type.startswith('text/html') or
+                'DOCTYPE' in response.get_data(as_text=True)):
+
+                logger.warning(f"Converting HTML error response to JSON for {request.path}")
+                return jsonify({'success': False, 'error': 'Server error'}), 200
+
+        return response
+    except Exception as e:
+        logger.error(f"Error in after_request middleware: {e}")
+        if request.path.startswith('/api/'):
+            return jsonify({'success': False, 'error': 'Middleware error'}), 200
+        return response
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle internal server errors with JSON response"""
+    logger.error(f"Internal server error: {error}")
+    return jsonify({'success': False, 'error': 'Internal server error'}), 200
+
+@app.errorhandler(404)
+def not_found(error):
+    """Handle 404 errors with JSON response for API routes"""
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'error': 'Endpoint not found'}), 200
+    return error
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Handle all unhandled exceptions"""
+    logger.error(f"Unhandled exception: {e}")
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'error': str(e)}), 200
+    return str(e), 500
+
 if __name__ == '__main__':
     logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
     logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
