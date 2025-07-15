@@ -1,8 +1,10 @@
+# Adding the symbol attribute to the TradingSignal dataclass.
 import pandas as pd
 import logging
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
+from datetime import datetime
 
 class SignalType(Enum):
     BUY = "BUY"
@@ -12,11 +14,17 @@ class SignalType(Enum):
 @dataclass
 class TradingSignal:
     signal_type: SignalType
-    confidence: float
     entry_price: float
     stop_loss: float
     take_profit: float
-    reason: str
+    symbol: str = ""  # Add symbol attribute
+    confidence: float = 0.0
+    reason: str = ""
+    timestamp: datetime = None
+
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.now()
 
 class SignalProcessor:
     """Processes market data and generates trading signals"""
@@ -87,7 +95,7 @@ class SignalProcessor:
             margin = config.get('margin', 50.0)
             leverage = config.get('leverage', 5)
             max_loss_pct = config.get('max_loss_pct', 10)  # 10% of margin
-            
+
             # Get configurable RSI levels
             rsi_long_entry = config.get('rsi_long_entry', 40)
             rsi_short_entry = config.get('rsi_short_entry', 60)
@@ -260,7 +268,7 @@ class SignalProcessor:
             # RSI-based exit conditions for RSI strategy
             if strategy_name == 'rsi_oversold' and 'rsi' in df.columns:
                 rsi_current = df['rsi'].iloc[-1]
-                
+
                 # Get configurable RSI exit levels
                 rsi_long_exit = strategy_config.get('rsi_long_exit', 70)
                 rsi_short_exit = strategy_config.get('rsi_short_exit', 30)
@@ -303,3 +311,4 @@ class SignalProcessor:
         except Exception as e:
             self.logger.error(f"Error evaluating exit conditions: {e}")
             return False
+`

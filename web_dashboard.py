@@ -760,10 +760,10 @@ def get_console_log():
         logger.error(f"Error in get_console_log endpoint: {e}")
         # Always return JSON even on error
         try:
-            return jsonify({'success': False, 'error': f'Failed to get console log: {str(e)}'})
+            return jsonify({'success': False, 'error': f'Failed to get console log: {str(e)}', 'logs': []})
         except:
             # Ultimate fallback
-            return '{"success": false, "error": "Critical log fetch error"}', 200, {'Content-Type': 'application/json'}
+            return '{"success": false, "error": "Critical log fetch error", "logs": []}', 200, {'Content-Type': 'application/json'}
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
@@ -909,16 +909,18 @@ def ensure_json_response(response):
     """Force JSON responses for API endpoints"""
     try:
         if request.path.startswith('/api/'):
-            # If response is not already JSON, force it
-            if not response.is_json and response.status_code != 200:
-                return jsonify({'success': False, 'error': 'Server error'}), 200
-            # Ensure proper headers
+            # Ensure proper headers for all API responses
             response.headers['Content-Type'] = 'application/json'
+            response.headers['Cache-Control'] = 'no-cache'
+            response.headers['Access-Control-Allow-Origin'] = '*'
         return response
     except Exception as e:
         logger.error(f"Error in after_request: {e}")
         if request.path.startswith('/api/'):
-            return jsonify({'success': False, 'error': 'Response error'}), 200
+            try:
+                return jsonify({'success': False, 'error': 'Response error'}), 200
+            except:
+                return '{"success": false, "error": "Critical response error"}', 200, {'Content-Type': 'application/json'}
         return response
 
 @app.errorhandler(500)
