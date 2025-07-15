@@ -309,16 +309,15 @@ class OrderManager:
             self.logger.debug(f"🔍 VALIDATING POSITION | {strategy_name} | {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price}")
 
             # Simple and reliable: Check if trade ID exists in database
-            # Assuming trade_db is accessible here.  If not, it needs to be passed in or made global.
-            # This example assumes a trade_db object with a find_trade_by_position method
-            # that returns the trade_id if found, or None if not.
             try:
-                import src.database.trade_db as trade_db
-            except ImportError:
-                self.logger.error("Could not import trade_db.  Ensure it is in the PYTHONPATH.")
+                from src.execution_engine.trade_database import trade_db
+                trade_id = trade_db.find_trade_by_position(strategy_name, symbol, side, quantity, entry_price, tolerance=0.01)
+            except ImportError as e:
+                self.logger.error(f"Could not import trade_database: {e}")
                 return False, None
-
-            trade_id = trade_db.find_trade_by_position(strategy_name, symbol, side, quantity, entry_price)
+            except Exception as e:
+                self.logger.error(f"Error accessing trade database: {e}")
+                return False, None
 
             if trade_id:
                 self.logger.info(f"✅ POSITION VALIDATED | Trade ID: {trade_id} | {strategy_name} | {symbol}")
