@@ -102,16 +102,16 @@
             </div>
         </div>
 
-        <!-- Active Positions -->
+        <!-- Active Positions and Console Log -->
         <div class="row mt-4">
-            <div class="col-12">
+            <!-- Active Positions -->
+            <div class="col-md-6">
                 <div class="card">
                     <div class="card-header bg-success text-white">
                         <h5><i class="fas fa-coins"></i> Active Positions</h5>
                     </div>
                     <div class="card-body">
                         <div id="positionsTable">
-                            {% if active_positions %}
                             <div class="table-responsive">
                                 <table class="table table-striped">
                                     <thead>
@@ -127,30 +127,35 @@
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        {% for position in active_positions %}
+                                    <tbody id="positionsTableBody">
                                         <tr>
-                                            <td>{{ position.strategy.upper() }}</td>
-                                            <td>{{ position.symbol }}</td>
-                                            <td><span class="badge bg-{{ 'success' if position.side == 'BUY' else 'danger' }}">{{ position.side }}</span></td>
-                                            <td>${{ "%.4f"|format(position.entry_price) }}</td>
-                                            <td>{{ "%.6f"|format(position.quantity) }}</td>
-                                            <td>${{ "%.4f"|format(position.current_price) if position.current_price else 'N/A' }}</td>
-                                            <td class="{{ 'text-success' if position.pnl > 0 else 'text-danger' }}">${{ "%.2f"|format(position.pnl) }}</td>
-                                            <td class="{{ 'text-success' if position.pnl_percent > 0 else 'text-danger' }}">{{ "%.2f"|format(position.pnl_percent) }}%</td>
-                                            <td>
-                                                <button class="btn btn-info btn-sm" onclick="window.open('/chart/{{ position.symbol }}', '_blank')">
-                                                    <i class="fas fa-chart-area"></i>
-                                                </button>
-                                            </td>
+                                            <td colspan="9" class="text-muted text-center">Loading positions...</td>
                                         </tr>
-                                        {% endfor %}
                                     </tbody>
                                 </table>
                             </div>
-                            {% else %}
-                            <p class="text-muted">No active positions</p>
-                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Live Console Log -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5><i class="fas fa-terminal"></i> Live Console Log</h5>
+                        <div class="float-end">
+                            <button class="btn btn-sm btn-outline-light" onclick="clearConsoleLog()">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                            <button class="btn btn-sm btn-outline-light" onclick="toggleAutoScroll()" id="autoScrollBtn">
+                                <i class="fas fa-arrows-alt-v"></i> Auto-scroll: ON
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="consoleLog" style="height: 400px; overflow-y: auto; background-color: #1e1e1e; color: #ffffff; font-family: 'Courier New', monospace; font-size: 12px; padding: 10px;">
+                            <div class="text-muted">Waiting for console output...</div>
                         </div>
                     </div>
                 </div>
@@ -565,13 +570,129 @@
             $('#ml-predictions-content').html(html);
         }
 
-        // Auto-refresh every 30 seconds
-        setInterval(function() {
-            // Update positions table
+        // Global variables for auto-scroll
+        let autoScroll = true;
+        let consoleLogBuffer = [];
+        
+        // Update positions table
+        function updatePositionsTable() {
             $.get('/api/positions', function(data) {
-                // Update positions display
+                if (data.success && data.positions) {
+                    updatePositionsDisplay(data.positions);
+                } else {
+                    $('#positionsTableBody').html('<tr><td colspan="9" class="text-muted text-center">No active positions</td></tr>');
+                }
+            }).fail(function() {
+                $('#positionsTableBody').html('<tr><td colspan="9" class="text-danger text-center">Failed to load positions</td></tr>');
             });
-
+        }
+        
+        function updatePositionsDisplay(positions) {
+            if (positions.length === 0) {
+                $('#positionsTableBody').html('<tr><td colspan="9" class="text-muted text-center">No active positions</td></tr>');
+                return;
+            }
+            
+            let html = '';
+            positions.forEach(function(position) {
+                let pnlClass = position.pnl > 0 ? 'text-success' : 'text-danger';
+                let sideClass = position.side === 'BUY' ? 'success' : 'danger';
+                
+                html += `
+                    <tr>
+                        <td>${position.strategy.toUpperCase()}</td>
+                        <td>${position.symbol}</td>
+                        <td><span class="badge bg-${sideClass}">${position.side}</span></td>
+                        <td>$${position.entry_price.toFixed(1)}</td>
+                        <td>${position.quantity.toFixed(1)}</td>
+                        <td>${position.current_price ? '$' + position.current_price.toFixed(1) : 'N/A'}</td>
+                        <td class="${pnlClass}">$${position.pnl.toFixed(1)}</td>
+                        <td class="${pnlClass}">${position.pnl_percent > 0 ? '+' : ''}${position.pnl_percent.toFixed(1)}%</td>
+                        <td>
+                            <button class="btn btn-info btn-sm" onclick="window.open('/chart/${position.symbol}', '_blank')">
+                                <i class="fas fa-chart-area"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            $('#positionsTableBody').html(html);
+        }
+        
+        // Console log functions
+        function fetchConsoleLog() {
+            $.get('/api/console-log', function(data) {
+                if (data.success && data.logs) {
+                    updateConsoleLog(data.logs);
+                }
+            });
+        }
+        
+        function updateConsoleLog(logs) {
+            const consoleElement = document.getElementById('consoleLog');
+            
+            // Add new logs to buffer
+            logs.forEach(function(log) {
+                if (!consoleLogBuffer.includes(log)) {
+                    consoleLogBuffer.push(log);
+                    
+                    // Create log element
+                    const logElement = document.createElement('div');
+                    logElement.style.marginBottom = '2px';
+                    logElement.style.wordWrap = 'break-word';
+                    
+                    // Color code different log types
+                    if (log.includes('ERROR') || log.includes('❌')) {
+                        logElement.style.color = '#ff6b6b';
+                    } else if (log.includes('WARNING') || log.includes('⚠️')) {
+                        logElement.style.color = '#feca57';
+                    } else if (log.includes('SUCCESS') || log.includes('✅')) {
+                        logElement.style.color = '#48dbfb';
+                    } else if (log.includes('INFO') || log.includes('ℹ️')) {
+                        logElement.style.color = '#0abde3';
+                    } else {
+                        logElement.style.color = '#ffffff';
+                    }
+                    
+                    logElement.textContent = log;
+                    consoleElement.appendChild(logElement);
+                }
+            });
+            
+            // Limit buffer size
+            if (consoleLogBuffer.length > 1000) {
+                consoleLogBuffer = consoleLogBuffer.slice(-500);
+                // Clear and rebuild console
+                consoleElement.innerHTML = '';
+                consoleLogBuffer.forEach(function(log) {
+                    const logElement = document.createElement('div');
+                    logElement.textContent = log;
+                    consoleElement.appendChild(logElement);
+                });
+            }
+            
+            // Auto-scroll to bottom if enabled
+            if (autoScroll) {
+                consoleElement.scrollTop = consoleElement.scrollHeight;
+            }
+        }
+        
+        function clearConsoleLog() {
+            document.getElementById('consoleLog').innerHTML = '<div class="text-muted">Console cleared...</div>';
+            consoleLogBuffer = [];
+        }
+        
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            const btn = document.getElementById('autoScrollBtn');
+            btn.innerHTML = `<i class="fas fa-arrows-alt-v"></i> Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
+            btn.className = autoScroll ? 'btn btn-sm btn-outline-light' : 'btn btn-sm btn-outline-secondary';
+        }
+        
+        // Auto-refresh every 5 seconds for positions and every 2 seconds for console
+        setInterval(function() {
+            updatePositionsTable();
+            
             // Update bot status
             $.get('/api/bot/status', function(data) {
                 $('#botStatus').text(data.running ? 'RUNNING' : 'STOPPED');
@@ -585,7 +706,16 @@
                     $('#balance').text(data.balance.toFixed(2));
                 }
             });
-        }, 30000);
+        }, 5000);
+        
+        // Fetch console log every 2 seconds
+        setInterval(fetchConsoleLog, 2000);
+        
+        // Initial load
+        $(document).ready(function() {
+            updatePositionsTable();
+            fetchConsoleLog();
+        });
 
         function updateDefaultParams() {
             const data = {

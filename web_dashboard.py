@@ -8,6 +8,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for
 import json
 import asyncio
 import threading
+import os
 from datetime import datetime, timedelta
 import pandas as pd
 import plotly.graph_objs as go
@@ -120,21 +121,29 @@ def dashboard():
         # Get current strategies
         strategies = trading_config_manager.strategy_overrides
 
-        # Get active positions
+        # Get active positions from both shared and standalone bot
         active_positions = []
-        if bot_manager and bot_manager.order_manager:
-            for strategy_name, position in bot_manager.order_manager.active_positions.items():
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        
+        if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
+            for strategy_name, position in current_bot.order_manager.active_positions.items():
                 current_price = get_current_price(position.symbol)
                 pnl = calculate_pnl(position, current_price) if current_price else 0
+                
+                # Calculate PnL percentage against margin (for futures with leverage)
+                position_value = position.entry_price * position.quantity
+                margin_invested = position_value / 5  # Default 5x leverage
+                pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
+                
                 active_positions.append({
                     'strategy': strategy_name,
                     'symbol': position.symbol,
                     'side': position.side,
-                    'entry_price': f"${position.entry_price:,.1f}",
-                    'quantity': f"{position.quantity:,.1f}",
-                    'current_price': f"${current_price:,.1f}" if current_price else "N/A",
-                    'pnl': f"${pnl:,.1f}" if pnl else "$0.0",
-                    'pnl_percent': f"{(pnl / (position.entry_price * position.quantity)) * 100:.1f}%" if position.entry_price * position.quantity > 0 else "0.0%"
+                    'entry_price': position.entry_price,
+                    'quantity': position.quantity,
+                    'current_price': current_price,
+                    'pnl': pnl,
+                    'pnl_percent': pnl_percent
                 })
 
         return render_template('dashboard.html', 
@@ -486,10 +495,18 @@ def get_positions():
     """Get active positions"""
     try:
         positions = []
-        if bot_manager and bot_manager.order_manager:
-            for strategy_name, position in bot_manager.order_manager.active_positions.items():
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        
+        if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
+            for strategy_name, position in current_bot.order_manager.active_positions.items():
                 current_price = get_current_price(position.symbol)
                 pnl = calculate_pnl(position, current_price) if current_price else 0
+                
+                # Calculate PnL percentage against margin (for futures with leverage)
+                position_value = position.entry_price * position.quantity
+                margin_invested = position_value / 5  # Default 5x leverage
+                pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
+                
                 positions.append({
                     'strategy': strategy_name,
                     'symbol': position.symbol,
@@ -498,11 +515,11 @@ def get_positions():
                     'quantity': position.quantity,
                     'current_price': current_price,
                     'pnl': pnl,
-                    'pnl_percent': (pnl / (position.entry_price * position.quantity)) * 100 if position.entry_price * position.quantity > 0 else 0
+                    'pnl_percent': pnl_percent
                 })
-        return jsonify(positions)
+        return jsonify({'success': True, 'positions': positions})
     except Exception as e:
-        return jsonify({'error': f'Failed to get positions: {e}'})
+        return jsonify({'success': False, 'error': f'Failed to get positions: {e}'})
 
 @app.route('/api/recent_trades')
 def recent_trades():
@@ -657,6 +674,54 @@ def export_trade_data():
             return jsonify({'success': False, 'error': 'No data to export'})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to export data: {e}'})
+
+@app.route('/api/console-log')
+def get_console_log():
+    """Get recent console log output"""
+    try:
+        # Read recent logs from the logger
+        import logging
+        
+        # Get the root logger's handlers
+        root_logger = logging.getLogger()
+        log_lines = []
+        
+        # Try to get logs from file handler if it exists
+        try:
+            log_file_path = "trading_data/bot.log"
+            if os.path.exists(log_file_path):
+                with open(log_file_path, 'r') as f:
+                    lines = f.readlines()
+                    # Get last 100 lines
+                    recent_lines = lines[-100:] if len(lines) > 100 else lines
+                    log_lines = [line.strip() for line in recent_lines if line.strip()]
+        except Exception as e:
+            logger.debug(f"Could not read log file: {e}")
+        
+        # If no file logs, provide basic status info
+        if not log_lines:
+            current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+            if current_bot:
+                if hasattr(current_bot, 'is_running') and current_bot.is_running:
+                    log_lines = [
+                        f"🤖 Bot Status: RUNNING",
+                        f"📊 Active Positions: {len(current_bot.order_manager.active_positions) if current_bot.order_manager else 0}",
+                        f"⏰ {datetime.now().strftime('%H:%M:%S')} - Bot monitoring markets..."
+                    ]
+                else:
+                    log_lines = [
+                        f"🤖 Bot Status: STOPPED",
+                        f"⏰ {datetime.now().strftime('%H:%M:%S')} - Use web interface to start bot"
+                    ]
+            else:
+                log_lines = [
+                    f"🤖 Bot Status: NOT INITIALIZED", 
+                    f"⏰ {datetime.now().strftime('%H:%M:%S')} - Waiting for bot startup"
+                ]
+        
+        return jsonify({'success': True, 'logs': log_lines})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to get console log: {e}'})
 
 @app.route('/api/current-config')
 def get_current_config():
