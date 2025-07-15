@@ -678,27 +678,70 @@ def calculate_rsi(closes, period=14):
 @app.route('/api/console_log')
 def get_console_log():
     try:
-        log_file = "logs/trading_bot.log"
-        if os.path.exists(log_file):
-            with open(log_file, 'r') as f:
-                lines = f.readlines()
-
-            # Get last 50 lines
-            recent_lines = lines[-50:] if len(lines) > 50 else lines
-
+        # Try multiple possible log file locations
+        possible_log_files = [
+            "logs/trading_bot.log",
+            "trading_bot.log", 
+            "logs/bot.log",
+            "bot.log"
+        ]
+        
+        log_content = []
+        log_file_found = None
+        
+        for log_file in possible_log_files:
+            if os.path.exists(log_file):
+                log_file_found = log_file
+                try:
+                    with open(log_file, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                    
+                    # Get last 50 lines and clean them
+                    recent_lines = lines[-50:] if len(lines) > 50 else lines
+                    log_content = []
+                    
+                    for line in recent_lines:
+                        clean_line = line.strip()
+                        if clean_line:
+                            # Remove ANSI color codes for web display
+                            import re
+                            clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
+                            # Remove box drawing characters 
+                            clean_line = re.sub(r'[┌┐└┘├┤│─╔╗╚╝║═╭╮╰╯]', '', clean_line)
+                            # Clean up multiple spaces
+                            clean_line = re.sub(r'\s+', ' ', clean_line).strip()
+                            if clean_line and not clean_line.isspace():
+                                log_content.append(clean_line)
+                    break
+                except Exception as read_error:
+                    continue
+        
+        if log_content:
             return jsonify({
-                'logs': [line.strip() for line in recent_lines if line.strip()],
-                'last_updated': datetime.now().isoformat()
+                'logs': log_content,
+                'last_updated': datetime.now().isoformat(),
+                'source': log_file_found
             })
         else:
-            return jsonify({
-                'logs': ['Log file not found - Bot may be starting up'],
-                'last_updated': datetime.now().isoformat()
-            })
+            # If no log file found, try to get from web log handler if available
+            try:
+                from src.bot_manager import WebLogHandler
+                # This would require the WebLogHandler to be accessible
+                return jsonify({
+                    'logs': ['Bot is running but log file not accessible', 'Check console for live output'],
+                    'last_updated': datetime.now().isoformat(),
+                    'source': 'fallback'
+                })
+            except:
+                return jsonify({
+                    'logs': ['Bot is running - log file location not found', 'Console output available in terminal'],
+                    'last_updated': datetime.now().isoformat(),
+                    'source': 'none'
+                })
     except Exception as e:
         # Return safe fallback instead of error
         return jsonify({
-            'logs': ['Console log temporarily unavailable'],
+            'logs': [f'Log system error: {str(e)}', 'Bot may still be running normally'],
             'last_updated': datetime.now().isoformat(),
             'error': str(e)
         }), 200
