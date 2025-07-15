@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import signal
 import sys
 import threading
@@ -46,21 +47,29 @@ def run_web_dashboard():
         if not check_port_available(5000):
             logger.error("🚨 PORT 5000 UNAVAILABLE: Attempting to clean up...")
             
-            # Try to kill any processes using port 5000
+            # Try to kill any processes using port 5000 (using Python since lsof not available)
             import subprocess
+            import psutil
             try:
-                # Kill processes using port 5000
-                result = subprocess.run(['lsof', '-ti:5000'], capture_output=True, text=True, check=False)
-                if result.stdout.strip():
-                    pids = result.stdout.strip().split('\n')
-                    for pid in pids:
-                        if pid.isdigit():
-                            subprocess.run(['kill', '-9', pid], check=False)
-                            logger.info(f"🔄 Killed process {pid} using port 5000")
+                # Kill Python processes that might be using port 5000
+                killed_count = 0
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    try:
+                        if proc.info['cmdline']:
+                            cmdline_str = ' '.join(proc.info['cmdline'])
+                            if ('python' in proc.info['name'].lower() and 
+                                ('web_dashboard' in cmdline_str or 'flask' in cmdline_str or 'main.py' in cmdline_str)):
+                                if proc.pid != os.getpid():  # Don't kill ourselves
+                                    proc.terminate()
+                                    logger.info(f"🔄 Terminated process {proc.pid}: {proc.info['name']}")
+                                    killed_count += 1
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                        continue
                 
-                # Also kill any Python processes that might be web dashboard related
-                subprocess.run(['pkill', '-f', 'web_dashboard'], check=False)
-                subprocess.run(['pkill', '-f', 'flask'], check=False)
+                if killed_count > 0:
+                    logger.info(f"🔄 Terminated {killed_count} processes")
+                else:
+                    logger.info("🔍 No conflicting processes found")
                 
                 # Wait a moment for cleanup
                 import time
