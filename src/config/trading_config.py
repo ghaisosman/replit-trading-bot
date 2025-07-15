@@ -10,7 +10,7 @@ class TradingParameters:
     leverage: int = 5
     timeframe: str = '15m'
     max_loss_pct: float = 10.0  # Stop loss as % of margin
-    assessment_interval: int = 300  # Market assessment interval in seconds
+    assessment_interval: int = 60  # Market assessment interval in seconds
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -41,14 +41,14 @@ class TradingConfigManager:
                 'rsi_short_entry': 60,
                 'rsi_short_exit': 45,
                 'max_loss_pct': 10,
-                'assessment_interval': 300,  # 5 minutes
+                'assessment_interval': 60,  # 1 minute for faster response
             },
             'macd_divergence': {
                 'symbol': 'BTCUSDT',
                 'margin': 23,
                 'leverage': 5,
                 'timeframe': '5m',
-                'assessment_interval': 300,  # 5 minutes
+                'assessment_interval': 30,  # 30 seconds for 5m timeframe
             },
         }
     
@@ -78,11 +78,11 @@ class TradingConfigManager:
         # Ensure assessment_interval is properly handled
         if 'assessment_interval' in updates:
             updates['assessment_interval'] = int(updates['assessment_interval'])
-            # Validate assessment interval (60 seconds to 1 hour)
-            if updates['assessment_interval'] < 60:
-                updates['assessment_interval'] = 60
-            elif updates['assessment_interval'] > 3600:
-                updates['assessment_interval'] = 3600
+            # Validate assessment interval (5 seconds to 5 minutes)
+            if updates['assessment_interval'] < 5:
+                updates['assessment_interval'] = 5
+            elif updates['assessment_interval'] > 300:
+                updates['assessment_interval'] = 300
         
         self.strategy_overrides[strategy_name].update(updates)
         

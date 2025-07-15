@@ -445,8 +445,8 @@ def update_strategy(strategy_name):
 
             if 'assessment_interval' in data:
                 data['assessment_interval'] = int(data['assessment_interval'])
-                if data['assessment_interval'] < 30 or data['assessment_interval'] > 3600:
-                    return jsonify({'success': False, 'message': 'Assessment interval must be between 30 and 3600 seconds'})
+                if data['assessment_interval'] < 5 or data['assessment_interval'] > 300:
+                    return jsonify({'success': False, 'message': 'Assessment interval must be between 5 and 300 seconds'})
 
             # Validate RSI parameters
             if 'rsi_long_entry' in data:
