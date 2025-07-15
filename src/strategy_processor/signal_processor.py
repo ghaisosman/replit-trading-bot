@@ -311,4 +311,3 @@ class SignalProcessor:
         except Exception as e:
             self.logger.error(f"Error evaluating exit conditions: {e}")
             return False
-`
