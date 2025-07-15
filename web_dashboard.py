@@ -933,3 +933,21 @@ if __name__ == '__main__':
     logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
     logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+```@app.route('/ml-reports')
+def ml_reports():
+    """ML Reports dashboard page"""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return render_template('ml_reports.html', current_time=now)
+```
+
+Now, the complete code:"""ML Reports dashboard page"""
+    try:
+        return render_template('ml_reports.html')
+    except Exception as e:
+        logger.error(f"Error loading ML reports page: {e}")
+        return f"Error loading ML reports page: {e}"
+
+if __name__ == '__main__':
+    logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
+    logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
