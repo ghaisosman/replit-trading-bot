@@ -862,6 +862,37 @@ def calculate_pnl(position, current_price):
 
     return pnl
 
+@app.route('/api/strategies/<strategy_name>/config')
+def get_strategy_config(strategy_name):
+    """Get configuration for a specific strategy"""
+    try:
+        # Get strategy configuration from bot manager
+        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+
+        if shared_bot_manager and hasattr(shared_bot_manager, 'strategies'):
+            strategy_config = shared_bot_manager.strategies.get(strategy_name, {})
+            # Ensure strategy_name and symbol are always included
+            if 'strategy_name' not in strategy_config:
+                strategy_config['strategy_name'] = strategy_name
+            if 'symbol' not in strategy_config:
+                strategy_config['symbol'] = strategy_config.get('symbol', 'BTCUSDT')
+            return jsonify(strategy_config)
+
+        # Fallback to default config if bot not running
+        default_config = {
+            'strategy_name': strategy_name,
+            'symbol': 'BTCUSDT',
+            'margin': 50.0,
+            'leverage': 5,
+            'timeframe': '15m',
+            'max_loss_pct': 10.0
+        }
+        return jsonify(default_config)
+
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Error getting strategy config: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
     logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
