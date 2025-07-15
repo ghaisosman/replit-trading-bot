@@ -313,34 +313,45 @@ def stop_bot():
         return jsonify({'success': False, 'message': f'Failed to stop bot: {e}'})
 
 @app.route('/api/bot/status')
-def bot_status():
-    """Get current bot status"""
+def get_bot_status():
+    """Get bot status"""
     try:
-        # Always try to get fresh reference
-        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+        # Get bot manager from main module
+        import sys
+        main_module = sys.modules.get('__main__')
+        bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
 
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-        if current_bot and hasattr(current_bot, 'is_running'):
-            status = {
-                'running': getattr(current_bot, 'is_running', False),
-                'active_positions': len(getattr(current_bot.order_manager, 'active_positions', {})) if hasattr(current_bot, 'order_manager') and current_bot.order_manager else 0,
-                'strategies': list(getattr(current_bot, 'strategies', {}).keys()) if hasattr(current_bot, 'strategies') else [],
-            }
-            return jsonify(status)
-        else:
+        if not bot_manager:
             return jsonify({
-                'running': False,
-                'active_positions': 0,
-                'strategies': []
+                'status': 'stopped',
+                'message': 'Bot manager not initialized',
+                'strategies': 0,
+                'active_positions': 0
             })
-    except Exception as e:
-        logger.error(f"Error in bot_status endpoint: {e}")
+
+        is_running = getattr(bot_manager, 'is_running', False)
+        strategies_count = len(getattr(bot_manager, 'strategies', []))
+
+        # Safe access to order manager
+        active_positions = 0
+        if hasattr(bot_manager, 'order_manager') and bot_manager.order_manager:
+            try:
+                active_positions = len(bot_manager.order_manager.get_active_positions())
+            except:
+                active_positions = 0
+
         return jsonify({
-            'running': False,
-            'active_positions': 0,
-            'strategies': [],
-            'error': str(e)
-        }), 200
+            'status': 'running' if is_running else 'stopped',
+            'strategies': strategies_count,
+            'active_positions': active_positions
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'strategies': 0,
+            'active_positions': 0
+        })
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -514,18 +525,59 @@ def update_strategy(strategy_name):
 def get_balance():
     """Get account balance"""
     try:
-        # Always try to get fresh reference
-        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+        # Get bot manager from main module
+        import sys
+        main_module = sys.modules.get('__main__')
+        bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
 
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-        if current_bot and hasattr(current_bot, 'balance_fetcher'):
-            balance = current_bot.balance_fetcher.get_usdt_balance() or 0
-            return jsonify({'balance': balance, 'success': True})
-        else:
-            return jsonify({'balance': 0, 'success': False, 'error': 'Bot not available'})
+        if not bot_manager:
+            return jsonify({
+                'balance': 0.0,
+                'free': 0.0,
+                'locked': 0.0,
+                'message': 'Bot manager not available'
+            })
+
+        # Safe access to balance fetcher
+        if not hasattr(bot_manager, 'balance_fetcher') or not bot_manager.balance_fetcher:
+            return jsonify({
+                'balance': 0.0,
+                'free': 0.0,
+                'locked': 0.0,
+                'message': 'Balance fetcher not initialized'
+            })
+
+        try:
+            balance_info = bot_manager.balance_fetcher.get_account_balance()
+            if balance_info and 'USDT' in balance_info:
+                usdt_balance = balance_info['USDT']
+                return jsonify({
+                    'balance': usdt_balance.get('total', 0.0),
+                    'free': usdt_balance.get('free', 0.0),
+                    'locked': usdt_balance.get('locked', 0.0)
+                })
+            else:
+                return jsonify({
+                    'balance': 0.0,
+                    'free': 0.0,
+                    'locked': 0.0,
+                    'message': 'No USDT balance found'
+                })
+        except Exception as balance_error:
+            return jsonify({
+                'balance': 0.0,
+                'free': 0.0,
+                'locked': 0.0,
+                'message': f'Balance fetch error: {str(balance_error)}'
+            })
+
     except Exception as e:
-        logger.error(f"Error in get_balance endpoint: {e}")
-        return jsonify({'balance': 0, 'success': False, 'error': str(e)}), 200
+        return jsonify({
+            'balance': 0.0,
+            'free': 0.0,
+            'locked': 0.0,
+            'message': f'API error: {str(e)}'
+        })
 
 @app.route('/api/positions')
 def get_positions():
@@ -654,116 +706,42 @@ def calculate_rsi(closes, period=14):
 
 @app.route('/api/console-log')
 def get_console_log():
-    """Get recent console log output"""
+    """Get recent console logs"""
     try:
-        logger.debug("API: get_console_log called")
-        log_lines = []
+        # Get bot manager from main module
+        import sys
+        main_module = sys.modules.get('__main__')
+        bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
 
-        # Try multiple log file locations
-        log_file_paths = [
-            "trading_bot.log",
-            "trading_data/bot.log", 
-            "bot.log"
-        ]
+        if not bot_manager:
+            return jsonify({
+                'logs': [],
+                'message': 'Bot manager not available'
+            })
 
-        for log_file_path in log_file_paths:
-            if os.path.exists(log_file_path):
-                try:
-                    with open(log_file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        lines = f.readlines()
-                        # Get last 150 lines for more context
-                        recent_lines = lines[-150:] if len(lines) > 150 else lines
-                        log_lines = [line.rstrip('\n\r') for line in recent_lines if line.strip()]
-                    break
-                except Exception:
-                    continue
+        # Safe access to log handler
+        if not hasattr(bot_manager, 'log_handler') or not bot_manager.log_handler:
+            return jsonify({
+                'logs': [],
+                'message': 'Log handler not initialized'
+            })
 
-        # If no file logs found, try to capture live logger output
-        if not log_lines:
-            try:
-                import logging
-                root_logger = logging.getLogger()
-
-                # Look for file handlers
-                for handler in root_logger.handlers:
-                    if hasattr(handler, 'baseFilename'):
-                        try:
-                            with open(handler.baseFilename, 'r', encoding='utf-8', errors='ignore') as f:
-                                lines = f.readlines()
-                                recent_lines = lines[-150:] if len(lines) > 150 else lines
-                                log_lines = [line.rstrip('\n\r') for line in recent_lines if line.strip()]
-                            break
-                        except Exception:
-                            continue
-            except Exception:
-                pass
-
-        # Final fallback: provide basic status info
-        if not log_lines:
-            try:
-                current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-                if current_bot:
-                    if hasattr(current_bot, 'is_running') and current_bot.is_running:
-                        active_positions = len(current_bot.order_manager.active_positions) if current_bot.order_manager else 0
-                        strategies = list(current_bot.strategies.keys()) if hasattr(current_bot, 'strategies') and current_bot.strategies else []
-
-                        log_lines = [
-                            "╔═══════════════════════════════════════════════════╗",
-                            "║ 🤖 BOT STATUS                                    ║",
-                            f"║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║",
-                            "║                                                   ║",
-                            "║ 🟢 Status: RUNNING                               ║",
-                            f"║ 📊 Active Positions: {active_positions}                         ║",
-                            f"║ 🎯 Active Strategies: {', '.join(strategies)}║" if strategies else "║ 🎯 Active Strategies: Loading...                ║",
-                            "║                                                   ║",
-                            "║ 💡 Console logs will appear here when bot        ║",
-                            "║    performs market analysis and trading          ║",
-                            "║                                                   ║",
-                            "╚═══════════════════════════════════════════════════╝"
-                        ]
-                    else:
-                        log_lines = [
-                            "╔═══════════════════════════════════════════════════╗",
-                            "║ 🤖 BOT STATUS                                    ║",
-                            f"║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║",
-                            "║                                                   ║",
-                            "║ 🔴 Status: STOPPED                               ║",
-                            "║ 💡 Use the Start Bot button to begin trading     ║",
-                            "║                                                   ║",
-                            "╚═══════════════════════════════════════════════════╝"
-                        ]
-                else:
-                    log_lines = [
-                        "╔═══════════════════════════════════════════════════╗",
-                        "║ 🤖 BOT STATUS                                    ║",
-                        f"║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║",
-                        "║                                                   ║",
-                        "║ ⚪ Status: NOT INITIALIZED                        ║",
-                        "║ 💡 Bot is starting up...                         ║",
-                        "║                                                   ║",
-                        "╚═══════════════════════════════════════════════════╝"
-                    ]
-            except Exception:
-                log_lines = [
-                    "╔═══════════════════════════════════════════════════╗",
-                    "║ 🤖 BOT STATUS                                    ║",
-                    f"║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║",
-                    "║                                                   ║",
-                    "║ ⚠️ Status: UNKNOWN                                ║",
-                    "║ 💡 Checking bot status...                         ║",
-                    "║                                                   ║",
-                    "╚═══════════════════════════════════════════════════╝"
-                ]
-
-        return jsonify({'success': True, 'logs': log_lines})
-    except Exception as e:
-        logger.error(f"Error in get_console_log endpoint: {e}")
-        # Always return JSON even on error
         try:
-            return jsonify({'success': False, 'error': f'Failed to get console log: {str(e)}', 'logs': []})
-        except:
-            # Ultimate fallback
-            return '{"success": false, "error": "Critical log fetch error", "logs": []}', 200, {'Content-Type': 'application/json'}
+            logs = bot_manager.log_handler.get_recent_logs(50)
+            return jsonify({
+                'logs': logs or []
+            })
+        except Exception as log_error:
+            return jsonify({
+                'logs': [],
+                'message': f'Log fetch error: {str(log_error)}'
+            })
+
+    except Exception as e:
+        return jsonify({
+            'logs': [],
+            'message': f'API error: {str(e)}'
+        })
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
