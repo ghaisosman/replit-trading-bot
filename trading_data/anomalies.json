@@ -1,0 +1,17 @@
+{
+  "ghost_rsi_oversold_SOLUSDT": {
+    "id": "ghost_rsi_oversold_SOLUSDT",
+    "type": "ghost",
+    "symbol": "SOLUSDT",
+    "strategy_name": "rsi_oversold",
+    "quantity": 4.0,
+    "side": "LONG",
+    "entry_price": null,
+    "detected_at": "2025-07-15T08:09:27.732658",
+    "status": "active",
+    "cycles_remaining": 3,
+    "notified": true,
+    "cleared_at": null,
+    "binance_position_amt": 4.0
+  }
+}
