@@ -375,6 +375,19 @@ For MAINNET:
                 self.logger.info(f"⚠️ SYMBOL CONFLICT | {strategy_name.upper()} | {symbol} | Already trading via {existing_position.strategy_name} | Skipping duplicate")
                 return
 
+            # CRITICAL: Also check if there's already a position on Binance for this symbol
+            try:
+                if self.binance_client.is_futures:
+                    positions = self.binance_client.client.futures_position_information(symbol=symbol)
+                    for position in positions:
+                        position_amt = float(position.get('positionAmt', 0))
+                        if abs(position_amt) > 0:
+                            self.logger.warning(f"⚠️ BINANCE POSITION EXISTS | {strategy_name.upper()} | {symbol} | Position: {position_amt} | Skipping new trade to prevent duplicates")
+                            return
+            except Exception as e:
+                self.logger.error(f"Error checking Binance positions for {symbol}: {e}")
+                # Continue execution despite error
+
             # Check balance requirements
             if not self._check_balance_requirements(strategy_config):
                 return

@@ -57,12 +57,30 @@ class OrderManager:
                 self.logger.info(f"Strategy {strategy_name} already has an active position")
                 return None
             
-            # Additional check: Prevent duplicate trades on same symbol/side across all strategies
+            # Enhanced duplicate trade prevention: Check both bot's internal positions AND Binance positions
             for existing_strategy, existing_position in self.active_positions.items():
                 if (existing_position.symbol == symbol and 
                     existing_position.side == signal_side):
                     self.logger.warning(f"❌ DUPLICATE TRADE PREVENTED | {strategy_name} | {symbol} | {signal_side} | Already have position in {existing_strategy}")
                     return None
+
+            # CRITICAL: Also check if there's already a position on Binance for this symbol
+            try:
+                if self.binance_client.is_futures:
+                    positions = self.binance_client.client.futures_position_information(symbol=symbol)
+                    for position in positions:
+                        position_amt = float(position.get('positionAmt', 0))
+                        if abs(position_amt) > 0:
+                            existing_side = 'BUY' if position_amt > 0 else 'SELL'
+                            if existing_side == signal_side:
+                                self.logger.warning(f"❌ DUPLICATE TRADE PREVENTED | {strategy_name} | {symbol} | {signal_side} | Position already exists on Binance: {position_amt}")
+                                return None
+                            else:
+                                self.logger.warning(f"❌ OPPOSING TRADE PREVENTED | {strategy_name} | {symbol} | {signal_side} | Opposite position exists on Binance: {position_amt}")
+                                return None
+            except Exception as e:
+                self.logger.error(f"Error checking Binance positions for duplicate prevention: {e}")
+                # Continue execution despite error to avoid blocking legitimate trades
 
             # Calculate position size
             quantity = self._calculate_position_size(signal, strategy_config)
