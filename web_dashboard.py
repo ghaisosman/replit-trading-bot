@@ -833,4 +833,4 @@ if __name__ == '__main__':
     logger.warning("🌐 WEB DASHBOARD: This module is designed to be imported by main.py")
     logger.info("💡 Please run 'python main.py' instead - it includes the web dashboard")
     print("⚠️  web_dashboard.py should not be run directly")
-    print("💡 Run 'python main.py' instead - it includes the web dashboard")</replit_final_file>
+    print("💡 Run 'python main.py' instead - it includes the web dashboard")
