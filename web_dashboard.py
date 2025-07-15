@@ -785,6 +785,15 @@ def get_bot_status():
             'balance': 0,
             'error': f'Critical status error: {str(e)}'
         }
+    except Exception as e:
+        logger.error(f"Error in get_bot_status: {e}")
+        return {
+            'is_running': False,
+            'active_positions': 0,
+            'strategies': [],
+            'balance': 0,
+            'error': f'Critical status error: {str(e)}'
+        }
 
 def get_current_price(symbol):
     """Get current price for a symbol"""
