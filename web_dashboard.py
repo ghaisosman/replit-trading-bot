@@ -1016,26 +1016,10 @@ def finalize_api_response(response):
     return response
 
 if __name__ == '__main__':
-    import socket
-
-    def is_port_in_use(port):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(('0.0.0.0', port))
-                return False
-            except socket.error:
-                return True
-
-    # Check if port 5000 is already in use
-    if is_port_in_use(5000):
-        logger.warning("🌐 Port 5000 is already in use. This usually means main.py is already running the web dashboard.")
-        logger.info("💡 If you want to run the web dashboard separately, stop main.py first, or main.py will handle both bot and web interface.")
-        print("Error: Port 5000 is already in use by another process (likely main.py)")
-        print("Solution: Either stop main.py first, or just use main.py (it includes the web dashboard)")
-    else:
-        logger.info("🌐 WEB DASHBOARD: Starting standalone web interface on http://0.0.0.0:5000")
-        logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
-        app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+    logger.warning("🌐 WEB DASHBOARD: This module is designed to be imported by main.py")
+    logger.info("💡 Please run 'python main.py' instead - it includes the web dashboard")
+    print("⚠️  web_dashboard.py should not be run directly")
+    print("💡 Run 'python main.py' instead - it includes the web dashboard")
 
 @app.route('/api/ml_insights')
 def get_ml_insights():
