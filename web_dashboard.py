@@ -353,6 +353,10 @@ def get_strategies():
                     **trading_config_manager.default_params.to_dict(),
                     **overrides
                 }
+                
+                # Ensure assessment_interval is included
+                if 'assessment_interval' not in base_config:
+                    base_config['assessment_interval'] = 300
 
                 # Add strategy-specific parameters from config files
                 try:
@@ -389,12 +393,13 @@ def get_strategies():
                 'rsi_oversold': {
                     'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
                     'max_loss_pct': 10, 'rsi_long_entry': 40, 'rsi_long_exit': 70,
-                    'rsi_short_entry': 60, 'rsi_short_exit': 30
+                    'rsi_short_entry': 60, 'rsi_short_exit': 30, 'assessment_interval': 300
                 },
                 'macd_divergence': {
                     'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m',
                     'max_loss_pct': 10, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
-                    'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2
+                    'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2,
+                    'assessment_interval': 300
                 }
             })
     except Exception as e:
@@ -423,6 +428,11 @@ def update_strategy(strategy_name):
                 if data['leverage'] <= 0 or data['leverage'] > 125:
                     return jsonify({'success': False, 'message': 'Leverage must be between 1 and 125'})
 
+            if 'assessment_interval' in data:
+                data['assessment_interval'] = int(data['assessment_interval'])
+                if data['assessment_interval'] < 30 or data['assessment_interval'] > 3600:
+                    return jsonify({'success': False, 'message': 'Assessment interval must be between 30 and 3600 seconds'})
+
             # Validate RSI parameters
             if 'rsi_long_entry' in data:
                 data['rsi_long_entry'] = int(data['rsi_long_entry'])
@@ -444,7 +454,7 @@ def update_strategy(strategy_name):
             return jsonify({'success': False, 'message': f'Invalid parameter value: {ve}'})
 
         # Update strategy parameters in config manager (basic params only)
-        basic_params = {k: v for k, v in data.items() if k in ['symbol', 'margin', 'leverage', 'timeframe']}
+        basic_params = {k: v for k, v in data.items() if k in ['symbol', 'margin', 'leverage', 'timeframe', 'assessment_interval']}
         if basic_params:
             trading_config_manager.update_strategy_params(strategy_name, basic_params)
 

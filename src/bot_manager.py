@@ -14,7 +14,7 @@ from src.execution_engine.strategies.macd_divergence_config import MACDDivergenc
 from src.reporting.telegram_reporter import TelegramReporter
 from src.config.trading_config import trading_config_manager
 from src.execution_engine.trade_monitor import TradeMonitor
-from src.execution_engine.anomaly_detector import AnomalyDetector
+fromsrc.execution_engine.anomaly_detector import AnomalyDetector
 
 
 class BotManager:
@@ -439,7 +439,7 @@ For MAINNET:
             # Ensure strategy name is in config for signal processor
             strategy_config_with_name = strategy_config.copy()
             strategy_config_with_name['name'] = strategy_name
-            
+
             # Evaluate entry conditions
             signal = self.signal_processor.evaluate_entry_conditions(df, strategy_config_with_name)
 
@@ -521,7 +521,7 @@ For MAINNET:
                     # Ensure strategy name is in config for exit conditions
                     strategy_config_with_name = strategy_config.copy()
                     strategy_config_with_name['name'] = strategy_name
-                    
+
                     # Check exit conditions
                     exit_reason = self.signal_processor.evaluate_exit_conditions(
                         df, 
@@ -539,7 +539,7 @@ For MAINNET:
 
                         # Close position
                         if self.order_manager.close_position(strategy_name, exit_reason):
-                            self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:,.1f} | Exit: ${current_price:,.1f} | Final PnL: ${pnl:,.1f}")
+                            self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:,.1f} | Exit: ${current_price:,.1f} | Final PnL: ${pnl:.1f}")
 
                             from dataclasses import asdict
                             position_data = asdict(position)
@@ -565,7 +565,7 @@ For MAINNET:
             return True
 
         last_assessment = self.strategy_last_assessment[strategy_name]
-        assessment_interval = strategy_config.get('assessment_interval', 300)
+        assessment_interval = strategy_config.get('assessment_interval', 300)  # Default 5 minutes if not configured
 
         return (datetime.now() - last_assessment).seconds >= assessment_interval
 
