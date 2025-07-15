@@ -19,6 +19,11 @@ trades_dir = Path("trading_data/trades")
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
 
+# Suppress Flask's default request logging to reduce console noise
+import logging as flask_logging
+werkzeug_logger = flask_logging.getLogger('werkzeug')
+werkzeug_logger.setLevel(flask_logging.WARNING)
+
 # Setup logging for web dashboard
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -678,7 +683,23 @@ def calculate_rsi(closes, period=14):
 @app.route('/api/console_log')
 def get_console_log():
     try:
-        # Try multiple possible log file locations
+        # First try to get logs from the running bot's web log handler
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        
+        if current_bot and hasattr(current_bot, 'log_handler'):
+            try:
+                recent_logs = current_bot.log_handler.get_recent_logs(50)
+                if recent_logs:
+                    return jsonify({
+                        'success': True,
+                        'logs': recent_logs,
+                        'source': 'Bot Memory (Live)',
+                        'count': len(recent_logs)
+                    })
+            except Exception as e:
+                logger.warning(f"Could not get logs from bot memory: {e}")
+
+        # Fallback to file-based logs
         possible_log_files = [
             "trading_bot.log",
             "trading_data/bot.log",
@@ -720,26 +741,30 @@ def get_console_log():
                     logger.warning(f"Could not read log file {log_file}: {e}")
                     continue
 
-        if not log_file_found:
+        if not log_file_found and not log_content:
+            # Return a helpful response instead of 404
             return jsonify({
-                'success': False, 
-                'error': 'No log file found',
-                'checked_paths': possible_log_files
-            }), 404
+                'success': True,
+                'logs': ['Bot is starting up or no logs available yet...'],
+                'source': 'Default',
+                'count': 1
+            })
 
         return jsonify({
             'success': True,
             'logs': log_content,
-            'source': log_file_found,
+            'source': log_file_found or 'Memory',
             'count': len(log_content)
         })
 
     except Exception as e:
         logger.error(f"Error reading console log: {e}")
         return jsonify({
-            'success': False, 
-            'error': str(e)
-        }), 500
+            'success': True,
+            'logs': [f'Error reading logs: {str(e)}'],
+            'source': 'Error',
+            'count': 1
+        })
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
@@ -829,6 +854,24 @@ def get_ml_insights():
         return jsonify({'success': True, 'insights': insights})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+@app.errorhandler(404)
+def handle_404(e):
+    """Handle 404 errors gracefully"""
+    return jsonify({
+        'success': False,
+        'error': 'Endpoint not found',
+        'message': 'The requested resource is not available'
+    }), 404
+
+@app.errorhandler(500)
+def handle_500(e):
+    """Handle 500 errors gracefully"""
+    return jsonify({
+        'success': False,
+        'error': 'Internal server error',
+        'message': 'An error occurred while processing your request'
+    }), 500
 
 if __name__ == '__main__':
     logger.warning("🌐 WEB DASHBOARD: This module is designed to be imported by main.py")

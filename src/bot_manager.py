@@ -31,32 +31,49 @@ class WebLogHandler(logging.Handler):
 
     def emit(self, record):
         try:
-            # Format the log message
-            msg = self.format(record)
-            # Remove ANSI color codes for web display
+            # Get the original message without formatting
+            original_msg = record.getMessage()
+            
+            # Remove ANSI color codes and box drawing characters
             import re
-            clean_msg = re.sub(r'\x1b\[[0-9;]*m', '', msg)
-            # Remove box drawing characters and clean up
-            clean_msg = re.sub(r'[┌┐└┘├┤│─╔╗╚╝║═╭╮╰╯]', '', clean_msg)
+            clean_msg = re.sub(r'\x1b\[[0-9;]*m', '', original_msg)
+            clean_msg = re.sub(r'[┌┐└┘├┤│─╔╗╚╝║═╭╮╰╯│]', '', clean_msg)
             clean_msg = re.sub(r'\s+', ' ', clean_msg).strip()
 
-            if clean_msg:
+            if clean_msg and len(clean_msg) > 3:  # Ignore very short messages
                 timestamp = record.created
+                formatted_time = datetime.fromtimestamp(timestamp).strftime('%H:%M:%S')
+                
+                # Create a clean, web-friendly log entry
+                web_message = f"[{formatted_time}] {clean_msg}"
+                
                 self.logs.append({
                     'timestamp': timestamp,
                     'level': record.levelname,
-                    'message': clean_msg
+                    'message': web_message,
+                    'raw_message': clean_msg
                 })
-        except:
-            pass  # Don't let logging errors break the application
+        except Exception as e:
+            # Silently fail but try to log the error to a basic format
+            try:
+                self.logs.append({
+                    'timestamp': record.created,
+                    'level': 'ERROR',
+                    'message': f"[{datetime.now().strftime('%H:%M:%S')}] Log handler error: {str(e)}",
+                    'raw_message': f"Log handler error: {str(e)}"
+                })
+            except:
+                pass  # Ultimate fallback - don't break the application
 
     def get_recent_logs(self, count=50):
         """Get recent logs formatted for web display"""
         try:
             recent = list(self.logs)[-count:] if self.logs else []
+            if not recent:
+                return ['[INFO] Bot is starting up...']
             return [log['message'] for log in recent]
-        except:
-            return []
+        except Exception as e:
+            return [f'[ERROR] Could not retrieve logs: {str(e)}']
 
 class BotManager:
     """Main bot manager that orchestrates all components"""
@@ -165,11 +182,16 @@ For MAINNET:
 
                 # Initialize web log handler for dashboard
         self.log_handler = WebLogHandler()
-        self.log_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        self.log_handler.setFormatter(logging.Formatter('%(message)s'))  # Simplified format for web
 
         # Add to root logger to capture all logs
         root_logger = logging.getLogger()
         root_logger.addHandler(self.log_handler)
+        
+        # Also add to bot manager's own logger
+        self.logger.addHandler(self.log_handler)
+        
+        self.logger.info("🌐 Web log handler initialized for dashboard integration")
 
     async def start(self):
         """Start the trading bot"""
