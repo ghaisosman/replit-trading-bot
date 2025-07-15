@@ -427,7 +427,7 @@ For MAINNET:
                 # Execute the signal first
                 position = self.order_manager.execute_signal(signal, strategy_config)
 
-                # Only send Telegram notification if position was actually opened
+                # Only send notifications if position was actually opened successfully
                 if position:
                     self.telegram_reporter.report_entry_signal(strategy_name, {
                         'symbol': strategy_config['symbol'],
@@ -625,18 +625,23 @@ For MAINNET:
                     continue
 
                 try:
-                    # Get open positions from Binance for this symbol
                     if self.binance_client.is_futures:
                         positions = self.binance_client.client.futures_position_information(symbol=symbol)
 
                         for position in positions:
                             position_amt = float(position.get('positionAmt', 0))
 
-                            if abs(position_amt) > 0:  # Position exists
+                            # Use a more restrictive threshold to avoid recovering tiny positions
+                            if abs(position_amt) > 0.001:  # Position exists and is significant
                                 # Recover position details
                                 entry_price = float(position.get('entryPrice', 0))
                                 side = 'BUY' if position_amt > 0 else 'SELL'
                                 quantity = abs(position_amt)
+
+                                # Additional validation - ensure position has realistic values
+                                if entry_price <= 0 or quantity <= 0:
+                                    self.logger.warning(f"⚠️ INVALID POSITION DATA | {strategy_name.upper()} | {symbol} | Entry: ${entry_price} | Qty: {quantity} | Skipping recovery")
+                                    continue
 
                                 self.logger.info(f"📍 EXISTING POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {quantity:,.6f} | Entry: ${entry_price:,.4f}")
 

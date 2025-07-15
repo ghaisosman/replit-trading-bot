@@ -70,7 +70,8 @@ class OrderManager:
                     positions = self.binance_client.client.futures_position_information(symbol=symbol)
                     for position in positions:
                         position_amt = float(position.get('positionAmt', 0))
-                        if abs(position_amt) > 0:
+                        # Use stricter threshold to ignore tiny positions from previous trades
+                        if abs(position_amt) > 0.001:
                             existing_side = 'BUY' if position_amt > 0 else 'SELL'
                             if existing_side == signal_side:
                                 self.logger.warning(f"❌ DUPLICATE TRADE PREVENTED | {strategy_name} | {symbol} | {signal_side} | Position already exists on Binance: {position_amt}")
