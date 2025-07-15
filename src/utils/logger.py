@@ -1,4 +1,3 @@
-
 import logging
 import sys
 from datetime import datetime
@@ -14,7 +13,7 @@ class ColoredFormatter(logging.Formatter):
         'CRITICAL': '\033[35m', # Magenta
         'RESET': '\033[0m'      # Reset
     }
-    
+
     BACKGROUND_COLORS = {
         'DEBUG': '\033[46m',    # Cyan background
         'INFO': '\033[42m',     # Green background
@@ -55,7 +54,7 @@ class ColoredFormatter(logging.Formatter):
         # Detect strategy and position status from message
         strategy_color = None
         is_active_position = False
-        
+
         # Check for strategy mentions and active positions
         for strategy_name in self.STRATEGY_COLORS.keys():
             if strategy_name.upper() in message.upper():
@@ -71,21 +70,21 @@ class ColoredFormatter(logging.Formatter):
             text_color = strategy_color
         else:
             text_color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
-        
+
         reset = self.COLORS['RESET']
 
         # Add time separator if new minute
         separator = ""
         if self.last_log_time is None or current_time.minute != self.last_log_time.minute:
             separator = f"\n{text_color}{'─' * 60}{reset}\n"
-        
+
         self.last_log_time = current_time
 
         # Parse structured messages for better formatting
         def format_structured_message(msg):
             """Format structured messages with each component on separate lines"""
             lines = []
-            
+
             # Handle different message types
             if "TRADE IN PROGRESS" in msg:
                 parts = msg.split(" | ")
@@ -170,11 +169,11 @@ class ColoredFormatter(logging.Formatter):
                         if len(strategy_part) == 2:
                             strategy_name = strategy_part[0]
                             config_str = strategy_part[1]
-                            
+
                             lines.append("📝 WEB INTERFACE:")
                             lines.append(f"Updated {strategy_name}")
                             lines.append("config in shared bot:")
-                            
+
                             # Parse the config dictionary string
                             try:
                                 # Remove outer braces and split by commas
@@ -197,7 +196,7 @@ class ColoredFormatter(logging.Formatter):
                     lines.append(msg)
             else:
                 lines.append(msg)
-            
+
             return lines
 
         # Create Telegram-style vertical message
@@ -285,7 +284,7 @@ class ColoredFormatter(logging.Formatter):
 │                                                 │
 └─────────────────────────────────────────────────┘{reset}
 """
-        
+
         return formatted_message
 
 class SimpleFileFormatter(logging.Formatter):
