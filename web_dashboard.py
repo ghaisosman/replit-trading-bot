@@ -771,7 +771,7 @@ def get_bot_status():
             try:
                 status = {
                     'is_running': getattr(shared_bot_manager, 'is_running', False),
-                    'active_positions': len(getattr(shared_bot_manager.order_manager, 'active_positions', {})) if hasattr(shared_botmanager, 'order_manager') else 0,
+                    'active_positions': len(getattr(shared_bot_manager.order_manager, 'active_positions', {})) if hasattr(shared_bot_manager, 'order_manager') else 0,
                     'strategies': list(getattr(shared_bot_manager, 'strategies', {}).keys()) if hasattr(shared_bot_manager, 'strategies') else [],
                     'balance': 0  # Will be updated separately
                 }
@@ -1060,3 +1060,23 @@ if __name__ == '__main__':
         logger.info("🌐 WEB DASHBOARD: Starting standalone web interface on http://0.0.0.0:5000")
         logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
         app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+
+def get_shared_bot_status():
+    """Get bot status from shared bot manager"""
+    try:
+        # Try to get bot manager from main module
+        import sys
+        main_module = sys.modules.get('__main__')
+        if main_module and hasattr(main_module, 'bot_manager') and main_module.bot_manager:
+            bot_manager = main_module.bot_manager
+            if hasattr(bot_manager, 'get_bot_status'):
+                return bot_manager.get_bot_status()
+
+        # Fallback to global bot_manager if available
+        if 'bot_manager' in globals() and bot_manager and hasattr(bot_manager, 'get_bot_status'):
+            return bot_manager.get_bot_status()
+
+        return {'is_running': False, 'active_positions': 0, 'strategies': [], 'balance': 0}
+    except Exception as e:
+        logger.error(f"Error getting shared bot status: {e}")
+        return {'is_running': False, 'active_positions': 0, 'strategies': [], 'balance': 0}
