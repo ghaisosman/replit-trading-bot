@@ -459,8 +459,8 @@ For MAINNET:
                 self.last_signal_time[signal_key] = current_time
                 self.logger.info(f"🚨 ENTRY SIGNAL DETECTED | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | ${signal.entry_price:,.1f} | Reason: {signal.reason}")
 
-                # Execute the signal first
-                position = self.order_manager.execute_signal(signal, strategy_config)
+                # Execute the signal with the config that includes the strategy name
+                position = self.order_manager.execute_signal(signal, strategy_config_with_name)
 
                 if position:
                     self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:,.1f} | Qty: {position.quantity:,.1f} | SL: ${position.stop_loss:,.1f} | TP: ${position.take_profit:,.1f}")
