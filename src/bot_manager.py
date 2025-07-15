@@ -226,6 +226,9 @@ For MAINNET:
         """Main trading loop"""
         while self.is_running:
             try:
+                # Display current PnL for all active positions
+                await self._display_active_positions_pnl()
+
                 # Check each strategy
                 for strategy_name, strategy_config in self.strategies.items():
                     if not strategy_config.get('enabled', True):
@@ -259,6 +262,26 @@ For MAINNET:
                     break
 
                 await asyncio.sleep(5)  # Brief pause before retrying
+
+    async def _display_active_positions_pnl(self):
+        """Display current PnL for all active positions"""
+        for strategy_name, position in self.order_manager.active_positions.items():
+            strategy_config = self.strategies.get(strategy_name)
+            if not strategy_config:
+                continue
+
+            current_price = self._get_current_price(strategy_config['symbol'])
+            if current_price:
+                pnl_usdt = self._calculate_pnl(position, current_price)
+                position_value_usdt = position.entry_price * position.quantity
+                pnl_percent = (pnl_usdt / position_value_usdt) * 100 if position_value_usdt > 0 else 0
+
+                # Show comprehensive position status
+                self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: ${pnl_usdt:.2f} USDT ({pnl_percent:+.2f}%)")
+            else:
+                # Fallback if price fetch fails
+                position_value_usdt = position.entry_price * position.quantity
+                self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: Price fetch failed")
 
     async def _process_strategy(self, strategy_name: str, strategy_config: Dict):
         """Process a single strategy"""
@@ -682,7 +705,7 @@ For MAINNET:
                                 strategy_name = name
                                 break
 
-                        if strategy_name:
+                        ifstrategy_name:
                             side = 'BUY' if position_amt > 0 else 'SELL'
 
                             self.logger.info(f"🔍 POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {abs(position_amt)} | Entry: ${entry_price}")
