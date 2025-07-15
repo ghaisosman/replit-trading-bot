@@ -731,7 +731,6 @@ For MAINNET:
                                 quantity = abs(position_amt)
 
                                 # Additional validation - ensure position has realistic values
-                               ```python
                                 if entry_price <= 0 or quantity <= 0:
                                     self.logger.warning(f"⚠️ INVALID POSITION DATA | {strategy_name.upper()} | {symbol} | Entry: ${entry_price} | Qty: {quantity} | Skipping recovery")
                                     continue
