@@ -106,14 +106,17 @@ class OrderManager:
                 self.anomaly_detector.register_bot_trade(position.symbol, strategy_name)
                 self.logger.debug(f"🔍 BOT TRADE REGISTERED: {position.symbol} | Anomaly detection paused for 120 seconds")
 
+            # Log trade entry for analytics with confirmed trade ID
+            self._log_trade_entry(position)
+
             # Log trade for validation purposes
-            # self._log_trade_for_validation(position)
+            self._log_trade_for_validation(position)
 
             # Record the time of this order for ghost detection timing
             self.last_order_time = datetime.now()
 
-            # Clean log message with essential trade info
-            self.logger.info(f"✅ TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | PnL: $0.00 USDT (0.00%)")
+            # Clean log message with essential trade info including trade ID
+            self.logger.info(f"✅ TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | ID: {position.trade_id} | Entry: ${position.entry_price:.4f} | PnL: $0.00 USDT (0.00%)")
             return position
 
         except Exception as e:
@@ -314,7 +317,7 @@ class OrderManager:
             except ImportError:
                 self.logger.error("Could not import trade_db.  Ensure it is in the PYTHONPATH.")
                 return False, None
-            
+
             trade_id = trade_db.find_trade_by_position(strategy_name, symbol, side, quantity, entry_price)
 
             if trade_id:
@@ -360,3 +363,44 @@ class OrderManager:
         except Exception as e:
             self.logger.error(f"Error getting latest price for {symbol}: {e}")
             return None
+
+    def _log_trade_entry(self, position: Position) -> None:
+        """Log trade entry for analytics with confirmed trade ID"""
+        try:
+            # Log trade entry for analytics
+            trade_logger.log_trade_entry(
+                trade_id=position.trade_id,
+                strategy_name=position.strategy_name,
+                symbol=position.symbol,
+                side=position.side,
+                entry_price=position.entry_price,
+                quantity=position.quantity,
+                stop_loss=position.stop_loss,
+                take_profit=position.take_profit
+            )
+            self.logger.info(f"📊 TRADE ENTRY LOGGED | ID: {position.trade_id} | {position.strategy_name} | {position.symbol}")
+
+        except Exception as e:
+            self.logger.error(f"❌ Error logging trade entry: {e}")
+
+    def _log_trade_for_validation(self, position: Position) -> None:
+        """Log trade details for validation purposes (e.g., to match with Binance trades)"""
+        try:
+            trade_data = {
+                'strategy_name': position.strategy_name,
+                'symbol': position.symbol,
+                'side': position.side,
+                'entry_price': position.entry_price,
+                'quantity': position.quantity,
+                'stop_loss': position.stop_loss,
+                'take_profit': position.take_profit,
+                'position_side': position.position_side,
+                'order_id': position.order_id,
+                'entry_time': position.entry_time.isoformat() if position.entry_time else None,
+                'status': position.status,
+                'trade_id': position.trade_id,
+            }
+            self.logger.debug(f"📜 TRADE DATA: {json.dumps(trade_data, indent=2)}")
+
+        except Exception as e:
+            self.logger.error(f"❌ Error logging trade data: {e}")

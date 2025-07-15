@@ -614,6 +614,9 @@ For MAINNET:
                                     from src.execution_engine.order_manager import Position
                                     from datetime import datetime
 
+                                    # Generate recovery trade ID for tracking
+                                    recovery_trade_id = f"RECOVERY_{strategy_name}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
                                     recovered_position = Position(
                                         strategy_name=strategy_name,
                                         symbol=symbol,
@@ -625,7 +628,8 @@ For MAINNET:
                                         position_side='LONG' if side == 'BUY' else 'SHORT',
                                         order_id=0,
                                         entry_time=datetime.now(),
-                                        status='RECOVERED'
+                                        status='RECOVERED',
+                                        trade_id=recovery_trade_id
                                     )
 
                                     # Add to active positions
@@ -708,10 +712,11 @@ For MAINNET:
                                 self.order_manager.active_positions[strategy_name] = recovered_position
                                 recovered_count += 1
 
-                                self.logger.info(f"✅ POSITION RECOVERED | {strategy_name.upper()} | {symbol} | Entry: ${entry_price} | Qty: {abs(position_amt)}")
+                                self.logger.info(f"✅ POSITION RECOVERED | {strategy_name.upper()} | {symbol} | Entry: ${entry_price} | Qty:```python
+{abs(position_amt)}")
                             else:
                                 # This is likely a manual position - let ghost trade detection handle it
-                                self.logger.warning(f"🚨 UNVERIFIED POSITION | {strategy_name.upper()} | {symbol} | Will be processed by ghost trade detection")```python
+                                self.logger.warning(f"🚨 UNVERIFIED POSITION | {strategy_name.upper()} | {symbol} | Will be processed by ghost trade detection")
 
             self.logger.info(f"✅ POSITION RECOVERY COMPLETE: {recovered_count} legitimate bot positions recovered")
             self.logger.info(f"🔍 Unverified positions will be processed by trade monitoring system")
