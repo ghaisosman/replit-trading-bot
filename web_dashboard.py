@@ -761,8 +761,6 @@ def get_bot_status():
             'balance': 0,
             'error': f'Critical status error: {str(e)}'
         }
-        except Exception as e:
-            logging.getLogger(__name__).debug(f"Error getting shared bot status: {e}")
 
     # Fallback to standalone bot
     if not bot_running or not bot_manager:
