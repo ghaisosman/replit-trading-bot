@@ -887,6 +887,14 @@ def ensure_json_response(response):
     """Force JSON responses for API endpoints"""
     try:
         if request.path.startswith('/api/'):
+            # Only modify if it's not already JSON
+            if response.content_type and 'application/json' not in response.content_type:
+                # If response is HTML (error page), convert to JSON error
+                if response.status_code >= 400:
+                    error_data = {'success': False, 'error': f'Server error: {response.status_code}'}
+                    response.data = json.dumps(error_data)
+                    response.status_code = 500
+            
             # Ensure proper headers for all API responses
             response.headers['Content-Type'] = 'application/json'
             response.headers['Cache-Control'] = 'no-cache'
@@ -896,9 +904,9 @@ def ensure_json_response(response):
         logger.error(f"Error in after_request: {e}")
         if request.path.startswith('/api/'):
             try:
-                return jsonify({'success': False, 'error': 'Response error'}), 200
+                return jsonify({'success': False, 'error': 'Response error'}), 500
             except:
-                return '{"success": false, "error": "Critical response error"}', 200, {'Content-Type': 'application/json'}
+                return '{"success": false, "error": "Critical response error"}', 500, {'Content-Type': 'application/json'}
         return response
 
 @app.errorhandler(500)
@@ -906,14 +914,14 @@ def internal_error(error):
     """Handle internal server errors with JSON response"""
     logger.error(f"Internal server error: {error}")
     if request.path.startswith('/api/'):
-        return jsonify({'success': False, 'error': 'Internal server error'}), 200
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
     return str(error), 500
 
 @app.errorhandler(404)
 def not_found(error):
     """Handle 404 errors with JSON response for API routes"""
     if request.path.startswith('/api/'):
-        return jsonify({'success': False, 'error': 'Endpoint not found'}), 200
+        return jsonify({'success': False, 'error': 'Endpoint not found'}), 404
     return str(error), 404
 
 @app.errorhandler(Exception)
@@ -922,10 +930,11 @@ def handle_exception(e):
     logger.error(f"Unhandled exception in web dashboard: {e}")
     if request.path.startswith('/api/'):
         try:
-            return jsonify({'success': False, 'error': f'Server error: {str(e)}'}), 200
-        except:
+            return jsonify({'success': False, 'error': f'Server error: {str(e)}'}), 500
+        except Exception as json_error:
+            logger.error(f"JSON serialization error: {json_error}")
             # Fallback if even JSON serialization fails
-            return '{"success": false, "error": "Critical server error"}', 200, {'Content-Type': 'application/json'}
+            return '{"success": false, "error": "Critical server error"}', 500, {'Content-Type': 'application/json'}
     return str(e), 500
 
 @app.before_request
