@@ -721,7 +721,7 @@ def get_console_log():
         if not bot_manager:
             return jsonify({
                 'success': True,
-                'logs': [],
+                'logs': ['Bot manager not available - waiting for bot to start...'],
                 'message': 'Bot manager not available'
             })
 
@@ -729,30 +729,34 @@ def get_console_log():
         if not hasattr(bot_manager, 'log_handler') or not bot_manager.log_handler:
             return jsonify({
                 'success': True,
-                'logs': [],
+                'logs': ['Log handler not initialized - starting up...'],
                 'message': 'Log handler not initialized'
             })
 
         try:
             logs = bot_manager.log_handler.get_recent_logs(50)
+            if not logs:
+                logs = ['No recent logs available - bot may be starting up...']
+                
             return jsonify({
                 'success': True,
-                'logs': logs or []
+                'logs': logs
             })
         except Exception as log_error:
+            logger.error(f"Log fetch error: {log_error}")
             return jsonify({
-                'success': False,
-                'logs': [],
+                'success': True,
+                'logs': [f'Log fetch error: {str(log_error)}'],
                 'message': f'Log fetch error: {str(log_error)}'
             })
 
     except Exception as e:
         logger.error(f"Error in get_console_log: {e}")
         return jsonify({
-            'success': False,
-            'logs': [],
+            'success': True,
+            'logs': [f'Console log API error: {str(e)}'],
             'message': f'Console log API error: {str(e)}'
-        }), 500
+        })
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""

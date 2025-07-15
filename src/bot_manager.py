@@ -15,7 +15,48 @@ from src.reporting.telegram_reporter import TelegramReporter
 from src.config.trading_config import trading_config_manager
 from src.execution_engine.trade_monitor import TradeMonitor
 from src.execution_engine.anomaly_detector import AnomalyDetector
+import schedule
+import threading
+from collections import deque
+import logging
 
+
+class WebLogHandler(logging.Handler):
+    """Custom log handler to capture logs for web dashboard"""
+
+    def __init__(self, max_logs=1000):
+        super().__init__()
+        self.logs = deque(maxlen=max_logs)
+        self.setLevel(logging.INFO)
+
+    def emit(self, record):
+        try:
+            # Format the log message
+            msg = self.format(record)
+            # Remove ANSI color codes for web display
+            import re
+            clean_msg = re.sub(r'\x1b\[[0-9;]*m', '', msg)
+            # Remove box drawing characters and clean up
+            clean_msg = re.sub(r'[┌┐└┘├┤│─╔╗╚╝║═╭╮╰╯]', '', clean_msg)
+            clean_msg = re.sub(r'\s+', ' ', clean_msg).strip()
+
+            if clean_msg:
+                timestamp = record.created
+                self.logs.append({
+                    'timestamp': timestamp,
+                    'level': record.levelname,
+                    'message': clean_msg
+                })
+        except:
+            pass  # Don't let logging errors break the application
+
+    def get_recent_logs(self, count=50):
+        """Get recent logs formatted for web display"""
+        try:
+            recent = list(self.logs)[-count:] if self.logs else []
+            return [log['message'] for log in recent]
+        except:
+            return []
 
 class BotManager:
     """Main bot manager that orchestrates all components"""
@@ -121,6 +162,14 @@ For MAINNET:
 
         # Track if startup notification was sent
         self.startup_notification_sent = False
+
+                # Initialize web log handler for dashboard
+        self.log_handler = WebLogHandler()
+        self.log_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+
+        # Add to root logger to capture all logs
+        root_logger = logging.getLogger()
+        root_logger.addHandler(self.log_handler)
 
     async def start(self):
         """Start the trading bot"""
@@ -682,6 +731,7 @@ For MAINNET:
                                 quantity = abs(position_amt)
 
                                 # Additional validation - ensure position has realistic values
+                               ```python
                                 if entry_price <= 0 or quantity <= 0:
                                     self.logger.warning(f"⚠️ INVALID POSITION DATA | {strategy_name.upper()} | {symbol} | Entry: ${entry_price} | Qty: {quantity} | Skipping recovery")
                                     continue
