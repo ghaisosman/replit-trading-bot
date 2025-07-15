@@ -138,7 +138,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Live Console Log -->
             <div class="col-md-6">
                 <div class="card">
@@ -320,6 +320,28 @@
                                 <option value="1d">1 day</option>
                             </select>
                         </div>
+                        <div id="rsiParameters" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">RSI Long Entry</label>
+                                <input type="number" class="form-control" id="rsiLongEntry">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">RSI Long Exit</label>
+                                <input type="number" class="form-control" id="rsiLongExit">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">RSI Short Entry</label>
+                                <input type="number" class="form-control" id="rsiShortEntry">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">RSI Short Exit</label>
+                                <input type="number" class="form-control" id="rsiShortExit">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Max Loss (%)</label>
+                                <input type="number" class="form-control" id="maxLossPct">
+                            </div>
+                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">
@@ -405,22 +427,54 @@
             $('#strategyModal').modal('show');
         }
 
+        let currentEditingStrategy = null;
+
         function editStrategy(strategyName) {
-            // Fetch current strategy config
+            currentEditingStrategy = strategyName;
+            document.getElementById('strategyModalTitle').textContent = `Edit ${strategyName}`;
+
+            // Show/hide RSI parameters based on strategy type
+            const rsiParams = document.getElementById('rsiParameters');
+            if (strategyName.toLowerCase().includes('rsi')) {
+                rsiParams.style.display = 'block';
+            } else {
+                rsiParams.style.display = 'none';
+            }
+
+            // Fetch current strategy configuration
             $.get('/api/strategies', function(data) {
                 const strategy = data[strategyName];
-                $('#editStrategyName').val(strategyName);
-                $('#strategySymbol').val(strategy.symbol);
-                $('#strategyMargin').val(strategy.margin);
-                $('#strategyLeverage').val(strategy.leverage);
-                $('#strategyTimeframe').val(strategy.timeframe);
-                $('#strategyModalTitle').text('Edit ' + strategyName.toUpperCase());
-                $('#strategyModal').modal('show');
+                if (strategy) {
+                    $('#strategySymbol').val(strategy.symbol);
+                    $('#strategyMargin').val(strategy.margin);
+                    $('#strategyLeverage').val(strategy.leverage);
+                    $('#strategyTimeframe').val(strategy.timeframe);
+
+                    // Fill RSI-specific parameters if they exist
+                    if (strategy.rsi_long_entry !== undefined) {
+                        $('#rsiLongEntry').val(strategy.rsi_long_entry);
+                    }
+                    if (strategy.rsi_long_exit !== undefined) {
+                        $('#rsiLongExit').val(strategy.rsi_long_exit);
+                    }
+                    if (strategy.rsi_short_entry !== undefined) {
+                        $('#rsiShortEntry').val(strategy.rsi_short_entry);
+                    }
+                    if (strategy.rsi_short_exit !== undefined) {
+                        $('#rsiShortExit').val(strategy.rsi_short_exit);
+                    }
+                    if (strategy.max_loss_pct !== undefined) {
+                        $('#maxLossPct').val(strategy.max_loss_pct);
+                    }
+                }
             });
+
+            $('#strategyModal').modal('show');
         }
 
         function saveStrategy() {
-            const strategyName = $('#editStrategyName').val();
+            if (!currentEditingStrategy) return;
+
             const data = {
                 symbol: $('#strategySymbol').val(),
                 margin: parseFloat($('#strategyMargin').val()),
@@ -428,8 +482,30 @@
                 timeframe: $('#strategyTimeframe').val()
             };
 
+            // Add RSI-specific parameters if strategy is RSI-based
+            if (currentEditingStrategy.toLowerCase().includes('rsi')) {
+                const rsiLongEntry = $('#rsiLongEntry').val();
+                const rsiLongExit = $('#rsiLongExit').val();
+                const rsiShortEntry = $('#rsiShortEntry').val();
+                const rsiShortExit = $('#rsiShortExit').val();
+                const maxLossPct = $('#maxLossPct').val();
+
+                if (rsiLongEntry) data.rsi_long_entry = parseInt(rsiLongEntry);
+                if (rsiLongExit) data.rsi_long_exit = parseInt(rsiLongExit);
+                if (rsiShortEntry) data.rsi_short_entry = parseInt(rsiShortEntry);
+                if (rsiShortExit) data.rsi_short_exit = parseInt(rsiShortExit);
+                if (maxLossPct) data.max_loss_pct = parseInt(maxLossPct);
+            }
+
+            // Remove empty values
+            Object.keys(data).forEach(key => {
+                if (data[key] === '' || isNaN(data[key])) {
+                    delete data[key];
+                }
+            });
+
             $.ajax({
-                url: '/api/strategies/' + strategyName,
+                url: '/api/strategies/' + currentEditingStrategy,
                 method: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify(data),
@@ -573,7 +649,7 @@
         // Global variables for auto-scroll
         let autoScroll = true;
         let consoleLogBuffer = [];
-        
+
         // Update positions table
         function updatePositionsTable() {
             $.get('/api/positions', function(data) {
@@ -586,18 +662,18 @@
                 $('#positionsTableBody').html('<tr><td colspan="9" class="text-danger text-center">Failed to load positions</td></tr>');
             });
         }
-        
+
         function updatePositionsDisplay(positions) {
             if (positions.length === 0) {
                 $('#positionsTableBody').html('<tr><td colspan="9" class="text-muted text-center">No active positions</td></tr>');
                 return;
             }
-            
+
             let html = '';
             positions.forEach(function(position) {
                 let pnlClass = position.pnl > 0 ? 'text-success' : 'text-danger';
                 let sideClass = position.side === 'BUY' ? 'success' : 'danger';
-                
+
                 html += `
                     <tr>
                         <td>${position.strategy.toUpperCase()}</td>
@@ -618,7 +694,7 @@
             });
             $('#positionsTableBody').html(html);
         }
-        
+
         // Console log functions
         function fetchConsoleLog() {
             $.get('/api/console-log', function(data) {
@@ -627,20 +703,20 @@
                 }
             });
         }
-        
+
         function updateConsoleLog(logs) {
             const consoleElement = document.getElementById('consoleLog');
-            
+
             // Add new logs to buffer
             logs.forEach(function(log) {
                 if (!consoleLogBuffer.includes(log)) {
                     consoleLogBuffer.push(log);
-                    
+
                     // Create log element
                     const logElement = document.createElement('div');
                     logElement.style.marginBottom = '2px';
                     logElement.style.wordWrap = 'break-word';
-                    
+
                     // Color code different log types
                     if (log.includes('ERROR') || log.includes('❌')) {
                         logElement.style.color = '#ff6b6b';
@@ -653,12 +729,12 @@
                     } else {
                         logElement.style.color = '#ffffff';
                     }
-                    
+
                     logElement.textContent = log;
                     consoleElement.appendChild(logElement);
                 }
             });
-            
+
             // Limit buffer size
             if (consoleLogBuffer.length > 1000) {
                 consoleLogBuffer = consoleLogBuffer.slice(-500);
@@ -670,29 +746,29 @@
                     consoleElement.appendChild(logElement);
                 });
             }
-            
+
             // Auto-scroll to bottom if enabled
             if (autoScroll) {
                 consoleElement.scrollTop = consoleElement.scrollHeight;
             }
         }
-        
+
         function clearConsoleLog() {
             document.getElementById('consoleLog').innerHTML = '<div class="text-muted">Console cleared...</div>';
             consoleLogBuffer = [];
         }
-        
+
         function toggleAutoScroll() {
             autoScroll = !autoScroll;
             const btn = document.getElementById('autoScrollBtn');
             btn.innerHTML = `<i class="fas fa-arrows-alt-v"></i> Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
             btn.className = autoScroll ? 'btn btn-sm btn-outline-light' : 'btn btn-sm btn-outline-secondary';
         }
-        
+
         // Auto-refresh every 5 seconds for positions and every 2 seconds for console
         setInterval(function() {
             updatePositionsTable();
-            
+
             // Update bot status
             $.get('/api/bot/status', function(data) {
                 $('#botStatus').text(data.running ? 'RUNNING' : 'STOPPED');
@@ -707,10 +783,10 @@
                 }
             });
         }, 5000);
-        
+
         // Fetch console log every 2 seconds
         setInterval(fetchConsoleLog, 2000);
-        
+
         // Initial load
         $(document).ready(function() {
             updatePositionsTable();
@@ -734,7 +810,8 @@
                 url: '/api/default-params',
                 method: 'POST',
                 contentType: 'application/json',
-                data: JSON.stringify(data),
+```text
+        data: JSON.stringify(data),
                 success: function(response) {
                     if (response.success) {
                         $('#defaultParamsModal').modal('hide');

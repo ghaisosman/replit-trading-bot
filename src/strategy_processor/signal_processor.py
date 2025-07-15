@@ -87,14 +87,18 @@ class SignalProcessor:
             margin = config.get('margin', 50.0)
             leverage = config.get('leverage', 5)
             max_loss_pct = config.get('max_loss_pct', 10)  # 10% of margin
+            
+            # Get configurable RSI levels
+            rsi_long_entry = config.get('rsi_long_entry', 40)
+            rsi_short_entry = config.get('rsi_short_entry', 60)
 
             # Calculate stop loss based on PnL (10% of margin)
             max_loss_amount = margin * (max_loss_pct / 100)
             notional_value = margin * leverage
             stop_loss_pct = (max_loss_amount / notional_value) * 100
 
-            # Long signal: RSI reaches 40 (relaxed from 30 for testing)
-            if rsi_current <= 40:
+            # Long signal: RSI reaches configured entry level
+            if rsi_current <= rsi_long_entry:
                 stop_loss = current_price * (1 - stop_loss_pct / 100)
                 # Take profit will be determined by RSI level in exit conditions
                 take_profit = current_price * 1.05  # Placeholder, real TP is RSI-based
@@ -105,11 +109,11 @@ class SignalProcessor:
                     entry_price=current_price,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
-                    reason=f"RSI LONG ENTRY at {rsi_current:.2f} (RSI <= 40)"
+                    reason=f"RSI LONG ENTRY at {rsi_current:.2f} (RSI <= {rsi_long_entry})"
                 )
 
-            # Short signal: RSI reaches 60 (relaxed from 70 for testing)
-            elif rsi_current >= 60:
+            # Short signal: RSI reaches configured entry level
+            elif rsi_current >= rsi_short_entry:
                 stop_loss = current_price * (1 + stop_loss_pct / 100)
                 # Take profit will be determined by RSI level in exit conditions
                 take_profit = current_price * 0.95  # Placeholder, real TP is RSI-based
@@ -120,7 +124,7 @@ class SignalProcessor:
                     entry_price=current_price,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
-                    reason=f"RSI SHORT ENTRY at {rsi_current:.2f} (RSI >= 60)"
+                    reason=f"RSI SHORT ENTRY at {rsi_current:.2f} (RSI >= {rsi_short_entry})"
                 )
 
             return None
@@ -254,16 +258,20 @@ class SignalProcessor:
             # RSI-based exit conditions for RSI strategy
             if strategy_name == 'rsi_oversold' and 'rsi' in df.columns:
                 rsi_current = df['rsi'].iloc[-1]
+                
+                # Get configurable RSI exit levels
+                rsi_long_exit = strategy_config.get('rsi_long_exit', 70)
+                rsi_short_exit = strategy_config.get('rsi_short_exit', 30)
 
-                # Long position: Take profit when RSI reaches 70 (relaxed from 60 for testing)
-                if position_side == 'BUY' and rsi_current >= 70:
-                    self.logger.info(f"LONG TAKE PROFIT: RSI {rsi_current:.2f} >= 70")
-                    return "Take Profit (RSI 70+)"
+                # Long position: Take profit when RSI reaches configured exit level
+                if position_side == 'BUY' and rsi_current >= rsi_long_exit:
+                    self.logger.info(f"LONG TAKE PROFIT: RSI {rsi_current:.2f} >= {rsi_long_exit}")
+                    return f"Take Profit (RSI {rsi_long_exit}+)"
 
-                # Short position: Take profit when RSI reaches 30 (relaxed from 40 for testing)
-                elif position_side == 'SELL' and rsi_current <= 30:
-                    self.logger.info(f"SHORT TAKE PROFIT: RSI {rsi_current:.2f} <= 30")
-                    return "Take Profit (RSI 30-)"
+                # Short position: Take profit when RSI reaches configured exit level
+                elif position_side == 'SELL' and rsi_current <= rsi_short_exit:
+                    self.logger.info(f"SHORT TAKE PROFIT: RSI {rsi_current:.2f} <= {rsi_short_exit}")
+                    return f"Take Profit (RSI {rsi_short_exit}-)"
 
             # MACD-based exit conditions for MACD strategy
             elif strategy_name == 'macd_divergence' and 'macd_histogram' in df.columns:
