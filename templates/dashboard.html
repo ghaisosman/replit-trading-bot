@@ -172,7 +172,6 @@
                                         <th>Margin (USDT)</th>
                                         <th>Leverage</th>
                                         <th>Timeframe</th>
-                                        <th>Assessment Interval</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
@@ -185,7 +184,6 @@
                                         <td>${{ config.margin }}</td>
                                         <td>{{ config.leverage }}x</td>
                                         <td>{{ config.timeframe }}</td>
-                                        <td>{{ config.get('assessment_interval', 300) }}s</td>
                                         <td><span class="badge bg-success">Active</span></td>
                                         <td>
                                             <button class="btn btn-sm btn-outline-primary" onclick="editStrategyConfig('{{ strategy_name }}')">
@@ -245,9 +243,9 @@
                             <input type="number" class="form-control" id="strategyMaxLoss" step="0.1" min="1" max="50" placeholder="e.g., 10">
                         </div>
                         <div class="mb-3">
-                            <label for="strategyAssessmentInterval" class="form-label">Market Assessment Interval (seconds)</label>
-                            <input type="number" class="form-control" id="strategyAssessmentInterval" min="30" max="3600" placeholder="e.g., 300 (5 minutes)">
-                            <div class="form-text">How often the bot scans the market for this strategy (30-3600 seconds)</div>
+                            <label for="assessmentInterval" class="form-label">Market Assessment Interval (seconds)</label>
+                            <input type="number" class="form-control" id="assessmentInterval" step="1" min="60" max="3600" placeholder="e.g., 300">
+                            <div class="form-text">How often the bot scans the market for entry signals</div>
                         </div>
 
                         <!-- RSI Strategy Parameters (shown only for RSI strategies) -->
@@ -410,7 +408,6 @@
                         document.getElementById('strategyLeverage').value = config.leverage || '';
                         document.getElementById('strategyTimeframe').value = config.timeframe || '';
                         document.getElementById('strategyMaxLoss').value = config.max_loss_pct || 10;
-                        document.getElementById('strategyAssessmentInterval').value = config.assessment_interval || 300;
 
                         // Hide all strategy-specific sections first
                         document.getElementById('rsiParameters').style.display = 'none';
@@ -452,8 +449,7 @@
                 margin: parseFloat(document.getElementById('strategyMargin').value),
                 leverage: parseInt(document.getElementById('strategyLeverage').value),
                 timeframe: document.getElementById('strategyTimeframe').value,
-                max_loss_pct: parseFloat(document.getElementById('strategyMaxLoss').value) || 10,
-                assessment_interval: parseInt(document.getElementById('strategyAssessmentInterval').value) || 300
+                max_loss_pct: parseFloat(document.getElementById('strategyMaxLoss').value) || 10
             };
 
             // Add RSI-specific parameters if RSI strategy

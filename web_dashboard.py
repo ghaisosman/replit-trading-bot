@@ -353,7 +353,7 @@ def get_strategies():
                     **trading_config_manager.default_params.to_dict(),
                     **overrides
                 }
-                
+
                 # Ensure assessment_interval is included
                 if 'assessment_interval' not in base_config:
                     base_config['assessment_interval'] = 300
