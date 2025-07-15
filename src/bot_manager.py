@@ -1,3 +1,4 @@
+
 import asyncio
 import logging
 import pandas as pd
@@ -89,7 +90,11 @@ For MAINNET:
 
         # Running state
         self.is_running = False
-        self.startup_notified = False  # Flag to prevent duplicate startup notifications
+        self.startup_notified = False
+
+        # Position logging throttle
+        self.last_position_log_time = {}
+        self.position_log_interval = 60  # Log positions only once per minute
 
         # Initialize anomaly detector for orphan/ghost detection
         self.anomaly_detector = AnomalyDetector(
@@ -114,13 +119,12 @@ For MAINNET:
         # Track if startup notification was sent
         self.startup_notification_sent = False
 
-
     async def start(self):
         """Start the trading bot"""
         self.is_running = True
 
         # Log startup source - simplified detection
-        startup_source = "Web Interface"  # Default to web interface since this is the issue we're fixing
+        startup_source = "Web Interface"
 
         # Check if this is a web interface call by looking at the call stack
         import inspect
@@ -136,7 +140,6 @@ For MAINNET:
                     break
                 frame = frame.f_back
         except:
-            # If detection fails, assume console for safety
             startup_source = "Console"
         finally:
             del frame
@@ -213,21 +216,28 @@ For MAINNET:
 
     async def stop(self, reason: str = "Manual shutdown"):
         """Stop the trading bot"""
+        if not self.is_running:
+            self.logger.info("Bot is already stopped")
+            return
+
         self.logger.info(f"Stopping trading bot: {reason}")
         self.is_running = False
 
-        # Send shutdown notification to Telegram
-        self.telegram_reporter.report_bot_stopped(reason)
+        try:
+            # Send shutdown notification to Telegram
+            self.telegram_reporter.report_bot_stopped(reason)
 
-        # Small delay to ensure message is sent before process terminates
-        await asyncio.sleep(1)
+            # Small delay to ensure message is sent before process terminates
+            await asyncio.sleep(1)
+        except Exception as e:
+            self.logger.error(f"Error during shutdown: {e}")
 
     async def _main_trading_loop(self):
-        """Main trading loop"""
+        """Main trading loop with proper error handling and throttling"""
         while self.is_running:
             try:
-                # Display current PnL for all active positions
-                await self._display_active_positions_pnl()
+                # Display current PnL for all active positions (throttled)
+                await self._display_active_positions_pnl_throttled()
 
                 # Check each strategy
                 for strategy_name, strategy_config in self.strategies.items():
@@ -240,7 +250,10 @@ For MAINNET:
                 await self._check_exit_conditions()
 
                 # Check for trade anomalies (orphan/ghost trades)
-                self.anomaly_detector.run_detection()
+                try:
+                    self.anomaly_detector.run_detection()
+                except Exception as e:
+                    self.logger.error(f"Error in anomaly detection: {e}")
 
                 # Sleep before next iteration
                 await asyncio.sleep(global_config.PRICE_UPDATE_INTERVAL)
@@ -251,10 +264,13 @@ For MAINNET:
                 self.telegram_reporter.report_error("Main Loop Error", str(e))
 
                 # Log memory usage for debugging
-                import psutil
-                process = psutil.Process()
-                memory_mb = process.memory_info().rss / 1024 / 1024
-                self.logger.warning(f"🔍 MEMORY USAGE: {memory_mb:.1f} MB")
+                try:
+                    import psutil
+                    process = psutil.Process()
+                    memory_mb = process.memory_info().rss / 1024 / 1024
+                    self.logger.warning(f"🔍 MEMORY USAGE: {memory_mb:.1f} MB")
+                except ImportError:
+                    pass
 
                 # If it's a critical error, stop the bot
                 if "API" in str(e) or "connection" in str(e).lower() or "auth" in str(e).lower():
@@ -263,28 +279,42 @@ For MAINNET:
 
                 await asyncio.sleep(5)  # Brief pause before retrying
 
-    async def _display_active_positions_pnl(self):
-        """Display current PnL for all active positions"""
+    async def _display_active_positions_pnl_throttled(self):
+        """Display current PnL for all active positions with throttling"""
+        current_time = datetime.now()
+        
         for strategy_name, position in self.order_manager.active_positions.items():
+            # Check if we should log this position (throttle to once per minute)
+            last_log_time = self.last_position_log_time.get(strategy_name)
+            if last_log_time and (current_time - last_log_time).total_seconds() < self.position_log_interval:
+                continue  # Skip logging for this position
+
             strategy_config = self.strategies.get(strategy_name)
             if not strategy_config:
                 continue
 
-            current_price = self._get_current_price(strategy_config['symbol'])
-            if current_price:
-                pnl_usdt = self._calculate_pnl(position, current_price)
-                position_value_usdt = position.entry_price * position.quantity
-                pnl_percent = (pnl_usdt / position_value_usdt) * 100 if position_value_usdt > 0 else 0
+            try:
+                current_price = self._get_current_price(strategy_config['symbol'])
+                if current_price:
+                    pnl_usdt = self._calculate_pnl(position, current_price)
+                    position_value_usdt = position.entry_price * position.quantity
+                    pnl_percent = (pnl_usdt / position_value_usdt) * 100 if position_value_usdt > 0 else 0
 
-                # Show comprehensive position status
-                self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: ${pnl_usdt:.2f} USDT ({pnl_percent:+.2f}%)")
-            else:
-                # Fallback if price fetch fails
-                position_value_usdt = position.entry_price * position.quantity
-                self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: Price fetch failed")
+                    # Show comprehensive position status
+                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: ${pnl_usdt:.2f} USDT ({pnl_percent:+.2f}%)")
+                else:
+                    # Fallback if price fetch fails
+                    position_value_usdt = position.entry_price * position.quantity
+                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: Price fetch failed")
+
+                # Update last log time
+                self.last_position_log_time[strategy_name] = current_time
+
+            except Exception as e:
+                self.logger.error(f"Error displaying position PnL for {strategy_name}: {e}")
 
     async def _process_strategy(self, strategy_name: str, strategy_config: Dict):
-        """Process a single strategy"""
+        """Process a single strategy with improved error handling"""
         try:
             # Check if it's time to assess this strategy
             if not self._should_assess_strategy(strategy_name, strategy_config):
@@ -301,22 +331,7 @@ For MAINNET:
 
             # Check if strategy already has an active position
             if strategy_name in self.order_manager.active_positions:
-                # Show current position status
-                position = self.order_manager.active_positions[strategy_name]
-                current_price = self._get_current_price(strategy_config['symbol'])
-                if current_price:
-                    # Log active position with proper PnL calculation
-                    pnl_usdt = self._calculate_pnl(position, current_price)
-                    position_value_usdt = position.entry_price * position.quantity
-                    pnl_percent = (pnl_usdt / position_value_usdt) * 100 if position_value_usdt > 0 else 0
-
-                    # Show comprehensive position status
-                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: ${pnl_usdt:.2f} USDT ({pnl_percent:+.2f}%)")
-                else:
-                    # Fallback if price fetch fails
-                    position_value_usdt = position.entry_price * position.quantity
-                    self.logger.info(f"📊 TRADE IN PROGRESS | {strategy_name.upper()} | {position.symbol} | Entry: ${position.entry_price:.4f} | Value: ${position_value_usdt:.2f} USDT | PnL: Price fetch failed")
-                return
+                return  # Position status already logged in throttled method
 
             # Check for conflicting positions on the same symbol
             symbol = strategy_config['symbol']
@@ -334,7 +349,7 @@ For MAINNET:
             leverage = strategy_config.get('leverage', 5)
             self.logger.info(f"🔍 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x")
 
-            # Get market data
+            # Get market data with error handling
             df = self.price_fetcher.get_ohlcv_data(
                 strategy_config['symbol'],
                 strategy_config['timeframe']
@@ -344,8 +359,12 @@ For MAINNET:
                 self.logger.warning(f"No data for {strategy_config['symbol']}")
                 return
 
-            # Calculate indicators
-            df = self.price_fetcher.calculate_indicators(df)
+            # Calculate indicators with error handling
+            try:
+                df = self.price_fetcher.calculate_indicators(df)
+            except Exception as e:
+                self.logger.error(f"Error calculating indicators for {strategy_config['symbol']}: {e}")
+                return
 
             # Get current market info
             current_price = df['close'].iloc[-1]
@@ -388,56 +407,60 @@ For MAINNET:
             self.telegram_reporter.report_error("Strategy Processing Error", str(e), strategy_name)
 
     async def _check_exit_conditions(self):
-        """Check exit conditions for all open positions"""
+        """Check exit conditions for all open positions with improved error handling"""
         try:
             active_positions = self.order_manager.get_active_positions()
 
             for strategy_name, position in active_positions.items():
-                strategy_config = self.strategies.get(strategy_name)
-                if not strategy_config:
-                    continue
+                try:
+                    strategy_config = self.strategies.get(strategy_name)
+                    if not strategy_config:
+                        continue
 
-                # Get current market data
-                df = self.price_fetcher.get_ohlcv_data(
-                    strategy_config['symbol'],
-                    strategy_config['timeframe']
-                )
+                    # Get current market data
+                    df = self.price_fetcher.get_ohlcv_data(
+                        strategy_config['symbol'],
+                        strategy_config['timeframe']
+                    )
 
-                if df is None or df.empty:
-                    continue
+                    if df is None or df.empty:
+                        continue
 
-                # Calculate indicators
-                df = self.price_fetcher.calculate_indicators(df)
+                    # Calculate indicators
+                    df = self.price_fetcher.calculate_indicators(df)
 
-                # Check exit conditions
-                exit_reason = self.signal_processor.evaluate_exit_conditions(
-                    df, 
-                    {'entry_price': position.entry_price, 'stop_loss': position.stop_loss, 'take_profit': position.take_profit}, 
-                    strategy_config
-                )
+                    # Check exit conditions
+                    exit_reason = self.signal_processor.evaluate_exit_conditions(
+                        df, 
+                        {'entry_price': position.entry_price, 'stop_loss': position.stop_loss, 'take_profit': position.take_profit}, 
+                        strategy_config
+                    )
 
-                if exit_reason:
-                    current_price = df['close'].iloc[-1]
-                    pnl = self._calculate_pnl(position, current_price)
+                    if exit_reason:
+                        current_price = df['close'].iloc[-1]
+                        pnl = self._calculate_pnl(position, current_price)
 
-                    pnl_status = "PROFIT" if pnl > 0 else "LOSS"
+                        pnl_status = "PROFIT" if pnl > 0 else "LOSS"
 
-                    self.logger.info(f"🔄 EXIT TRIGGERED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Exit: ${current_price:,.1f} | PnL: ${pnl:,.1f} ({pnl_status})")
+                        self.logger.info(f"🔄 EXIT TRIGGERED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Exit: ${current_price:,.1f} | PnL: ${pnl:,.1f} ({pnl_status})")
 
-                    # Close position
-                    if self.order_manager.close_position(strategy_name, exit_reason):
-                        self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:,.1f} | Exit: ${current_price:,.1f} | Final PnL: ${pnl:,.1f}")
+                        # Close position
+                        if self.order_manager.close_position(strategy_name, exit_reason):
+                            self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:,.1f} | Exit: ${current_price:,.1f} | Final PnL: ${pnl:,.1f}")
 
-                        from dataclasses import asdict
-                        position_data = asdict(position)
-                        position_data['exit_price'] = current_price  # Add current price as exit price
-                        self.telegram_reporter.report_position_closed(
-                            position_data, 
-                            exit_reason, 
-                            pnl
-                        )
-                    else:
-                        self.logger.warning(f"❌ CLOSE FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not close position")
+                            from dataclasses import asdict
+                            position_data = asdict(position)
+                            position_data['exit_price'] = current_price
+                            self.telegram_reporter.report_position_closed(
+                                position_data, 
+                                exit_reason, 
+                                pnl
+                            )
+                        else:
+                            self.logger.warning(f"❌ CLOSE FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not close position")
+
+                except Exception as e:
+                    self.logger.error(f"Error checking exit conditions for {strategy_name}: {e}")
 
         except Exception as e:
             self.logger.error(f"Error checking exit conditions: {e}")
@@ -449,12 +472,12 @@ For MAINNET:
             return True
 
         last_assessment = self.strategy_last_assessment[strategy_name]
-        assessment_interval = strategy_config.get('assessment_interval', 300)  # Default 5 minutes
+        assessment_interval = strategy_config.get('assessment_interval', 300)
 
         return (datetime.now() - last_assessment).seconds >= assessment_interval
 
     def _check_balance_requirements(self, strategy_config: Dict) -> bool:
-        """Check if there's sufficient balance for the strategy"""
+        """Check if there's sufficient balance for the strategy with error handling"""
         try:
             # Get the biggest margin across all strategies
             max_margin = max(config['margin'] for config in self.strategies.values())
@@ -475,15 +498,18 @@ For MAINNET:
             return False
 
     def update_strategy_config(self, strategy_name: str, updates: Dict):
-        """Update strategy configuration"""
-        if strategy_name in self.strategies:
-            self.strategies[strategy_name].update(updates)
-            self.logger.info(f"Updated configuration for {strategy_name}: {updates}")
-        else:
-            self.logger.warning(f"Strategy {strategy_name} not found")
+        """Update strategy configuration with validation"""
+        try:
+            if strategy_name in self.strategies:
+                self.strategies[strategy_name].update(updates)
+                self.logger.info(f"Updated configuration for {strategy_name}: {updates}")
+            else:
+                self.logger.warning(f"Strategy {strategy_name} not found")
+        except Exception as e:
+            self.logger.error(f"Error updating strategy config: {e}")
 
     def _get_current_price(self, symbol: str) -> Optional[float]:
-        """Get current price for a symbol"""
+        """Get current price for a symbol with improved error handling"""
         try:
             ticker = self.binance_client.get_symbol_ticker(symbol)
             if ticker and 'price' in ticker:
@@ -498,10 +524,14 @@ For MAINNET:
             return None
 
     def _calculate_pnl(self, position, current_price: float) -> float:
-        """Calculate PnL for a position (futures trading)"""
+        """Calculate PnL for a position with better validation"""
         try:
             if not current_price or current_price <= 0:
                 self.logger.warning(f"❌ PnL CALC | Invalid current price: {current_price}")
+                return 0.0
+
+            if not position or not hasattr(position, 'entry_price') or not hasattr(position, 'quantity'):
+                self.logger.warning(f"❌ PnL CALC | Invalid position data")
                 return 0.0
 
             # For futures trading, PnL calculation
@@ -514,14 +544,14 @@ For MAINNET:
             return pnl
 
         except Exception as e:
-            self.logger.error(f"❌ PnL CALCULATION ERROR | {position.symbol} | {e}")
+            self.logger.error(f"❌ PnL CALCULATION ERROR | {getattr(position, 'symbol', 'UNKNOWN')} | {e}")
             return 0.0
 
     def _get_market_info(self, df: pd.DataFrame, strategy_name: str) -> str:
-        """Get market information string for logging"""
+        """Get market information string for logging with error handling"""
         try:
             if strategy_name == 'rsi_oversold':
-                if 'rsi' in df.columns:
+                if 'rsi' in df.columns and not df['rsi'].empty:
                     rsi = df['rsi'].iloc[-1]
                     condition = "Oversold" if rsi < 30 else "Overbought" if rsi > 70 else "Normal"
                     return f"RSI: {rsi:.1f} | Condition: {condition}"
@@ -540,10 +570,12 @@ For MAINNET:
             recovered_count = 0
 
             for strategy_name, strategy_config in self.strategies.items():
-                symbol = strategy_config['symbol']
+                symbol = strategy_config.get('symbol')
+                if not symbol:
+                    continue
 
-                # Get open positions from Binance for this symbol
                 try:
+                    # Get open positions from Binance for this symbol
                     if self.binance_client.is_futures:
                         positions = self.binance_client.client.futures_position_information(symbol=symbol)
 
@@ -574,13 +606,13 @@ For MAINNET:
                                         side=side,
                                         entry_price=entry_price,
                                         quantity=quantity,
-                                        stop_loss=entry_price * 0.985 if side == 'BUY' else entry_price * 1.015,  # Estimated
-                                        take_profit=entry_price * 1.025 if side == 'BUY' else entry_price * 0.975,  # Estimated
+                                        stop_loss=entry_price * 0.985 if side == 'BUY' else entry_price * 1.015,
+                                        take_profit=entry_price * 1.025 if side == 'BUY' else entry_price * 0.975,
                                         position_side='LONG' if side == 'BUY' else 'SHORT',
-                                        order_id=0,  # Unknown on recovery
-                                        entry_time=datetime.now(),  # Current time as fallback
+                                        order_id=0,
+                                        entry_time=datetime.now(),
                                         status='RECOVERED',
-                                        trade_id=trade_id  # Include the trade ID
+                                        trade_id=trade_id
                                     )
 
                                     # Add to active positions
@@ -622,7 +654,6 @@ For MAINNET:
                 symbol = anomaly.symbol
 
                 # Check if this position should actually be recognized as a legitimate bot position
-                # Get current position info from Binance
                 try:
                     if self.binance_client.is_futures:
                         positions = self.binance_client.client.futures_position_information(symbol=symbol)
@@ -634,7 +665,8 @@ For MAINNET:
                                 quantity = abs(position_amt)
 
                                 # Re-validate this position with enhanced validation
-                                if self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price):
+                                is_legitimate, trade_id = self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price)
+                                if is_legitimate and trade_id:
                                     self.logger.info(f"🔍 MISIDENTIFIED POSITION FOUND | {strategy_name.upper()} | {symbol} | Clearing ghost anomaly and recovering position")
 
                                     # Clear the ghost anomaly
@@ -643,9 +675,6 @@ For MAINNET:
                                     # Recover the position properly
                                     from src.execution_engine.order_manager import Position
                                     from datetime import datetime
-
-                                    # Generate recovery trade ID for tracking
-                                    recovery_trade_id = f"RECOVERY_{strategy_name}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
                                     recovered_position = Position(
                                         strategy_name=strategy_name,
@@ -659,7 +688,7 @@ For MAINNET:
                                         order_id=0,
                                         entry_time=datetime.now(),
                                         status='RECOVERED',
-                                        trade_id=recovery_trade_id
+                                        trade_id=trade_id
                                     )
 
                                     # Add to active positions
@@ -679,78 +708,19 @@ For MAINNET:
             self.logger.error(f"Error cleaning up misidentified positions: {e}")
 
     def get_bot_status(self) -> Dict:
-        """Get current bot status"""
-        return {
-            'is_running': self.is_running,
-            'active_positions': len(self.order_manager.active_positions),
-            'strategies': list(self.strategies.keys()),
-            'balance': self.balance_fetcher.get_usdt_balance()
-        }
-
-    async def _recover_positions(self) -> None:
-        """Recover existing positions from Binance on startup (with ghost trade protection)"""
+        """Get current bot status with error handling"""
         try:
-            self.logger.info("🔍 CHECKING FOR EXISTING POSITIONS...")
-
-            recovered_count = 0
-
-            if self.binance_client.is_futures:
-                account_info = self.binance_client.client.futures_account()
-                positions = account_info.get('positions', [])
-
-                for position in positions:
-                    position_amt = float(position.get('positionAmt', 0))
-
-                    if abs(position_amt) > 0.001:  # Position exists
-                        symbol = position.get('symbol')
-                        entry_price = float(position.get('entryPrice', 0))
-
-                        # Find which strategy should handle this symbol
-                        strategy_name = None
-                        for name, strategy in self.strategies.items():
-                            if strategy['symbol'] == symbol:
-                                strategy_name = name
-                                break
-
-                        if strategy_name:
-                            side = 'BUY' if position_amt > 0 else 'SELL'
-
-                            self.logger.info(f"🔍 POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {abs(position_amt)} | Entry: ${entry_price}")
-
-                            # Use enhanced position validation
-                            if self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, abs(position_amt), entry_price):
-                                # This is a legitimate bot position - recover it
-                                self.logger.info(f"✅ LEGITIMATE BOT POSITION | {strategy_name.upper()} | {symbol} | Recovering...")
-
-                                from src.execution_engine.order_manager import Position
-                                from datetime import datetime
-
-                                recovered_position = Position(
-                                    strategy_name=strategy_name,
-                                    symbol=symbol,
-                                    side=side,
-                                    entry_price=entry_price,
-                                    quantity=abs(position_amt),
-                                    stop_loss=entry_price * 0.985 if side == 'BUY' else entry_price * 1.015,
-                                    take_profit=entry_price * 1.025 if side == 'BUY' else entry_price * 0.975,
-                                    position_side='LONG' if side == 'BUY' else 'SHORT',
-                                    order_id=0,
-                                    entry_time=datetime.now(),
-                                    status='RECOVERED'
-                                )
-
-                                self.order_manager.active_positions[strategy_name] = recovered_position
-                                recovered_count += 1
-
-                                self.logger.info(f"✅ POSITION RECOVERED | {strategy_name.upper()} | {symbol} | Entry: ${entry_price} | Qty: {abs(position_amt)}")
-                            else:
-                                # This is likely a manual position - let ghost trade detection handle it
-                                self.logger.warning(f"🚨 UNVERIFIED POSITION | {strategy_name.upper()} | {symbol} | Will be processed by ghost trade detection")
-
-            self.logger.info(f"✅ POSITION RECOVERY COMPLETE: {recovered_count} legitimate bot positions recovered")
-            self.logger.info(f"🔍 Unverified positions will be processed by trade monitoring system")
-
+            return {
+                'is_running': self.is_running,
+                'active_positions': len(self.order_manager.active_positions),
+                'strategies': list(self.strategies.keys()),
+                'balance': self.balance_fetcher.get_usdt_balance() or 0
+            }
         except Exception as e:
-            self.logger.error(f"Error checking existing positions: {e}")
-            import traceback
-            self.logger.error(f"Position check error: {traceback.format_exc()}")
+            self.logger.error(f"Error getting bot status: {e}")
+            return {
+                'is_running': self.is_running,
+                'active_positions': 0,
+                'strategies': [],
+                'balance': 0
+            }

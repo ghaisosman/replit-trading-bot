@@ -1,8 +1,10 @@
+
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 import logging
 from typing import Dict, Any, Optional
 from src.config.global_config import global_config
+import time
 
 class BinanceClientWrapper:
     """Wrapper for Binance client with error handling (supports both Spot and Futures)"""
@@ -11,6 +13,8 @@ class BinanceClientWrapper:
         self.logger = logging.getLogger(__name__)
         self.client = None
         self.is_futures = global_config.BINANCE_FUTURES
+        self._last_request_time = 0
+        self._min_request_interval = 0.1  # Minimum 100ms between requests
         self._initialize_client()
 
     def _initialize_client(self):
@@ -52,9 +56,18 @@ class BinanceClientWrapper:
             self.logger.error(f"Failed to initialize Binance client: {e}")
             raise
 
+    def _rate_limit(self):
+        """Simple rate limiting to prevent API spam"""
+        current_time = time.time()
+        time_since_last = current_time - self._last_request_time
+        if time_since_last < self._min_request_interval:
+            time.sleep(self._min_request_interval - time_since_last)
+        self._last_request_time = time.time()
+
     def test_connection(self) -> bool:
-        """Test API connection"""
+        """Test API connection with improved error handling"""
         try:
+            self._rate_limit()
             if self.is_futures:
                 # Test futures connection
                 self.client.futures_ping()
@@ -95,7 +108,7 @@ class BinanceClientWrapper:
             return False
 
     def validate_api_permissions(self) -> Dict[str, bool]:
-        """Validate API key permissions for trading"""
+        """Validate API key permissions for trading with improved error handling"""
         permissions = {
             'ping': False,
             'account_access': False,
@@ -104,6 +117,7 @@ class BinanceClientWrapper:
         }
 
         try:
+            self._rate_limit()
             if self.is_futures:
                 # Test futures permissions
                 self.client.futures_ping()
@@ -162,8 +176,9 @@ class BinanceClientWrapper:
         return permissions
 
     def get_account_info(self) -> Optional[Dict[str, Any]]:
-        """Get account information"""
+        """Get account information with rate limiting"""
         try:
+            self._rate_limit()
             if self.is_futures:
                 return self.client.futures_account()
             else:
@@ -190,10 +205,14 @@ class BinanceClientWrapper:
             else:
                 self.logger.error(f"Error getting account info: {e}")
             return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error getting account info: {e}")
+            return None
 
     def get_symbol_ticker(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Get current price for symbol"""
+        """Get current price for symbol with rate limiting"""
         try:
+            self._rate_limit()
             if self.is_futures:
                 return self.client.futures_symbol_ticker(symbol=symbol)
             else:
@@ -201,10 +220,14 @@ class BinanceClientWrapper:
         except BinanceAPIException as e:
             self.logger.error(f"Error getting ticker for {symbol}: {e}")
             return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error getting ticker for {symbol}: {e}")
+            return None
 
     def get_historical_klines(self, symbol: str, interval: str, limit: int = 100) -> Optional[list]:
-        """Get historical klines"""
+        """Get historical klines with rate limiting"""
         try:
+            self._rate_limit()
             if self.is_futures:
                 return self.client.futures_klines(symbol=symbol, interval=interval, limit=limit)
             else:
@@ -212,10 +235,14 @@ class BinanceClientWrapper:
         except BinanceAPIException as e:
             self.logger.error(f"Error getting klines for {symbol}: {e}")
             return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error getting klines for {symbol}: {e}")
+            return None
 
     def create_order(self, **kwargs) -> Optional[Dict[str, Any]]:
-        """Create an order"""
+        """Create an order with rate limiting"""
         try:
+            self._rate_limit()
             if self.is_futures:
                 return self.client.futures_create_order(**kwargs)
             else:
@@ -223,10 +250,14 @@ class BinanceClientWrapper:
         except BinanceAPIException as e:
             self.logger.error(f"Error creating order: {e}")
             return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error creating order: {e}")
+            return None
 
     def get_open_orders(self, symbol: str = None) -> Optional[list]:
-        """Get open orders"""
+        """Get open orders with rate limiting"""
         try:
+            self._rate_limit()
             if self.is_futures:
                 return self.client.futures_get_open_orders(symbol=symbol)
             else:
@@ -234,10 +265,14 @@ class BinanceClientWrapper:
         except BinanceAPIException as e:
             self.logger.error(f"Error getting open orders: {e}")
             return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error getting open orders: {e}")
+            return None
 
     def cancel_order(self, symbol: str, order_id: int) -> Optional[Dict[str, Any]]:
-        """Cancel an order"""
+        """Cancel an order with rate limiting"""
         try:
+            self._rate_limit()
             if self.is_futures:
                 return self.client.futures_cancel_order(symbol=symbol, orderId=order_id)
             else:
@@ -245,10 +280,14 @@ class BinanceClientWrapper:
         except BinanceAPIException as e:
             self.logger.error(f"Error canceling order: {e}")
             return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error canceling order: {e}")
+            return None
     
     def set_leverage(self, symbol: str, leverage: int) -> Optional[Dict[str, Any]]:
-        """Set leverage for futures trading"""
+        """Set leverage for futures trading with rate limiting"""
         try:
+            self._rate_limit()
             if self.is_futures:
                 return self.client.futures_change_leverage(symbol=symbol, leverage=leverage)
             else:
@@ -257,10 +296,14 @@ class BinanceClientWrapper:
         except BinanceAPIException as e:
             self.logger.error(f"Error setting leverage {leverage}x for {symbol}: {e}")
             return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error setting leverage for {symbol}: {e}")
+            return None
 
     def set_margin_type(self, symbol: str, margin_type: str = "CROSSED") -> Optional[Dict[str, Any]]:
-        """Set margin type for futures trading (ISOLATED or CROSSED)"""
+        """Set margin type for futures trading with rate limiting"""
         try:
+            self._rate_limit()
             if self.is_futures:
                 return self.client.futures_change_margin_type(symbol=symbol, marginType=margin_type)
             else:
@@ -274,3 +317,6 @@ class BinanceClientWrapper:
             else:
                 self.logger.error(f"Error setting margin type {margin_type} for {symbol}: {e}")
                 return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error setting margin type for {symbol}: {e}")
+            return None
