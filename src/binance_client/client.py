@@ -1,8 +1,7 @@
-
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from src.config.global_config import global_config
 import time
 
@@ -209,19 +208,26 @@ class BinanceClientWrapper:
             self.logger.error(f"Unexpected error getting account info: {e}")
             return None
 
-    def get_symbol_ticker(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Get current price for symbol with rate limiting"""
+    def get_symbol_ticker(self, symbol: str) -> Optional[Dict]:
+        """Get ticker information for a symbol"""
         try:
-            self._rate_limit()
             if self.is_futures:
                 return self.client.futures_symbol_ticker(symbol=symbol)
             else:
                 return self.client.get_symbol_ticker(symbol=symbol)
-        except BinanceAPIException as e:
+        except Exception as e:
             self.logger.error(f"Error getting ticker for {symbol}: {e}")
             return None
+
+    def get_klines(self, symbol: str, interval: str, limit: int = 500) -> Optional[List]:
+        """Get kline/candlestick data for a symbol"""
+        try:
+            if self.is_futures:
+                return self.client.futures_klines(symbol=symbol, interval=interval, limit=limit)
+            else:
+                return self.client.get_klines(symbol=symbol, interval=interval, limit=limit)
         except Exception as e:
-            self.logger.error(f"Unexpected error getting ticker for {symbol}: {e}")
+            self.logger.error(f"Error getting klines for {symbol}: {e}")
             return None
 
     def get_historical_klines(self, symbol: str, interval: str, limit: int = 100) -> Optional[list]:
@@ -283,7 +289,7 @@ class BinanceClientWrapper:
         except Exception as e:
             self.logger.error(f"Unexpected error canceling order: {e}")
             return None
-    
+
     def set_leverage(self, symbol: str, leverage: int) -> Optional[Dict[str, Any]]:
         """Set leverage for futures trading with rate limiting"""
         try:

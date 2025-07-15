@@ -41,11 +41,11 @@ try:
     from src.data_fetcher.balance_fetcher import BalanceFetcher
     from src.bot_manager import BotManager
     from src.utils.logger import setup_logger
-    
+
     # Setup proper logging
     setup_logger()
     logger = logging.getLogger(__name__)
-    
+
     if hasattr(sys.modules.get('__main__', None), 'bot_manager'):
         shared_bot_manager = sys.modules['__main__'].bot_manager
 
@@ -53,25 +53,25 @@ try:
     binance_client = BinanceClientWrapper()
     price_fetcher = PriceFetcher(binance_client)
     balance_fetcher = BalanceFetcher(binance_client)
-    
+
     IMPORTS_AVAILABLE = True
     logger.info("✅ All imports successful - Full functionality available")
-    
+
 except ImportError as e:
     logger.warning(f"⚠️ Import error - Limited functionality: {e}")
     IMPORTS_AVAILABLE = False
-    
+
     # Create dummy objects for basic web interface
     class DummyConfigManager:
         strategy_overrides = {
             'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
             'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m'}
         }
-    
+
     class DummyBalanceFetcher:
         def get_usdt_balance(self):
             return 100.0
-    
+
     trading_config_manager = DummyConfigManager()
     balance_fetcher = DummyBalanceFetcher()
 
@@ -315,8 +315,29 @@ def stop_bot():
 @app.route('/api/bot/status')
 def bot_status():
     """Get current bot status"""
-    status = get_bot_status()
-    return jsonify(status)
+    global bot_running, bot_manager, shared_bot_manager
+    try:
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        if current_bot and hasattr(current_bot, 'is_running'):
+            status = {
+                'running': current_bot.is_running,
+                'active_positions': len(current_bot.order_manager.active_positions) if hasattr(current_bot, 'order_manager') and current_bot.order_manager else 0,
+                'strategies': list(current_bot.strategies.keys()) if hasattr(current_bot, 'strategies') else [],
+            }
+            return jsonify(status)
+        else:
+            return jsonify({
+                'running': False,
+                'active_positions': 0,
+                'strategies': []
+            })
+    except Exception as e:
+        logger.error(f"Error getting bot status: {e}")
+        return jsonify({
+            'running': False,
+            'active_positions': 0,
+            'strategies': []
+        })
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -377,10 +398,15 @@ def update_strategy(strategy_name):
 def get_balance():
     """Get account balance"""
     try:
-        balance = balance_fetcher.get_usdt_balance() or 0
-        return jsonify({'balance': balance})
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        if current_bot and hasattr(current_bot, 'balance_fetcher'):
+            balance = current_bot.balance_fetcher.get_usdt_balance() or 0
+            return jsonify({'balance': balance})
+        else:
+            return jsonify({'balance': 0})
     except Exception as e:
-        return jsonify({'error': f'Failed to get balance: {e}'})
+        logger.error(f"Error getting balance: {e}")
+        return jsonify({'balance': 0})
 
 @app.route('/api/positions')
 def get_positions():
@@ -438,21 +464,21 @@ def get_rsi(symbol):
     try:
         # Import RSI calculation utilities
         import pandas as pd
-        
+
         # Get historical data for RSI calculation
         klines = binance_client.get_klines(symbol=symbol, interval='1h', limit=15)
         if not klines:
             return jsonify({'success': False, 'error': f'Could not fetch klines for {symbol}'})
-        
+
         # Convert to pandas DataFrame for easier calculation
         closes = [float(kline[4]) for kline in klines]
-        
+
         if len(closes) < 14:
             return jsonify({'success': False, 'error': f'Not enough data points for RSI calculation for {symbol}'})
-        
+
         # Calculate RSI
         rsi = calculate_rsi(closes)
-        
+
         return jsonify({'success': True, 'rsi': round(rsi, 2)})
     except Exception as e:
         logger.error(f"Error calculating RSI for {symbol}: {e}")
@@ -462,22 +488,22 @@ def calculate_rsi(closes, period=14):
     """Calculate RSI (Relative Strength Index)"""
     if len(closes) < period + 1:
         return 50.0  # Default RSI if not enough data
-    
+
     deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
-    
+
     gains = [delta if delta > 0 else 0 for delta in deltas]
     losses = [-delta if delta < 0 else 0 for delta in deltas]
-    
+
     # Calculate average gains and losses
     avg_gain = sum(gains[-period:]) / period
     avg_loss = sum(losses[-period:]) / period
-    
+
     if avg_loss == 0:
         return 100.0
-    
+
     rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
-    
+
     return rsi
 
 @app.route('/api/console-log')
@@ -602,7 +628,7 @@ def get_bot_status():
             strategies = list(trading_config_manager.strategy_overrides.keys())
         else:
             strategies = ['rsi_oversold', 'macd_divergence']
-        
+
         return {
             'running': False,
             'active_positions': 0,
@@ -620,7 +646,7 @@ def get_bot_status():
             strategies = list(trading_config_manager.strategy_overrides.keys())
         else:
             strategies = ['rsi_oversold', 'macd_divergence']
-            
+
         return {
             'running': bot_running,
             'active_positions': 0,

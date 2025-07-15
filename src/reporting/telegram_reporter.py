@@ -31,7 +31,7 @@ class TelegramReporter:
 
         # Track startup notifications to prevent duplicates
         self.startup_notification_sent = False
-        
+
         # Set up Telegram API base URL
         if self.bot_token:
             self.base_url = f"https://api.telegram.org/bot{self.bot_token}"
@@ -74,7 +74,7 @@ class TelegramReporter:
             import traceback
             self.logger.error(f"❌ TELEGRAM ERROR: Full traceback: {traceback.format_exc()}")
             return False
-    
+
     def reset_startup_notification(self):
         """Reset startup notification flag - used when bot is restarted"""
         self.startup_notification_sent = False
@@ -216,10 +216,10 @@ class TelegramReporter:
     def report_entry_signal(self, strategy_name: str, signal_data: dict):
         """Report entry signal detection to Telegram"""
         try:
-            # Create unique signal identifier to prevent duplicates - use more restrictive deduplication
-            signal_id = f"{strategy_name}_{signal_data['symbol']}_{signal_data['signal_type']}"
+            # Create unique signal identifier to prevent duplicates
+            signal_id = f"{strategy_name}_{signal_data['symbol']}_{signal_data['signal_type']}_{signal_data['entry_price']:.4f}"
             current_time = datetime.now()
-            
+
             # Check if we recently sent this exact signal
             if hasattr(self, 'last_signal_times'):
                 if signal_id in self.last_signal_times:
@@ -229,12 +229,12 @@ class TelegramReporter:
                         return
             else:
                 self.last_signal_times = {}
-            
+
             # Only send entry signal notifications when a position is actually opened
             # This prevents false signals from being sent to Telegram
             self.logger.info(f"🔍 TELEGRAM DEBUG: Entry signal notification suppressed - only send when position actually opens")
             return
-                
+
         except Exception as e:
             self.logger.error(f"Failed to send entry signal report: {e}")
 

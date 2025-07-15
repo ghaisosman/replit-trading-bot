@@ -427,8 +427,10 @@ For MAINNET:
                 # Execute the signal first
                 position = self.order_manager.execute_signal(signal, strategy_config)
 
-                # Only send notifications if position was actually opened successfully
                 if position:
+                    self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:,.1f} | Qty: {position.quantity:,.1f} | SL: ${position.stop_loss:,.1f} | TP: ${position.take_profit:,.1f}")
+
+                    # Send entry signal notification ONCE when position is actually opened
                     self.telegram_reporter.report_entry_signal(strategy_name, {
                         'symbol': strategy_config['symbol'],
                         'signal_type': signal.signal_type.value,
@@ -437,9 +439,6 @@ For MAINNET:
                         'take_profit': signal.take_profit,
                         'reason': signal.reason
                     })
-
-                if position:
-                    self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:,.1f} | Qty: {position.quantity:,.1f} | SL: ${position.stop_loss:,.1f} | TP: ${position.take_profit:,.1f}")
 
                     # Report position opened
                     from dataclasses import asdict
@@ -720,7 +719,7 @@ For MAINNET:
                                 quantity = abs(position_amt)
 
                                 # Re-validate this position with enhanced validation
-                                is_legitimate, trade_id = self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price)
+                                is_legitimate, trade_id = self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price)```python
                                 if is_legitimate and trade_id:
                                     self.logger.info(f"🔍 MISIDENTIFIED POSITION FOUND | {strategy_name.upper()} | {symbol} | Clearing ghost anomaly and recovering position")
 
