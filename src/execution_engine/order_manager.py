@@ -298,16 +298,16 @@ class OrderManager:
             # Calculate quantity in base currency
             quantity = position_value_usdt / signal.entry_price
 
-            # Apply symbol-specific precision
+            # Apply symbol-specific precision for futures trading
             if 'SOL' in signal.symbol:
-                # SOL typically uses 1 decimal place for quantity
-                quantity = round(quantity, 1)
+                # SOL futures uses 0 decimal places (whole numbers only)
+                quantity = round(quantity, 0)
             elif 'BTC' in signal.symbol:
-                # BTC typically uses 3 decimal places for quantity
+                # BTC futures typically uses 3 decimal places for quantity
                 quantity = round(quantity, 3)
             else:
-                # Default to 2 decimal places
-                quantity = round(quantity, 2)
+                # Default to 1 decimal place for most futures
+                quantity = round(quantity, 1)
 
             # Ensure minimum quantity
             if quantity < 0.1:
