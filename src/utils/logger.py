@@ -212,18 +212,22 @@ class ColoredFormatter(logging.Formatter):
 ╚═══════════════════════════════════════════════════╝{reset}
 """
         elif "MARKET ASSESSMENT" in message:
-            # Market assessment - group all related info in one block
-            msg_lines = format_structured_message(message)
-            
-            # Check if this is part of a multi-line market assessment
-            if len(msg_lines) == 1 and not " | " in message:
-                # This is likely a standalone component, format simply
-                formatted_message = f"{separator}{text_color}│ {message}{reset}\n"
+            # Check if this is the start of a consolidated market assessment
+            if message.strip() == "📈 MARKET ASSESSMENT":
+                # This is the start of a market assessment block - start collecting
+                formatted_message = f"{separator}{text_color}┌─────────────────────────────────────────────────┐\n│ 📈 MARKET ASSESSMENT                           │\n│ ⏰ {timestamp}                                      │\n│                                                 │\n│ {message}                                       │{reset}\n"
+            elif any(keyword in message for keyword in ["Interval", "Symbol:", "🎯", "💵 Price:", "📈 MACD:", "📈 RSI:", "🔍 SCANNING"]):
+                # This is part of a market assessment - continue the block
+                formatted_message = f"{text_color}│ {message}                                       │{reset}\n"
+                # If this is the last line (SCANNING FOR ENTRY), close the block
+                if "🔍 SCANNING FOR ENTRY" in message:
+                    formatted_message += f"{text_color}│                                                 │\n└─────────────────────────────────────────────────┘{reset}\n"
             else:
-                # Full market assessment block
+                # Fallback for other market assessment formats
+                msg_lines = format_structured_message(message)
                 formatted_lines = "│\n".join([f"│ {line}" for line in msg_lines])
                 formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
-│ 📈 MARKET SCAN                                  │
+│ 📈 MARKET ASSESSMENT                           │
 │ ⏰ {timestamp}                                      │
 │                                                 │
 {formatted_lines}

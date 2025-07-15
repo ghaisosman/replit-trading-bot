@@ -520,25 +520,44 @@ For MAINNET:
                 else:
                     self.logger.warning(f"❌ POSITION FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not execute signal")
             else:
-                # Get current RSI for logging
+                # Get assessment interval for logging
+                assessment_interval = strategy_config.get('assessment_interval', 300)
+                
+                # Get additional indicators for consolidated logging
+                margin = strategy_config.get('margin', 50.0)
+                leverage = strategy_config.get('leverage', 5)
+                
+                # Get current RSI
                 current_rsi = None
                 if 'rsi' in df.columns:
                     current_rsi = df['rsi'].iloc[-1]
 
-                # Log market assessment
-                self.logger.info(f"📈 MARKET ASSESSMENT")
-                self.logger.info(f"🎯 Strategy: {strategy_name.upper()}")
-                self.logger.info(f"💱 Symbol: {strategy_config['symbol']}")
-                self.logger.info(f"💵 Price: ${current_price:,.1f}")
-                if current_rsi is not None:
-                    self.logger.info(f"📈 RSI: {current_rsi:.2f}")
-                margin = strategy_config.get('margin', 50.0)
-                self.logger.info(f"📊 Margin: ${margin:.1f}")
-
-                if strategy_name == 'rsi_oversold':
-                    self.logger.info(f"📈 RSI Analysis")
-                elif strategy_name == 'macd_divergence':
-                    self.logger.info(f"📈 MACD Analysis")
+                # Strategy-specific consolidated market assessment
+                if strategy_name == 'macd_divergence':
+                    # Get MACD values for display
+                    macd_line = df['macd'].iloc[-1] if 'macd' in df.columns else 0.0
+                    macd_signal = df['macd_signal'].iloc[-1] if 'macd_signal' in df.columns else 0.0
+                    macd_histogram = df['macd_histogram'].iloc[-1] if 'macd_histogram' in df.columns else 0.0
+                    
+                    # Consolidated MACD market assessment
+                    self.logger.info(f"📈 MARKET ASSESSMENT")
+                    self.logger.info(f"Interval {assessment_interval} seconds")
+                    self.logger.info(f"💱 Symbol: {strategy_config['symbol']}")
+                    self.logger.info(f"🎯 {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x")
+                    self.logger.info(f"💵 Price: ${current_price:,.1f}")
+                    self.logger.info(f"📈 MACD: {macd_line:.6f} | Signal: {macd_signal:.6f} | Histogram: {macd_histogram:.6f}")
+                    self.logger.info(f"🔍 SCANNING FOR ENTRY")
+                    
+                elif strategy_name == 'rsi_oversold':
+                    # Consolidated RSI market assessment
+                    self.logger.info(f"📈 MARKET ASSESSMENT")
+                    self.logger.info(f"Interval {assessment_interval} seconds")
+                    self.logger.info(f"💱 Symbol: {strategy_config['symbol']}")
+                    self.logger.info(f"🎯 {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x")
+                    self.logger.info(f"💵 Price: ${current_price:,.1f}")
+                    if current_rsi is not None:
+                        self.logger.info(f"📈 RSI: {current_rsi:.2f}")
+                    self.logger.info(f"🔍 SCANNING FOR ENTRY")
 
         except Exception as e:
             self.logger.error(f"Error processing strategy {strategy_name}: {e}")
