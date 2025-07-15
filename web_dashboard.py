@@ -130,9 +130,15 @@ def dashboard():
                 current_price = get_current_price(position.symbol)
                 pnl = calculate_pnl(position, current_price) if current_price else 0
                 
-                # Calculate PnL percentage against margin (for futures with leverage)
+                # Calculate position value and margin invested
                 position_value = position.entry_price * position.quantity
-                margin_invested = position_value / 5  # Default 5x leverage
+                
+                # Get leverage from strategy config
+                strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
+                leverage = strategy_config.get('leverage', 5)  # Default 5x leverage
+                margin_invested = position_value / leverage
+                
+                # Calculate PnL percentage against margin invested (correct for futures)
                 pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
                 
                 active_positions.append({
@@ -141,6 +147,8 @@ def dashboard():
                     'side': position.side,
                     'entry_price': position.entry_price,
                     'quantity': position.quantity,
+                    'position_value_usdt': position_value,  # Add position value in USDT
+                    'margin_invested': margin_invested,     # Add margin invested
                     'current_price': current_price,
                     'pnl': pnl,
                     'pnl_percent': pnl_percent
@@ -502,9 +510,15 @@ def get_positions():
                 current_price = get_current_price(position.symbol)
                 pnl = calculate_pnl(position, current_price) if current_price else 0
                 
-                # Calculate PnL percentage against margin (for futures with leverage)
+                # Calculate position value and margin invested
                 position_value = position.entry_price * position.quantity
-                margin_invested = position_value / 5  # Default 5x leverage
+                
+                # Get leverage from strategy config
+                strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
+                leverage = strategy_config.get('leverage', 5)  # Default 5x leverage
+                margin_invested = position_value / leverage
+                
+                # Calculate PnL percentage against margin invested (correct for futures)
                 pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
                 
                 positions.append({
@@ -513,6 +527,8 @@ def get_positions():
                     'side': position.side,
                     'entry_price': position.entry_price,
                     'quantity': position.quantity,
+                    'position_value_usdt': position_value,  # Add position value in USDT
+                    'margin_invested': margin_invested,     # Add margin invested
                     'current_price': current_price,
                     'pnl': pnl,
                     'pnl_percent': pnl_percent

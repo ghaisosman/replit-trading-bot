@@ -120,7 +120,7 @@
                                             <th>Symbol</th>
                                             <th>Side</th>
                                             <th>Entry Price</th>
-                                            <th>Quantity</th>
+                                            <th>Position (USDT)</th>
                                             <th>Current Price</th>
                                             <th>PnL (USDT)</th>
                                             <th>PnL (%)</th>
@@ -604,7 +604,7 @@
                         <td>${position.symbol}</td>
                         <td><span class="badge bg-${sideClass}">${position.side}</span></td>
                         <td>$${position.entry_price.toFixed(1)}</td>
-                        <td>${position.quantity.toFixed(1)}</td>
+                        <td>$${position.position_value_usdt ? position.position_value_usdt.toFixed(1) : (position.entry_price * position.quantity).toFixed(1)}</td>
                         <td>${position.current_price ? '$' + position.current_price.toFixed(1) : 'N/A'}</td>
                         <td class="${pnlClass}">$${position.pnl.toFixed(1)}</td>
                         <td class="${pnlClass}">${position.pnl_percent > 0 ? '+' : ''}${position.pnl_percent.toFixed(1)}%</td>
