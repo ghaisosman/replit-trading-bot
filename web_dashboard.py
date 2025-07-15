@@ -679,44 +679,94 @@ def export_trade_data():
 def get_console_log():
     """Get recent console log output"""
     try:
-        # Read recent logs from the logger
-        import logging
-        
-        # Get the root logger's handlers
-        root_logger = logging.getLogger()
         log_lines = []
         
-        # Try to get logs from file handler if it exists
-        try:
-            log_file_path = "trading_data/bot.log"
-            if os.path.exists(log_file_path):
-                with open(log_file_path, 'r') as f:
-                    lines = f.readlines()
-                    # Get last 100 lines
-                    recent_lines = lines[-100:] if len(lines) > 100 else lines
-                    log_lines = [line.strip() for line in recent_lines if line.strip()]
-        except Exception as e:
-            logger.debug(f"Could not read log file: {e}")
+        # Try multiple log file locations
+        log_file_paths = [
+            "trading_bot.log",
+            "trading_data/bot.log", 
+            "bot.log"
+        ]
         
-        # If no file logs, provide basic status info
+        for log_file_path in log_file_paths:
+            if os.path.exists(log_file_path):
+                try:
+                    with open(log_file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        lines = f.readlines()
+                        # Get last 150 lines for more context
+                        recent_lines = lines[-150:] if len(lines) > 150 else lines
+                        log_lines = [line.rstrip('\n\r') for line in recent_lines if line.strip()]
+                    break
+                except Exception as e:
+                    logger.debug(f"Could not read log file {log_file_path}: {e}")
+                    continue
+        
+        # If no file logs found, try to capture live logger output
+        if not log_lines:
+            # Check if we have access to a logger with handlers
+            try:
+                import logging
+                root_logger = logging.getLogger()
+                
+                # Look for file handlers
+                for handler in root_logger.handlers:
+                    if hasattr(handler, 'baseFilename'):
+                        try:
+                            with open(handler.baseFilename, 'r', encoding='utf-8', errors='ignore') as f:
+                                lines = f.readlines()
+                                recent_lines = lines[-150:] if len(lines) > 150 else lines
+                                log_lines = [line.rstrip('\n\r') for line in recent_lines if line.strip()]
+                            break
+                        except Exception as e:
+                            logger.debug(f"Could not read handler log file: {e}")
+                            continue
+            except Exception as e:
+                logger.debug(f"Could not access logger handlers: {e}")
+        
+        # Final fallback: provide basic status info with better context
         if not log_lines:
             current_bot = shared_bot_manager if shared_bot_manager else bot_manager
             if current_bot:
                 if hasattr(current_bot, 'is_running') and current_bot.is_running:
+                    # Get more detailed status
+                    active_positions = len(current_bot.order_manager.active_positions) if current_bot.order_manager else 0
+                    strategies = list(current_bot.strategies.keys()) if hasattr(current_bot, 'strategies') and current_bot.strategies else []
+                    
                     log_lines = [
-                        f"🤖 Bot Status: RUNNING",
-                        f"📊 Active Positions: {len(current_bot.order_manager.active_positions) if current_bot.order_manager else 0}",
-                        f"⏰ {datetime.now().strftime('%H:%M:%S')} - Bot monitoring markets..."
+                        "╔═══════════════════════════════════════════════════╗",
+                        "║ 🤖 BOT STATUS                                    ║",
+                        f"║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║",
+                        "║                                                   ║",
+                        "║ 🟢 Status: RUNNING                               ║",
+                        f"║ 📊 Active Positions: {active_positions}                         ║",
+                        f"║ 🎯 Active Strategies: {', '.join(strategies)}║" if strategies else "║ 🎯 Active Strategies: Loading...                ║",
+                        "║                                                   ║",
+                        "║ 💡 Console logs will appear here when bot        ║",
+                        "║    performs market analysis and trading          ║",
+                        "║                                                   ║",
+                        "╚═══════════════════════════════════════════════════╝"
                     ]
                 else:
                     log_lines = [
-                        f"🤖 Bot Status: STOPPED",
-                        f"⏰ {datetime.now().strftime('%H:%M:%S')} - Use web interface to start bot"
+                        "╔═══════════════════════════════════════════════════╗",
+                        "║ 🤖 BOT STATUS                                    ║",
+                        f"║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║",
+                        "║                                                   ║",
+                        "║ 🔴 Status: STOPPED                               ║",
+                        "║ 💡 Use the Start Bot button to begin trading     ║",
+                        "║                                                   ║",
+                        "╚═══════════════════════════════════════════════════╝"
                     ]
             else:
                 log_lines = [
-                    f"🤖 Bot Status: NOT INITIALIZED", 
-                    f"⏰ {datetime.now().strftime('%H:%M:%S')} - Waiting for bot startup"
+                    "╔═══════════════════════════════════════════════════╗",
+                    "║ 🤖 BOT STATUS                                    ║",
+                    f"║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║",
+                    "║                                                   ║",
+                    "║ ⚪ Status: NOT INITIALIZED                        ║",
+                    "║ 💡 Bot is starting up...                         ║",
+                    "║                                                   ║",
+                    "╚═══════════════════════════════════════════════════╝"
                 ]
         
         return jsonify({'success': True, 'logs': log_lines})

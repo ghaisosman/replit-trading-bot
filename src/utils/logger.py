@@ -1,5 +1,6 @@
 import logging
 import sys
+import os
 from datetime import datetime
 
 class ColoredFormatter(logging.Formatter):
@@ -303,10 +304,16 @@ def setup_logger():
     console_handler.setFormatter(ColoredFormatter())
     console_handler.setLevel(logging.INFO)
 
-    # File handler with simple format
+    # File handler with simple format - ensure directory exists
+    os.makedirs('trading_data', exist_ok=True)
     file_handler = logging.FileHandler('trading_bot.log')
     file_handler.setFormatter(SimpleFileFormatter())
     file_handler.setLevel(logging.DEBUG)
+    
+    # Also create a copy in trading_data for web interface
+    file_handler_web = logging.FileHandler('trading_data/bot.log')
+    file_handler_web.setFormatter(SimpleFileFormatter())
+    file_handler_web.setLevel(logging.INFO)
 
     # Root logger
     root_logger = logging.getLogger()
@@ -317,6 +324,7 @@ def setup_logger():
 
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
+    root_logger.addHandler(file_handler_web)
 
     # Suppress noisy loggers
     logging.getLogger('urllib3').setLevel(logging.WARNING)
