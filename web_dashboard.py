@@ -933,7 +933,3 @@ if __name__ == '__main__':
     logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
     logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
-if __name__ == '__main__':
-    logger.info("🌐 WEB DASHBOARD: Starting web interface on http://0.0.0.0:5000")
-    logger.info("🌐 WEB DASHBOARD: Dashboard ready for bot control")
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
