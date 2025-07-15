@@ -299,21 +299,28 @@ class OrderManager:
             quantity = position_value_usdt / signal.entry_price
 
             # Apply symbol-specific precision for futures trading
-            if signal.symbol.startswith('SOL'):
+            symbol_upper = signal.symbol.upper()
+            self.logger.info(f"🔍 PRECISION CHECK: Symbol = {signal.symbol} | Upper = {symbol_upper} | Quantity = {quantity:.6f}")
+
+            if 'SOLUSDT' in symbol_upper or 'SOL' in symbol_upper:
                 # SOL futures uses 0 decimal places (whole numbers only)
                 original_quantity = quantity
                 quantity = float(max(1, int(round(quantity))))  # Ensure it's a float for API consistency
-                self.logger.info(f"🔧 SOL PRECISION: Original {original_quantity:.3f} → Fixed to {quantity}")
-            elif signal.symbol.startswith('BTC'):
+                self.logger.info(f"🔧 SOL PRECISION FIX APPLIED: Original {original_quantity:.6f} → Fixed to {quantity}")
+            elif 'BTCUSDT' in symbol_upper or 'BTC' in symbol_upper:
                 # BTC futures typically uses 3 decimal places for quantity
+                original_quantity = quantity
                 quantity = round(quantity, 3)
                 if quantity < 0.001:
                     quantity = 0.001
+                self.logger.info(f"🔧 BTC PRECISION FIX APPLIED: Original {original_quantity:.6f} → Fixed to {quantity}")
             else:
                 # Default to 1 decimal place for most futures
+                original_quantity = quantity
                 quantity = round(quantity, 1)
                 if quantity < 0.1:
                     quantity = 0.1
+                self.logger.info(f"🔧 DEFAULT PRECISION: Original {original_quantity:.6f} → Fixed to {quantity}")
 
             self.logger.info(f"✅ Position size calculated for {signal.symbol}: {quantity} (Margin: ${margin}, Entry: ${signal.entry_price})")
             return quantity
