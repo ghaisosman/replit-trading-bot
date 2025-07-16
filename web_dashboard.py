@@ -5,6 +5,7 @@ Complete web interface for managing the trading bot
 """
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask_cors import CORS
 import json
 import asyncio
 import threading
@@ -18,6 +19,9 @@ trades_dir = Path("trading_data/trades")
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
+
+# Enable CORS for web dashboard
+CORS(app)
 
 # Suppress Flask's default request logging to reduce console noise
 import logging as flask_logging
@@ -863,6 +867,69 @@ def calculate_pnl(position, current_price):
     else:  # Short position
         return (position.entry_price - current_price) * position.quantity
 
+@app.route('/api/binance/positions', methods=['GET'])
+def get_binance_positions():
+    """Fetch and return open positions from the positions.json file."""
+    try:
+        # Construct the absolute path to the positions.json file
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        positions_file_path = os.path.join(script_dir, 'trading_data', 'positions.json')
+
+        # Check if the positions.json file exists
+        if not os.path.exists(positions_file_path):
+            return jsonify({'error': 'positions.json file not found'}), 404
+
+        # Read position data from the positions.json file
+        with open(positions_file_path, 'r') as file:
+            positions_data = json.load(file)
+
+        # Check if positions_data is a list; if not, return an error
+        if not isinstance(positions_data, list):
+            return jsonify({'error': 'positions.json data is not a list'}), 500
+
+        positions = []
+        for pos in positions_data:
+            # Extract relevant information from each position
+            symbol = pos.get('symbol', 'N/A')
+            position_amt = float(pos.get('positionAmt', 0))
+
+            # Filter out positions with insignificant amounts
+            if abs(position_amt) > 0.001:
+                unrealized_pnl_usdt = float(pos.get('unRealizedPnl', 0))
+                entry_price = float(pos.get('entryPrice', 0))
+                liquidation_price = float(pos.get('liquidationPrice', 0))
+                leverage = int(float(pos.get('leverage', 1)))
+
+                # Determine the side based on the position amount
+                side = 'BUY' if position_amt > 0 else 'SELL'
+
+                # Append position data to the list
+                positions.append({
+                    'symbol': symbol,
+                    'side': side,
+                    'entryPrice': entry_price,
+                    'unrealizedPnl': unrealized_pnl_usdt,
+                    'liquidationPrice': liquidation_price,
+                    'leverage': leverage,
+                    'positionAmt': position_amt
+                })
+
+        # Log success
+        logger.info(f"Successfully processed {len(positions)} positions from positions.json")
+
+        # Return the structured position data
+        return jsonify(positions), 200
+
+    except FileNotFoundError:
+        logger.error("positions.json file not found")
+        return jsonify({'error': 'positions.json file not found'}), 404
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to decode positions.json: {e}")
+        return jsonify({'error': 'Failed to decode positions.json'}), 500
+    except Exception as e:
+        logger.exception("An unexpected error occurred")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/health')
 def health_check():
     """Simple health check endpoint"""
@@ -967,86 +1034,5 @@ def update_strategy_config():
         logger.error(f"❌ WEB DASHBOARD UPDATE ERROR | {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import json
-import os
-import logging
-import re
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-app = Flask(__name__)
-CORS(app)
-
-@app.route('/api/binance/positions', methods=['GET'])
-def get_binance_positions():
-    """
-    Fetch and return open positions from the positions.json file.
-    """
-    try:
-        # Construct the absolute path to the positions.json file
-        script_dir = os.path.dirname(os.path.abspath(__file__))  # Directory of the current script
-        positions_file_path = os.path.join(script_dir, 'trading_data', 'positions.json')
-
-        # Check if the positions.json file exists
-        if not os.path.exists(positions_file_path):
-            return jsonify({'error': 'positions.json file not found'}), 404
-
-        # Read position data from the positions.json file
-        with open(positions_file_path, 'r') as file:
-            positions_data = json.load(file)
-
-        # Check if positions_data is a list; if not, return an error
-        if not isinstance(positions_data, list):
-            return jsonify({'error': 'positions.json data is not a list'}), 500
-
-        positions = []
-        for pos in positions_data:
-            # Extract relevant information from each position
-            symbol = pos.get('symbol', 'N/A')
-            position_amt = float(pos.get('positionAmt', 0))
-
-            # Filter out positions with insignificant amounts
-            if abs(position_amt) > 0.001:
-                unrealized_pnl_usdt = float(pos.get('unRealizedPnl', 0))
-                entry_price = float(pos.get('entryPrice', 0))
-                liquidation_price = float(pos.get('liquidationPrice', 0))
-                leverage = int(float(pos.get('leverage', 1)))
-
-                # Determine the side based on the position amount
-                side = 'BUY' if position_amt > 0 else 'SELL'
-
-                # Append position data to the list
-                positions.append({
-                    'symbol': symbol,
-                    'side': side,
-                    'entryPrice': entry_price,
-                    'unrealizedPnl': unrealized_pnl_usdt,
-                    'liquidationPrice': liquidation_price,
-                    'leverage': leverage,
-                    'positionAmt': position_amt
-                })
-
-        # Log success
-        logging.info(f"Successfully processed {len(positions)} positions from positions.json")
-
-        # Return the structured position data
-        return jsonify(positions), 200
-
-    except FileNotFoundError:
-        # Log the error
-        logging.error("positions.json file not found")
-        return jsonify({'error': 'positions.json file not found'}), 404
-    except json.JSONDecodeError as e:
-        # Log the error
-        logging.error(f"Failed to decode positions.json: {e}")
-        return jsonify({'error': 'Failed to decode positions.json'}), 500
-    except Exception as e:
-        # Log the error
-        logging.exception("An unexpected error occurred")
-        return jsonify({'error': str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+# This section was causing duplicate Flask instances - removed to prevent port conflicts
+# The web dashboard should only run when imported by main.py
