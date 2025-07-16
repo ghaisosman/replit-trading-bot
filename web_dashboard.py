@@ -884,7 +884,7 @@ if __name__ == '__main__':
     print("💡 Run 'python main.py' instead - it includes the web dashboard")
 
 @app.route('/api/strategy/update', methods=['POST'])
-def update_strategy():
+def update_strategy_config():
     try:
         data = request.get_json()
         strategy_name = data.get('strategy_name')
