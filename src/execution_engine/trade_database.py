@@ -27,6 +27,9 @@ class TradeDatabase:
                     data = json.load(f)
                     self.trades = data.get('trades', {})
                     self.logger.debug(f"Loaded {len(self.trades)} trades from database")
+                    
+                    # Automatic cleanup of stale trades on load
+                    self.cleanup_stale_open_trades(hours=6)  # Clean trades older than 6 hours
             else:
                 self.logger.info("Trade database file not found, starting with empty database")
                 self.trades = {}
