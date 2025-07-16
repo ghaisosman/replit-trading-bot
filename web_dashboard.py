@@ -1024,6 +1024,9 @@ def trades_database():
                         trade[key] = 0
                     else:
                         trade[key] = 'N/A'
+            
+            # FIX: Pre-calculate absolute values for template (abs() not available in Jinja2)
+            trade['abs_pnl_usdt'] = abs(trade.get('pnl_usdt', 0))
         
         # Now sort safely - all None values have been eliminated
         try:

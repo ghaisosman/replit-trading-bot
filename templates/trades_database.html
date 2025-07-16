@@ -182,7 +182,7 @@
                                     {% if trade.pnl_usdt > 0 %}
                                         <span class="pnl-positive">+${{ "%.2f"|format(trade.pnl_usdt) }}</span>
                                     {% elif trade.pnl_usdt < 0 %}
-                                        <span class="pnl-negative">-${{ "%.2f"|format(abs(trade.pnl_usdt)) }}</span>
+                                        <span class="pnl-negative">-${{ "%.2f"|format(trade.abs_pnl_usdt) }}</span>
                                     {% else %}
                                         <span class="pnl-neutral">$0.00</span>
                                     {% endif %}
