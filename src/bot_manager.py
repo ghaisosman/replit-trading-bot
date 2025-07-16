@@ -396,7 +396,7 @@ For MAINNET:
                     # For futures trading, PnL percentage should be calculated against margin invested, not position value
                     pnl_percent = (pnl_usdt / margin_invested) * 100 if margin_invested > 0 else 0
 
-                    # Show comprehensive position status with proper formatting - fixed nested box issue
+                    # Show comprehensive position status with proper formatting
                     self.logger.info(f"""╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
@@ -792,7 +792,7 @@ Interval: every {assessment_interval} seconds
                             position_amt = float(position.get('positionAmt', 0))
 
                             # Use a more restrictive threshold to avoid recovering tiny positions
-                            if abs(position_amt) > 0.001:  # Position exists and is significant
+                            if abs(position_amt) > 0.0001:  # Position exists and is significant (lowered for MACD)
                                 # Recover position details
                                 entry_price = float(position.get('entryPrice', 0))
                                 side = 'BUY' if position_amt > 0 else 'SELL'
@@ -839,40 +839,54 @@ Interval: every {assessment_interval} seconds
 
                                     self.logger.info(f"✅ POSITION RECOVERED | Trade ID: {trade_id} | {strategy_name.upper()} | {symbol} | Entry: ${entry_price:,.4f} | Qty: {quantity:,.6f}")
                                 else:
-                                    # No trade ID found - try to recover anyway if it looks like a bot position
-                                    # This handles cases where the position exists but wasn't properly logged
-                                    self.logger.warning(f"🔍 POSITION WITHOUT TRADE ID | {strategy_name.upper()} | {symbol} | Attempting recovery anyway")
+                                    # No trade ID found - check if this might be a recent bot position
+                                    # For MACD strategy, be more aggressive in recovery since it might have been opened recently
+                                    should_recover = False
                                     
-                                    from src.execution_engine.order_manager import Position
-                                    from datetime import datetime
-                                    import uuid
+                                    if strategy_name == 'macd_divergence':
+                                        # For MACD, recover positions if they're reasonable sizes and recent
+                                        should_recover = abs(quantity) >= 0.001 and entry_price > 0
+                                        self.logger.info(f"🔍 MACD RECOVERY CHECK | {symbol} | Qty: {quantity} | Entry: ${entry_price} | Recovering: {should_recover}")
+                                    elif strategy_name == 'rsi_oversold':
+                                        # For RSI, be more conservative 
+                                        should_recover = abs(quantity) >= 0.1 and entry_price > 0
+                                        self.logger.info(f"🔍 RSI RECOVERY CHECK | {symbol} | Qty: {quantity} | Entry: ${entry_price} | Recovering: {should_recover}")
+                                    
+                                    if should_recover:
+                                        self.logger.warning(f"🔍 POSITION WITHOUT TRADE ID | {strategy_name.upper()} | {symbol} | Attempting recovery anyway")
+                                        
+                                        from src.execution_engine.order_manager import Position
+                                        from datetime import datetime
+                                        import uuid
 
-                                    # Generate a recovery trade ID
-                                    recovery_trade_id = f"recovery_{strategy_name}_{symbol}_{int(datetime.now().timestamp())}"
+                                        # Generate a recovery trade ID
+                                        recovery_trade_id = f"recovery_{strategy_name}_{symbol}_{int(datetime.now().timestamp())}"
 
-                                    recovered_position = Position(
-                                        strategy_name=strategy_name,
-                                        symbol=symbol,
-                                        side=side,
-                                        entry_price=entry_price,
-                                        quantity=quantity,
-                                        stop_loss=entry_price * 0.985 if side == 'BUY' else entry_price * 1.015,
-                                        take_profit=entry_price * 1.025 if side == 'BUY' else entry_price * 0.975,
-                                        position_side='LONG' if side == 'BUY' else 'SHORT',
-                                        order_id=0,
-                                        entry_time=datetime.now(),
-                                        status='RECOVERED_NO_ID',
-                                        trade_id=recovery_trade_id
-                                    )
+                                        recovered_position = Position(
+                                            strategy_name=strategy_name,
+                                            symbol=symbol,
+                                            side=side,
+                                            entry_price=entry_price,
+                                            quantity=quantity,
+                                            stop_loss=entry_price * 0.985 if side == 'BUY' else entry_price * 1.015,
+                                            take_profit=entry_price * 1.025 if side == 'BUY' else entry_price * 0.975,
+                                            position_side='LONG' if side == 'BUY' else 'SHORT',
+                                            order_id=0,
+                                            entry_time=datetime.now(),
+                                            status='RECOVERED_NO_ID',
+                                            trade_id=recovery_trade_id
+                                        )
 
-                                    # Add to active positions
-                                    self.order_manager.active_positions[strategy_name] = recovered_position
-                                    recovered_count += 1
+                                        # Add to active positions
+                                        self.order_manager.active_positions[strategy_name] = recovered_position
+                                        recovered_count += 1
 
-                                    # Notify anomaly detector that this is a legitimate bot position
-                                    self.anomaly_detector.register_bot_trade(symbol, strategy_name)
+                                        # Notify anomaly detector that this is a legitimate bot position
+                                        self.anomaly_detector.register_bot_trade(symbol, strategy_name)
 
-                                    self.logger.info(f"✅ POSITION RECOVERED (NO ID) | Recovery ID: {recovery_trade_id} | {strategy_name.upper()} | {symbol} | Entry: ${entry_price:,.4f} | Qty: {quantity:,.6f}")
+                                        self.logger.info(f"✅ POSITION RECOVERED (NO ID) | Recovery ID: {recovery_trade_id} | {strategy_name.upper()} | {symbol} | Entry: ${entry_price:,.4f} | Qty: {quantity:,.6f}")
+                                    else:
+                                        self.logger.warning(f"🚨 SKIPPING RECOVERY | {strategy_name.upper()} | {symbol} | Position doesn't meet recovery criteria")
 
                                 break  # Only one position per strategy
 
