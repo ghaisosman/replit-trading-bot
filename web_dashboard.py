@@ -980,6 +980,48 @@ def ml_reports():
     """ML Reports page"""
     return render_template('ml_reports.html')
 
+@app.route('/trades_database')
+def trades_database():
+    """Trades Database page"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return render_template('trades_database.html', trades=[], error="Database not available in demo mode")
+        
+        # Get all trades from the database
+        from src.execution_engine.trade_database import TradeDatabase
+        trade_db = TradeDatabase()
+        
+        # Convert trades to list format for template
+        trades_list = []
+        for trade_id, trade_data in trade_db.trades.items():
+            trade_info = {
+                'trade_id': trade_id,
+                'strategy_name': trade_data.get('strategy_name', 'N/A'),
+                'symbol': trade_data.get('symbol', 'N/A'),
+                'side': trade_data.get('side', 'N/A'),
+                'entry_price': trade_data.get('entry_price', 0),
+                'exit_price': trade_data.get('exit_price', 0),
+                'quantity': trade_data.get('quantity', 0),
+                'leverage': trade_data.get('leverage', 0),
+                'margin_usdt': trade_data.get('margin_usdt', 0),
+                'trade_status': trade_data.get('trade_status', 'UNKNOWN'),
+                'timestamp': trade_data.get('timestamp', 'N/A'),
+                'exit_reason': trade_data.get('exit_reason', 'N/A'),
+                'pnl_usdt': trade_data.get('pnl_usdt', 0),
+                'pnl_percentage': trade_data.get('pnl_percentage', 0),
+                'duration_minutes': trade_data.get('duration_minutes', 0)
+            }
+            trades_list.append(trade_info)
+        
+        # Sort by timestamp (newest first)
+        trades_list.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        return render_template('trades_database.html', trades=trades_list, total_trades=len(trades_list))
+        
+    except Exception as e:
+        logger.error(f"Error loading trades database page: {e}")
+        return render_template('trades_database.html', trades=[], error=str(e))
+
 @app.route('/api/ml_insights')
 def get_ml_insights():
     """Get ML insights for the dashboard"""
