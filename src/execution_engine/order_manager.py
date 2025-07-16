@@ -95,7 +95,7 @@ class OrderManager:
 
             # Set leverage before creating order
             leverage = strategy_config.get('leverage', 1)
-            
+
             self.logger.info(f"🔧 SETTING LEVERAGE | {symbol} | Requested: {leverage}x | From Config: {strategy_config}")
 
             # Set leverage for the symbol
@@ -148,7 +148,7 @@ class OrderManager:
                 entry_time=datetime.now(),
                 status="OPEN"
             )
-            
+
             # Store strategy config reference for exit condition evaluation
             position.strategy_config = strategy_config
 
@@ -174,18 +174,18 @@ class OrderManager:
             timeframe = strategy_config.get('timeframe', 'N/A')
             margin = strategy_config.get('margin', 0.0)
             leverage = strategy_config.get('leverage', 1)
-            
+
             # Calculate actual position value and margin used
             position_value_usdt = position.entry_price * position.quantity
             actual_margin_used = position_value_usdt / leverage
-            
+
             # Get current indicator value based on strategy - this would be enhanced to receive actual values
             current_indicator = "N/A"
             if 'macd' in strategy_name.lower():
                 current_indicator = "MACD: N/A"  # Placeholder - could be enhanced to show actual MACD values
             elif 'rsi' in strategy_name.lower():
                 current_indicator = "RSI: N/A"  # Placeholder - could be enhanced to show actual RSI value
-            
+
             # Position opened format with corrected margin display
             position_opened_message = f"""╔═══════════════════════════════════════════════════╗
 ║ ✅ POSITION OPENED                               ║
@@ -237,7 +237,7 @@ class OrderManager:
                 leverage = 5  # Default leverage
                 position_value = entry_price * quantity
                 margin_invested = position_value / leverage
-            
+
             pnl_percentage = (pnl / margin_invested) * 100 if margin_invested != 0 else 0
 
             return pnl, pnl_percentage
@@ -293,13 +293,13 @@ class OrderManager:
                         pnl_percentage=pnl_percentage,
                         max_drawdown=0  # Could be calculated if tracking is implemented
                     )
-                    
+
             except Exception as e:
                 self.logger.error(f"❌ Error logging trade exit: {e}")
 
             # Calculate duration before updating anything
             duration_minutes = (datetime.now() - position.entry_time).total_seconds() / 60 if position.entry_time else 0
-            
+
             # CRITICAL FIX: Update trade database when position closes
             try:
                 from src.execution_engine.trade_database import TradeDatabase
@@ -315,7 +315,7 @@ class OrderManager:
                 self.logger.debug(f"✅ Trade database updated for {position.trade_id}")
             except Exception as db_error:
                 self.logger.error(f"❌ Error updating trade database: {db_error}")
-            
+
             # Update position status
             position.status = "CLOSED"
 
@@ -323,7 +323,7 @@ class OrderManager:
             self._add_to_history(position)
             with self._position_lock:
                 del self.active_positions[strategy_name]
-            
+
             # Position closed format
             position_closed_message = f"""╔═══════════════════════════════════════════════════╗
 ║ 🔴 POSITION CLOSED                               ║
@@ -373,56 +373,59 @@ class OrderManager:
             # Cache symbol info to avoid repeated API calls
             if not hasattr(self, '_symbol_info_cache'):
                 self._symbol_info_cache = {}
-            
+
             if symbol in self._symbol_info_cache:
                 return self._symbol_info_cache[symbol]
-            
+
             # Fetch exchange info from Binance
             if self.binance_client.is_futures:
                 exchange_info = self.binance_client.client.futures_exchange_info()
             else:
                 exchange_info = self.binance_client.client.get_exchange_info()
-            
+
             # Find symbol info
             symbol_info = None
             for s in exchange_info['symbols']:
                 if s['symbol'] == symbol:
                     symbol_info = s
                     break
-            
+
             if symbol_info:
                 # Extract relevant filters
                 filters = {f['filterType']: f for f in symbol_info.get('filters', [])}
-                
+
                 # Get LOT_SIZE filter for quantity precision
                 lot_size = filters.get('LOT_SIZE', {})
                 min_qty = float(lot_size.get('minQty', 0.1))
                 step_size = float(lot_size.get('stepSize', 0.1))
-                
+
                 # Calculate precision from step size
                 precision = len(str(step_size).rstrip('0').split('.')[-1]) if '.' in str(step_size) else 0
-                
+
                 info = {
                     'min_qty': min_qty,
                     'step_size': step_size,
                     'precision': precision
                 }
-                
+
                 self._symbol_info_cache[symbol] = info
                 self.logger.debug(f"📋 SYMBOL INFO | {symbol} | Min: {min_qty} | Step: {step_size} | Precision: {precision}")
                 return info
-            
+
         except Exception as e:
             self.logger.warning(f"Could not fetch symbol info for {symbol}: {e}")
-        
+
         # Fallback to hardcoded rules if API fails
         return self._get_fallback_symbol_info(symbol)
-    
+
     def _get_fallback_symbol_info(self, symbol: str) -> Dict:
-        """Fallback symbol info if API call fails"""
+        """Fallback symbol info if API fails"""
         symbol_upper = symbol.upper()
-        
-        if 'SOL' in symbol_upper:
+
+        if 'ETH' in symbol_upper:
+            # ETHUSDT minimum position size is 20 USDT, precision is 2 decimals
+            return {'min_qty': 0.01, 'step_size': 0.01, 'precision': 2}
+        elif 'SOL' in symbol_upper:
             return {'min_qty': 0.01, 'step_size': 0.01, 'precision': 2}
         elif 'BTC' in symbol_upper:
             return {'min_qty': 0.001, 'step_size': 0.001, 'precision': 3}
@@ -454,17 +457,17 @@ class OrderManager:
             min_qty = symbol_info['min_qty']
             step_size = symbol_info['step_size']
             precision = symbol_info['precision']
-            
+
             original_quantity = quantity
-            
+
             # Round to proper precision based on step size
             quantity = round(quantity / step_size) * step_size
             quantity = round(quantity, precision)
-            
+
             # Ensure minimum quantity
             if quantity < min_qty:
                 quantity = min_qty
-            
+
             self.logger.info(f"🔧 DYNAMIC PRECISION | Original: {original_quantity:.6f} → Fixed: {quantity} | Min: {min_qty} | Step: {step_size}")
 
             # Calculate what the actual margin will be with this quantity
@@ -472,7 +475,7 @@ class OrderManager:
             actual_margin_will_be = actual_position_value / leverage
 
             self.logger.info(f"✅ FINAL POSITION SIZE | Symbol: {signal.symbol} | Quantity: {quantity} | Actual Position Value: ${actual_position_value:.2f} | Actual Margin: ${actual_margin_will_be:.2f}")
-            
+
             return quantity
 
         except Exception as e:
@@ -595,7 +598,7 @@ class OrderManager:
             from src.analytics.trade_logger import trade_logger
             # Get actual leverage from strategy config
             actual_leverage = position.strategy_config.get('leverage', 5) if hasattr(position, 'strategy_config') and position.strategy_config else 5
-            
+
             generated_trade_id = trade_logger.log_trade_entry(
                 strategy_name=position.strategy_name,
                 symbol=position.symbol,
