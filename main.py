@@ -296,6 +296,8 @@ if __name__ == "__main__":
         # Wait for web dashboard and keep alive
         time.sleep(2)
         logger.info("🌐 Deployment web dashboard active")
+        logger.info("💡 Access your bot via the web interface at your deployment URL")
+        logger.info("🔄 Bot can be started/stopped through the web dashboard")
         
         try:
             # Keep the process alive for web interface
@@ -304,6 +306,45 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             logger.info("🔴 Deployment shutdown")
     else:
+        # Development mode - check if bot is already running
+        try:
+            import psutil
+            current_pid = os.getpid()
+            bot_processes = []
+            
+            for proc in psutil.process_iter(['pid', 'cmdline']):
+                try:
+                    if proc.info['cmdline'] and len(proc.info['cmdline']) > 1:
+                        cmdline = ' '.join(proc.info['cmdline'])
+                        if 'python' in cmdline and 'main.py' in cmdline and proc.info['pid'] != current_pid:
+                            bot_processes.append(proc)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            
+            if bot_processes:
+                logger.warning("⚠️  EXISTING BOT PROCESS DETECTED")
+                logger.warning("🔍 Another instance of the bot appears to be running")
+                logger.warning("💡 Use the web dashboard to control the bot instead of console")
+                logger.warning("🌐 Web dashboard should be accessible at http://localhost:5000")
+                
+                # Still start web dashboard if not running
+                if not check_port_available(5000):
+                    logger.info("🌐 Web dashboard already running")
+                else:
+                    logger.info("🌐 Starting web dashboard...")
+                    web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
+                    web_thread.start()
+                
+                # Keep process alive for web interface
+                try:
+                    while True:
+                        time.sleep(10)
+                except KeyboardInterrupt:
+                    logger.info("🔴 Console interface shutdown")
+                return
+        except ImportError:
+            pass  # psutil not available, continue normally
+        
         # Original development mode
         bot_manager = None
         sys.modules[__name__].bot_manager = None
