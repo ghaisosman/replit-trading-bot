@@ -700,14 +700,22 @@ def get_console_log():
         # Try to get logs from web handler if bot is running
         if current_bot and hasattr(current_bot, 'log_handler') and hasattr(current_bot.log_handler, 'logs'):
             try:
-                web_logs = list(current_bot.log_handler.logs)
-                if web_logs:
-                    return jsonify({'success': True, 'logs': web_logs[-50:]})  # Last 50 logs
+                # Get recent logs from web handler
+                recent_logs = current_bot.log_handler.get_recent_logs(50)
+                if recent_logs and len(recent_logs) > 0:
+                    # Ensure all logs are strings
+                    string_logs = []
+                    for log in recent_logs:
+                        if isinstance(log, dict):
+                            string_logs.append(log.get('message', str(log)))
+                        else:
+                            string_logs.append(str(log))
+                    return jsonify({'success': True, 'logs': string_logs})
             except Exception as web_error:
                 logger.error(f"Error getting web logs: {web_error}")
         
         # Fallback to file-based logs
-        log_files = ["trading_bot.log", "bot.log", "main.log"]
+        log_files = ["trading_data/bot.log", "trading_bot.log", "bot.log", "main.log"]
         logs = []
 
         for log_file in log_files:
@@ -715,10 +723,20 @@ def get_console_log():
                 try:
                     with open(log_file, 'r') as f:
                         lines = f.readlines()
-                    # Get last 30 lines
+                    # Get last 30 lines and clean them
                     recent_lines = lines[-30:] if len(lines) > 30 else lines
-                    logs.extend([line.strip() for line in recent_lines if line.strip()])
-                    break
+                    cleaned_logs = []
+                    for line in recent_lines:
+                        cleaned_line = line.strip()
+                        if cleaned_line and len(cleaned_line) > 3:
+                            # Remove ANSI color codes if present
+                            import re
+                            cleaned_line = re.sub(r'\x1b\[[0-9;]*m', '', cleaned_line)
+                            cleaned_logs.append(cleaned_line)
+                    
+                    if cleaned_logs:
+                        logs.extend(cleaned_logs)
+                        break
                 except Exception as file_error:
                     logger.error(f"Error reading log file {log_file}: {file_error}")
                     continue
