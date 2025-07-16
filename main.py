@@ -42,7 +42,7 @@ def run_web_dashboard():
     """Run web dashboard in separate thread - keeps running even if bot stops"""
     global web_server_running
     logger = logging.getLogger(__name__)
-    
+
     # Check if running in deployment environment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
     if is_deployment:
@@ -281,24 +281,24 @@ if __name__ == "__main__":
 
     # Check if running in deployment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
-    
+
     if is_deployment:
         logger.info("🚀 STARTING IN REPLIT DEPLOYMENT MODE")
-        
+
         # In deployment, run simplified version
         bot_manager = None
         sys.modules[__name__].bot_manager = None
-        
+
         # Start web dashboard in background
         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
-        
+
         # Wait for web dashboard and keep alive
         time.sleep(2)
         logger.info("🌐 Deployment web dashboard active")
         logger.info("💡 Access your bot via the web interface at your deployment URL")
         logger.info("🔄 Bot can be started/stopped through the web dashboard")
-        
+
         try:
             # Keep the process alive for web interface
             while True:
@@ -311,7 +311,7 @@ if __name__ == "__main__":
             import psutil
             current_pid = os.getpid()
             bot_processes = []
-            
+
             for proc in psutil.process_iter(['pid', 'cmdline']):
                 try:
                     if proc.info['cmdline'] and len(proc.info['cmdline']) > 1:
@@ -320,13 +320,13 @@ if __name__ == "__main__":
                             bot_processes.append(proc)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
-            
+
             if bot_processes:
                 logger.warning("⚠️  EXISTING BOT PROCESS DETECTED")
                 logger.warning("🔍 Another instance of the bot appears to be running")
                 logger.warning("💡 Use the web dashboard to control the bot instead of console")
                 logger.warning("🌐 Web dashboard should be accessible at http://localhost:5000")
-                
+
                 # Still start web dashboard if not running
                 if not check_port_available(5000):
                     logger.info("🌐 Web dashboard already running")
@@ -334,17 +334,17 @@ if __name__ == "__main__":
                     logger.info("🌐 Starting web dashboard...")
                     web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
                     web_thread.start()
-                
+
                 # Keep process alive for web interface
                 try:
                     while True:
                         time.sleep(10)
                 except KeyboardInterrupt:
                     logger.info("🔴 Console interface shutdown")
-                return
+                    sys.exit(0)
         except ImportError:
             pass  # psutil not available, continue normally
-        
+
         # Original development mode
         bot_manager = None
         sys.modules[__name__].bot_manager = None
