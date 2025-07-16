@@ -487,8 +487,8 @@ For MAINNET:
                                     # Check if we should log this position (throttle to once per minute)
                                     last_log_time = self.last_position_log_time.get(f"untracked_{managing_strategy}")
                                     if not last_log_time or (current_time - last_log_time).total_seconds() >= self.position_log_interval:
-                                        self.logger.info(f"""╔═══════════════════════════════════════════════════╗
-║ 📊 UNTRACKED POSITION                             ║
+                                        self.logger.warning(f"""╔═══════════════════════════════════════════════════╗
+║ ⚠️  UNTRACKED POSITION DETECTED                   ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
 ║                                                   ║
 ║ 📊 TRADE IN PROGRESS (NOT TRACKED)               ║
@@ -500,6 +500,7 @@ For MAINNET:
 ║ ⚡ Config: ${margin_invested:.1f} USDT @ {configured_leverage}x           ║
 ║ 💰 PnL: ${pnl:.1f} USDT ({pnl_percent:+.1f}%)              ║
 ║ ⚠️  WARNING: Position exists but not tracked internally  ║
+║ 📝 SOLUTION: Position recovery needed on next restart    ║
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝""")
 
@@ -896,17 +897,16 @@ Interval: every {assessment_interval} seconds
                                 quantity = abs(position_amt)
 
                                 # Check if there's a matching trade in our database
-                                trade_db = self.trade_database
                                 trade_id = None
 
                                 try:
-                                    if trade_db and hasattr(trade_db, 'get_open_trade_by_position'):
-                                        trade_record = trade_db.get_open_trade_by_position(symbol, side, abs(quantity))
-                                        if trade_record:
-                                            trade_id = trade_record.get('trade_id')
-                                            self.logger.info(f"🔍 FOUND MATCHING TRADE ID: {trade_id}")
-                                        else:
-                                            self.logger.info(f"🔍 NO MATCHING TRADE ID FOUND in database")
+                                    from src.execution_engine.trade_database import TradeDatabase
+                                    trade_db = TradeDatabase()
+                                    trade_id = trade_db.find_trade_by_position(strategy_name, symbol, side, quantity, entry_price, tolerance=0.01)
+                                    if trade_id:
+                                        self.logger.info(f"🔍 FOUND MATCHING TRADE ID: {trade_id}")
+                                    else:
+                                        self.logger.info(f"🔍 NO MATCHING TRADE ID FOUND in database")
                                 except Exception as e:
                                     self.logger.error(f"Error checking trade database: {e}")
 
