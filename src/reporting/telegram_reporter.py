@@ -246,7 +246,7 @@ class TelegramReporter:
 🎯 <b>Take Profit:</b> ${signal_data['take_profit']:.4f}
 📝 <b>Reason:</b> {signal_data['reason']}
             """
-            
+
             result = self.send_message(message)
             if result:
                 self.logger.info(f"🔍 TELEGRAM DEBUG: Entry signal notification sent for {signal_id}")
@@ -271,6 +271,15 @@ class TelegramReporter:
             position_value_usdt = position_data['entry_price'] * position_data['quantity']
             margin_used = position_value_usdt / 5  # Assuming 5x leverage
 
+            # Get actual current open trades count from bot manager
+            # Import here to avoid circular imports
+            import sys
+            open_trades_count = 0
+            for module_name, module in sys.modules.items():
+                if hasattr(module, 'shared_bot_instance') and module.shared_bot_instance:
+                    open_trades_count = len(module.shared_bot_instance.order_manager.active_positions)
+                    break
+
             message = f"""
 🟢 <b>TRADE ENTRY</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
@@ -282,7 +291,7 @@ class TelegramReporter:
 💸 <b>Margin Used:</b> ${margin_used:.2f} USDT
 ⚡ <b>Leverage:</b> 5x
 💰 <b>Current Balance:</b> ${current_balance:.2f} USDT
-📈 <b>Current Open Trades:</b> 1
+📈 <b>Current Open Trades:</b> {open_trades_count}
             """
             self.send_message(message)
         except Exception as e:
@@ -418,3 +427,75 @@ class TelegramReporter:
             self.send_message(message)
         except Exception as e:
             self.logger.error(f"Failed to send error report: {e}")
+
+    def _get_open_trades_count(self) -> int:
+        """Get current number of open trades"""
+        try:
+            # Try to get bot manager instance
+            if hasattr(self, 'bot_manager') and self.bot_manager:
+                active_count = len(self.bot_manager.order_manager.active_positions)
+                self.logger.debug(f"🔍 TELEGRAM: Active positions count: {active_count}")
+                return active_count
+
+            # Fallback: try to import and get global instance
+            try:
+                from src.bot_manager import BotManager
+                # This is a fallback, might not work in all contexts
+                self.logger.warning("🔍 TELEGRAM: Using fallback method for open trades count")
+                return 0
+            except:
+                self.logger.warning("🔍 TELEGRAM: Could not get open trades count")
+                return 0
+
+        except Exception as e:
+            self.logger.error(f"Error getting open trades count: {e}")
+            return 0
+
+    def _get_current_balance(self) -> float:
+        """Helper function to get the current balance"""
+        try:
+            from src.data_fetcher.balance_fetcher import BalanceFetcher
+            from src.binance_client.client import BinanceClientWrapper
+
+            binance_client = BinanceClientWrapper()
+            balance_fetcher = BalanceFetcher(binance_client)
+            current_balance = balance_fetcher.get_usdt_balance() or 0
+            return current_balance
+        except Exception as e:
+            self.logger.error(f"Error getting current balance: {e}")
+            return 0
+
+    def report_position_opened(self, position_data: Dict) -> bool:
+        """Report when a position is opened"""
+        try:
+            # Get current balance
+            current_balance = self._get_current_balance()
+
+            # Get current open trades count from bot manager (this should be called AFTER the position is added)
+            open_trades_count = self._get_open_trades_count()
+
+            # Calculate position value and margin used
+            entry_price = position_data.get('entry_price', 0)
+            quantity = position_data.get('quantity', 0)
+            position_value = entry_price * quantity
+
+            # Get margin used from strategy config if available
+            margin_used = position_data.get('margin_used', position_value / 5)  # Default to 5x leverage
+
+            message = f"""🟢 TRADE ENTRY
+⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+🎯 Strategy Name: {position_data.get('strategy_name', 'Unknown').upper()}
+💰 Pair: {position_data.get('symbol', 'Unknown')}
+📊 Direction: {position_data.get('side', 'Unknown')}
+💵 Entry Price: ${entry_price:.4f}
+📦 Position Value: ${position_value:.2f} USDT
+💸 Margin Used: ${margin_used:.2f} USDT
+⚡ Leverage: {position_data.get('leverage', 'Unknown')}x
+💰 Current Balance: ${current_balance:.2f} USDT
+📈 Current Open Trades: {open_trades_count}"""
+
+            return self.send_message(message)
+
+        except Exception as e:
+            self.logger.error(f"Error reporting position opened: {e}")
+            return False

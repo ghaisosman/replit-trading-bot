@@ -555,8 +555,15 @@ For MAINNET:
                     self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:,.1f} | Qty: {position.quantity:,.1f} | SL: ${position.stop_loss:,.1f} | TP: ${position.take_profit:,.1f}")
 
                     # Send ONLY position opened notification (no separate entry signal notification)
+                    # Add a small delay to ensure position is fully stored before sending notification
+                    import asyncio
+                    await asyncio.sleep(0.1)
+                    
                     from dataclasses import asdict
-                    self.telegram_reporter.report_position_opened(asdict(position))
+                    position_dict = asdict(position)
+                    # Add current leverage info to the position data
+                    position_dict['leverage'] = strategy_config.get('leverage', 5)
+                    self.telegram_reporter.report_position_opened(position_dict)
                 else:
                     self.logger.warning(f"❌ POSITION FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not execute signal")
             else:
