@@ -1051,7 +1051,7 @@
       "symbol": "BTCUSDT",
       "side": "SELL",
       "entry_price": 120038.1,
-      "exit_price": 120862.5,
+      "exit_price": 120684.7,
       "quantity": 0.001,
       "margin_used": 120.03810000000001,
       "leverage": 1,
@@ -1061,10 +1061,10 @@
       "sma_20_at_entry": null,
       "sma_50_at_entry": null,
       "volume_at_entry": null,
-      "pnl_usdt": -0.47870000000001167,
-      "pnl_percentage": -0.9574000000000233,
-      "exit_reason": "Stop Loss (PnL vs Margin: -17.51%)",
-      "duration_minutes": 0.3837086333333334,
+      "pnl_usdt": -0.11800000000000001,
+      "pnl_percentage": -0.23600000000000002,
+      "exit_reason": "Stop Loss (PnL vs Margin: -21.85%)",
+      "duration_minutes": 0.6501856333333333,
       "market_trend": null,
       "volatility_score": null,
       "risk_reward_ratio": null,
@@ -1683,5 +1683,5 @@
       "trade_status": "OPEN"
     }
   },
-  "last_updated": "2025-07-16T12:49:25.978886"
+  "last_updated": "2025-07-16T13:19:14.539623"
 }
