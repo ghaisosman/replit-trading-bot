@@ -121,15 +121,21 @@ class MLTradeAnalyzer:
     def train_models(self) -> Dict[str, Any]:
         """Train ML models on historical trade data"""
         if not ML_AVAILABLE:
-            return {"error": "ML libraries not available"}
+            return {"error": "ML libraries not available - run: pip install scikit-learn"}
             
         try:
             # Prepare dataset
             df = self.prepare_ml_dataset()
-            if df is None or len(df) < 20:
-                return {"error": "Insufficient data for training"}
+            if df is None:
+                return {"error": "Failed to prepare dataset - no trade data available"}
+            
+            if len(df) < 20:
+                return {"error": f"Insufficient data for training - need at least 20 trades, got {len(df)}"}
                 
-            results = {}
+            results = {
+                "dataset_size": len(df),
+                "features_count": len(df.columns)
+            }
             
             # Define features (exclude target variables)
             target_columns = ['pnl_usdt', 'pnl_percentage', 'was_profitable', 'duration_minutes']
@@ -206,40 +212,69 @@ class MLTradeAnalyzer:
             
             # Strategy performance analysis
             if 'strategy' in df.columns and 'was_profitable' in df.columns:
-                strategy_stats = df.groupby('strategy').agg({
-                    'was_profitable': ['count', 'sum', 'mean'],
-                    'pnl_percentage': 'mean',
-                    'duration_minutes': 'mean'
-                }).round(2)
+                strategy_performance = {}
+                for strategy in df['strategy'].unique():
+                    strategy_data = df[df['strategy'] == strategy]
+                    strategy_performance[strategy] = {
+                        'total_trades': len(strategy_data),
+                        'profitable_trades': strategy_data['was_profitable'].sum(),
+                        'win_rate': round(strategy_data['was_profitable'].mean() * 100, 2),
+                        'avg_pnl': round(strategy_data['pnl_percentage'].mean(), 2) if 'pnl_percentage' in df.columns else 0,
+                        'avg_duration': round(strategy_data['duration_minutes'].mean(), 2) if 'duration_minutes' in df.columns else 0
+                    }
                 
-                insights['strategy_performance'] = strategy_stats.to_dict()
+                insights['strategy_performance'] = strategy_performance
                 
             # Time-based analysis
-            if 'hour_of_day' in df.columns:
+            if 'hour_of_day' in df.columns and 'was_profitable' in df.columns:
                 hourly_performance = df.groupby('hour_of_day')['was_profitable'].mean()
                 best_hours = hourly_performance.nlargest(3)
                 worst_hours = hourly_performance.nsmallest(3)
                 
-                insights['time_analysis'] = {
-                    'best_trading_hours': best_hours.to_dict(),
-                    'worst_trading_hours': worst_hours.to_dict()
-                }
+                # Convert to simple dictionaries
+                best_trading_times = []
+                for hour, profitability in best_hours.items():
+                    best_trading_times.append({
+                        'hour': int(hour),
+                        'profitability': round(profitability * 100, 2)
+                    })
+                
+                insights['best_trading_times'] = best_trading_times
                 
             # Market condition analysis
-            if 'market_trend' in df.columns:
-                trend_performance = df.groupby('market_trend')['was_profitable'].mean()
-                insights['market_trend_performance'] = trend_performance.to_dict()
+            if 'market_trend' in df.columns and 'was_profitable' in df.columns:
+                trend_performance = {}
+                for trend in df['market_trend'].unique():
+                    trend_data = df[df['market_trend'] == trend]
+                    trend_performance[str(trend)] = {
+                        'win_rate': round(trend_data['was_profitable'].mean() * 100, 2),
+                        'total_trades': len(trend_data)
+                    }
+                insights['market_trend_performance'] = trend_performance
                 
             # Feature importance insights
             if self.feature_importance:
-                insights['important_features'] = self.feature_importance
+                feature_importance = []
+                for model_name, features in self.feature_importance.items():
+                    for feature_name, importance in sorted(features.items(), key=lambda x: x[1], reverse=True)[:10]:
+                        feature_importance.append({
+                            'feature': feature_name,
+                            'importance': float(importance),
+                            'model': model_name
+                        })
+                insights['feature_importance'] = feature_importance
                 
             # Risk analysis
             if 'leverage' in df.columns and 'pnl_percentage' in df.columns:
-                leverage_analysis = df.groupby('leverage').agg({
-                    'pnl_percentage': ['mean', 'std', 'count']
-                }).round(2)
-                insights['leverage_analysis'] = leverage_analysis.to_dict()
+                leverage_analysis = {}
+                for leverage in df['leverage'].unique():
+                    leverage_data = df[df['leverage'] == leverage]
+                    leverage_analysis[str(leverage)] = {
+                        'avg_pnl': round(leverage_data['pnl_percentage'].mean(), 2),
+                        'pnl_std': round(leverage_data['pnl_percentage'].std(), 2),
+                        'trade_count': len(leverage_data)
+                    }
+                insights['leverage_analysis'] = leverage_analysis
                 
             return insights
             
