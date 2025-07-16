@@ -1013,8 +1013,14 @@ def trades_database():
             }
             trades_list.append(trade_info)
         
-        # Sort by timestamp (newest first) - handle None values
-        trades_list.sort(key=lambda x: x['timestamp'] if x['timestamp'] is not None else '', reverse=True)
+        # Sort by timestamp (newest first) - handle None values with proper datetime fallback
+        def safe_sort_key(trade):
+            timestamp = trade.get('timestamp')
+            if timestamp is None or timestamp == 'N/A':
+                return datetime.min.isoformat()  # Use earliest possible date for None values
+            return str(timestamp)
+        
+        trades_list.sort(key=safe_sort_key, reverse=True)
         
         return render_template('trades_database.html', trades=trades_list, total_trades=len(trades_list))
         
