@@ -763,8 +763,7 @@ def get_console_log():
             # Return status info if no logs available
             status = "Running" if current_bot and getattr(current_bot, 'is_running', False) else "Stopped"
             logs = [
-                f"```text
-🤖 Bot Status: {status}",
+                f"🤖 Bot Status: {status}",
                 f"🌐 Web Dashboard: Active",
                 f"⏰ Last checked: {datetime.now().strftime('%H:%M:%S')}",
                 "📋 Console logs will appear here when bot runs"
