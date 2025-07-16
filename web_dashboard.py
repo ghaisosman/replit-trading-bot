@@ -1013,27 +1013,26 @@ def trades_database():
             }
             trades_list.append(trade_info)
         
-        # Bulletproof sorting - filter out problematic None values completely
-        valid_trades = []
-        invalid_trades = []
-        
+        # BULLETPROOF FIX: Convert all None values to safe strings before ANY processing
         for trade in trades_list:
-            timestamp = trade.get('timestamp')
-            if timestamp is not None and timestamp != 'N/A' and timestamp != '' and str(timestamp).strip():
-                valid_trades.append(trade)
-            else:
-                # Put invalid timestamp trades at the end with a fixed timestamp
-                trade['timestamp'] = '1900-01-01T00:00:00'
-                invalid_trades.append(trade)
+            # Fix ALL None values in the trade object to prevent any comparison errors
+            for key, value in trade.items():
+                if value is None:
+                    if key == 'timestamp':
+                        trade[key] = '1900-01-01T00:00:00'
+                    elif key in ['pnl_usdt', 'pnl_percentage', 'entry_price', 'exit_price', 'quantity', 'duration_minutes']:
+                        trade[key] = 0
+                    else:
+                        trade[key] = 'N/A'
         
-        # Sort valid trades safely
+        # Now sort safely - all None values have been eliminated
         try:
-            valid_trades.sort(key=lambda x: str(x['timestamp']), reverse=True)
-        except:
-            pass  # If still fails, just keep original order
+            trades_list.sort(key=lambda x: str(x.get('timestamp', '1900-01-01T00:00:00')), reverse=True)
+        except Exception as sort_error:
+            # If sorting still fails for any reason, don't sort
+            logger.error(f"Sort failed despite None handling: {sort_error}")
         
-        # Combine: valid trades first (newest to oldest), then invalid trades
-        final_trades_list = valid_trades + invalid_trades
+        final_trades_list = trades_list
         
         return render_template('trades_database.html', trades=final_trades_list, total_trades=len(final_trades_list))
         
