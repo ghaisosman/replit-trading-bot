@@ -752,8 +752,72 @@
             }
         }
 
+        // Add new strategy function
         function addNewStrategy() {
-            alert('Add new strategy functionality will be implemented in a future update.');
+            // Create a simple modal dialog for new strategy
+            const strategyName = prompt('Enter new strategy name (must contain "rsi" or "macd"):');
+
+            if (!strategyName) return;
+
+            // Validate strategy name
+            if (!strategyName.toLowerCase().includes('rsi') && !strategyName.toLowerCase().includes('macd')) {
+                alert('Strategy name must contain "rsi" or "macd" to determine indicator type');
+                return;
+            }
+
+            const symbol = prompt('Enter symbol (e.g., BTCUSDT):', 'BTCUSDT');
+            if (!symbol) return;
+
+            const margin = prompt('Enter margin amount (USDT):', '50');
+            if (!margin) return;
+
+            const leverage = prompt('Enter leverage (1-125):', '5');
+            if (!leverage) return;
+
+            const newStrategy = {
+                name: strategyName,
+                symbol: symbol.toUpperCase(),
+                margin: parseFloat(margin),
+                leverage: parseInt(leverage),
+                timeframe: '15m',
+                max_loss_pct: 10
+            };
+
+            // Add strategy-specific defaults
+            if (strategyName.toLowerCase().includes('rsi')) {
+                newStrategy.rsi_long_entry = 40;
+                newStrategy.rsi_long_exit = 70;
+                newStrategy.rsi_short_entry = 60;
+                newStrategy.rsi_short_exit = 30;
+            } else if (strategyName.toLowerCase().includes('macd')) {
+                newStrategy.macd_fast = 12;
+                newStrategy.macd_slow = 26;
+                newStrategy.macd_signal = 9;
+                newStrategy.min_histogram_threshold = 0.0001;
+                newStrategy.min_distance_threshold = 0.005;
+                newStrategy.confirmation_candles = 2;
+            }
+
+            // Send to backend
+            fetch('/api/strategies', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(newStrategy)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Strategy created successfully! ' + data.message);
+                    location.reload(); // Refresh to show new strategy
+                } else {
+                    alert('Error creating strategy: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error creating strategy: ' + error);
+            });
         }
 
         // Update positions table
