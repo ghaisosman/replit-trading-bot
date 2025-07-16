@@ -26,8 +26,10 @@ class Position:
 class OrderManager:
     """Manages order execution and position tracking"""
 
-    def __init__(self, binance_client: BinanceClientWrapper):
+    def __init__(self, binance_client: BinanceClientWrapper, trade_logger, telegram_reporter=None):
         self.binance_client = binance_client
+        self.trade_logger = trade_logger
+        self.telegram_reporter = telegram_reporter
         self.logger = logging.getLogger(__name__)
         self.active_positions: Dict[str, Position] = {}  # strategy_name -> Position
         self.position_history: List[Position] = []
@@ -342,6 +344,41 @@ class OrderManager:
 ╚═══════════════════════════════════════════════════╝"""
             self.logger.info(position_closed_message)
 
+            # Log trade closure
+            try:
+                if position.trade_id:
+                    from src.analytics.trade_logger import trade_logger
+                    trade_logger.log_trade_exit(
+                        trade_id=position.trade_id,
+                        exit_price=current_price,
+                        exit_reason=reason,
+                        pnl_usdt=pnl,
+                        pnl_percentage=pnl_percentage,
+                        max_drawdown=0  # Could be calculated if tracking is implemented
+                    )
+            except Exception as e:
+                self.logger.error(f"❌ Error logging trade exit: {e}")
+
+            # Send Telegram notification for position closure
+            try:
+                if hasattr(self, 'telegram_reporter') and self.telegram_reporter:
+                    position_data = {
+                        'strategy_name': position.strategy_name,
+                        'symbol': symbol,
+                        'side': position.side,
+                        'entry_price': position.entry_price,
+                        'exit_price': current_price,
+                        'quantity': position.quantity
+                    }
+                    self.telegram_reporter.report_position_closed(
+                        position_data=position_data,
+                        exit_reason=reason,
+                        pnl=pnl
+                    )
+                    self.logger.info(f"📱 TELEGRAM: Position closure notification sent for {strategy_name}")
+            except Exception as e:
+                self.logger.error(f"❌ TELEGRAM: Failed to send position closure notification: {e}")
+
             return {
                 'symbol': symbol,
                 'pnl_usdt': pnl,
@@ -458,7 +495,7 @@ class OrderManager:
             # Apply symbol-specific precision from Binance
             min_qty = symbol_info['min_qty']
             step_size = symbol_info['step_size']
-            
+
             # Use configured precision if available, otherwise fall back to Binance precision
             configured_precision = strategy_config.get('decimals')
             if configured_precision is not None:
