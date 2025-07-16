@@ -694,110 +694,39 @@ def calculate_rsi(closes, period=14):
 
     return rsi
 
-@app.route('/api/console-log', methods=['GET'])
+@app.route('/api/console-log')
 def get_console_log():
-    """Get console logs with improved error handling and guaranteed response"""
+    """Get console logs"""
     try:
-        # Always try to get the latest shared bot manager
-        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-
-        # Always return a valid response with current status
-        bot_status = "Running" if current_bot and getattr(current_bot, "is_running", False) else "Stopped"
+        # Try to get logs from file
+        log_files = ["trading_bot.log", "bot.log", "main.log"]
+        logs = []
         
-        # First try to get logs from the running bot's web log handler
-        if current_bot and hasattr(current_bot, 'log_handler'):
-            try:
-                recent_logs = current_bot.log_handler.get_recent_logs(50)
-                if recent_logs and len(recent_logs) > 0:
-                    return jsonify({
-                        'success': True,
-                        'logs': recent_logs,
-                        'source': 'Bot Memory (Live)',
-                        'count': len(recent_logs),
-                        'bot_status': bot_status
-                    })
-            except Exception as e:
-                logger.warning(f"Could not get logs from bot memory: {e}")
-
-        # Fallback to file-based logs
-        possible_log_files = [
-            "trading_bot.log",
-            "trading_data/bot.log", 
-            "logs/trading_bot.log",
-            "logs/bot.log",
-            "bot.log"
-        ]
-
-        log_content = []
-        log_file_found = None
-
-        for log_file in possible_log_files:
+        for log_file in log_files:
             if os.path.exists(log_file):
-                log_file_found = log_file
                 try:
-                    with open(log_file, 'r', encoding='utf-8') as f:
+                    with open(log_file, 'r') as f:
                         lines = f.readlines()
-
-                    # Get last 50 lines and clean them
-                    recent_lines = lines[-50:] if len(lines) > 50 else lines
-                    log_content = []
-
-                    for line in recent_lines:
-                        clean_line = line.strip()
-                        if clean_line:
-                            # Remove ANSI color codes for web display
-                            import re
-                            clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
-                            # Remove box drawing characters 
-                            clean_line = re.sub(r'[┌┐└┘├┤│─╔╗╚╝║═╭╮╰╯│]', '', clean_line)
-                            # Clean up multiple spaces
-                            clean_line = re.sub(r'\s+', ' ', clean_line).strip()
-                            if clean_line and not clean_line.isspace():
-                                log_content.append(clean_line)
-
-                    if log_content:
-                        return jsonify({
-                            'success': True,
-                            'logs': log_content,
-                            'source': log_file_found,
-                            'count': len(log_content),
-                            'bot_status': bot_status
-                        })
-
-                except Exception as e:
-                    logger.warning(f"Could not read log file {log_file}: {e}")
+                    # Get last 30 lines
+                    recent_lines = lines[-30:] if len(lines) > 30 else lines
+                    logs.extend([line.strip() for line in recent_lines if line.strip()])
+                    break
+                except:
                     continue
-
-        # Always return a valid response even if no logs found
-        return jsonify({
-            'success': True,
-            'logs': [
-                f'📊 Trading Bot Status: {bot_status}',
-                '📱 Web Dashboard: Active and ready',
-                '💡 Console logs will appear here when bot generates activity',
-                f'⏰ Last checked: {datetime.now().strftime("%H:%M:%S")}'
-            ],
-            'source': 'Status',
-            'count': 4,
-            'bot_status': bot_status
-        })
-
+        
+        if not logs:
+            # Get current bot manager
+            current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+            status = "Running" if current_bot and getattr(current_bot, 'is_running', False) else "Stopped"
+            logs = [
+                f"Bot Status: {status}",
+                "No log file found - logs will appear here when bot runs",
+                f"Last checked: {datetime.now().strftime('%H:%M:%S')}"
+            ]
+        
+        return jsonify({'logs': logs})
     except Exception as e:
-        logger.error(f"Error in console log endpoint: {e}")
-        # Always return 200 status to prevent 404 errors
-        return jsonify({
-            'success': True,
-            'logs': [
-                '⚠️ Console log service active',
-                f'Debug info: {str(e)[:100]}...' if len(str(e)) > 100 else f'Debug info: {str(e)}',
-                '🔄 Auto-refresh will retry',
-                f'⏰ Timestamp: {datetime.now().strftime("%H:%M:%S")}'
-            ],
-            'source': 'Error Recovery',
-            'count': 4,
-            'bot_status': 'Unknown'
-        }), 200
+        return jsonify({'logs': [f'Error loading logs: {str(e)}']})
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
