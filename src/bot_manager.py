@@ -730,8 +730,7 @@ Interval: every {assessment_interval} seconds
             if ticker and 'price' in ticker:
                 price = float(ticker['price'])
                 self.logger.debug(f"🔍 PRICE FETCH | {symbol} | Current: ${price:.4f}")
-                return```python
- price
+                return price
             else:
                 self.logger.warning(f"❌ PRICE FETCH FAILED | {symbol} | Invalid ticker response: {ticker}")
                 return None
