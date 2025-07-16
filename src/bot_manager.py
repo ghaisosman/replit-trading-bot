@@ -403,10 +403,16 @@ For MAINNET:
                                     leverage = strategy_config.get('leverage', 5)
                                     actual_margin_used = position_value / leverage
                                     binance_pnl_pct = (binance_pnl / actual_margin_used) * 100 if actual_margin_used > 0 else 0
+                                    self.logger.debug(f"🔍 BINANCE PNL | {strategy_config['symbol']} | Unrealized: ${binance_pnl:.2f} | Pct: {binance_pnl_pct:.2f}%")
                                     break
                     except Exception as e:
                         self.logger.debug(f"Could not fetch Binance PnL for {strategy_config['symbol']}: {e}")
                         # Fallback to calculated PnL
+                        binance_pnl = 0.0
+                        binance_pnl_pct = 0.0
+
+                    # If Binance PnL failed, calculate manually
+                    if binance_pnl == 0.0:
                         if position.side == 'BUY':
                             binance_pnl = (current_price - position.entry_price) * position.quantity
                         else:
@@ -414,6 +420,7 @@ For MAINNET:
 
                         margin_invested = strategy_config.get('margin', 50.0)
                         binance_pnl_pct = (binance_pnl / margin_invested) * 100 if margin_invested != 0 else 0
+                        self.logger.debug(f"🔍 CALCULATED PNL | {strategy_config['symbol']} | Manual: ${binance_pnl:.2f} | Pct: {binance_pnl_pct:.2f}%")
 
                     # Get margin for display
                     margin_invested = strategy_config.get('margin', 50.0)
@@ -1209,6 +1216,8 @@ Interval: every {assessment_interval} seconds
                         # Calculate PnL percentage against actual margin used
                         pnl_percentage = (unrealized_pnl / actual_margin_used) * 100 if actual_margin_used > 0 else 0
 
+                        self.logger.debug(f"🔍 STOP LOSS CHECK | {strategy_name} | PnL: ${unrealized_pnl:.2f} ({pnl_percentage:.1f}%) | Threshold: -{max_loss_pct}%")
+
                         # Trigger stop loss if loss percentage exceeds threshold
                         if pnl_percentage <= -max_loss_pct:
                             self.logger.info(f"💥 STOP LOSS TRIGGERED | {strategy_name} | Unrealized PnL: ${unrealized_pnl:.2f} ({pnl_percentage:.1f}%) >= -{max_loss_pct}% threshold")
@@ -1217,7 +1226,6 @@ Interval: every {assessment_interval} seconds
                                 self._notify_position_closed(strategy_name, result)
                             return True
 
-                        self.logger.debug(f"🔍 STOP LOSS CHECK | {strategy_name} | PnL: ${unrealized_pnl:.2f} ({pnl_percentage:.1f}%) | Threshold: -{max_loss_pct}%")
                         break
 
             return False
