@@ -53,10 +53,10 @@
     "side": "SHORT",
     "entry_price": null,
     "detected_at": "2025-07-16T10:19:16.903959",
-    "status": "active",
+    "status": "cleared",
     "cycles_remaining": 3,
     "notified": false,
-    "cleared_at": null,
+    "cleared_at": "2025-07-16T11:43:29.379745",
     "binance_position_amt": -2.0
   }
 }
