@@ -783,4 +783,4 @@ def calculate_pnl(position, current_price):
         return (position.entry_price - current_price) * position.quantity
 
 @app.route('/api/binance/positions', methods=['GET'])
-def get_binance_positions
+def get_binance_positions():
