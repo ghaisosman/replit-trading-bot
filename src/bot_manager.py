@@ -385,72 +385,17 @@ For MAINNET:
 
             try:
                 current_price = self._get_current_price(strategy_config['symbol'])
-                # Enhanced position monitoring with Binance unrealized PnL for accuracy
                 if current_price:
-                    # Get actual unrealized PnL from Binance for accuracy
-                    binance_pnl = 0.0
-                    binance_pnl_pct = 0.0
-                    actual_margin_used = 0.0
-                    binance_success = False
-
-                    try:
-                        if self.binance_client.is_futures:
-                            positions = self.binance_client.client.futures_position_information(symbol=strategy_config['symbol'])
-                            for binance_position in positions:
-                                position_amt = float(binance_position.get('positionAmt', 0))
-                                if abs(position_amt) > 0:
-                                    # Get all Binance values
-                                    binance_pnl = float(binance_position.get('unRealizedPnl', 0))
-                                    entry_price = float(binance_position.get('entryPrice', 0))
-                                    mark_price = float(binance_position.get('markPrice', current_price))
-                                    
-                                    # Calculate position value using mark price (more accurate)
-                                    position_value = abs(position_amt) * mark_price
-                                    leverage = strategy_config.get('leverage', 5)
-                                    actual_margin_used = position_value / leverage
-                                    
-                                    # Calculate percentage against actual margin used
-                                    binance_pnl_pct = (binance_pnl / actual_margin_used) * 100 if actual_margin_used > 0 else 0
-                                    binance_success = True
-                                    
-                                    self.logger.debug(f"🔍 BINANCE PNL SUCCESS | {strategy_config['symbol']} | Amt: {position_amt} | PnL: ${binance_pnl:.2f} | Entry: ${entry_price:.2f} | Mark: ${mark_price:.2f} | Margin: ${actual_margin_used:.2f} | Pct: {binance_pnl_pct:.2f}%")
-                                    break
-                    except Exception as e:
-                        self.logger.warning(f"⚠️ BINANCE API ERROR | {strategy_config['symbol']} | {e}")
-                        binance_success = False
-
-                    # If Binance PnL failed, calculate manually using EXACT same logic as Binance
-                    if not binance_success:
-                        self.logger.warning(f"⚠️ BINANCE PNL FAILED | {strategy_config['symbol']} | Using manual calculation")
-                        
-                        # Manual calculation using exact position data
-                        quantity = position.quantity
-                        entry_price = position.entry_price
-                        
-                        # Calculate PnL exactly like Binance
-                        if position.side == 'BUY':
-                            binance_pnl = (current_price - entry_price) * quantity
-                        else:  # SELL
-                            binance_pnl = (entry_price - current_price) * quantity
-                        
-                        # Calculate actual margin used exactly like Binance
-                        position_value = current_price * quantity
-                        leverage = strategy_config.get('leverage', 5)
-                        actual_margin_used = position_value / leverage
-                        
-                        # Calculate percentage against actual margin used (not configured margin)
-                        binance_pnl_pct = (binance_pnl / actual_margin_used) * 100 if actual_margin_used > 0 else 0
-                        
-                        self.logger.debug(f"🔍 MANUAL PNL | {strategy_config['symbol']} | Side: {position.side} | Entry: ${entry_price:.2f} | Current: ${current_price:.2f} | Qty: {quantity} | PnL: ${binance_pnl:.2f} | Margin: ${actual_margin_used:.2f} | Pct: {binance_pnl_pct:.2f}%")
-
-                    # Use actual margin used (calculated above) for accurate display
-                    if actual_margin_used > 0:
-                        margin_invested = actual_margin_used
-                    else:
-                        # Fallback to calculating margin if not set above
-                        position_value = current_price * position.quantity if current_price else position.entry_price * position.quantity
-                        leverage = strategy_config.get('leverage', 5)
-                        margin_invested = position_value / leverage
+                    # Calculate PnL using simple, reliable method
+                    pnl = self._calculate_pnl(position, current_price)
+                    
+                    # Calculate margin invested using position data
+                    leverage = strategy_config.get('leverage', 5)
+                    position_value = position.entry_price * position.quantity
+                    margin_invested = position_value / leverage
+                    
+                    # Calculate PnL percentage
+                    pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
 
                     self.logger.info(f"""╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║
@@ -463,15 +408,12 @@ For MAINNET:
 ║ 💵 Entry: ${position.entry_price:.1f}                          ║
 ║ 📊 Current: ${current_price:.1f}                           ║
 ║ 💸 Margin: ${margin_invested:.1f} USDT                    ║
-║ 💰 PnL: ${binance_pnl:.1f} USDT ({binance_pnl_pct:+.1f}%)              ║
+║ 💰 PnL: ${pnl:.1f} USDT ({pnl_percent:+.1f}%)              ║
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝""")
                 else:
-                    # Fallback if price fetch fails - use configured margin
+                    # Fallback if price fetch fails
                     margin_from_config = strategy_config.get('margin', 50.0)
-                    leverage = strategy_config.get('leverage', 5)
-                    margin_invested = margin_from_config
-
                     self.logger.info(f"""╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
@@ -482,7 +424,7 @@ For MAINNET:
 ║ 📊 Side: {position.side}                                 ║
 ║ 💵 Entry: ${position.entry_price:.1f}                          ║
 ║ 📊 Current: Price fetch failed                    ║
-║ 💸 Margin: ${margin_invested:.1f} USDT                    ║
+║ 💸 Margin: ${margin_from_config:.1f} USDT                    ║
 ║ 💰 PnL: Unable to calculate                      ║
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝""")
@@ -1218,42 +1160,31 @@ Interval: every {assessment_interval} seconds
             self.logger.error(f"Error notifying position close for {strategy_name}: {e}")
 
     async def _check_stop_loss(self, strategy_name: str, strategy_config: Dict, position, current_price: float) -> bool:
-        """Check and trigger stop loss based on Binance unrealized PnL percentage"""
+        """Check and trigger stop loss based on PnL percentage"""
         try:
-            # Get actual unrealized PnL from Binance position
             symbol = position.symbol
             max_loss_pct = strategy_config.get('max_loss_pct', 10)
 
-            if self.binance_client.is_futures:
-                positions = self.binance_client.client.futures_position_information(symbol=symbol)
+            # Calculate PnL using reliable method
+            pnl = self._calculate_pnl(position, current_price)
+            
+            # Calculate margin invested
+            leverage = strategy_config.get('leverage', 5)
+            position_value = position.entry_price * position.quantity
+            margin_invested = position_value / leverage
+            
+            # Calculate PnL percentage
+            pnl_percentage = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
 
-                for binance_position in positions:
-                    position_amt = float(binance_position.get('positionAmt', 0))
+            self.logger.debug(f"🔍 STOP LOSS CHECK | {strategy_name} | PnL: ${pnl:.2f} ({pnl_percentage:.1f}%) | Threshold: -{max_loss_pct}%")
 
-                    # Find the matching position
-                    if abs(position_amt) > 0:
-                        unrealized_pnl = float(binance_position.get('unRealizedPnl', 0))
-                        entry_price = float(binance_position.get('entryPrice', 0))
-                        position_value = abs(position_amt) * entry_price
-
-                        # Calculate actual margin used (position value / leverage)
-                        leverage = strategy_config.get('leverage', 5)
-                        actual_margin_used = position_value / leverage
-
-                        # Calculate PnL percentage against actual margin used
-                        pnl_percentage = (unrealized_pnl / actual_margin_used) * 100 if actual_margin_used > 0 else 0
-
-                        self.logger.debug(f"🔍 STOP LOSS CHECK | {strategy_name} | PnL: ${unrealized_pnl:.2f} ({pnl_percentage:.1f}%) | Threshold: -{max_loss_pct}%")
-
-                        # Trigger stop loss if loss percentage exceeds threshold
-                        if pnl_percentage <= -max_loss_pct:
-                            self.logger.info(f"💥 STOP LOSS TRIGGERED | {strategy_name} | Unrealized PnL: ${unrealized_pnl:.2f} ({pnl_percentage:.1f}%) >= -{max_loss_pct}% threshold")
-                            result = self.order_manager.close_position(strategy_name, "Stop Loss")
-                            if result:
-                                self._notify_position_closed(strategy_name, result)
-                            return True
-
-                        break
+            # Trigger stop loss if loss percentage exceeds threshold
+            if pnl_percentage <= -max_loss_pct:
+                self.logger.info(f"💥 STOP LOSS TRIGGERED | {strategy_name} | PnL: ${pnl:.2f} ({pnl_percentage:.1f}%) >= -{max_loss_pct}% threshold")
+                result = self.order_manager.close_position(strategy_name, "Stop Loss")
+                if result:
+                    self._notify_position_closed(strategy_name, result)
+                return True
 
             return False
 
