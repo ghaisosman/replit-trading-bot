@@ -1465,31 +1465,3 @@ Interval: every {assessment_interval} seconds
         except Exception as e:
             self.logger.error(f"Error checking stop loss for {strategy_name}: {e}")
             return False
-
-    # Process the closure and send notifications
-                    closure_result = self.order_manager.close_position(
-                        strategy_name, 
-                        position, 
-                        current_price, 
-                        exit_reason, 
-                        trade_data
-                    )
-
-                    # Send Telegram notification for position closure
-                    if closure_result and hasattr(closure_result, 'get'):
-                        try:
-                            position_data = {
-                                'strategy_name': strategy_name,
-                                'symbol': position.symbol,
-                                'side': position.side,
-                                'entry_price': position.entry_price,
-                                'exit_price': current_price,
-                                'quantity': position.quantity
-                            }
-                            pnl = closure_result.get('pnl_usdt', 0)
-                            self.telegram_reporter.report_position_closed(position_data, exit_reason, pnl)
-                            self.logger.info(f"🔍 TELEGRAM: Position closure notification sent for {strategy_name}")
-                        except Exception as e:
-                            self.logger.error(f"❌ TELEGRAM: Failed to send position closure notification: {e}")
-                            import traceback
-                            self.logger.error(f"❌ TELEGRAM: Traceback: {traceback.format_exc()}")
