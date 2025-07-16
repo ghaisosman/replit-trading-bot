@@ -616,6 +616,11 @@ Interval: every {assessment_interval} seconds
                     if not strategy_config:
                         continue
 
+                    # FIRST: Check Binance-based stop loss (most accurate)
+                    current_price = self._get_current_price(strategy_config['symbol'])
+                    if current_price and await self._check_stop_loss(strategy_name, strategy_config, position, current_price):
+                        continue  # Position was closed by stop loss, skip other checks
+
                     # Get current market data
                     df = self.price_fetcher.get_ohlcv_data(
                         strategy_config['symbol'],
@@ -632,10 +637,10 @@ Interval: every {assessment_interval} seconds
                     strategy_config_with_name = strategy_config.copy()
                     strategy_config_with_name['name'] = strategy_name
 
-                    # Check exit conditions
+                    # Check strategy-specific exit conditions (take profit, RSI levels, etc.)
                     exit_reason = self.signal_processor.evaluate_exit_conditions(
                         df, 
-                        {'entry_price': position.entry_price, 'stop_loss': position.stop_loss, 'take_profit': position.take_profit, 'side': position.side}, 
+                        {'entry_price': position.entry_price, 'stop_loss': position.stop_loss, 'take_profit': position.take_profit, 'side': position.side, 'quantity': position.quantity}, 
                         strategy_config_with_name
                     )
 
@@ -1156,23 +1161,45 @@ Interval: every {assessment_interval} seconds
         except Exception as e:
             self.logger.error(f"Error notifying position close for {strategy_name}: {e}")
 
-    async def _check_stop_loss(self, strategy_name: str, strategy_config: Dict, position, current_price: float) -> None:
-        """Check and trigger stop loss based on percentage of margin"""
+    async def _check_stop_loss(self, strategy_name: str, strategy_config: Dict, position, current_price: float) -> bool:
+        """Check and trigger stop loss based on Binance unrealized PnL percentage"""
         try:
-            pnl_usdt = self._calculate_pnl(position, current_price)
-
-            # Check stop loss (percentage-based on margin) - ONLY for losing positions
+            # Get actual unrealized PnL from Binance position
+            symbol = position.symbol
             max_loss_pct = strategy_config.get('max_loss_pct', 10)
-            margin = strategy_config.get('margin', 50.0)
-            max_loss_amount = margin * (max_loss_pct / 100)
 
-            # Stop loss should only trigger when PnL is negative (loss) and exceeds threshold
-            if pnl_usdt < 0 and abs(pnl_usdt) >= max_loss_amount:
-                self.logger.info(f"💥 STOP LOSS TRIGGERED | {strategy_name} | Loss: ${abs(pnl_usdt):.2f} >= ${max_loss_amount:.2f} ({max_loss_pct}% of margin)")
-                result = self.order_manager.close_position(strategy_name, "Stop Loss")
-                if result:
-                    self._notify_position_closed(strategy_name, result)
-                continue
+            if self.binance_client.is_futures:
+                positions = self.binance_client.client.futures_position_information(symbol=symbol)
+                
+                for binance_position in positions:
+                    position_amt = float(binance_position.get('positionAmt', 0))
+                    
+                    # Find the matching position
+                    if abs(position_amt) > 0:
+                        unrealized_pnl = float(binance_position.get('unRealizedPnl', 0))
+                        entry_price = float(binance_position.get('entryPrice', 0))
+                        position_value = abs(position_amt) * entry_price
+                        
+                        # Calculate actual margin used (position value / leverage)
+                        leverage = strategy_config.get('leverage', 5)
+                        actual_margin_used = position_value / leverage
+                        
+                        # Calculate PnL percentage against actual margin used
+                        pnl_percentage = (unrealized_pnl / actual_margin_used) * 100 if actual_margin_used > 0 else 0
+                        
+                        # Trigger stop loss if loss percentage exceeds threshold
+                        if pnl_percentage <= -max_loss_pct:
+                            self.logger.info(f"💥 STOP LOSS TRIGGERED | {strategy_name} | Unrealized PnL: ${unrealized_pnl:.2f} ({pnl_percentage:.1f}%) >= -{max_loss_pct}% threshold")
+                            result = self.order_manager.close_position(strategy_name, "Stop Loss")
+                            if result:
+                                self._notify_position_closed(strategy_name, result)
+                            return True
+                        
+                        self.logger.debug(f"🔍 STOP LOSS CHECK | {strategy_name} | PnL: ${unrealized_pnl:.2f} ({pnl_percentage:.1f}%) | Threshold: -{max_loss_pct}%")
+                        break
+            
+            return False
 
         except Exception as e:
             self.logger.error(f"Error checking stop loss for {strategy_name}: {e}")
+            return False

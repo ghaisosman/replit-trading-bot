@@ -255,22 +255,8 @@ class SignalProcessor:
             position_side = position.get('side', 'BUY')
             side = position.get('side')
 
-            # Stop loss check - FIXED: Use PnL percentage against margin invested
-            max_loss_pct = strategy_config.get('max_loss_pct', 10)  # Default 10%
-            
-            # Calculate current PnL in USDT
-            if side == 'BUY':  # Long position
-                pnl_usdt = (current_price - entry_price) * position.get('quantity', 1)
-            else:  # Short position  
-                pnl_usdt = (entry_price - current_price) * position.get('quantity', 1)
-            
-            # Calculate PnL percentage against margin invested (matches web dashboard calculation)
-            margin_invested = strategy_config.get('margin', 50.0)
-            pnl_pct = (pnl_usdt / margin_invested) * 100 if margin_invested > 0 else 0
-            
-            # Check if loss exceeds max allowed percentage
-            if pnl_pct <= -max_loss_pct:
-                return f"Stop Loss (PnL: {pnl_pct:.1f}% <= -{max_loss_pct}%)"
+            # Note: Stop loss is now handled by bot_manager using Binance's actual unrealized PnL
+            # This is more accurate than calculating it here with estimated values%)"
 
             # Strategy-specific exit conditions
             strategy_name = strategy_config.get('name', '')
