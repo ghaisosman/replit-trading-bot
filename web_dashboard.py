@@ -684,24 +684,28 @@ def calculate_rsi(closes, period=14):
 
     return rsi
 
-@app.route('/api/console-log')
+@app.route('/api/console-log', methods=['GET'])
 def get_console_log():
-    """Get console logs with improved error handling"""
+    """Get console logs with improved error handling and guaranteed response"""
     try:
         # Always try to get the latest shared bot manager
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
 
+        # Always return a valid response with current status
+        bot_status = "Running" if current_bot and getattr(current_bot, "is_running", False) else "Stopped"
+        
         # First try to get logs from the running bot's web log handler
         if current_bot and hasattr(current_bot, 'log_handler'):
             try:
                 recent_logs = current_bot.log_handler.get_recent_logs(50)
-                if recent_logs:
+                if recent_logs and len(recent_logs) > 0:
                     return jsonify({
                         'success': True,
                         'logs': recent_logs,
                         'source': 'Bot Memory (Live)',
-                        'count': len(recent_logs)
+                        'count': len(recent_logs),
+                        'bot_status': bot_status
                     })
             except Exception as e:
                 logger.warning(f"Could not get logs from bot memory: {e}")
@@ -736,49 +740,53 @@ def get_console_log():
                             import re
                             clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
                             # Remove box drawing characters 
-                            clean_line = re.sub(r'[┌┐└┘├┤│─╔╗╚╝║═╭╮╰╯]', '', clean_line)
+                            clean_line = re.sub(r'[┌┐└┘├┤│─╔╗╚╝║═╭╮╰╯│]', '', clean_line)
                             # Clean up multiple spaces
                             clean_line = re.sub(r'\s+', ' ', clean_line).strip()
                             if clean_line and not clean_line.isspace():
                                 log_content.append(clean_line)
 
-                    break  # Found working log file
+                    if log_content:
+                        return jsonify({
+                            'success': True,
+                            'logs': log_content,
+                            'source': log_file_found,
+                            'count': len(log_content),
+                            'bot_status': bot_status
+                        })
 
                 except Exception as e:
                     logger.warning(f"Could not read log file {log_file}: {e}")
                     continue
 
-        # If no logs found, return a helpful default message
-        if not log_content:
-            return jsonify({
-                'success': True,
-                'logs': [
-                    f'📊 Trading Bot Status: {"Running" if current_bot and getattr(current_bot, "is_running", False) else "Stopped"}',
-                    '📱 Web Dashboard: Active and ready',
-                    '💡 Console logs will appear here when bot is active'
-                ],
-                'source': 'Status',
-                'count': 3
-            })
-
+        # Always return a valid response even if no logs found
         return jsonify({
             'success': True,
-            'logs': log_content,
-            'source': log_file_found or 'Memory',
-            'count': len(log_content)
+            'logs': [
+                f'📊 Trading Bot Status: {bot_status}',
+                '📱 Web Dashboard: Active and ready',
+                '💡 Console logs will appear here when bot generates activity',
+                f'⏰ Last checked: {datetime.now().strftime("%H:%M:%S")}'
+            ],
+            'source': 'Status',
+            'count': 4,
+            'bot_status': bot_status
         })
 
     except Exception as e:
         logger.error(f"Error in console log endpoint: {e}")
+        # Always return 200 status to prevent 404 errors
         return jsonify({
             'success': True,
             'logs': [
-                '⚠️ Console log temporarily unavailable',
-                f'Error: {str(e)}',
-                '🔄 Please refresh to try again'
+                '⚠️ Console log service active',
+                f'Debug info: {str(e)[:100]}...' if len(str(e)) > 100 else f'Debug info: {str(e)}',
+                '🔄 Auto-refresh will retry',
+                f'⏰ Timestamp: {datetime.now().strftime("%H:%M:%S")}'
             ],
-            'source': 'Error',
-            'count': 3
+            'source': 'Error Recovery',
+            'count': 4,
+            'bot_status': 'Unknown'
         }), 200
 
 def get_bot_status():
@@ -855,6 +863,16 @@ def calculate_pnl(position, current_price):
     else:  # Short position
         return (position.entry_price - current_price) * position.quantity
 
+@app.route('/api/health')
+def health_check():
+    """Simple health check endpoint"""
+    return jsonify({
+        'status': 'ok',
+        'service': 'Trading Bot Web Dashboard',
+        'timestamp': datetime.now().isoformat(),
+        'version': '1.0'
+    })
+
 @app.route('/api/ml_insights')
 def get_ml_insights():
     """Get ML insights"""
@@ -873,11 +891,25 @@ def get_ml_insights():
 @app.errorhandler(404)
 def handle_404(e):
     """Handle 404 errors gracefully"""
-    return jsonify({
-        'success': False,
-        'error': 'Endpoint not found',
-        'message': 'The requested resource is not available'
-    }), 404
+    # For API endpoints, return JSON
+    if request.path.startswith('/api/'):
+        return jsonify({
+            'success': False,
+            'error': 'API endpoint not found',
+            'message': f'The requested API endpoint {request.path} is not available',
+            'available_endpoints': [
+                '/api/bot/status',
+                '/api/bot/start', 
+                '/api/bot/stop',
+                '/api/console-log',
+                '/api/strategies',
+                '/api/positions',
+                '/api/balance'
+            ]
+        }), 404
+    
+    # For regular routes, redirect to dashboard
+    return redirect(url_for('dashboard'))
 
 @app.errorhandler(500)
 def handle_500(e):
