@@ -1467,8 +1467,6 @@ Interval: every {assessment_interval} seconds
             return False
 
     # Process the closure and send notifications
-
-                    # Process the closure and send notifications
                     closure_result = self.order_manager.close_position(
                         strategy_name, 
                         position, 
