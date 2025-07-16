@@ -1013,21 +1013,29 @@ def trades_database():
             }
             trades_list.append(trade_info)
         
-        # Sort by timestamp (newest first) - handle None values with robust fallback
-        def safe_sort_key(trade):
+        # Bulletproof sorting - filter out problematic None values completely
+        valid_trades = []
+        invalid_trades = []
+        
+        for trade in trades_list:
             timestamp = trade.get('timestamp')
-            if timestamp is None or timestamp == 'N/A' or timestamp == '':
-                return '1900-01-01T00:00:00'  # Use fixed early date string for None values
-            # Ensure we always return a string for consistent comparison
-            return str(timestamp)
+            if timestamp is not None and timestamp != 'N/A' and timestamp != '' and str(timestamp).strip():
+                valid_trades.append(trade)
+            else:
+                # Put invalid timestamp trades at the end with a fixed timestamp
+                trade['timestamp'] = '1900-01-01T00:00:00'
+                invalid_trades.append(trade)
         
+        # Sort valid trades safely
         try:
-            trades_list.sort(key=safe_sort_key, reverse=True)
-        except Exception as sort_error:
-            # If sorting still fails, just return unsorted list
-            logger.error(f"Failed to sort trades: {sort_error}")
+            valid_trades.sort(key=lambda x: str(x['timestamp']), reverse=True)
+        except:
+            pass  # If still fails, just keep original order
         
-        return render_template('trades_database.html', trades=trades_list, total_trades=len(trades_list))
+        # Combine: valid trades first (newest to oldest), then invalid trades
+        final_trades_list = valid_trades + invalid_trades
+        
+        return render_template('trades_database.html', trades=final_trades_list, total_trades=len(final_trades_list))
         
     except Exception as e:
         logger.error(f"Error loading trades database page: {e}")
