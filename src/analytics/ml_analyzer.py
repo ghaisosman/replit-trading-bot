@@ -133,8 +133,8 @@ class MLTradeAnalyzer:
                 return {"error": f"Insufficient data for training - need at least 20 trades, got {len(df)}"}
                 
             results = {
-                "dataset_size": len(df),
-                "features_count": len(df.columns)
+                "dataset_size": int(len(df)),
+                "features_count": int(len(df.columns))
             }
             
             # Define features (exclude target variables)
@@ -159,8 +159,8 @@ class MLTradeAnalyzer:
                 feature_importance = dict(zip(feature_columns, self.profitability_model.feature_importances_))
                 self.feature_importance['profitability'] = feature_importance
                 
-                results['profitability_accuracy'] = accuracy
-                results['profitability_features'] = sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)[:10]
+                results['profitability_accuracy'] = float(accuracy)
+                results['profitability_features'] = [(feature, float(importance)) for feature, importance in sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)[:10]]
                 
             # Train PnL regressor
             if 'pnl_percentage' in df.columns:
@@ -172,7 +172,7 @@ class MLTradeAnalyzer:
                 
                 # Evaluate
                 score = self.pnl_model.score(X_test, y_test)
-                results['pnl_r2_score'] = score
+                results['pnl_r2_score'] = float(score)
                 
             # Train duration regressor
             if 'duration_minutes' in df.columns:
@@ -189,7 +189,7 @@ class MLTradeAnalyzer:
                     self.duration_model.fit(X_train, y_train)
                     
                     score = self.duration_model.score(X_test, y_test)
-                    results['duration_r2_score'] = score
+                    results['duration_r2_score'] = float(score)
                     
             # Save models
             self._save_models()
@@ -215,12 +215,12 @@ class MLTradeAnalyzer:
                 strategy_performance = {}
                 for strategy in df['strategy'].unique():
                     strategy_data = df[df['strategy'] == strategy]
-                    strategy_performance[strategy] = {
-                        'total_trades': len(strategy_data),
-                        'profitable_trades': strategy_data['was_profitable'].sum(),
-                        'win_rate': round(strategy_data['was_profitable'].mean() * 100, 2),
-                        'avg_pnl': round(strategy_data['pnl_percentage'].mean(), 2) if 'pnl_percentage' in df.columns else 0,
-                        'avg_duration': round(strategy_data['duration_minutes'].mean(), 2) if 'duration_minutes' in df.columns else 0
+                    strategy_performance[str(strategy)] = {
+                        'total_trades': int(len(strategy_data)),
+                        'profitable_trades': int(strategy_data['was_profitable'].sum()),
+                        'win_rate': float(round(strategy_data['was_profitable'].mean() * 100, 2)),
+                        'avg_pnl': float(round(strategy_data['pnl_percentage'].mean(), 2)) if 'pnl_percentage' in df.columns else 0.0,
+                        'avg_duration': float(round(strategy_data['duration_minutes'].mean(), 2)) if 'duration_minutes' in df.columns else 0.0
                     }
                 
                 insights['strategy_performance'] = strategy_performance
@@ -236,7 +236,7 @@ class MLTradeAnalyzer:
                 for hour, profitability in best_hours.items():
                     best_trading_times.append({
                         'hour': int(hour),
-                        'profitability': round(profitability * 100, 2)
+                        'profitability': float(round(profitability * 100, 2))
                     })
                 
                 insights['best_trading_times'] = best_trading_times
@@ -247,8 +247,8 @@ class MLTradeAnalyzer:
                 for trend in df['market_trend'].unique():
                     trend_data = df[df['market_trend'] == trend]
                     trend_performance[str(trend)] = {
-                        'win_rate': round(trend_data['was_profitable'].mean() * 100, 2),
-                        'total_trades': len(trend_data)
+                        'win_rate': float(round(trend_data['was_profitable'].mean() * 100, 2)),
+                        'total_trades': int(len(trend_data))
                     }
                 insights['market_trend_performance'] = trend_performance
                 
@@ -270,9 +270,9 @@ class MLTradeAnalyzer:
                 for leverage in df['leverage'].unique():
                     leverage_data = df[df['leverage'] == leverage]
                     leverage_analysis[str(leverage)] = {
-                        'avg_pnl': round(leverage_data['pnl_percentage'].mean(), 2),
-                        'pnl_std': round(leverage_data['pnl_percentage'].std(), 2),
-                        'trade_count': len(leverage_data)
+                        'avg_pnl': float(round(leverage_data['pnl_percentage'].mean(), 2)),
+                        'pnl_std': float(round(leverage_data['pnl_percentage'].std(), 2)),
+                        'trade_count': int(len(leverage_data))
                     }
                 insights['leverage_analysis'] = leverage_analysis
                 
