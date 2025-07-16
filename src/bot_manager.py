@@ -732,8 +732,7 @@ Interval: every {assessment_interval} seconds
                     # Check strategy-specific exit conditions (take profit, RSI levels, etc.)
                     exit_reason = self.signal_processor.evaluate_exit_conditions(
                         df, 
-                        {'entry_price': position.entry_price,```python
- 'stop_loss': position.stop_loss, 'take_profit': position.take_profit, 'side': position.side, 'quantity': position.quantity}, 
+                        {'entry_price': position.entry_price, 'stop_loss': position.stop_loss, 'take_profit': position.take_profit, 'side': position.side, 'quantity': position.quantity}, 
                         strategy_config_with_name
                     )
 

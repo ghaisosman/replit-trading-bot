@@ -1747,7 +1747,7 @@
       "symbol": "SOLUSDT",
       "side": "SELL",
       "entry_price": 172.01,
-      "exit_price": null,
+      "exit_price": 173.18,
       "quantity": 1.0,
       "margin_used": 34.402,
       "leverage": 5,
@@ -1757,18 +1757,18 @@
       "sma_20_at_entry": null,
       "sma_50_at_entry": null,
       "volume_at_entry": null,
-      "pnl_usdt": null,
-      "pnl_percentage": null,
-      "exit_reason": null,
-      "duration_minutes": null,
+      "pnl_usdt": -1.210000000000008,
+      "pnl_percentage": -10.0833333333334,
+      "exit_reason": "Stop Loss (PnL vs Margin: -10.08%)",
+      "duration_minutes": 4.6422186000000005,
       "market_trend": null,
       "volatility_score": null,
       "risk_reward_ratio": null,
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "trade_status": "OPEN"
+      "trade_status": "CLOSED"
     }
   },
-  "last_updated": "2025-07-16T16:25:20.021685"
+  "last_updated": "2025-07-16T16:32:26.401287"
 }
