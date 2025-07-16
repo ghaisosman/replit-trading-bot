@@ -385,7 +385,7 @@ For MAINNET:
 
             try:
                 symbol = strategy_config['symbol']
-                
+
                 # Get current price
                 current_price = self._get_current_price(symbol)
                 if not current_price:
@@ -406,14 +406,14 @@ For MAINNET:
                                 binance_pnl = float(binance_pos.get('unRealizedPnl', 0))
                                 entry_price = float(binance_pos.get('entryPrice', 0))
                                 mark_price = float(binance_pos.get('markPrice', 0))
-                                
+
                                 # Calculate actual margin used from Binance data
                                 position_value = abs(position_amt) * entry_price
                                 actual_margin_used = position_value / strategy_config.get('leverage', 5)
-                                
+
                                 binance_pnl_pct = (binance_pnl / actual_margin_used) * 100 if actual_margin_used > 0 else 0
                                 binance_success = True
-                                
+
                                 self.logger.debug(f"🔍 BINANCE PNL SUCCESS | {symbol} | Amt: {position_amt} | PnL: ${binance_pnl:.2f} | Entry: ${entry_price:.2f} | Mark: ${mark_price:.2f} | Actual Margin: ${actual_margin_used:.2f} | Pct: {binance_pnl_pct:.2f}%")
                                 break
                 except Exception as e:
@@ -435,10 +435,10 @@ For MAINNET:
                     # Use actual position value and leverage for margin calculation
                     position_value = entry_price * quantity
                     actual_margin_used = position_value / strategy_config.get('leverage', 5)
-                    
+
                     # Calculate percentage against actual margin used
                     binance_pnl_pct = (binance_pnl / actual_margin_used) * 100 if actual_margin_used > 0 else 0
-                    
+
                     self.logger.debug(f"🔍 MANUAL PNL | {symbol} | Side: {side} | Entry: ${entry_price:.2f} | Current: ${current_price:.2f} | Qty: {quantity} | PnL: ${binance_pnl:.2f} | Actual Margin: ${actual_margin_used:.2f} | Pct: {binance_pnl_pct:.2f}%")
 
                 # Display the position with ACTUAL PnL and margin data
@@ -446,7 +446,7 @@ For MAINNET:
                     # Get configured values for comparison
                     configured_margin = strategy_config.get('margin', 50.0)
                     configured_leverage = strategy_config.get('leverage', 5)
-                    
+
                     self.logger.info(f"""╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
@@ -758,13 +758,13 @@ Interval: every {assessment_interval} seconds
             if strategy_name in self.strategies:
                 # Update the strategy config directly
                 self.strategies[strategy_name].update(updates)
-                
+
                 # CRITICAL: Also update the trading config manager to persist changes
                 from src.config.trading_config import trading_config_manager
                 trading_config_manager.update_strategy_params(strategy_name, updates)
-                
+
                 self.logger.info(f"✅ CONFIGURATION UPDATED | {strategy_name} | {updates}")
-                
+
                 # Log specific important updates
                 if 'leverage' in updates:
                     self.logger.info(f"🔧 LEVERAGE UPDATED | {strategy_name} | {updates['leverage']}x")
@@ -1241,3 +1241,79 @@ Interval: every {assessment_interval} seconds
         except Exception as e:
             self.logger.error(f"Error checking stop loss for {strategy_name}: {e}")
             return False
+
+    
+    def _monitor_positions(self) -> None:
+        """Monitor active positions and display their status"""
+        try:
+            active_positions = self.order_manager.get_active_positions()
+
+            if not active_positions:
+                return
+
+            for strategy_name, position in active_positions.items():
+                try:
+                    # Get current price
+                    current_price = self._get_current_price(position.symbol)
+                    if not current_price:
+                        continue
+
+                    # Get strategy config for display
+                    strategy_config = self.strategies.get(strategy_name, {})
+                    configured_margin = strategy_config.get('margin', 0.0)
+                    configured_leverage = strategy_config.get('leverage', 1)
+
+                    # Calculate actual margin used (position value / leverage)
+                    position_value = position.entry_price * position.quantity
+                    actual_margin_used = position_value / configured_leverage
+
+                    # Get unrealized PnL from Binance directly
+                    unrealized_pnl_usdt = 0.0
+                    pnl_percentage = 0.0
+
+                    try:
+                        if self.binance_client.is_futures:
+                            # Get position information from Binance
+                            positions = self.binance_client.client.futures_position_information(symbol=position.symbol)
+                            for pos in positions:
+                                if pos.get('symbol') == position.symbol:
+                                    position_amt = float(pos.get('positionAmt', 0))
+                                    # Only get PnL if there's an actual position
+                                    if abs(position_amt) > 0.001:
+                                        unrealized_pnl_usdt = float(pos.get('unRealizedProfit', 0))
+                                        self.logger.debug(f"🔍 PnL DEBUG | {strategy_name} | Binance Position Amt: {position_amt} | Unrealized PnL: ${unrealized_pnl_usdt:.2f}")
+                                        break
+                            else:
+                                self.logger.warning(f"⚠️ No active position found on Binance for {position.symbol}")
+
+                        # Calculate PnL percentage against configured margin
+                        if configured_margin > 0:
+                            pnl_percentage = (unrealized_pnl_usdt / configured_margin) * 100
+                        else:
+                            pnl_percentage = 0.0
+
+                        self.logger.debug(f"🔍 PnL CALCULATION | {strategy_name} | Unrealized PnL: ${unrealized_pnl_usdt:.2f} | Margin: ${configured_margin} | Percentage: {pnl_percentage:+.2f}%")
+
+                    except Exception as e:
+                        self.logger.error(f"❌ Error getting unrealized PnL for {position.symbol}: {e}")
+                        unrealized_pnl_usdt = 0.0
+                        pnl_percentage = 0.0
+
+                    # Log position status with proper formatting
+                    status_message = f"""📊 TRADE IN PROGRESS
+🎯 Strategy: {strategy_name}
+💱 Symbol: {position.symbol}
+📊 Side: {position.side}
+💵 Entry: ${position.entry_price:.1f}
+📊 Current: ${current_price:.1f}
+⚡ Config: ${configured_margin} USDT @ {configured_leverage}x
+💸 Actual Margin: ${actual_margin_used:.1f} USDT
+💰 PnL: ${unrealized_pnl_usdt:.1f} USDT ({pnl_percentage:+.1f}%)"""
+
+                    self.logger.info(status_message)
+
+                except Exception as e:
+                    self.logger.error(f"Error monitoring position {strategy_name}: {e}")
+
+        except Exception as e:
+            self.logger.error(f"Error in position monitoring: {e}")
