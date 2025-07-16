@@ -1404,7 +1404,7 @@ Interval: every {assessment_interval} seconds
     def _get_strategy_config(self, strategy_name: str) -> Dict:
         """Helper method to get strategy configuration by name"""
         return self.strategies.get(strategy_name, {})
-</previous_generation>```python
+
     def _monitor_positions(self) -> None:
         """Monitor active positions and display their status"""
         try:
