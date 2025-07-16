@@ -95,12 +95,12 @@ def dashboard():
         # Get balance
         if IMPORTS_AVAILABLE:
             balance = balance_fetcher.get_usdt_balance() or 0
-            strategies = trading_config_manager.strategy_overrides
+            strategies = trading_config_manager.get_all_strategies()
         else:
             balance = 100.0  # Default for demo
             strategies = {
-                'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
-                'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m'}
+                'rsi_oversold': {'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m'},
+                'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m'}
             }
 
         # Get active positions from both shared and standalone bot
@@ -409,20 +409,20 @@ def get_strategies():
             # Return default strategies for demo
             return jsonify({
                 'rsi_oversold': {
-                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
+                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
                     'max_loss_pct': 10, 'rsi_long_entry': 40, 'rsi_long_exit': 70,
                     'rsi_short_entry': 60, 'rsi_short_exit': 30, 'assessment_interval': 60
                 },
                 'macd_divergence': {
-                    'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m',
+                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
                     'max_loss_pct': 10, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
                     'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2,
-                    'assessment_interval': 30
+                    'assessment_interval': 60
                 }
             })
     except Exception as e:
         logger.error(f"Error in get_strategies endpoint: {e}")
-        return jsonify({'error': str(e), 'strategies': {}}), 200
+        return jsonify({'error': str(e), 'strategies': {}}), 500
 
 @app.route('/api/strategies/<strategy_name>', methods=['POST'])
 def update_strategy(strategy_name):
@@ -699,13 +699,14 @@ def get_console_log():
             status = "Running" if current_bot and getattr(current_bot, 'is_running', False) else "Stopped"
             logs = [
                 f"Bot Status: {status}",
-                "No log file found - logs will appear here when bot runs",
+                "Console log will appear here when bot runs",
                 f"Last checked: {datetime.now().strftime('%H:%M:%S')}"
             ]
 
-        return jsonify({'logs': logs})
+        return jsonify({'success': True, 'logs': logs})
     except Exception as e:
-        return jsonify({'logs': [f'Error loading logs: {str(e)}']})
+        logger.error(f"Error in console log endpoint: {e}")
+        return jsonify({'success': False, 'logs': [f'Error loading logs: {str(e)}'], 'error': str(e)}), 200
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
