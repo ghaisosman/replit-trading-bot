@@ -294,7 +294,7 @@ class OrderManager:
                         max_drawdown=0  # Could be calculated if tracking is implemented
                     )
                     
-                    except Exception as e:
+            except Exception as e:
                 self.logger.error(f"❌ Error logging trade exit: {e}")
 
             # Calculate duration before updating anything
