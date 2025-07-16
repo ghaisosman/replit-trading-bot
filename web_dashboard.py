@@ -929,12 +929,6 @@ def handle_500(e):
         'message': 'An error occurred while processing your request'
     }), 500
 
-if __name__ == '__main__':
-    logger.warning("🌐 WEB DASHBOARD: This module is designed to be imported by main.py")
-    logger.info("💡 Please run 'python main.py' instead - it includes the web dashboard")
-    print("⚠️  web_dashboard.py should not be run directly")
-    print("💡 Run 'python main.py' instead - it includes the web dashboard")
-
 @app.route('/api/strategy/update', methods=['POST'])
 def update_strategy_config():
     try:
@@ -976,5 +970,10 @@ def update_strategy_config():
         logger.error(f"❌ WEB DASHBOARD UPDATE ERROR | {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
-# This section was causing duplicate Flask instances - removed to prevent port conflicts
-# The web dashboard should only run when imported by main.py
+# IMPORTANT: This module should ONLY be imported by main.py
+# Running web_dashboard.py directly will cause port conflicts
+if __name__ == '__main__':
+    print("🚨 ERROR: web_dashboard.py should not be run directly!")
+    print("💡 Use 'python main.py' instead - it includes the integrated web dashboard")
+    print("🔒 Standalone execution blocked to prevent port conflicts")
+    exit(1)
