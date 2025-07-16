@@ -413,10 +413,11 @@ For MAINNET:
                                     binance_pnl_pct = (binance_pnl / actual_margin_used) * 100 if actual_margin_used > 0 else 0
                                     binance_success = True
                                     
-                                    self.logger.debug(f"🔍 BINANCE PNL SUCCESS | {strategy_config['symbol']} | PnL: ${binance_pnl:.2f} | Margin: ${actual_margin_used:.2f} | Pct: {binance_pnl_pct:.2f}%")
+                                    self.logger.debug(f"🔍 BINANCE PNL SUCCESS | {strategy_config['symbol']} | Amt: {position_amt} | PnL: ${binance_pnl:.2f} | Entry: ${entry_price:.2f} | Mark: ${mark_price:.2f} | Margin: ${actual_margin_used:.2f} | Pct: {binance_pnl_pct:.2f}%")
                                     break
                     except Exception as e:
-                        self.logger.debug(f"Could not fetch Binance PnL for {strategy_config['symbol']}: {e}")
+                        self.logger.warning(f"⚠️ BINANCE API ERROR | {strategy_config['symbol']} | {e}")
+                        binance_success = False
 
                     # If Binance PnL failed, calculate manually using EXACT same logic as Binance
                     if not binance_success:
@@ -440,7 +441,7 @@ For MAINNET:
                         # Calculate percentage against actual margin used (not configured margin)
                         binance_pnl_pct = (binance_pnl / actual_margin_used) * 100 if actual_margin_used > 0 else 0
                         
-                        self.logger.debug(f"🔍 MANUAL PNL | {strategy_config['symbol']} | PnL: ${binance_pnl:.2f} | Margin: ${actual_margin_used:.2f} | Pct: {binance_pnl_pct:.2f}%")
+                        self.logger.debug(f"🔍 MANUAL PNL | {strategy_config['symbol']} | Side: {position.side} | Entry: ${entry_price:.2f} | Current: ${current_price:.2f} | Qty: {quantity} | PnL: ${binance_pnl:.2f} | Margin: ${actual_margin_used:.2f} | Pct: {binance_pnl_pct:.2f}%")
 
                     # Use actual margin used (calculated above) for accurate display
                     if actual_margin_used > 0:
