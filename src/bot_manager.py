@@ -393,7 +393,7 @@ For MAINNET:
                     # This should match the actual margin used from strategy config
                     margin_from_config = strategy_config.get('margin', 50.0)
                     leverage = strategy_config.get('leverage', 5)
-                    
+
                     # Use the configured margin as the actual margin invested
                     # (This is what was actually used to open the position)
                     margin_invested = margin_from_config
@@ -730,7 +730,8 @@ Interval: every {assessment_interval} seconds
             if ticker and 'price' in ticker:
                 price = float(ticker['price'])
                 self.logger.debug(f"🔍 PRICE FETCH | {symbol} | Current: ${price:.4f}")
-                return price
+                return```python
+ price
             else:
                 self.logger.warning(f"❌ PRICE FETCH FAILED | {symbol} | Invalid ticker response: {ticker}")
                 return None
@@ -847,7 +848,7 @@ Interval: every {assessment_interval} seconds
                                     # No trade ID found - check if this might be a recent bot position
                                     # For MACD strategy, be more aggressive in recovery since it might have been opened recently
                                     should_recover = False
-                                    
+
                                     if strategy_name == 'macd_divergence':
                                         # For MACD, recover positions if they're reasonable sizes
                                         if 'macd' in strategy_name.lower():
@@ -861,10 +862,10 @@ Interval: every {assessment_interval} seconds
                                             # Default recovery logic for other strategies
                                             should_recover = abs(quantity) >= 0.001 and entry_price > 0
                                             self.logger.info(f"🔍 GENERIC RECOVERY CHECK | {strategy_name} | {symbol} | Qty: {quantity} | Entry: ${entry_price} | Recovering: {should_recover}")
-                                    
+
                                     if should_recover:
                                         self.logger.warning(f"🔍 POSITION WITHOUT TRADE ID | {strategy_name.upper()} | {symbol} | Attempting recovery anyway")
-                                        
+
                                         from src.execution_engine.order_manager import Position
                                         from datetime import datetime
                                         import uuid
@@ -1141,3 +1142,38 @@ Interval: every {assessment_interval} seconds
 
         except Exception as e:
             self.logger.error(f"Error in position monitoring: {e}")
+
+    def _notify_position_closed(self, strategy_name, result):
+        """Helper method to notify position closed via Telegram"""
+        try:
+            position = self.order_manager.active_positions.get(strategy_name)
+            if position:
+                from dataclasses import asdict
+                self.telegram_reporter.report_position_closed(
+                    position_data=asdict(position),
+                    exit_reason=result['reason'],
+                    pnl=result['pnl']
+                )
+        except Exception as e:
+            self.logger.error(f"Error notifying position close for {strategy_name}: {e}")
+
+    async def _check_stop_loss(self, strategy_name: str, strategy_config: Dict, position, current_price: float) -> None:
+        """Check and trigger stop loss based on percentage of margin"""
+        try:
+            pnl_usdt = self._calculate_pnl(position, current_price)
+
+            # Check stop loss (percentage-based on margin) - ONLY for losing positions
+            max_loss_pct = strategy_config.get('max_loss_pct', 10)
+            margin = strategy_config.get('margin', 50.0)
+            max_loss_amount = margin * (max_loss_pct / 100)
+
+            # Stop loss should only trigger when PnL is negative (loss) and exceeds threshold
+            if pnl_usdt < 0 and abs(pnl_usdt) >= max_loss_amount:
+                self.logger.info(f"💥 STOP LOSS TRIGGERED | {strategy_name} | Loss: ${abs(pnl_usdt):.2f} >= ${max_loss_amount:.2f} ({max_loss_pct}% of margin)")
+                result = self.order_manager.close_position(strategy_name, "Stop Loss")
+                if result:
+                    self._notify_position_closed(strategy_name, result)
+                continue
+
+        except Exception as e:
+            self.logger.error(f"Error checking stop loss for {strategy_name}: {e}")
