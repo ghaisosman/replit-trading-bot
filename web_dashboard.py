@@ -686,10 +686,13 @@ def calculate_rsi(closes, period=14):
 
 @app.route('/api/console-log')
 def get_console_log():
+    """Get console logs with improved error handling"""
     try:
-        # First try to get logs from the running bot's web log handler
+        # Always try to get the latest shared bot manager
+        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
 
+        # First try to get logs from the running bot's web log handler
         if current_bot and hasattr(current_bot, 'log_handler'):
             try:
                 recent_logs = current_bot.log_handler.get_recent_logs(50)
@@ -706,7 +709,7 @@ def get_console_log():
         # Fallback to file-based logs
         possible_log_files = [
             "trading_bot.log",
-            "trading_data/bot.log",
+            "trading_data/bot.log", 
             "logs/trading_bot.log",
             "logs/bot.log",
             "bot.log"
@@ -745,13 +748,17 @@ def get_console_log():
                     logger.warning(f"Could not read log file {log_file}: {e}")
                     continue
 
-        if not log_file_found and not log_content:
-            # Return a helpful response instead of 404
+        # If no logs found, return a helpful default message
+        if not log_content:
             return jsonify({
                 'success': True,
-                'logs': ['Bot is starting up or no logs available yet...'],
-                'source': 'Default',
-                'count': 1
+                'logs': [
+                    f'📊 Trading Bot Status: {"Running" if current_bot and getattr(current_bot, "is_running", False) else "Stopped"}',
+                    '📱 Web Dashboard: Active and ready',
+                    '💡 Console logs will appear here when bot is active'
+                ],
+                'source': 'Status',
+                'count': 3
             })
 
         return jsonify({
@@ -762,13 +769,17 @@ def get_console_log():
         })
 
     except Exception as e:
-        logger.error(f"Error reading console log: {e}")
+        logger.error(f"Error in console log endpoint: {e}")
         return jsonify({
             'success': True,
-            'logs': [f'Error reading logs: {str(e)}'],
+            'logs': [
+                '⚠️ Console log temporarily unavailable',
+                f'Error: {str(e)}',
+                '🔄 Please refresh to try again'
+            ],
             'source': 'Error',
-            'count': 1
-        })
+            'count': 3
+        }), 200
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
