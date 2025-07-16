@@ -255,14 +255,18 @@ class SignalProcessor:
             position_side = position.get('side', 'BUY')
             side = position.get('side')
 
-
-            # Stop loss check - FIXED: Check against actual stop loss price
+            # Stop loss check - FIXED: Use PnL percentage from strategy config
+            max_loss_pct = strategy_config.get('max_loss_pct', 10)  # Default 10%
+            
+            # Calculate current PnL percentage
             if side == 'BUY':  # Long position
-                if current_price <= stop_loss:
-                    return "Stop Loss"
-            else:  # Short position
-                if current_price >= stop_loss:
-                    return "Stop Loss"
+                pnl_pct = ((current_price - entry_price) / entry_price) * 100
+            else:  # Short position  
+                pnl_pct = ((entry_price - current_price) / entry_price) * 100
+            
+            # Check if loss exceeds max allowed percentage
+            if pnl_pct <= -max_loss_pct:
+                return f"Stop Loss (PnL: {pnl_pct:.1f}% <= -{max_loss_pct}%)"
 
             # Strategy-specific exit conditions
             strategy_name = strategy_config.get('name', '')

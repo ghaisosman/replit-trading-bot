@@ -844,13 +844,18 @@ Interval: every {assessment_interval} seconds
                                     should_recover = False
                                     
                                     if strategy_name == 'macd_divergence':
-                                        # For MACD, recover positions if they're reasonable sizes and recent
-                                        should_recover = abs(quantity) >= 0.001 and entry_price > 0
-                                        self.logger.info(f"🔍 MACD RECOVERY CHECK | {symbol} | Qty: {quantity} | Entry: ${entry_price} | Recovering: {should_recover}")
-                                    elif strategy_name == 'rsi_oversold':
+                                        # For MACD, recover positions if they're reasonable sizes
+                                        if 'macd' in strategy_name.lower():
+                                            should_recover = abs(quantity) >= 0.001 and entry_price > 0
+                                            self.logger.info(f"🔍 MACD RECOVERY CHECK | {symbol} | Qty: {quantity} | Entry: ${entry_price} | Recovering: {should_recover}")
                                         # For RSI, be more conservative 
-                                        should_recover = abs(quantity) >= 0.1 and entry_price > 0
-                                        self.logger.info(f"🔍 RSI RECOVERY CHECK | {symbol} | Qty: {quantity} | Entry: ${entry_price} | Recovering: {should_recover}")
+                                        elif 'rsi' in strategy_name.lower():
+                                            should_recover = abs(quantity) >= 0.1 and entry_price > 0
+                                            self.logger.info(f"🔍 RSI RECOVERY CHECK | {symbol} | Qty: {quantity} | Entry: ${entry_price} | Recovering: {should_recover}")
+                                        else:
+                                            # Default recovery logic for other strategies
+                                            should_recover = abs(quantity) >= 0.001 and entry_price > 0
+                                            self.logger.info(f"🔍 GENERIC RECOVERY CHECK | {strategy_name} | {symbol} | Qty: {quantity} | Entry: ${entry_price} | Recovering: {should_recover}")
                                     
                                     if should_recover:
                                         self.logger.warning(f"🔍 POSITION WITHOUT TRADE ID | {strategy_name.upper()} | {symbol} | Attempting recovery anyway")

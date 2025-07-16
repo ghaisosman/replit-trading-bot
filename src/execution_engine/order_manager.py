@@ -21,6 +21,7 @@ class Position:
     entry_time: Optional[datetime] = None
     status: str = "OPEN"
     trade_id: Optional[str] = None
+    strategy_config: Optional[Dict] = None
 
 class OrderManager:
     """Manages order execution and position tracking"""
@@ -142,6 +143,9 @@ class OrderManager:
                 entry_time=datetime.now(),
                 status="OPEN"
             )
+            
+            # Store strategy config reference for exit condition evaluation
+            position.strategy_config = strategy_config
 
             # Store active position with thread safety
             with self._position_lock:
