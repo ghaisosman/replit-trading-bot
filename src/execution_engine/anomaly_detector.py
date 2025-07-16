@@ -354,7 +354,7 @@ class AnomalyDetector:
                     entry_price=bot_position.entry_price,
                     detected_at=datetime.now(),
                     status=AnomalyStatus.ACTIVE,
-                    cycles_remaining=3,
+                    cycles_remaining=2,
                     notified=False,
                     binance_position_amt=0.0
                 )
@@ -435,7 +435,7 @@ class AnomalyDetector:
                     side=side,
                     detected_at=datetime.now(),
                     status=AnomalyStatus.ACTIVE,
-                    cycles_remaining=3,
+                    cycles_remaining=2,
                     notified=False,
                     binance_position_amt=position_amt
                 )

@@ -139,6 +139,43 @@ def show_statistics():
             print(f"  {strategy}: {count} anomalies")
 
 
+def check_database_status():
+    """Check trade database status"""
+    from src.execution_engine.trade_database import TradeDatabase
+    
+    print("\n🔍 DATABASE STATUS CHECK")
+    print("=" * 40)
+    
+    db = TradeDatabase()
+    
+    open_trades = []
+    closed_trades = []
+    
+    for trade_id, trade_data in db.trades.items():
+        if trade_data.get('trade_status') == 'OPEN':
+            open_trades.append((trade_id, trade_data))
+        else:
+            closed_trades.append((trade_id, trade_data))
+    
+    print(f"📊 Total trades: {len(db.trades)}")
+    print(f"🔓 Open trades: {len(open_trades)}")
+    print(f"✅ Closed trades: {len(closed_trades)}")
+    
+    if open_trades:
+        print("\n🔓 OPEN TRADES:")
+        for trade_id, trade_data in open_trades:
+            print(f"  {trade_id}")
+            print(f"    Strategy: {trade_data.get('strategy_name')}")
+            print(f"    Symbol: {trade_data.get('symbol')}")
+            print(f"    Side: {trade_data.get('side')}")
+            print(f"    Entry: ${trade_data.get('entry_price')}")
+            print(f"    Quantity: {trade_data.get('quantity')}")
+            print(f"    Timestamp: {trade_data.get('timestamp')}")
+            print()
+    
+    return open_trades
+
+
 def main():
     print("🔍 ANOMALY MANAGER")
     print("=" * 20)
@@ -149,9 +186,10 @@ def main():
         print("2. Clear specific anomaly")
         print("3. Show statistics")
         print("4. Cleanup old anomalies")
-        print("5. Exit")
+        print("5. Check database status")
+        print("6. Exit")
         
-        choice = input("\nSelect option (1-5): ")
+        choice = input("\nSelect option (1-6): ")
         
         if choice == "1":
             display_anomalies()
@@ -162,6 +200,8 @@ def main():
         elif choice == "4":
             cleanup_old_anomalies()
         elif choice == "5":
+            check_database_status()
+        elif choice == "6":
             break
         else:
             print("Invalid option")
