@@ -390,11 +390,11 @@ class OrderManager:
             self.logger.info(f"🔍 RAW CALCULATION | Symbol: {actual_symbol} | Position Value: ${position_value_usdt} | Raw Quantity: {quantity:.6f}")
 
             if 'SOLUSDT' in symbol_upper or 'SOL' in symbol_upper:
-                # SOL futures uses 3 decimal places, minimum 0.001
+                # SOL futures uses 2 decimal places, minimum 0.01
                 original_quantity = quantity
-                quantity = round(quantity, 3)
-                if quantity < 0.001:
-                    quantity = 0.001
+                quantity = round(quantity, 2)
+                if quantity < 0.01:
+                    quantity = 0.01
                 self.logger.info(f"🔧 SOL PRECISION FIX | Original: {original_quantity:.6f} → Fixed: {quantity}")
             elif 'BTCUSDT' in symbol_upper or 'BTC' in symbol_upper:
                 # BTC futures uses 3 decimal places, minimum 0.001
