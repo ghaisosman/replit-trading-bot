@@ -574,6 +574,11 @@ def get_positions():
             active_positions = current_bot.order_manager.active_positions
 
             for strategy_name, position in active_positions.items():
+                # Check if this position has an anomaly (orphan/ghost trade)
+                anomaly_status = None
+                if hasattr(current_bot, 'anomaly_detector'):
+                    anomaly_status = current_bot.anomaly_detector.get_anomaly_status(strategy_name)
+
                 # Get current price
                 current_price = price_fetcher.get_current_price(position.symbol)
 
@@ -612,7 +617,8 @@ def get_positions():
                         'position_value_usdt': position_value_usdt,
                         'margin_invested': margin_invested,
                         'pnl': pnl,
-                        'pnl_percent': pnl_percent
+                        'pnl_percent': pnl_percent,
+                        'anomaly_status': anomaly_status  # Add anomaly status
                     })
 
         return jsonify({'success': True, 'positions': positions})
@@ -939,6 +945,33 @@ def health_check():
         'timestamp': datetime.now().isoformat(),
         'version': '1.0'
     })
+
+@app.route('/api/clear-orphan/<strategy_name>', methods=['POST'])
+def clear_orphan_trade(strategy_name):
+    """Clear orphan trade for a specific strategy"""
+    try:
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        
+        if not current_bot:
+            return jsonify({'success': False, 'error': 'Bot not available'})
+        
+        # Clear the orphan position from order manager
+        if hasattr(current_bot, 'order_manager') and current_bot.order_manager:
+            current_bot.order_manager.clear_orphan_position(strategy_name)
+            logger.info(f"🌐 WEB INTERFACE: Manually cleared orphan trade for {strategy_name}")
+            
+            # Also clear from anomaly detector if available
+            if hasattr(current_bot, 'anomaly_detector'):
+                anomaly_id = f"orphan_{strategy_name}_SOLUSDT"  # Assuming SOLUSDT for now
+                current_bot.anomaly_detector.clear_anomaly_by_id(anomaly_id, "Manual clear via web interface")
+            
+            return jsonify({'success': True, 'message': f'Orphan trade cleared for {strategy_name}'})
+        else:
+            return jsonify({'success': False, 'error': 'Order manager not available'})
+            
+    except Exception as e:
+        logger.error(f"Error clearing orphan trade: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/ml_insights')
 def get_ml_insights():
