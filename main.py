@@ -47,7 +47,7 @@ def run_web_dashboard():
         # Check if port 5000 is available before starting
         if not check_port_available(5000):
             logger.error("🚨 PORT 5000 UNAVAILABLE: Attempting to clean up...")
-            
+
             # Try to kill any processes using port 5000
             try:
                 # Kill Python processes that might be using port 5000
@@ -64,15 +64,15 @@ def run_web_dashboard():
                                     killed_count += 1
                     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                         continue
-                
+
                 if killed_count > 0:
                     logger.info(f"🔄 Terminated {killed_count} processes")
                 else:
                     logger.info("🔍 No conflicting processes found")
-                
+
                 # Wait a moment for cleanup
                 time.sleep(2)
-                
+
                 # Check again
                 if not check_port_available(5000):
                     logger.error("🚨 CRITICAL: Port 5000 still unavailable after cleanup")
@@ -80,7 +80,7 @@ def run_web_dashboard():
                     return
                 else:
                     logger.info("✅ Port 5000 cleared successfully")
-                    
+
             except Exception as cleanup_error:
                 logger.error(f"Error during port cleanup: {cleanup_error}")
                 return
@@ -99,7 +99,7 @@ def run_web_dashboard():
         app.config['DEBUG'] = False
 
         app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
-        
+
     except Exception as e:
         logger.error(f"Web dashboard error: {e}")
         if "Address already in use" in str(e):
@@ -219,7 +219,7 @@ if __name__ == "__main__":
         logger.info("🔴 BOT STOPPED: Manual shutdown via console (Ctrl+C)")
         # Keep web interface running
         logger.info("🌐 Web interface remains active for bot control")
-        
+
         # Keep process alive for web interface
         try:
             while web_server_running:
