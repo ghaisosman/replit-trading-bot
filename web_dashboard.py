@@ -975,6 +975,108 @@ def get_trading_environment():
         logger.error(f"Error getting trading environment: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/ml_reports')
+def ml_reports():
+    """ML Reports page"""
+    return render_template('ml_reports.html')
+
+@app.route('/api/ml_insights')
+def get_ml_insights():
+    """Get ML insights for the dashboard"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        # Import ML analyzer
+        from src.analytics.ml_analyzer import ml_analyzer
+        
+        # Generate insights
+        insights = ml_analyzer.generate_insights()
+        
+        if "error" in insights:
+            return jsonify({'success': False, 'error': insights['error']})
+        
+        return jsonify({'success': True, 'insights': insights})
+        
+    except Exception as e:
+        logger.error(f"Error getting ML insights: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/ml_predictions')
+def get_ml_predictions():
+    """Get ML predictions for current market conditions"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        # Import ML analyzer
+        from src.analytics.ml_analyzer import ml_analyzer
+        
+        # Sample predictions for current strategies
+        predictions = []
+        strategies = trading_config_manager.get_all_strategies()
+        
+        for strategy_name, config in strategies.items():
+            # Create sample trade features
+            sample_features = {
+                'strategy': strategy_name,
+                'symbol': config.get('symbol', 'BTCUSDT'),
+                'side': 'BUY',
+                'leverage': config.get('leverage', 5),
+                'position_size_usdt': config.get('margin', 50),
+                'hour_of_day': datetime.now().hour,
+                'day_of_week': datetime.now().weekday(),
+                'market_trend': 'BULLISH',
+                'volatility_score': 0.3,
+                'signal_strength': 0.7
+            }
+            
+            # Add strategy-specific features
+            if 'rsi' in strategy_name.lower():
+                sample_features['rsi_entry'] = 30  # Oversold
+            elif 'macd' in strategy_name.lower():
+                sample_features['macd_entry'] = 0.1
+            
+            prediction = ml_analyzer.predict_trade_outcome(sample_features)
+            
+            if "error" not in prediction:
+                predictions.append({
+                    'strategy': strategy_name,
+                    'symbol': config.get('symbol', 'BTCUSDT'),
+                    'predicted_profitable': prediction.get('profit_probability', 0.5) > 0.5,
+                    'predicted_pnl': prediction.get('predicted_pnl_percentage', 0),
+                    'confidence': prediction.get('confidence', 0),
+                    'recommendation': prediction.get('recommendation', 'HOLD')
+                })
+        
+        return jsonify({'success': True, 'predictions': predictions})
+        
+    except Exception as e:
+        logger.error(f"Error getting ML predictions: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/train_models', methods=['POST'])
+def train_models():
+    """Train ML models"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        # Import ML analyzer
+        from src.analytics.ml_analyzer import ml_analyzer
+        
+        # Train models
+        results = ml_analyzer.train_models()
+        
+        if "error" in results:
+            return jsonify({'success': False, 'error': results['error']})
+        
+        return jsonify({'success': True, 'results': results})
+        
+    except Exception as e:
+        logger.error(f"Error training ML models: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/trading/environment', methods=['POST'])
 def update_trading_environment():
     """Update trading environment (testnet/mainnet)"""
