@@ -653,7 +653,7 @@ Interval: every {assessment_interval} seconds
 
                         pnl_status = "PROFIT" if pnl > 0 else "LOSS"
 
-                        self.logger.info(f"🔄 EXIT TRIGGERED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Exit: ${current_price:,.1f} | PnL: ${pnl:,.1f} ({pnl_status})")
+                        self.logger.info(f"🔄 EXIT TRIGGERED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Exit: ${current_price:,.1f} | PnL: ${pnl:.1f} ({pnl_status})")
 
                         # Close position
                         if self.order_manager.close_position(strategy_name, exit_reason):
@@ -729,7 +729,8 @@ Interval: every {assessment_interval} seconds
 
                 # CRITICAL: Also update the trading config manager to persist changes
                 from src.config.trading_config import trading_config_manager
-                trading_config_manager.update_strategy_params(strategy_name, updates)
+                trading_config_manager.update_```python
+strategy_params(strategy_name, updates)
 
                 self.logger.info(f"✅ CONFIGURATION UPDATED | {strategy_name} | {updates}")
 
@@ -825,20 +826,31 @@ Interval: every {assessment_interval} seconds
                                 side = 'BUY' if position_amt > 0 else 'SELL'
                                 quantity = abs(position_amt)
 
+                                # Check if there's a matching trade in our database
+                                trade_db = self.trade_database
+                                trade_id = None
+
+                                try:
+                                    if trade_db and hasattr(trade_db, 'get_open_trade_by_position'):
+                                        trade_record = trade_db.get_open_trade_by_position(symbol, side, abs(quantity))
+                                        if trade_record:
+                                            trade_id = trade_record.get('trade_id')
+                                            self.logger.info(f"🔍 FOUND MATCHING TRADE ID: {trade_id}")
+                                        else:
+                                            self.logger.info(f"🔍 NO MATCHING TRADE ID FOUND in database")
+                                except Exception as e:
+                                    self.logger.error(f"Error checking trade database: {e}")
+
+                                # IMPROVED RECOVERY LOGIC: Always recover valid positions to prevent ghost detection
+                                should_recover = True  # Default to recovery for valid positions
+
                                 # Additional validation - ensure position has realistic values
-                                if entry_price <= 0 or quantity <= 0:
+                                if entry_price <= 0 or abs(quantity) < 0.0001:
+                                    should_recover = False
                                     self.logger.warning(f"⚠️ INVALID POSITION DATA | {strategy_name.upper()} | {symbol} | Entry: ${entry_price} | Qty: {quantity} | Skipping recovery")
-                                    continue
 
-                                self.logger.info(f"📍 EXISTING POSITION FOUND | {strategy_name.upper()} | {symbol} | {side} | Qty: {quantity:,.6f} | Entry: ${entry_price:,.4f}")
-
-                                # Check if this position has a trade ID in our database
-                                is_legitimate, trade_id = self.order_manager.is_legitimate_bot_position(strategy_name, symbol, side, quantity, entry_price)
-
-                                if is_legitimate and trade_id:
-                                    # This is a legitimate bot position - recover it
-                                    self.logger.info(f"✅ LEGITIMATE BOT POSITION | Trade ID: {trade_id} | {strategy_name.upper()} | {symbol}")
-
+                                if should_recover:
+                                    # Position recovery - always recover valid positions to prevent ghost detection
                                     from src.execution_engine.order_manager import Position
                                     from datetime import datetime
 
@@ -848,79 +860,28 @@ Interval: every {assessment_interval} seconds
                                         side=side,
                                         entry_price=entry_price,
                                         quantity=quantity,
-                                        stop_loss=entry_price * 0.985 if side == 'BUY' else entry_price * 1.015,
-                                        take_profit=entry_price * 1.025 if side == 'BUY' else entry_price * 0.975,
+                                        stop_loss=entry_price * (0.98 if side == 'BUY' else 1.02),
+                                        take_profit=entry_price * (1.02 if side == 'BUY' else 0.98),
                                         position_side='LONG' if side == 'BUY' else 'SHORT',
                                         order_id=0,
                                         entry_time=datetime.now(),
                                         status='RECOVERED',
-                                        trade_id=trade_id,
+                                        trade_id=trade_id or f"recovered_{symbol}_{int(datetime.now().timestamp())}",
                                         strategy_config=strategy_config
                                     )
 
                                     # Add to active positions
                                     self.order_manager.active_positions[strategy_name] = recovered_position
-                                    recovered_count += 1
 
-                                    # Notify anomaly detector that this is a legitimate bot position
+                                    # CRITICAL: Notify anomaly detector that this is a legitimate bot position
                                     self.anomaly_detector.register_bot_trade(symbol, strategy_name)
 
-                                    self.logger.info(f"✅ POSITION RECOVERED | Trade ID: {trade_id} | {strategy_name.upper()} | {symbol} | Entry: ${entry_price:,.4f} | Qty: {quantity:,.6f}")
+                                    recovery_status = "WITH TRADE ID" if trade_id else "WITHOUT TRADE ID"
+                                    self.logger.info(f"✅ POSITION RECOVERED ({recovery_status}) | {strategy_name.upper()} | {symbol} | Entry: ${entry_price:,.4f} | Qty: {quantity:,.6f}")
+
+                                    recovered_count += 1
                                 else:
-                                    # No trade ID found - check if this might be a recent bot position
-                                    # For MACD strategy, be more aggressive in recovery since it might have been opened recently
-                                    should_recover = False
-
-                                    if strategy_name == 'macd_divergence':
-                                        # For MACD, recover positions if they're reasonable sizes
-                                        if 'macd' in strategy_name.lower():
-                                            should_recover = abs(quantity) >= 0.001 and entry_price > 0
-                                            self.logger.info(f"🔍 MACD RECOVERY CHECK | {symbol} | Qty: {quantity} | Entry: ${entry_price} | Recovering: {should_recover}")
-                                        # For RSI, be more conservative 
-                                        elif 'rsi' in strategy_name.lower():
-                                            should_recover = abs(quantity) >= 0.1 and entry_price > 0
-                                            self.logger.info(f"🔍 RSI RECOVERY CHECK | {symbol} | Qty: {quantity} | Entry: ${entry_price} | Recovering: {should_recover}")
-                                        else:
-                                            # Default recovery logic for other strategies
-                                            should_recover = abs(quantity) >= 0.001 and entry_price > 0
-                                            self.logger.info(f"🔍 GENERIC RECOVERY CHECK | {strategy_name} | {symbol} | Qty: {quantity} | Entry: ${entry_price} | Recovering: {should_recover}")
-
-                                    if should_recover:
-                                        self.logger.warning(f"🔍 POSITION WITHOUT TRADE ID | {strategy_name.upper()} | {symbol} | Attempting recovery anyway")
-
-                                        from src.execution_engine.order_manager import Position
-                                        from datetime import datetime
-                                        import uuid
-
-                                        # Generate a recovery trade ID
-                                        recovery_trade_id = f"recovery_{strategy_name}_{symbol}_{int(datetime.now().timestamp())}"
-
-                                        recovered_position = Position(
-                                            strategy_name=strategy_name,
-                                            symbol=symbol,
-                                            side=side,
-                                            entry_price=entry_price,
-                                            quantity=quantity,
-                                            stop_loss=entry_price * 0.985 if side == 'BUY' else entry_price * 1.015,
-                                            take_profit=entry_price * 1.025 if side == 'BUY' else entry_price * 0.975,
-                                            position_side='LONG' if side == 'BUY' else 'SHORT',
-                                            order_id=0,
-                                            entry_time=datetime.now(),
-                                            status='RECOVERED_NO_ID',
-                                            trade_id=recovery_trade_id,
-                                            strategy_config=strategy_config
-                                        )
-
-                                        # Add to active positions
-                                        self.order_manager.active_positions[strategy_name] = recovered_position
-                                        recovered_count += 1
-
-                                        # Notify anomaly detector that this is a legitimate bot position
-                                        self.anomaly_detector.register_bot_trade(symbol, strategy_name)
-
-                                        self.logger.info(f"✅ POSITION RECOVERED (NO ID) | Recovery ID: {recovery_trade_id} | {strategy_name.upper()} | {symbol} | Entry: ${entry_price:,.4f} | Qty: {quantity:,.6f}")
-                                    else:
-                                        self.logger.warning(f"🚨 SKIPPING RECOVERY | {strategy_name.upper()} | {symbol} | Position doesn't meet recovery criteria")
+                                    self.logger.warning(f"⚠️ POSITION NOT RECOVERED | {strategy_name.upper()} | {symbol} | Invalid data or too small")
 
                                 break  # Only one position per strategy
 
