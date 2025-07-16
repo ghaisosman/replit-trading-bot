@@ -30,6 +30,10 @@ class GlobalConfig:
         self.PRICE_UPDATE_INTERVAL = 1  # seconds
         self.BALANCE_CHECK_INTERVAL = 30  # seconds
         
+        # Timezone settings for chart alignment
+        self.USE_LOCAL_TIMEZONE = os.getenv('USE_LOCAL_TIMEZONE', 'false').lower() == 'true'
+        self.TIMEZONE_OFFSET_HOURS = float(os.getenv('TIMEZONE_OFFSET_HOURS', '0'))  # Manual offset if needed
+        
     def validate_config(self) -> bool:
         """Validate that all required config is present"""
         required_vars = [
