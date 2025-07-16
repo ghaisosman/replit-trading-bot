@@ -49,9 +49,10 @@ def run_web_dashboard():
         logger.info("🚀 RUNNING IN REPLIT DEPLOYMENT MODE")
 
     try:
-        # Check if port 5000 is available before starting
+        # SINGLE SOURCE CHECK - Ensure no duplicate web dashboard instances
         if not check_port_available(5000):
-            logger.error("🚨 PORT 5000 UNAVAILABLE: Attempting to clean up...")
+            logger.error("🚨 PORT 5000 UNAVAILABLE: Another web dashboard instance detected")
+            logger.error("🚫 MAIN.PY: Cleaning up duplicate instances...")
 
             # Try to kill any processes using port 5000
             try:
@@ -214,7 +215,9 @@ async def main():
 
     logger.info("Starting Multi-Strategy Trading Bot with Persistent Web Interface")
 
-    # Start web dashboard in background thread - this will keep running
+    # SINGLE SOURCE WEB DASHBOARD LAUNCH - Only from main.py
+    logger.info("🌐 MAIN.PY: Starting web dashboard (single source control)")
+    logger.info("🚫 MAIN.PY: Direct web_dashboard.py launches are disabled")
     web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
     web_thread.start()
 
@@ -289,7 +292,8 @@ if __name__ == "__main__":
         bot_manager = None
         sys.modules[__name__].bot_manager = None
 
-        # Start web dashboard in background
+        # DEPLOYMENT: Single source web dashboard launch
+        logger.info("🚀 DEPLOYMENT: Starting web dashboard from main.py only")
         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
 
@@ -349,7 +353,8 @@ if __name__ == "__main__":
         bot_manager = None
         sys.modules[__name__].bot_manager = None
 
-        # Start web dashboard in persistent background thread
+        # DEVELOPMENT: Single source web dashboard launch from main.py
+        logger.info("🛠️ DEVELOPMENT: Starting web dashboard from main.py only")
         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
 

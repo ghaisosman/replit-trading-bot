@@ -96,7 +96,7 @@ def dashboard():
         if IMPORTS_AVAILABLE:
             balance = balance_fetcher.get_usdt_balance() or 0
             strategies = trading_config_manager.get_all_strategies()
-            
+
             # Ensure we always have both strategies available for display
             if 'rsi_oversold' not in strategies:
                 strategies['rsi_oversold'] = {
@@ -714,7 +714,7 @@ def get_console_log():
     try:
         # Get current bot manager first
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-        
+
         # Try to get logs from web handler if bot is running
         if current_bot and hasattr(current_bot, 'log_handler') and hasattr(current_bot.log_handler, 'logs'):
             try:
@@ -731,7 +731,7 @@ def get_console_log():
                     return jsonify({'success': True, 'logs': string_logs})
             except Exception as web_error:
                 logger.error(f"Error getting web logs: {web_error}")
-        
+
         # Fallback to file-based logs
         log_files = ["trading_data/bot.log", "trading_bot.log", "bot.log", "main.log"]
         logs = []
@@ -751,7 +751,7 @@ def get_console_log():
                             import re
                             cleaned_line = re.sub(r'\x1b\[[0-9;]*m', '', cleaned_line)
                             cleaned_logs.append(cleaned_line)
-                    
+
                     if cleaned_logs:
                         logs.extend(cleaned_logs)
                         break
@@ -763,7 +763,8 @@ def get_console_log():
             # Return status info if no logs available
             status = "Running" if current_bot and getattr(current_bot, 'is_running', False) else "Stopped"
             logs = [
-                f"🤖 Bot Status: {status}",
+                f"```text
+🤖 Bot Status: {status}",
                 f"🌐 Web Dashboard: Active",
                 f"⏰ Last checked: {datetime.now().strftime('%H:%M:%S')}",
                 "📋 Console logs will appear here when bot runs"
@@ -862,7 +863,7 @@ def get_binance_positions():
     try:
         if not IMPORTS_AVAILABLE:
             return jsonify({'success': False, 'error': 'Binance client not available'})
-        
+
         # Return basic positions response
         return jsonify({
             'success': True,
@@ -913,45 +914,45 @@ def update_trading_environment():
     try:
         if not IMPORTS_AVAILABLE:
             return jsonify({'success': False, 'message': 'Configuration update not available in demo mode'})
-        
+
         data = request.get_json()
-        
+
         if not data or 'is_testnet' not in data:
             return jsonify({'success': False, 'message': 'Missing is_testnet parameter'})
-        
+
         is_testnet = bool(data['is_testnet'])
-        
+
         # Update the global config in memory
         global_config.BINANCE_TESTNET = is_testnet
-        
+
         # Save to environment configuration file for persistence
         env_config = {
             'BINANCE_TESTNET': str(is_testnet).lower(),
             'BINANCE_FUTURES': str(global_config.BINANCE_FUTURES).lower()
         }
-        
+
         # Write to a config file for persistence across restarts
         config_file = "trading_data/environment_config.json"
         os.makedirs(os.path.dirname(config_file), exist_ok=True)
-        
+
         with open(config_file, 'w') as f:
             json.dump(env_config, f, indent=2)
-        
+
         mode = 'FUTURES TESTNET' if is_testnet else 'FUTURES MAINNET'
-        
+
         # Log the environment change
         logger.info(f"🔄 ENVIRONMENT CHANGED: {mode}")
         logger.info(f"🌐 WEB DASHBOARD: Trading environment updated via web interface")
-        
+
         # Check if bot is running and warn about restart requirement
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
         bot_running = current_bot and getattr(current_bot, 'is_running', False)
-        
+
         message = f'Trading environment updated to {mode}'
         if bot_running:
             message += ' (Bot restart required to apply changes)'
             logger.warning("⚠️ Bot restart required for environment change to take effect")
-        
+
         return jsonify({
             'success': True, 
             'message': message,
@@ -962,7 +963,15 @@ def update_trading_environment():
                 'restart_required': bot_running
             }
         })
-        
+
     except Exception as e:
         logger.error(f"Error updating trading environment: {e}")
         return jsonify({'success': False, 'message': f'Failed to update environment: {e}'})
+
+if __name__ == '__main__':
+    logger.error("🚫 DIRECT LAUNCH NOT ALLOWED")
+    logger.error("💡 Web dashboard must be launched from main.py only")
+    logger.error("🔧 Run 'python main.py' instead to start the complete system")
+    print("🚫 ERROR: Direct web dashboard launch is disabled")
+    print("💡 Please run 'python main.py' to start the trading bot with web interface")
+    sys.exit(1)
