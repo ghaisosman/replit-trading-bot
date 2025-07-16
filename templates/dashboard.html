@@ -873,8 +873,11 @@
 
             // Add new logs to buffer
             logs.forEach(function(log) {
-                if (!consoleLogBuffer.includes(log)) {
-                    consoleLogBuffer.push(log);
+                // Convert log to string if it's not already
+                const logString = typeof log === 'string' ? log : JSON.stringify(log);
+                
+                if (!consoleLogBuffer.includes(logString)) {
+                    consoleLogBuffer.push(logString);
 
                     // Create log element
                     const logElement = document.createElement('div');
@@ -882,19 +885,19 @@
                     logElement.style.wordWrap = 'break-word';
 
                     // Color code different log types
-                    if (log.includes('ERROR') || log.includes('❌')) {
+                    if (logString.includes('ERROR') || logString.includes('❌')) {
                         logElement.style.color = '#ff6b6b';
-                    } else if (log.includes('WARNING') || log.includes('⚠️')) {
+                    } else if (logString.includes('WARNING') || logString.includes('⚠️')) {
                         logElement.style.color = '#feca57';
-                    } else if (log.includes('SUCCESS') || log.includes('✅')) {
+                    } else if (logString.includes('SUCCESS') || logString.includes('✅')) {
                         logElement.style.color = '#48dbfb';
-                    } else if (log.includes('INFO') || log.includes('ℹ️')) {
+                    } else if (logString.includes('INFO') || logString.includes('ℹ️')) {
                         logElement.style.color = '#0abde3';
                     } else {
                         logElement.style.color = '#ffffff';
                     }
 
-                    logElement.textContent = log;
+                    logElement.textContent = logString;
                     consoleElement.appendChild(logElement);
                 }
             });

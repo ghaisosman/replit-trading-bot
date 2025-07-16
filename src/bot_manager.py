@@ -71,7 +71,18 @@ class WebLogHandler(logging.Handler):
             recent = list(self.logs)[-count:] if self.logs else []
             if not recent:
                 return ['[INFO] Bot is starting up...']
-            return [log['message'] for log in recent]
+            
+            # Extract message strings from log entries
+            log_messages = []
+            for log in recent:
+                if isinstance(log, dict) and 'message' in log:
+                    log_messages.append(log['message'])
+                elif isinstance(log, str):
+                    log_messages.append(log)
+                else:
+                    log_messages.append(str(log))
+            
+            return log_messages
         except Exception as e:
             return [f'[ERROR] Could not retrieve logs: {str(e)}']
 
@@ -186,6 +197,13 @@ For MAINNET:
 
         # Add to root logger to capture all logs
         root_logger = logging.getLogger()
+        
+        # Remove any existing web log handlers to prevent duplicates
+        existing_handlers = [h for h in root_logger.handlers if isinstance(h, WebLogHandler)]
+        for handler in existing_handlers:
+            root_logger.removeHandler(handler)
+        
+        # Add the new handler
         root_logger.addHandler(self.log_handler)
 
         # Also add to bot manager's own logger
