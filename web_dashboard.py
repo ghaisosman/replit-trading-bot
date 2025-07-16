@@ -1013,8 +1013,8 @@ def trades_database():
             }
             trades_list.append(trade_info)
         
-        # Sort by timestamp (newest first)
-        trades_list.sort(key=lambda x: x['timestamp'], reverse=True)
+        # Sort by timestamp (newest first) - handle None values
+        trades_list.sort(key=lambda x: x['timestamp'] if x['timestamp'] is not None else '', reverse=True)
         
         return render_template('trades_database.html', trades=trades_list, total_trades=len(trades_list))
         
