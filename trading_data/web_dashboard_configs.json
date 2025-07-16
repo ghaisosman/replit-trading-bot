@@ -4,7 +4,7 @@
     "margin": 12.0,
     "leverage": 5,
     "timeframe": "15m",
-    "max_loss_pct": 10,
+    "max_loss_pct": 5,
     "assessment_interval": 20,
     "rsi_long_entry": 30,
     "rsi_long_exit": 60,
@@ -13,7 +13,7 @@
     "cooldown_period": 30
   },
   "macd_divergence": {
-    "symbol": "BTCUSDT",
+    "symbol": "ETHUSDT",
     "margin": 10.0,
     "leverage": 5,
     "timeframe": "15m",
