@@ -306,6 +306,19 @@ class TelegramReporter:
             # Calculate margin used
             margin_used = position_value_usdt / 5  # Assuming 5x leverage
 
+            # Get actual current open trades count from bot manager
+            open_trades_count = 0
+            try:
+                # Import here to avoid circular imports
+                import sys
+                for module_name, module in sys.modules.items():
+                    if hasattr(module, 'shared_bot_instance') and module.shared_bot_instance:
+                        open_trades_count = len(module.shared_bot_instance.order_manager.active_positions)
+                        break
+            except Exception as e:
+                self.logger.debug(f"Could not get open trades count: {e}")
+                open_trades_count = 0
+
             message = f"""
 {pnl_emoji} <b>TRADE CLOSED</b>
 ⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
@@ -319,7 +332,7 @@ class TelegramReporter:
 💰 <b>Realized PNL:</b> ${pnl:.2f} USDT ({pnl_percent:+.2f}%)
 🎯 <b>Exit Reason:</b> {exit_reason}
 💰 <b>Current Balance:</b> ${current_balance:.2f} USDT
-📈 <b>Current Open Trades:</b> 0
+📈 <b>Current Open Trades:</b> {open_trades_count}
             """
             self.send_message(message)
         except Exception as e:
