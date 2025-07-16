@@ -1288,3 +1288,85 @@ Interval: every {assessment_interval} seconds
 
         except Exception as e:
             self.logger.error(f"Error in position monitoring: {e}")
+
+    async def _check_positions_for_exit(self):
+        """Check exit conditions for all open positions with improved error handling"""
+        try:
+            active_positions = self.order_manager.get_active_positions()
+
+            for strategy_name, position in active_positions.items():
+                try:
+                    strategy_config = self.strategies.get(strategy_name)
+                    if not strategy_config:
+                        continue
+
+                    # FIRST: Check Binance-based stop loss (most accurate)
+                    current_price = self._get_current_price(strategy_config['symbol'])
+                    if current_price and await self._check_stop_loss(strategy_name, strategy_config, position, current_price):
+                        continue  # Position was closed by stop loss, skip other checks
+
+                    # Get current market data
+                    df = self.price_fetcher.get_ohlcv_data(
+                        strategy_config['symbol'],
+                        strategy_config['timeframe']
+                    )
+
+                    if df is None or df.empty:
+                        continue
+
+                    # Calculate indicators
+                    df = self.price_fetcher.calculate_indicators(df)
+
+                    # Ensure strategy name is in config for exit conditions
+                    strategy_config_with_name = strategy_config.copy()
+                    strategy_config_with_name['name'] = strategy_name
+
+                    # Check strategy-specific exit conditions (take profit, RSI levels, etc.)
+                    exit_reason = self.signal_processor.evaluate_exit_conditions(
+                        df,
+                        {'entry_price': position.entry_price, 'stop_loss': position.stop_loss, 'take_profit': position.take_profit, 'side': position.side, 'quantity': position.quantity},
+                        strategy_config_with_name
+                    )
+
+                    if exit_reason:
+                        current_price = df['close'].iloc[-1]
+                        pnl = self._calculate_pnl(position, current_price)
+
+                        pnl_status = "PROFIT" if pnl > 0 else "LOSS"
+
+                        self.logger.info(f"🔄 EXIT TRIGGERED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Exit: ${current_price:,.1f} | PnL: ${pnl:.1f} ({pnl_status})")
+
+                        # Close position
+                        if self.order_manager.close_position(strategy_name, exit_reason):
+                            self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:,.1f} | Exit: ${current_price:,.1f} | Final PnL: ${pnl:.1f}")
+
+                            from dataclasses import asdict
+                            position_data = asdict(position)
+                            position_data['exit_price'] = current_price
+                            self.telegram_reporter.report_position_closed(
+                                position_data,
+                                exit_reason,
+                                pnl
+                            )
+                        else:
+                            self.logger.warning(f"❌ CLOSE FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not close position")
+                    else:
+                        # Get additional indicators for consolidated logging
+                        margin = strategy_config.get('margin', 50.0)
+                        leverage = strategy_config.get('leverage', 5)
+
+                        # Get current RSI
+                        current_rsi = None
+                        if 'rsi' in df.columns:
+                            current_rsi = df['rsi'].iloc[-1]
+
+                        # Log active position with current market data and RSI
+                        rsi_text = f"{current_rsi:.1f}" if current_rsi is not None else "N/A"
+                        self.logger.info(f"TRADE IN PROGRESS | {strategy_name.upper()} | {strategy_config['symbol']} | Side: {position.side} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.1f} | RSI: {rsi_text} | Config: ${margin:.1f} USDT @ {leverage}x | PnL: ${pnl:.1f} USDT ({pnl:.1f}%)")
+
+                except Exception as e:
+                    self.logger.error(f"Error checking exit conditions for {strategy_name}: {e}")
+
+        except Exception as e:
+            self.logger.error(f"Error checking exit conditions: {e}")
+            self.telegram_reporter.report_error("Exit Check Error", str(e))
