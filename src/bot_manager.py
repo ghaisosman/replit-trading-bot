@@ -137,8 +137,15 @@ For MAINNET:
         self.price_fetcher = PriceFetcher(self.binance_client)
         self.balance_fetcher = BalanceFetcher(self.binance_client)
         self.signal_processor = SignalProcessor()
-        self.order_manager = OrderManager(self.binance_client)
+        
+        # Import trade_logger
+        from src.analytics.trade_logger import trade_logger
+        
+        # Initialize telegram reporter first
         self.telegram_reporter = TelegramReporter()
+        
+        # Initialize order manager with required parameters
+        self.order_manager = OrderManager(self.binance_client, trade_logger, self.telegram_reporter)
 
         # Initialize strategies with flexible configuration
         base_strategies = {
