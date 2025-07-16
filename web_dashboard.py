@@ -680,7 +680,7 @@ def calculate_rsi(closes, period=14):
 
     return rsi
 
-@app.route('/api/console_log')
+@app.route('/api/console-log')
 def get_console_log():
     try:
         # First try to get logs from the running bot's web log handler
