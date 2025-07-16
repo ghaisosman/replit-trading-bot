@@ -13,6 +13,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 import logging
+from typing import Dict, Any
 
 # Define trades directory path
 trades_dir = Path("trading_data/trades")
@@ -375,24 +376,24 @@ def get_strategies():
         if IMPORTS_AVAILABLE:
             # Get all strategies from web dashboard configuration manager
             strategies = trading_config_manager.get_all_strategies()
-            
+
             # Ensure all required parameters are present for each strategy
             for name, config in strategies.items():
                 # Ensure assessment_interval is included
                 if 'assessment_interval' not in config:
                     config['assessment_interval'] = 60 if 'rsi' in name.lower() else 30
-                
+
                 # Ensure all required parameters exist with defaults
                 if 'max_loss_pct' not in config:
                     config['max_loss_pct'] = 10
-                
+
                 # RSI strategy defaults
                 if 'rsi' in name.lower():
                     config.setdefault('rsi_long_entry', 40)
                     config.setdefault('rsi_long_exit', 70)
                     config.setdefault('rsi_short_entry', 60)
                     config.setdefault('rsi_short_exit', 30)
-                
+
                 # MACD strategy defaults
                 elif 'macd' in name.lower():
                     config.setdefault('macd_fast', 12)
@@ -472,7 +473,7 @@ def update_strategy(strategy_name):
 
         # WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Update all parameters
         trading_config_manager.update_strategy_params(strategy_name, data)
-        
+
         logger.info(f"🎯 WEB DASHBOARD: Setting as SINGLE SOURCE OF TRUTH for {strategy_name}")
         logger.info(f"🔄 UPDATING ALL PARAMETERS: {data}")
         logger.info(f"📁 CONFIG FILES IGNORED - Web dashboard overrides everything")
@@ -679,7 +680,7 @@ def get_console_log():
         # Try to get logs from file
         log_files = ["trading_bot.log", "bot.log", "main.log"]
         logs = []
-        
+
         for log_file in log_files:
             if os.path.exists(log_file):
                 try:
@@ -691,7 +692,7 @@ def get_console_log():
                     break
                 except:
                     continue
-        
+
         if not logs:
             # Get current bot manager
             current_bot = shared_bot_manager if shared_bot_manager else bot_manager
@@ -701,7 +702,7 @@ def get_console_log():
                 "No log file found - logs will appear here when bot runs",
                 f"Last checked: {datetime.now().strftime('%H:%M:%S')}"
             ]
-        
+
         return jsonify({'logs': logs})
     except Exception as e:
         return jsonify({'logs': [f'Error loading logs: {str(e)}']})
@@ -858,24 +859,24 @@ def clear_orphan_trade(strategy_name):
     """Clear orphan trade for a specific strategy"""
     try:
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-        
+
         if not current_bot:
             return jsonify({'success': False, 'error': 'Bot not available'})
-        
+
         # Clear the orphan position from order manager
         if hasattr(current_bot, 'order_manager') and current_bot.order_manager:
             current_bot.order_manager.clear_orphan_position(strategy_name)
             logger.info(f"🌐 WEB INTERFACE: Manually cleared orphan trade for {strategy_name}")
-            
+
             # Also clear from anomaly detector if available
             if hasattr(current_bot, 'anomaly_detector'):
                 anomaly_id = f"orphan_{strategy_name}_SOLUSDT"  # Assuming SOLUSDT for now
                 current_bot.anomaly_detector.clear_anomaly_by_id(anomaly_id, "Manual clear via web interface")
-            
+
             return jsonify({'success': True, 'message': f'Orphan trade cleared for {strategy_name}'})
         else:
             return jsonify({'success': False, 'error': 'Order manager not available'})
-            
+
     except Exception as e:
         logger.error(f"Error clearing orphan trade: {e}")
         return jsonify({'success': False, 'error': str(e)})
@@ -914,7 +915,7 @@ def handle_404(e):
                 '/api/balance'
             ]
         }), 404
-    
+
     # For regular routes, redirect to dashboard
     return redirect(url_for('dashboard'))
 

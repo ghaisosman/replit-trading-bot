@@ -48,9 +48,7 @@ def run_web_dashboard():
         if not check_port_available(5000):
             logger.error("🚨 PORT 5000 UNAVAILABLE: Attempting to clean up...")
             
-            # Try to kill any processes using port 5000 (using Python since lsof not available)
-            import subprocess
-            import psutil
+            # Try to kill any processes using port 5000
             try:
                 # Kill Python processes that might be using port 5000
                 killed_count = 0
@@ -73,7 +71,6 @@ def run_web_dashboard():
                     logger.info("🔍 No conflicting processes found")
                 
                 # Wait a moment for cleanup
-                import time
                 time.sleep(2)
                 
                 # Check again
@@ -97,6 +94,10 @@ def run_web_dashboard():
         flask_log = flask_logging.getLogger('werkzeug')
         flask_log.setLevel(flask_logging.WARNING)
 
+        # Set Flask app configuration for better error handling
+        app.config['TESTING'] = False
+        app.config['DEBUG'] = False
+
         app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
         
     except Exception as e:
@@ -104,8 +105,19 @@ def run_web_dashboard():
         if "Address already in use" in str(e):
             logger.error("🚨 CRITICAL: Port conflict persists")
             logger.info("💡 Please restart the Repl to resolve port conflicts")
+        else:
+            logger.error(f"🚨 WEB DASHBOARD ERROR: {str(e)}")
+            logger.info("🌐 Attempting to restart web dashboard...")
+            # Try to restart after a delay
+            time.sleep(5)
+            if web_server_running:
+                try:
+                    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
+                except:
+                    logger.error("🚨 Web dashboard restart failed")
     finally:
         web_server_running = False
+        logger.info("🔴 Web dashboard stopped")
 
 async def main():
     global bot_manager, web_server_running
