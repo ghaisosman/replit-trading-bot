@@ -10,7 +10,8 @@
     "rsi_long_exit": 60,
     "rsi_short_entry": 70,
     "rsi_short_exit": 40,
-    "cooldown_period": 30
+    "cooldown_period": 298,
+    "decimals": 2
   },
   "macd_divergence": {
     "symbol": "ETHUSDT",
@@ -24,9 +25,10 @@
     "macd_signal": 9,
     "min_histogram_threshold": 1e-05,
     "min_distance_threshold": 0.001,
-    "confirmation_candles": 1,
+    "confirmation_candles": 2,
     "min_volume": 100000,
-    "cooldown_period": 30
+    "cooldown_period": 30,
+    "decimals": 2
   },
   "RSI_BTC": {
     "symbol": "BTCUSDT",
