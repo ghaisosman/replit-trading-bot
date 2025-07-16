@@ -27,5 +27,19 @@
     "confirmation_candles": 1,
     "min_volume": 100000,
     "cooldown_period": 30
+  },
+  "RSI_BTC": {
+    "symbol": "BTCUSDT",
+    "margin": 10.0,
+    "leverage": 5,
+    "timeframe": "15m",
+    "max_loss_pct": 10,
+    "assessment_interval": 60,
+    "cooldown_period": 60,
+    "rsi_long_entry": 30,
+    "rsi_long_exit": 60,
+    "rsi_short_entry": 70,
+    "rsi_short_exit": 40,
+    "decimals": 3
   }
 }
