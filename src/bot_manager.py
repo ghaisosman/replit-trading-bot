@@ -1111,7 +1111,8 @@ Interval: every {assessment_interval} seconds
                         'entry_price': position.entry_price,
                         'stop_loss': position.stop_loss,
                         'take_profit': position.take_profit,
-                        'side': position.side
+                        'side': position.side,
+                        'quantity': position.quantity
                     }
 
                     exit_reason = self.signal_processor.evaluate_exit_conditions(df, position_dict, strategy_config)

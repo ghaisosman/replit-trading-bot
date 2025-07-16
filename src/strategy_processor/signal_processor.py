@@ -255,14 +255,18 @@ class SignalProcessor:
             position_side = position.get('side', 'BUY')
             side = position.get('side')
 
-            # Stop loss check - FIXED: Use PnL percentage from strategy config
+            # Stop loss check - FIXED: Use PnL percentage against margin invested
             max_loss_pct = strategy_config.get('max_loss_pct', 10)  # Default 10%
             
-            # Calculate current PnL percentage
+            # Calculate current PnL in USDT
             if side == 'BUY':  # Long position
-                pnl_pct = ((current_price - entry_price) / entry_price) * 100
+                pnl_usdt = (current_price - entry_price) * position.get('quantity', 1)
             else:  # Short position  
-                pnl_pct = ((entry_price - current_price) / entry_price) * 100
+                pnl_usdt = (entry_price - current_price) * position.get('quantity', 1)
+            
+            # Calculate PnL percentage against margin invested (matches web dashboard calculation)
+            margin_invested = strategy_config.get('margin', 50.0)
+            pnl_pct = (pnl_usdt / margin_invested) * 100 if margin_invested > 0 else 0
             
             # Check if loss exceeds max allowed percentage
             if pnl_pct <= -max_loss_pct:
