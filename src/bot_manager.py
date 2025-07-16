@@ -389,9 +389,14 @@ For MAINNET:
                     pnl_usdt = self._calculate_pnl(position, current_price)
                     position_value_usdt = position.entry_price * position.quantity
 
-                    # Calculate margin invested (assuming 5x leverage as default)
+                    # Calculate margin invested using the same logic as order_manager
+                    # This should match the actual margin used from strategy config
+                    margin_from_config = strategy_config.get('margin', 50.0)
                     leverage = strategy_config.get('leverage', 5)
-                    margin_invested = position_value_usdt / leverage
+                    
+                    # Use the configured margin as the actual margin invested
+                    # (This is what was actually used to open the position)
+                    margin_invested = margin_from_config
 
                     # For futures trading, PnL percentage should be calculated against margin invested, not position value
                     pnl_percent = (pnl_usdt / margin_invested) * 100 if margin_invested > 0 else 0
@@ -412,10 +417,10 @@ For MAINNET:
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝""")
                 else:
-                    # Fallback if price fetch fails
-                    position_value_usdt = position.entry_price * position.quantity
+                    # Fallback if price fetch fails - use configured margin
+                    margin_from_config = strategy_config.get('margin', 50.0)
                     leverage = strategy_config.get('leverage', 5)
-                    margin_invested = position_value_usdt / leverage
+                    margin_invested = margin_from_config
 
                     self.logger.info(f"""╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║

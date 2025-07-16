@@ -107,13 +107,15 @@ def dashboard():
                 current_price = get_current_price(position.symbol)
                 pnl = calculate_pnl(position, current_price) if current_price else 0
 
-                # Calculate position value and margin invested
+                # Calculate position value and get actual margin invested
                 position_value = position.entry_price * position.quantity
 
-                # Get leverage from strategy config
+                # Get leverage and margin from strategy config  
                 strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
                 leverage = strategy_config.get('leverage', 5)  # Default 5x leverage
-                margin_invested = position_value / leverage
+                
+                # Use the configured margin as the actual margin invested (matches trading logic)
+                margin_invested = strategy_config.get('margin', 50.0)
 
                 # Calculate PnL percentage against margin invested (correct for futures)
                 pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
@@ -583,13 +585,15 @@ def get_positions():
                     else:  # Short position (SELL)
                         pnl = (entry_price - current_price) * quantity
 
-                    # Calculate position value and margin invested
+                    # Calculate position value and get actual margin invested
                     position_value_usdt = entry_price * quantity
 
-                    # Get leverage from strategy config (default 5x if not found)
+                    # Get leverage and margin from strategy config (default 5x if not found)
                     strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
                     leverage = strategy_config.get('leverage', 5)
-                    margin_invested = position_value_usdt / leverage
+                    
+                    # Use the configured margin as the actual margin invested (matches trading logic)
+                    margin_invested = strategy_config.get('margin', 50.0)
 
                     # For futures trading, PnL percentage should be calculated against margin invested, not position value
                     pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
