@@ -454,6 +454,74 @@ def get_strategies():
         logger.error(f"Error in get_strategies endpoint: {e}")
         return jsonify({'error': str(e), 'strategies': {}}), 500
 
+@app.route('/api/strategies', methods=['POST'])
+def create_strategy():
+    """Create a new strategy"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'name' not in data:
+            return jsonify({'success': False, 'message': 'Strategy name is required'})
+        
+        strategy_name = data['name']
+        
+        # Validate strategy name
+        if not strategy_name.lower().strip():
+            return jsonify({'success': False, 'message': 'Strategy name cannot be empty'})
+        
+        # Check if strategy already exists
+        existing_strategies = trading_config_manager.get_all_strategies()
+        if strategy_name in existing_strategies:
+            return jsonify({'success': False, 'message': f'Strategy {strategy_name} already exists'})
+        
+        # Validate strategy type
+        if 'rsi' not in strategy_name.lower() and 'macd' not in strategy_name.lower():
+            return jsonify({'success': False, 'message': 'Strategy name must contain "rsi" or "macd"'})
+        
+        # Create strategy configuration
+        new_config = {
+            'symbol': data.get('symbol', 'BTCUSDT'),
+            'margin': float(data.get('margin', 50.0)),
+            'leverage': int(data.get('leverage', 5)),
+            'timeframe': data.get('timeframe', '15m'),
+            'max_loss_pct': float(data.get('max_loss_pct', 10.0)),
+            'assessment_interval': int(data.get('assessment_interval', 60)),
+            'cooldown_period': int(data.get('cooldown_period', 300))
+        }
+        
+        # Add strategy-specific parameters
+        if 'rsi' in strategy_name.lower():
+            new_config.update({
+                'rsi_long_entry': int(data.get('rsi_long_entry', 40)),
+                'rsi_long_exit': int(data.get('rsi_long_exit', 70)),
+                'rsi_short_entry': int(data.get('rsi_short_entry', 60)),
+                'rsi_short_exit': int(data.get('rsi_short_exit', 30))
+            })
+        elif 'macd' in strategy_name.lower():
+            new_config.update({
+                'macd_fast': int(data.get('macd_fast', 12)),
+                'macd_slow': int(data.get('macd_slow', 26)),
+                'macd_signal': int(data.get('macd_signal', 9)),
+                'min_histogram_threshold': float(data.get('min_histogram_threshold', 0.0001)),
+                'min_distance_threshold': float(data.get('min_distance_threshold', 0.005)),
+                'confirmation_candles': int(data.get('confirmation_candles', 2))
+            })
+        
+        # Save the new strategy
+        trading_config_manager.update_strategy_params(strategy_name, new_config)
+        
+        logger.info(f"🆕 NEW STRATEGY CREATED: {strategy_name} via web dashboard")
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Strategy {strategy_name} created successfully',
+            'strategy': new_config
+        })
+        
+    except Exception as e:
+        logger.error(f"Error creating strategy: {e}")
+        return jsonify({'success': False, 'message': f'Failed to create strategy: {e}'})
+
 @app.route('/api/strategies/<strategy_name>', methods=['POST'])
 def update_strategy(strategy_name):
     """Update strategy configuration"""
