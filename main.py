@@ -98,7 +98,9 @@ def run_web_dashboard():
         app.config['TESTING'] = False
         app.config['DEBUG'] = False
 
-        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
+        # Get port from environment for deployment compatibility
+        port = int(os.environ.get('PORT', 5000))
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
 
     except Exception as e:
         logger.error(f"Web dashboard error: {e}")
@@ -112,7 +114,9 @@ def run_web_dashboard():
             time.sleep(5)
             if web_server_running:
                 try:
-                    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
+                    # Get port from environment for deployment compatibility
+                    port = int(os.environ.get('PORT', 5000))
+                    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
                 except:
                     logger.error("🚨 Web dashboard restart failed")
     finally:
