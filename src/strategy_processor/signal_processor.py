@@ -157,10 +157,16 @@ class SignalProcessor:
             confirmation_candles = config.get('confirmation_candles', 2)
             min_distance_threshold = config.get('min_distance_threshold', 0.005)
 
-            # Calculate stop loss based on PnL (10% of margin)
+            # Calculate stop loss based on PnL (8% of margin by default)
             max_loss_amount = margin * (max_loss_pct / 100)
             notional_value = margin * leverage
             stop_loss_pct = (max_loss_amount / notional_value) * 100
+
+            # Ensure stop loss percentage is properly bounded
+            if stop_loss_pct < 1.0:
+                stop_loss_pct = 1.0  # Minimum 1% stop loss
+            elif stop_loss_pct > 15.0:
+                stop_loss_pct = 15.0  # Maximum 15% stop loss
 
             # Get recent MACD data
             macd_line = df['macd'].iloc[-confirmation_candles-1:]
