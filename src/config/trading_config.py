@@ -38,10 +38,11 @@ class TradingConfigManager:
                 'timeframe': '15m',
                 'rsi_long_entry': 40,
                 'rsi_long_exit': 55,
-                'rsi_short_entry': 60,
+                'rsi_short_entry': 60,  # WEB DASHBOARD SETTING (YOUR SETTING)
                 'rsi_short_exit': 45,
                 'max_loss_pct': 10,
                 'assessment_interval': 60,  # 1 minute for faster response
+                # WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - OVERRIDES ALL FILES
             },
             'macd_divergence': {
                 'symbol': 'BTCUSDT',
@@ -53,25 +54,29 @@ class TradingConfigManager:
         }
     
     def get_strategy_config(self, strategy_name: str, base_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Get strategy config with applied trading parameters"""
+        """Get strategy config with applied trading parameters - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
         # Start with base strategy config
         config = base_config.copy()
         
         # Apply default parameters
         default_params = self.default_params.to_dict()
         
-        # Apply strategy-specific overrides
+        # Apply strategy-specific overrides from web dashboard (HIGHEST PRIORITY)
         if strategy_name in self.strategy_overrides:
             strategy_params = self.strategy_overrides[strategy_name]
             default_params.update(strategy_params)
         
-        # Update config with trading parameters
+        # Web dashboard settings ALWAYS override file-based configs
         config.update(default_params)
+        
+        # Log the final config being used for debugging
+        import logging
+        logging.getLogger(__name__).info(f"🎯 FINAL CONFIG for {strategy_name}: {config}")
         
         return config
     
     def update_strategy_params(self, strategy_name: str, updates: Dict[str, Any]):
-        """Update trading parameters for a specific strategy"""
+        """Update trading parameters for a specific strategy - WEB DASHBOARD PRIORITY"""
         if strategy_name not in self.strategy_overrides:
             self.strategy_overrides[strategy_name] = {}
         
@@ -84,13 +89,36 @@ class TradingConfigManager:
             elif updates['assessment_interval'] > 300:
                 updates['assessment_interval'] = 300
         
+        # WEB DASHBOARD SETTINGS OVERRIDE ALL OTHER SOURCES
         self.strategy_overrides[strategy_name].update(updates)
+        
+        # Force update any running bot instance immediately
+        self._force_update_running_bot(strategy_name, updates)
         
         # Log the update for debugging
         import logging
-        logging.getLogger(__name__).info(f"📝 Strategy {strategy_name} config updated: {updates}")
+        logging.getLogger(__name__).info(f"🌐 WEB DASHBOARD UPDATE | {strategy_name} | {updates}")
+        logging.getLogger(__name__).info(f"🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - OVERRIDES ALL FILES")
         if 'assessment_interval' in updates:
             logging.getLogger(__name__).info(f"📅 {strategy_name} assessment interval set to {updates['assessment_interval']} seconds")
+    
+    def _force_update_running_bot(self, strategy_name: str, updates: Dict[str, Any]):
+        """Force update running bot with web dashboard settings"""
+        try:
+            import sys
+            main_module = sys.modules.get('__main__')
+            bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
+            
+            if bot_manager and hasattr(bot_manager, 'strategies') and strategy_name in bot_manager.strategies:
+                # Force update the running bot's strategy config
+                bot_manager.strategies[strategy_name].update(updates)
+                
+                import logging
+                logging.getLogger(__name__).info(f"🔄 LIVE UPDATE | {strategy_name} config updated in running bot")
+                logging.getLogger(__name__).info(f"📊 New Config: {bot_manager.strategies[strategy_name]}")
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Could not update running bot: {e}")
     
     def update_default_params(self, updates: Dict[str, Any]):
         """Update default trading parameters for all strategies"""

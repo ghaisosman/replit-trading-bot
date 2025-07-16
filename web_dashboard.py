@@ -484,52 +484,64 @@ def update_strategy(strategy_name):
         if basic_params:
             trading_config_manager.update_strategy_params(strategy_name, basic_params)
 
-        # Update strategy-specific config files safely
+        # WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Update strategy-specific config files as backup only
         try:
             if 'rsi' in strategy_name.lower():
                 from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
                 rsi_updates = {k: v for k, v in data.items() if k.startswith('rsi_') or k == 'max_loss_pct'}
                 if rsi_updates:
-                    logger.info(f"📝 WEB INTERFACE: Updating RSI strategy config: {rsi_updates}")
-                    # Save to config file
+                    logger.info(f"🌐 WEB DASHBOARD PRIORITY: RSI config {rsi_updates} (overrides file)")
+                    # Update file as backup, but web dashboard takes priority
                     RSIOversoldConfig.update_config(rsi_updates)
 
             elif 'macd' in strategy_name.lower():
                 from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
                 macd_updates = {k: v for k, v in data.items() if k.startswith('macd_') or k.startswith('min_') or k in ['confirmation_candles', 'max_loss_pct']}
                 if macd_updates:
-                    logger.info(f"📝 WEB INTERFACE: Updating MACD strategy config: {macd_updates}")
-                    # Save to config file
+                    logger.info(f"🌐 WEB DASHBOARD PRIORITY: MACD config {macd_updates} (overrides file)")
+                    # Update file as backup, but web dashboard takes priority
                     MACDDivergenceConfig.update_config(macd_updates)
 
         except ImportError as e:
             logger.warning(f"Could not update strategy-specific config for {strategy_name}: {e}")
         except Exception as e:
             logger.error(f"Error updating strategy config file for {strategy_name}: {e}")
+            
+        # PRIORITY: Force immediate update to trading config manager (SINGLE SOURCE OF TRUTH)
+        logger.info(f"🎯 WEB DASHBOARD: Setting as SINGLE SOURCE OF TRUTH for {strategy_name}")
+        logger.info(f"🔄 FORCING UPDATE: {data}")
 
         # Always try to get the latest shared bot manager
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
 
-        # Update running bot configuration if available
+        # FORCE IMMEDIATE UPDATE to running bot configuration (WEB DASHBOARD PRIORITY)
         bot_updated = False
 
-        # Check shared bot manager first
+        # Check shared bot manager first - FORCE WEB DASHBOARD SETTINGS
         if shared_bot_manager and hasattr(shared_bot_manager, 'strategies') and strategy_name in shared_bot_manager.strategies:
+            # COMPLETE OVERRIDE - Web dashboard is single source of truth
             shared_bot_manager.strategies[strategy_name].update(data)
-            logger.info(f"📝 WEB INTERFACE: Updated {strategy_name} config in shared bot: {data}")
+            logger.info(f"🌐 WEB DASHBOARD OVERRIDE: {strategy_name} config FORCED in shared bot: {data}")
+            logger.info(f"🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - File configs ignored")
             bot_updated = True
 
-        # Fallback to standalone bot
+        # Fallback to standalone bot - FORCE WEB DASHBOARD SETTINGS
         elif bot_manager and hasattr(bot_manager, 'strategies') and strategy_name in bot_manager.strategies:
+            # COMPLETE OVERRIDE - Web dashboard is single source of truth
             bot_manager.strategies[strategy_name].update(data)
-            logger.info(f"📝 WEB INTERFACE: Updated {strategy_name} config in standalone bot: {data}")
+            logger.info(f"🌐 WEB DASHBOARD OVERRIDE: {strategy_name} config FORCED in standalone bot: {data}")
+            logger.info(f"🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - File configs ignored")
             bot_updated = True
 
-        message = f'Strategy {strategy_name} updated successfully'
+        message = f'🌐 WEB DASHBOARD: {strategy_name} updated successfully'
         if bot_updated:
-            message += ' (applied to running bot immediately)'
+            message += ' (LIVE UPDATE - Web dashboard is single source of truth)'
         else:
-            message += ' (will apply after restart)'
+            message += ' (Will apply on restart - Web dashboard overrides all files)'
+
+        # Log final confirmation
+        logger.info(f"✅ WEB DASHBOARD UPDATE COMPLETE | {strategy_name}")
+        logger.info(f"🎯 YOUR RSI SHORT ENTRY: {data.get('rsi_short_entry', 'Not set')} (overrides file configs)")
 
         return jsonify({'success': True, 'message': message})
     except Exception as e:
