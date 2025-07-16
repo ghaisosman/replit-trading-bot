@@ -819,3 +819,93 @@ def get_binance_positions():
             'error': str(e),
             'positions': []
         }), 500
+
+@app.route('/api/trading/environment', methods=['GET'])
+def get_trading_environment():
+    """Get current trading environment configuration"""
+    try:
+        if IMPORTS_AVAILABLE:
+            return jsonify({
+                'success': True,
+                'environment': {
+                    'is_testnet': global_config.BINANCE_TESTNET,
+                    'is_futures': global_config.BINANCE_FUTURES,
+                    'api_key_configured': bool(global_config.BINANCE_API_KEY),
+                    'secret_key_configured': bool(global_config.BINANCE_SECRET_KEY),
+                    'mode': 'FUTURES TESTNET' if global_config.BINANCE_TESTNET else 'FUTURES MAINNET'
+                }
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'environment': {
+                    'is_testnet': True,
+                    'is_futures': True,
+                    'api_key_configured': False,
+                    'secret_key_configured': False,
+                    'mode': 'DEMO MODE'
+                }
+            })
+    except Exception as e:
+        logger.error(f"Error getting trading environment: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/trading/environment', methods=['POST'])
+def update_trading_environment():
+    """Update trading environment (testnet/mainnet)"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'message': 'Configuration update not available in demo mode'})
+        
+        data = request.get_json()
+        
+        if not data or 'is_testnet' not in data:
+            return jsonify({'success': False, 'message': 'Missing is_testnet parameter'})
+        
+        is_testnet = bool(data['is_testnet'])
+        
+        # Update the global config in memory
+        global_config.BINANCE_TESTNET = is_testnet
+        
+        # Save to environment configuration file for persistence
+        env_config = {
+            'BINANCE_TESTNET': str(is_testnet).lower(),
+            'BINANCE_FUTURES': str(global_config.BINANCE_FUTURES).lower()
+        }
+        
+        # Write to a config file for persistence across restarts
+        config_file = "trading_data/environment_config.json"
+        os.makedirs(os.path.dirname(config_file), exist_ok=True)
+        
+        with open(config_file, 'w') as f:
+            json.dump(env_config, f, indent=2)
+        
+        mode = 'FUTURES TESTNET' if is_testnet else 'FUTURES MAINNET'
+        
+        # Log the environment change
+        logger.info(f"🔄 ENVIRONMENT CHANGED: {mode}")
+        logger.info(f"🌐 WEB DASHBOARD: Trading environment updated via web interface")
+        
+        # Check if bot is running and warn about restart requirement
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        bot_running = current_bot and getattr(current_bot, 'is_running', False)
+        
+        message = f'Trading environment updated to {mode}'
+        if bot_running:
+            message += ' (Bot restart required to apply changes)'
+            logger.warning("⚠️ Bot restart required for environment change to take effect")
+        
+        return jsonify({
+            'success': True, 
+            'message': message,
+            'environment': {
+                'is_testnet': is_testnet,
+                'is_futures': global_config.BINANCE_FUTURES,
+                'mode': mode,
+                'restart_required': bot_running
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating trading environment: {e}")
+        return jsonify({'success': False, 'message': f'Failed to update environment: {e}'})
