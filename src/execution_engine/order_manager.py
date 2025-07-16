@@ -367,8 +367,70 @@ class OrderManager:
         except Exception as e:
             self.logger.error(f"Error adding position to history: {e}")
 
+    def _get_symbol_info(self, symbol: str) -> Dict:
+        """Get symbol trading rules from Binance with caching"""
+        try:
+            # Cache symbol info to avoid repeated API calls
+            if not hasattr(self, '_symbol_info_cache'):
+                self._symbol_info_cache = {}
+            
+            if symbol in self._symbol_info_cache:
+                return self._symbol_info_cache[symbol]
+            
+            # Fetch exchange info from Binance
+            if self.binance_client.is_futures:
+                exchange_info = self.binance_client.client.futures_exchange_info()
+            else:
+                exchange_info = self.binance_client.client.get_exchange_info()
+            
+            # Find symbol info
+            symbol_info = None
+            for s in exchange_info['symbols']:
+                if s['symbol'] == symbol:
+                    symbol_info = s
+                    break
+            
+            if symbol_info:
+                # Extract relevant filters
+                filters = {f['filterType']: f for f in symbol_info.get('filters', [])}
+                
+                # Get LOT_SIZE filter for quantity precision
+                lot_size = filters.get('LOT_SIZE', {})
+                min_qty = float(lot_size.get('minQty', 0.1))
+                step_size = float(lot_size.get('stepSize', 0.1))
+                
+                # Calculate precision from step size
+                precision = len(str(step_size).rstrip('0').split('.')[-1]) if '.' in str(step_size) else 0
+                
+                info = {
+                    'min_qty': min_qty,
+                    'step_size': step_size,
+                    'precision': precision
+                }
+                
+                self._symbol_info_cache[symbol] = info
+                self.logger.debug(f"📋 SYMBOL INFO | {symbol} | Min: {min_qty} | Step: {step_size} | Precision: {precision}")
+                return info
+            
+        except Exception as e:
+            self.logger.warning(f"Could not fetch symbol info for {symbol}: {e}")
+        
+        # Fallback to hardcoded rules if API fails
+        return self._get_fallback_symbol_info(symbol)
+    
+    def _get_fallback_symbol_info(self, symbol: str) -> Dict:
+        """Fallback symbol info if API call fails"""
+        symbol_upper = symbol.upper()
+        
+        if 'SOL' in symbol_upper:
+            return {'min_qty': 0.01, 'step_size': 0.01, 'precision': 2}
+        elif 'BTC' in symbol_upper:
+            return {'min_qty': 0.001, 'step_size': 0.001, 'precision': 3}
+        else:
+            return {'min_qty': 0.1, 'step_size': 0.1, 'precision': 1}
+
     def _calculate_position_size(self, signal: TradingSignal, strategy_config: Dict) -> float:
-        """Calculate position size based on margin and leverage with improved precision"""
+        """Calculate position size based on margin and leverage with dynamic symbol info"""
         try:
             margin = strategy_config.get('margin', 50.0)
             leverage = strategy_config.get('leverage', 5)
@@ -381,35 +443,29 @@ class OrderManager:
             # Calculate quantity in base currency
             quantity = position_value_usdt / signal.entry_price
 
-            # Apply symbol-specific precision for futures trading
-            # Use strategy config symbol if signal symbol is empty
+            # Get symbol info from Binance API
             config_symbol = strategy_config.get('symbol', '')
             actual_symbol = signal.symbol or config_symbol
-            symbol_upper = actual_symbol.upper()
+            symbol_info = self._get_symbol_info(actual_symbol)
 
             self.logger.info(f"🔍 RAW CALCULATION | Symbol: {actual_symbol} | Position Value: ${position_value_usdt} | Raw Quantity: {quantity:.6f}")
 
-            if 'SOLUSDT' in symbol_upper or 'SOL' in symbol_upper:
-                # SOL futures uses 2 decimal places, minimum 0.01
-                original_quantity = quantity
-                quantity = round(quantity, 2)
-                if quantity < 0.01:
-                    quantity = 0.01
-                self.logger.info(f"🔧 SOL PRECISION FIX | Original: {original_quantity:.6f} → Fixed: {quantity}")
-            elif 'BTCUSDT' in symbol_upper or 'BTC' in symbol_upper:
-                # BTC futures uses 3 decimal places, minimum 0.001
-                original_quantity = quantity
-                quantity = round(quantity, 3)
-                if quantity < 0.001:
-                    quantity = 0.001
-                self.logger.info(f"🔧 BTC PRECISION FIX | Original: {original_quantity:.6f} → Fixed: {quantity}")
-            else:
-                # Default to 1 decimal place for most futures
-                original_quantity = quantity
-                quantity = round(quantity, 1)
-                if quantity < 0.1:
-                    quantity = 0.1
-                self.logger.info(f"🔧 DEFAULT PRECISION | Original: {original_quantity:.6f} → Fixed: {quantity}")
+            # Apply symbol-specific precision from Binance
+            min_qty = symbol_info['min_qty']
+            step_size = symbol_info['step_size']
+            precision = symbol_info['precision']
+            
+            original_quantity = quantity
+            
+            # Round to proper precision based on step size
+            quantity = round(quantity / step_size) * step_size
+            quantity = round(quantity, precision)
+            
+            # Ensure minimum quantity
+            if quantity < min_qty:
+                quantity = min_qty
+            
+            self.logger.info(f"🔧 DYNAMIC PRECISION | Original: {original_quantity:.6f} → Fixed: {quantity} | Min: {min_qty} | Step: {step_size}")
 
             # Calculate what the actual margin will be with this quantity
             actual_position_value = quantity * signal.entry_price
