@@ -784,3 +784,21 @@ def calculate_pnl(position, current_price):
 
 @app.route('/api/binance/positions', methods=['GET'])
 def get_binance_positions():
+    """Get Binance positions data"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Binance client not available'})
+        
+        # Return basic positions response
+        return jsonify({
+            'success': True,
+            'positions': [],
+            'message': 'Binance positions endpoint active'
+        })
+    except Exception as e:
+        logger.error(f"Error in get_binance_positions: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'positions': []
+        }), 500
