@@ -113,7 +113,7 @@ def dashboard():
                 # Get leverage and margin from strategy config  
                 strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
                 leverage = strategy_config.get('leverage', 5)  # Default 5x leverage
-                
+
                 # Use the configured margin as the actual margin invested (matches trading logic)
                 margin_invested = strategy_config.get('margin', 50.0)
 
@@ -591,7 +591,7 @@ def get_positions():
                     # Get leverage and margin from strategy config (default 5x if not found)
                     strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
                     leverage = strategy_config.get('leverage', 5)
-                    
+
                     # Use the configured margin as the actual margin invested (matches trading logic)
                     margin_invested = strategy_config.get('margin', 50.0)
 
@@ -689,7 +689,7 @@ def get_console_log():
     try:
         # First try to get logs from the running bot's web log handler
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-        
+
         if current_bot and hasattr(current_bot, 'log_handler'):
             try:
                 recent_logs = current_bot.log_handler.get_recent_logs(50)
@@ -882,3 +882,44 @@ if __name__ == '__main__':
     logger.info("💡 Please run 'python main.py' instead - it includes the web dashboard")
     print("⚠️  web_dashboard.py should not be run directly")
     print("💡 Run 'python main.py' instead - it includes the web dashboard")
+
+@app.route('/api/strategy/update', methods=['POST'])
+def update_strategy():
+    try:
+        data = request.get_json()
+        strategy_name = data.get('strategy_name')
+        updates = data.get('updates', {})
+
+        if not strategy_name or not updates:
+            return jsonify({'success': False, 'error': 'Missing strategy name or updates'})
+
+        # Log the incoming update request
+        print(f"🔧 WEB DASHBOARD UPDATE REQUEST | Strategy: {strategy_name} | Updates: {updates}")
+
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+
+        if current_bot and hasattr(current_bot, 'strategies'):
+            # Apply the updates to the strategy in the bot
+            if strategy_name in current_bot.strategies:
+                current_bot.strategies[strategy_name].update(updates)
+
+                # Log the successful update
+                logger.info(f"📝 WEB INTERFACE: Updated {strategy_name} config in bot: {updates}")
+
+                # Verify the updates were applied (optional)
+                updated_config = current_bot.strategies[strategy_name]
+                logger.debug(f"📊 Current Config for {strategy_name}: {updated_config}")
+
+                return jsonify({
+                    'success': True,
+                    'message': f'Strategy {strategy_name} updated successfully',
+                    'current_config': updated_config  # Include for verification
+                })
+            else:
+                return jsonify({'success': False, 'error': f'Strategy {strategy_name} not found in bot'})
+        else:
+            return jsonify({'success': False, 'error': 'Bot not running or strategies not available'})
+
+    except Exception as e:
+        logger.error(f"❌ WEB DASHBOARD UPDATE ERROR | {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})

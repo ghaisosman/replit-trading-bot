@@ -95,14 +95,19 @@ class OrderManager:
 
             # Set leverage before creating order
             leverage = strategy_config.get('leverage', 1)
+            
+            self.logger.info(f"🔧 SETTING LEVERAGE | {symbol} | Requested: {leverage}x | From Config: {strategy_config}")
 
             # Set leverage for the symbol
             try:
+                self.logger.info(f"🔧 BINANCE LEVERAGE CALL | {symbol} | Setting to {leverage}x")
                 leverage_result = self.binance_client.set_leverage(symbol, leverage)
                 if leverage_result:
-                    self.logger.info(f"Leverage set to {leverage}x for {symbol}")
+                    self.logger.info(f"✅ LEVERAGE SET SUCCESSFULLY | {symbol} | {leverage}x | Result: {leverage_result}")
+                else:
+                    self.logger.error(f"❌ LEVERAGE SET FAILED | {symbol} | {leverage}x | No result returned")
             except Exception as e:
-                self.logger.warning(f"Could not set leverage for {symbol}: {e}")
+                self.logger.error(f"❌ LEVERAGE SET ERROR | {symbol} | {leverage}x | Error: {e}")
 
             # Set margin type to CROSSED
             try:
@@ -363,6 +368,8 @@ class OrderManager:
             margin = strategy_config.get('margin', 50.0)
             leverage = strategy_config.get('leverage', 5)
 
+            self.logger.info(f"🔍 POSITION SIZE CALCULATION | Margin: ${margin} | Leverage: {leverage}x | Entry: ${signal.entry_price}")
+
             # Calculate base position size in quote currency (USDT)
             position_value_usdt = margin * leverage
 
@@ -374,29 +381,35 @@ class OrderManager:
             config_symbol = strategy_config.get('symbol', '')
             actual_symbol = signal.symbol or config_symbol
             symbol_upper = actual_symbol.upper()
-            self.logger.info(f"🔍 PRECISION CHECK: Symbol = {actual_symbol} | Upper = {symbol_upper} | Quantity = {quantity:.6f}")
+
+            self.logger.info(f"🔍 RAW CALCULATION | Symbol: {actual_symbol} | Position Value: ${position_value_usdt} | Raw Quantity: {quantity:.6f}")
 
             if 'SOLUSDT' in symbol_upper or 'SOL' in symbol_upper:
                 # SOL futures uses 0 decimal places (whole numbers only)
                 original_quantity = quantity
                 quantity = float(max(1, int(round(quantity))))  # Ensure it's a float for API consistency
-                self.logger.info(f"🔧 SOL PRECISION FIX APPLIED: Original {original_quantity:.6f} → Fixed to {quantity}")
+                self.logger.info(f"🔧 SOL PRECISION FIX | Original: {original_quantity:.6f} → Fixed: {quantity}")
             elif 'BTCUSDT' in symbol_upper or 'BTC' in symbol_upper:
                 # BTC futures typically uses 3 decimal places for quantity
                 original_quantity = quantity
                 quantity = round(quantity, 3)
                 if quantity < 0.001:
                     quantity = 0.001
-                self.logger.info(f"🔧 BTC PRECISION FIX APPLIED: Original {original_quantity:.6f} → Fixed to {quantity}")
+                self.logger.info(f"🔧 BTC PRECISION FIX | Original: {original_quantity:.6f} → Fixed: {quantity}")
             else:
                 # Default to 1 decimal place for most futures
                 original_quantity = quantity
                 quantity = round(quantity, 1)
                 if quantity < 0.1:
                     quantity = 0.1
-                self.logger.info(f"🔧 DEFAULT PRECISION: Original {original_quantity:.6f} → Fixed to {quantity}")
+                self.logger.info(f"🔧 DEFAULT PRECISION | Original: {original_quantity:.6f} → Fixed: {quantity}")
 
-            self.logger.info(f"✅ Position size calculated for {signal.symbol}: {quantity} (Margin: ${margin}, Entry: ${signal.entry_price})")
+            # Calculate what the actual margin will be with this quantity
+            actual_position_value = quantity * signal.entry_price
+            actual_margin_will_be = actual_position_value / leverage
+
+            self.logger.info(f"✅ FINAL POSITION SIZE | Symbol: {signal.symbol} | Quantity: {quantity} | Actual Position Value: ${actual_position_value:.2f} | Actual Margin: ${actual_margin_will_be:.2f}")
+            
             return quantity
 
         except Exception as e:
