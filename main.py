@@ -42,6 +42,11 @@ def run_web_dashboard():
     """Run web dashboard in separate thread - keeps running even if bot stops"""
     global web_server_running
     logger = logging.getLogger(__name__)
+    
+    # Check if running in deployment environment
+    is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
+    if is_deployment:
+        logger.info("🚀 RUNNING IN REPLIT DEPLOYMENT MODE")
 
     try:
         # Check if port 5000 is available before starting
@@ -100,6 +105,7 @@ def run_web_dashboard():
 
         # Get port from environment for deployment compatibility
         port = int(os.environ.get('PORT', 5000))
+        logger.info(f"🌐 Starting web dashboard on 0.0.0.0:{port}")
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
 
     except Exception as e:
@@ -116,6 +122,7 @@ def run_web_dashboard():
                 try:
                     # Get port from environment for deployment compatibility
                     port = int(os.environ.get('PORT', 5000))
+                    logger.info(f"🌐 Restarting web dashboard on 0.0.0.0:{port}")
                     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
                 except:
                     logger.error("🚨 Web dashboard restart failed")
@@ -272,42 +279,57 @@ if __name__ == "__main__":
     setup_logger()
     logger = logging.getLogger(__name__)
 
-    # Initialize bot_manager as None initially
-    bot_manager = None
-
-    # Make it globally accessible for web interface
-    sys.modules[__name__].bot_manager = None
-
-    # Start web dashboard in persistent background thread - SINGLE LAUNCH POINT
-    web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
-    web_thread.start()
-
-    # Give web dashboard time to start
-    time.sleep(3)
-    logger.info("🌐 Persistent Web Dashboard started - accessible via Replit webview")
-
-    try:
-        # Start the main trading bot WITHOUT starting web dashboard again
-        asyncio.run(main_bot_only())
-
-    except KeyboardInterrupt:
-        logger.info("🔴 BOT STOPPED: Manual shutdown via console (Ctrl+C)")
-        # Keep web interface running
-        logger.info("🌐 Web interface remains active for bot control")
-
-        # Keep process alive for web interface
+    # Check if running in deployment
+    is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
+    
+    if is_deployment:
+        logger.info("🚀 STARTING IN REPLIT DEPLOYMENT MODE")
+        
+        # In deployment, run simplified version
+        bot_manager = None
+        sys.modules[__name__].bot_manager = None
+        
+        # Start web dashboard in background
+        web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
+        web_thread.start()
+        
+        # Wait for web dashboard and keep alive
+        time.sleep(2)
+        logger.info("🌐 Deployment web dashboard active")
+        
         try:
-            while web_server_running:
-                time.sleep(5)
+            # Keep the process alive for web interface
+            while True:
+                time.sleep(10)
         except KeyboardInterrupt:
-            logger.info("🔴 Final shutdown - terminating web interface")
+            logger.info("🔴 Deployment shutdown")
+    else:
+        # Original development mode
+        bot_manager = None
+        sys.modules[__name__].bot_manager = None
 
-    except Exception as e:
-        logger.error(f"Bot error: {e}")
-        # Keep web interface running even on error
-        logger.info("🌐 Web interface remains active despite bot error")
+        # Start web dashboard in persistent background thread
+        web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
+        web_thread.start()
+
+        time.sleep(3)
+        logger.info("🌐 Development Web Dashboard started")
+
         try:
-            while web_server_running:
-                time.sleep(5)
+            asyncio.run(main_bot_only())
         except KeyboardInterrupt:
-            logger.info("🔴 Final shutdown - terminating web interface")
+            logger.info("🔴 BOT STOPPED: Manual shutdown")
+            logger.info("🌐 Web interface remains active")
+            try:
+                while web_server_running:
+                    time.sleep(5)
+            except KeyboardInterrupt:
+                logger.info("🔴 Final shutdown")
+        except Exception as e:
+            logger.error(f"Bot error: {e}")
+            logger.info("🌐 Web interface remains active despite error")
+            try:
+                while web_server_running:
+                    time.sleep(5)
+            except KeyboardInterrupt:
+                logger.info("🔴 Final shutdown")
