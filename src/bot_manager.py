@@ -393,77 +393,25 @@ For MAINNET:
                     self.logger.error(f"❌ PnL DISPLAY ERROR | {strategy_name} | Could not fetch current price for {symbol}")
                     continue
 
-                # STEP 1: Try to get accurate PnL from Binance API
-                binance_pnl = 0.0
-                binance_pnl_pct = 0.0
-                binance_success = False
-                actual_margin_used = 0.0
+                # Calculate PnL using simple and reliable method (as before recent changes)
+                entry_price = position.entry_price
+                quantity = position.quantity
+                side = position.side
 
-                try:
-                    if self.binance_client.is_futures:
-                        positions = self.binance_client.client.futures_position_information(symbol=symbol)
+                # Simple PnL calculation that always works
+                if side == 'BUY':  # Long position
+                    pnl = (current_price - entry_price) * quantity
+                else:  # Short position (SELL)
+                    pnl = (entry_price - current_price) * quantity
 
-                        for binance_position in positions:
-                            position_amt = float(binance_position.get('positionAmt', 0))
+                # Use configured margin for percentage calculation (as it was working before)
+                margin_invested = strategy_config.get('margin', 50.0)
+                pnl_percentage = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
 
-                            # Use a more flexible matching approach - check if position exists for this symbol
-                            if abs(position_amt) > 0.000001:  # Position exists
-                                binance_pnl = float(binance_position.get('unRealizedPnl', 0))
-                                entry_price = float(binance_position.get('entryPrice', 0))
-                                mark_price = float(binance_position.get('markPrice', current_price))
+                self.logger.debug(f"🔍 PNL CALCULATION | {symbol} | Side: {side} | Entry: ${entry_price:.2f} | Current: ${current_price:.2f} | Qty: {quantity} | PnL: ${pnl:.2f} ({pnl_percentage:.1f}%)")
 
-                                # Calculate actual margin used from Binance data (position value / leverage)
-                                actual_margin_used = abs(entry_price * position_amt) / leverage
-
-                                # Calculate percentage using actual margin
-                                binance_pnl_pct = (binance_pnl / actual_margin_used) * 100 if actual_margin_used > 0 else 0
-                                binance_success = True
-
-                                self.logger.info(f"🔍 BINANCE PNL SUCCESS | {symbol} | Amt: {position_amt} | PnL: ${binance_pnl:.2f} | Entry: ${entry_price:.2f} | Mark: ${mark_price:.2f} | Margin: ${actual_margin_used:.2f} | Pct: {binance_pnl_pct:.2f}%")
-                                break
-
-                except Exception as e:
-                    self.logger.error(f"❌ BINANCE API PNL ERROR | {symbol} | ERROR: {str(e)}")
-                    binance_success = False
-
-                # STEP 2: If Binance API failed, get actual position data and calculate manually
-                if not binance_success:
-                    self.logger.warning(f"⚠️ BINANCE PNL RETRIEVAL FAILED | {symbol} | Getting fresh position data for manual calculation")
-
-                    # Get fresh position data from Binance for accurate calculation
-                    try:
-                        if self.binance_client.is_futures:
-                            positions = self.binance_client.client.futures_position_information(symbol=symbol)
-                            for binance_position in positions:
-                                position_amt = float(binance_position.get('positionAmt', 0))
-                                if abs(position_amt) > 0.000001:
-                                    # Use actual Binance position data for calculation
-                                    entry_price = float(binance_position.get('entryPrice', 0))
-                                    
-                                    # Manual calculation using actual Binance data
-                                    if position_amt > 0:  # Long position (BUY)
-                                        binance_pnl = (current_price - entry_price) * abs(position_amt)
-                                    else:  # Short position (SELL)
-                                        binance_pnl = (entry_price - current_price) * abs(position_amt)
-
-                                    # Calculate actual margin used from actual position
-                                    actual_margin_used = abs(entry_price * position_amt) / leverage
-
-                                    # Calculate percentage against actual margin used
-                                    binance_pnl_pct = (binance_pnl / actual_margin_used) * 100 if actual_margin_used > 0 else 0
-
-                                    self.logger.info(f"🔍 MANUAL PNL SUCCESS | {symbol} | Side: {'BUY' if position_amt > 0 else 'SELL'} | Entry: ${entry_price:.2f} | Current: ${current_price:.2f} | Qty: {abs(position_amt)} | PnL: ${binance_pnl:.2f} | Margin: ${actual_margin_used:.2f} | Pct: {binance_pnl_pct:.2f}%")
-                                    break
-                    except Exception as manual_error:
-                        self.logger.error(f"❌ MANUAL CALCULATION FAILED | {symbol} | ERROR: {str(manual_error)}")
-                        # Final fallback - use bot's internal data but log the issue
-                        actual_margin_used = strategy_config.get('margin', 50.0)
-                        binance_pnl = 0.0
-                        binance_pnl_pct = 0.0
-                        self.logger.error(f"❌ USING FALLBACK VALUES | {symbol} | This indicates a serious data sync issue")
-
-                # STEP 3: Display the position with accurate PnL
-                if actual_margin_used > 0:
+                # Display the position with calculated PnL
+                if margin_invested > 0:
                     self.logger.info(f"""╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
@@ -474,29 +422,12 @@ For MAINNET:
 ║ 📊 Side: {position.side}                                 ║
 ║ 💵 Entry: ${position.entry_price:.1f}                          ║
 ║ 📊 Current: ${current_price:.1f}                           ║
-║ 💸 Margin: ${actual_margin_used:.1f} USDT                    ║
-║ 💰 PnL: ${binance_pnl:.1f} USDT ({binance_pnl_pct:+.1f}%)              ║
+║ 💸 Margin: ${margin_invested:.1f} USDT                    ║
+║ 💰 PnL: ${pnl:.1f} USDT ({pnl_percentage:+.1f}%)              ║
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝""")
                 else:
-                    # Fallback display with config margin
-                    margin_from_config = strategy_config.get('margin', 50.0)
-                    self.logger.error(f"❌ PnL CALCULATION ERROR | {strategy_name} | Could not determine margin used | Using config margin: ${margin_from_config}")
-
-                    self.logger.info(f"""╔═══════════════════════════════════════════════════╗
-║ 📊 ACTIVE POSITION                                ║
-║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
-║                                                   ║
-║ 📊 TRADE IN PROGRESS                             ║
-║ 🎯 Strategy: {strategy_name.upper()}                        ║
-║ 💱 Symbol: {position.symbol}                              ║
-║ 📊 Side: {position.side}                                 ║
-║ 💵 Entry: ${position.entry_price:.1f}                          ║
-║ 📊 Current: ${current_price:.1f}                           ║
-║ 💸 Margin: ${margin_from_config:.1f} USDT (Config)                    ║
-║ 💰 PnL: Calculation error                      ║
-║                                                   ║
-╚═══════════════════════════════════════════════════╝""")
+                    self.logger.error(f"❌ PnL DISPLAY ERROR | {strategy_name} | Could not get current price for {symbol}")
 
                 # Update last log time
                 self.last_position_log_time[strategy_name] = current_time
