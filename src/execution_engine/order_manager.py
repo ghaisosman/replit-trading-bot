@@ -131,7 +131,9 @@ class OrderManager:
 
             order_result = self.binance_client.create_order(**order_params)
             if not order_result:
-                self.logger.error("Failed to create order")
+                # Check if this might be a minimum position value issue
+                actual_position_value = quantity * signal.entry_price
+                self.logger.error(f"❌ FAILED TO PLACE ORDER. BELOW MINIMUM POSITION VALUE | {symbol} | Position Value: ${actual_position_value:.2f} USDT | Quantity: {quantity} | Please increase margin in configuration")
                 return None
 
             # Create position object
@@ -456,7 +458,15 @@ class OrderManager:
             # Apply symbol-specific precision from Binance
             min_qty = symbol_info['min_qty']
             step_size = symbol_info['step_size']
-            precision = symbol_info['precision']
+            
+            # Use configured precision if available, otherwise fall back to Binance precision
+            configured_precision = strategy_config.get('decimals')
+            if configured_precision is not None:
+                precision = configured_precision
+                self.logger.debug(f"🔧 USING CONFIGURED PRECISION | {actual_symbol} | Configured: {precision} decimals")
+            else:
+                precision = symbol_info['precision']
+                self.logger.debug(f"🔧 USING BINANCE PRECISION | {actual_symbol} | Auto-detected: {precision} decimals")
 
             original_quantity = quantity
 

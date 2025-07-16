@@ -1834,11 +1834,40 @@
       "symbol": "ETHUSDT",
       "side": "SELL",
       "entry_price": 3330.0,
-      "exit_price": null,
+      "exit_price": 3339.68,
       "quantity": 0.1,
       "margin_used": 66.6,
       "leverage": 5,
       "position_value_usdt": 333.0,
+      "rsi_at_entry": null,
+      "macd_at_entry": null,
+      "sma_20_at_entry": null,
+      "sma_50_at_entry": null,
+      "volume_at_entry": null,
+      "pnl_usdt": -0.9929999999999837,
+      "pnl_percentage": -9.929999999999836,
+      "exit_reason": "Stop Loss (PnL vs Margin: -10.66%)",
+      "duration_minutes": 5.419362516666666,
+      "market_trend": null,
+      "volatility_score": null,
+      "risk_reward_ratio": null,
+      "max_drawdown": null,
+      "entry_signal_strength": null,
+      "market_phase": null,
+      "trade_status": "CLOSED"
+    },
+    "macd_divergence_ETHUSDT_20250716_190405": {
+      "trade_id": "macd_divergence_ETHUSDT_20250716_190405",
+      "timestamp": "2025-07-16T19:04:05.561759",
+      "strategy_name": "macd_divergence",
+      "symbol": "ETHUSDT",
+      "side": "SELL",
+      "entry_price": 3336.97,
+      "exit_price": null,
+      "quantity": 0.015,
+      "margin_used": 10.010909999999999,
+      "leverage": 5,
+      "position_value_usdt": 50.05454999999999,
       "rsi_at_entry": null,
       "macd_at_entry": null,
       "sma_20_at_entry": null,
@@ -1857,5 +1886,5 @@
       "trade_status": "OPEN"
     }
   },
-  "last_updated": "2025-07-16T18:50:27.766877"
+  "last_updated": "2025-07-16T19:04:05.570127"
 }

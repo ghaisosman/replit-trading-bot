@@ -405,6 +405,15 @@ def get_strategies():
                     config.setdefault('rsi_long_exit', 70)
                     config.setdefault('rsi_short_entry', 60)
                     config.setdefault('rsi_short_exit', 30)
+                    # Set default decimals based on symbol
+                    if not config.get('decimals'):
+                        symbol = config.get('symbol', '').upper()
+                        if 'ETH' in symbol or 'SOL' in symbol:
+                            config.setdefault('decimals', 2)
+                        elif 'BTC' in symbol:
+                            config.setdefault('decimals', 3)
+                        else:
+                            config.setdefault('decimals', 2)
 
                 # MACD strategy defaults
                 elif 'macd' in name.lower():
@@ -413,6 +422,15 @@ def get_strategies():
                     config.setdefault('macd_signal', 9)
                     config.setdefault('min_histogram_threshold', 0.0001)
                     config.setdefault('min_distance_threshold', 0.005)
+                    # Set default decimals based on symbol
+                    if not config.get('decimals'):
+                        symbol = config.get('symbol', '').upper()
+                        if 'ETH' in symbol or 'SOL' in symbol:
+                            config.setdefault('decimals', 2)
+                        elif 'BTC' in symbol:
+                            config.setdefault('decimals', 3)
+                        else:
+                            config.setdefault('decimals', 2)
                     config.setdefault('confirmation_candles', 2)
 
             logger.info(f"🌐 WEB DASHBOARD: Serving configurations for {len(strategies)} strategies")

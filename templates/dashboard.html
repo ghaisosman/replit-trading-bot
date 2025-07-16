@@ -451,6 +451,10 @@
                             <label for="strategyLeverage" class="form-label">Leverage</label>
                             <input type="number" class="form-control" id="strategyLeverage" min="1" max="125">
                         </div>
+                         <div class="mb-3">
+                            <label for="strategyDecimals" class="form-label">Decimal Precision</label>
+                            <input type="number" class="form-control" id="strategyDecimals" min="0" max="8" value="2">
+                        </div>
                         <div class="mb-3">
                             <label for="strategyTimeframe" class="form-label">Timeframe</label>
                             <select class="form-control" id="strategyTimeframe">
@@ -635,6 +639,7 @@
                         document.getElementById('strategySymbol').value = config.symbol || '';
                         document.getElementById('strategyMargin').value = config.margin || '';
                         document.getElementById('strategyLeverage').value = config.leverage || '';
+                        document.getElementById('strategyDecimals').value = config.decimals || 2;
                         document.getElementById('strategyTimeframe').value = config.timeframe || '';
                         document.getElementById('strategyMaxLoss').value = config.max_loss_pct || 10;
                         document.getElementById('assessmentInterval').value = config.assessment_interval || 300;
@@ -679,6 +684,7 @@
                 symbol: document.getElementById('strategySymbol').value,
                 margin: parseFloat(document.getElementById('strategyMargin').value) || 50,
                 leverage: parseInt(document.getElementById('strategyLeverage').value) || 5,
+                decimals: parseInt(document.getElementById('strategyDecimals').value) || 2,
                 timeframe: document.getElementById('strategyTimeframe').value || '15m',
                 max_loss_pct: parseFloat(document.getElementById('strategyMaxLoss').value) || 10,
                 assessment_interval: parseInt(document.getElementById('assessmentInterval').value) || 300,
@@ -875,7 +881,7 @@
             logs.forEach(function(log) {
                 // Convert log to string if it's not already
                 const logString = typeof log === 'string' ? log : JSON.stringify(log);
-                
+
                 if (!consoleLogBuffer.includes(logString)) {
                     consoleLogBuffer.push(logString);
 
