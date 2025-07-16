@@ -253,14 +253,16 @@ class SignalProcessor:
             stop_loss = position['stop_loss']
             take_profit = position['take_profit']
             position_side = position.get('side', 'BUY')
+            side = position.get('side')
 
-            # Check PnL-based stop loss
-            if position_side == 'BUY' and current_price <= stop_loss:
-                self.logger.info(f"LONG STOP LOSS: Price ${current_price:.4f} <= SL ${stop_loss:.4f}")
-                return "Stop Loss"
-            elif position_side == 'SELL' and current_price >= stop_loss:
-                self.logger.info(f"SHORT STOP LOSS: Price ${current_price:.4f} >= SL ${stop_loss:.4f}")
-                return "Stop Loss"
+
+            # Stop loss check - FIXED: Check against actual stop loss price
+            if side == 'BUY':  # Long position
+                if current_price <= stop_loss:
+                    return "Stop Loss"
+            else:  # Short position
+                if current_price >= stop_loss:
+                    return "Stop Loss"
 
             # Strategy-specific exit conditions
             strategy_name = strategy_config.get('name', '')

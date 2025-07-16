@@ -33,7 +33,7 @@ class WebLogHandler(logging.Handler):
         try:
             # Get the original message without formatting
             original_msg = record.getMessage()
-            
+
             # Remove ANSI color codes and box drawing characters
             import re
             clean_msg = re.sub(r'\x1b\[[0-9;]*m', '', original_msg)
@@ -43,10 +43,10 @@ class WebLogHandler(logging.Handler):
             if clean_msg and len(clean_msg) > 3:  # Ignore very short messages
                 timestamp = record.created
                 formatted_time = datetime.fromtimestamp(timestamp).strftime('%H:%M:%S')
-                
+
                 # Create a clean, web-friendly log entry
                 web_message = f"[{formatted_time}] {clean_msg}"
-                
+
                 self.logs.append({
                     'timestamp': timestamp,
                     'level': record.levelname,
@@ -187,10 +187,10 @@ For MAINNET:
         # Add to root logger to capture all logs
         root_logger = logging.getLogger()
         root_logger.addHandler(self.log_handler)
-        
+
         # Also add to bot manager's own logger
         self.logger.addHandler(self.log_handler)
-        
+
         self.logger.info("🌐 Web log handler initialized for dashboard integration")
 
     async def start(self):
@@ -528,7 +528,7 @@ For MAINNET:
 
                 # Record this signal time
                 self.last_signal_time[signal_key] = current_time
-                
+
                 # Entry signal detection format
                 entry_signal_message = f"""╔═══════════════════════════════════════════════════╗
 ║ 🚨 ENTRY SIGNAL DETECTED                         ║
@@ -557,11 +557,11 @@ For MAINNET:
             else:
                 # Get assessment interval for logging
                 assessment_interval = strategy_config.get('assessment_interval', 300)
-                
+
                 # Get additional indicators for consolidated logging
                 margin = strategy_config.get('margin', 50.0)
                 leverage = strategy_config.get('leverage', 5)
-                
+
                 # Get current RSI
                 current_rsi = None
                 if 'rsi' in df.columns:
@@ -573,7 +573,7 @@ For MAINNET:
                     macd_line = df['macd'].iloc[-1] if 'macd' in df.columns else 0.0
                     macd_signal = df['macd_signal'].iloc[-1] if 'macd_signal' in df.columns else 0.0
                     macd_histogram = df['macd_histogram'].iloc[-1] if 'macd_histogram' in df.columns else 0.0
-                    
+
                     # Consolidated MACD market assessment - single message
                     assessment_message = f"""📈 MARKET ASSESSMENT
 Interval: every {assessment_interval} seconds
@@ -583,7 +583,7 @@ Interval: every {assessment_interval} seconds
 📈 MACD: {macd_line:.6f} | Signal: {macd_signal:.6f} | Histogram: {macd_histogram:.6f}
 🔍 SCANNING FOR ENTRY"""
                     self.logger.info(assessment_message)
-                    
+
                 elif strategy_name == 'rsi_oversold':
                     # Consolidated RSI market assessment - single message
                     rsi_text = f"📈 RSI: {current_rsi:.2f}" if current_rsi is not None else "📈 RSI: N/A"
@@ -730,7 +730,7 @@ Interval: every {assessment_interval} seconds
                 self.logger.warning(f"❌ PRICE FETCH FAILED | {symbol} | Invalid ticker response: {ticker}")
                 return None
         except Exception as e:
-            self.logger.error(f"❌ PRICE FETCH ERROR | {symbol} | {e}")
+            self.logger.error(f"❌ PRICEFETCH ERROR | {symbol} | {e}")
             return None
 
     def _calculate_pnl(self, position, current_price: float) -> float:

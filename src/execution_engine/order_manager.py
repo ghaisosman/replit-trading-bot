@@ -166,6 +166,10 @@ class OrderManager:
             margin = strategy_config.get('margin', 0.0)
             leverage = strategy_config.get('leverage', 1)
             
+            # Calculate actual position value and margin used
+            position_value_usdt = position.entry_price * position.quantity
+            actual_margin_used = position_value_usdt / leverage
+            
             # Get current indicator value based on strategy - this would be enhanced to receive actual values
             current_indicator = "N/A"
             if 'macd' in strategy_name.lower():
@@ -173,7 +177,7 @@ class OrderManager:
             elif 'rsi' in strategy_name.lower():
                 current_indicator = "RSI: N/A"  # Placeholder - could be enhanced to show actual RSI value
             
-            # Position opened format with requested content
+            # Position opened format with corrected margin display
             position_opened_message = f"""╔═══════════════════════════════════════════════════╗
 ║ ✅ POSITION OPENED                               ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
@@ -182,9 +186,10 @@ class OrderManager:
 ║ 💱 Symbol: {position.symbol}                              ║
 ║ 📊 Side: {position.side}                                   ║
 ║ ⏱️ Timeframe: {timeframe}                                ║
-║ 💸 Margin: ${margin:.1f} USDT                          ║
+║ 💸 Margin Used: ${actual_margin_used:.1f} USDT                          ║
 ║ ⚡ Leverage: {leverage}x                                ║
 ║ 💵 Entry Price: ${position.entry_price:.4f}                                ║
+║ 🛡️ Stop Loss: ${position.stop_loss:.4f}                                ║
 ║ 📈 Current {current_indicator}                         ║
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝"""
@@ -214,9 +219,12 @@ class OrderManager:
             else:  # Short position
                 pnl = (entry_price - current_price) * quantity
 
-            # Calculate PnL percentage
+            # Calculate PnL percentage against margin invested (correct for futures)
             position_value = entry_price * quantity
-            pnl_percentage = (pnl / position_value) * 100 if position_value != 0 else 0
+            # Get leverage from position or default to 1
+            leverage = 1  # This should be enhanced to store actual leverage in position
+            margin_invested = position_value / leverage
+            pnl_percentage = (pnl / margin_invested) * 100 if margin_invested != 0 else 0
 
             return pnl, pnl_percentage
 
