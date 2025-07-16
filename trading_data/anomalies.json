@@ -28,5 +28,20 @@
     "notified": false,
     "cleared_at": "2025-07-16T07:13:45.530050",
     "binance_position_amt": -0.001
+  },
+  "orphan_rsi_oversold_SOLUSDT": {
+    "id": "orphan_rsi_oversold_SOLUSDT",
+    "type": "orphan",
+    "symbol": "SOLUSDT",
+    "strategy_name": "rsi_oversold",
+    "quantity": 2.0,
+    "side": "SELL",
+    "entry_price": 167.4,
+    "detected_at": "2025-07-16T10:02:07.257442",
+    "status": "active",
+    "cycles_remaining": 2,
+    "notified": true,
+    "cleared_at": null,
+    "binance_position_amt": 0.0
   }
 }
