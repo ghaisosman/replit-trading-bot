@@ -228,10 +228,15 @@ class OrderManager:
             else:  # Short position
                 pnl = (entry_price - current_price) * quantity
 
-            # Calculate PnL percentage against margin invested (use strategy config margin)
+            # Calculate PnL percentage against actual margin invested from strategy config
             margin_invested = 50.0  # Default margin
             if hasattr(position, 'strategy_config') and position.strategy_config:
                 margin_invested = position.strategy_config.get('margin', 50.0)
+            else:
+                # Fallback: calculate from position value and leverage
+                leverage = 5  # Default leverage
+                position_value = entry_price * quantity
+                margin_invested = position_value / leverage
             
             pnl_percentage = (pnl / margin_invested) * 100 if margin_invested != 0 else 0
 
@@ -525,10 +530,14 @@ class OrderManager:
         """Log trade entry for analytics with error handling"""
         try:
             # Calculate margin used (position value / leverage)
-            margin_used = (position.entry_price * position.quantity) / 1  # Default leverage if not stored
+            leverage = position.strategy_config.get('leverage', 5) if hasattr(position, 'strategy_config') and position.strategy_config else 5
+            margin_used = (position.entry_price * position.quantity) / leverage
 
             # Log trade entry for analytics - trade_logger generates its own ID
             from src.analytics.trade_logger import trade_logger
+            # Get actual leverage from strategy config
+            actual_leverage = position.strategy_config.get('leverage', 5) if hasattr(position, 'strategy_config') and position.strategy_config else 5
+            
             generated_trade_id = trade_logger.log_trade_entry(
                 strategy_name=position.strategy_name,
                 symbol=position.symbol,
@@ -536,7 +545,7 @@ class OrderManager:
                 entry_price=position.entry_price,
                 quantity=position.quantity,
                 margin_used=margin_used,
-                leverage=1  # Default leverage, could be enhanced to store actual leverage
+                leverage=actual_leverage
             )
 
             # Store the generated trade ID in the position

@@ -886,7 +886,8 @@ Interval: every {assessment_interval} seconds
                                         order_id=0,
                                         entry_time=datetime.now(),
                                         status='RECOVERED',
-                                        trade_id=trade_id
+                                        trade_id=trade_id,
+                                        strategy_config=strategy_config
                                     )
 
                                     # Add to active positions
@@ -938,7 +939,8 @@ Interval: every {assessment_interval} seconds
                                             order_id=0,
                                             entry_time=datetime.now(),
                                             status='RECOVERED_NO_ID',
-                                            trade_id=recovery_trade_id
+                                            trade_id=recovery_trade_id,
+                                            strategy_config=strategy_config
                                         )
 
                                         # Add to active positions
@@ -1013,7 +1015,8 @@ Interval: every {assessment_interval} seconds
                                         order_id=0,
                                         entry_time=datetime.now(),
                                         status='RECOVERED',
-                                        trade_id=trade_id
+                                        trade_id=trade_id,
+                                        strategy_config=self.strategies.get(strategy_name, {})
                                     )
 
                                     # Add to active positions
@@ -1242,7 +1245,7 @@ Interval: every {assessment_interval} seconds
             self.logger.error(f"Error checking stop loss for {strategy_name}: {e}")
             return False
 
-    
+
     def _monitor_positions(self) -> None:
         """Monitor active positions and display their status"""
         try:
