@@ -694,7 +694,19 @@ def calculate_rsi(closes, period=14):
 def get_console_log():
     """Get console logs"""
     try:
-        # Try to get logs from file
+        # Get current bot manager first
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        
+        # Try to get logs from web handler if bot is running
+        if current_bot and hasattr(current_bot, 'log_handler') and hasattr(current_bot.log_handler, 'logs'):
+            try:
+                web_logs = list(current_bot.log_handler.logs)
+                if web_logs:
+                    return jsonify({'success': True, 'logs': web_logs[-50:]})  # Last 50 logs
+            except Exception as web_error:
+                logger.error(f"Error getting web logs: {web_error}")
+        
+        # Fallback to file-based logs
         log_files = ["trading_bot.log", "bot.log", "main.log"]
         logs = []
 
@@ -707,23 +719,32 @@ def get_console_log():
                     recent_lines = lines[-30:] if len(lines) > 30 else lines
                     logs.extend([line.strip() for line in recent_lines if line.strip()])
                     break
-                except:
+                except Exception as file_error:
+                    logger.error(f"Error reading log file {log_file}: {file_error}")
                     continue
 
         if not logs:
-            # Get current bot manager
-            current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+            # Return status info if no logs available
             status = "Running" if current_bot and getattr(current_bot, 'is_running', False) else "Stopped"
             logs = [
-                f"Bot Status: {status}",
-                "Console log will appear here when bot runs",
-                f"Last checked: {datetime.now().strftime('%H:%M:%S')}"
+                f"🤖 Bot Status: {status}",
+                f"🌐 Web Dashboard: Active",
+                f"⏰ Last checked: {datetime.now().strftime('%H:%M:%S')}",
+                "📋 Console logs will appear here when bot runs"
             ]
 
         return jsonify({'success': True, 'logs': logs})
     except Exception as e:
         logger.error(f"Error in console log endpoint: {e}")
-        return jsonify({'success': False, 'logs': [f'Error loading logs: {str(e)}'], 'error': str(e)}), 200
+        return jsonify({
+            'success': False, 
+            'logs': [
+                f"❌ Error loading logs: {str(e)}", 
+                f"⏰ Time: {datetime.now().strftime('%H:%M:%S')}",
+                "🔄 Web dashboard is running but console logs unavailable"
+            ], 
+            'error': str(e)
+        }), 200
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""

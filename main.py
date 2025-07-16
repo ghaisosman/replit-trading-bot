@@ -119,7 +119,78 @@ def run_web_dashboard():
         web_server_running = False
         logger.info("🔴 Web dashboard stopped")
 
+async def main_bot_only():
+    """Main bot function WITHOUT web dashboard launch"""
+    global bot_manager, web_server_running
+
+    # Setup logging
+    setup_logger()
+    logger = logging.getLogger(__name__)
+
+    # Setup signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    logger.info("Starting Multi-Strategy Trading Bot (Web Dashboard already running)")
+
+    # No web dashboard launch here - already started from main entry point
+    await asyncio.sleep(1)
+    logger.info("🌐 Using existing Web Dashboard instance")
+
+    try:
+        # Initialize the bot manager
+        bot_manager = BotManager()
+
+        # Make bot manager accessible to web interface
+        sys.modules['__main__'].bot_manager = bot_manager
+        web_dashboard.bot_manager = bot_manager
+        web_dashboard.shared_bot_manager = bot_manager
+
+        # Start the bot in a task so we can handle shutdown signals
+        logger.info("🚀 Starting trading bot main loop...")
+        bot_task = asyncio.create_task(bot_manager.start())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+
+        # Wait for either the bot to complete or shutdown signal
+        done, pending = await asyncio.wait(
+            [bot_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+
+        # Check if shutdown was triggered
+        if shutdown_task in done:
+            logger.info("🛑 Shutdown signal received, stopping bot...")
+            await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
+
+        # Cancel any pending tasks
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        # Keep web server running after bot stops
+        logger.info("🔴 Bot stopped but web interface remains active for control")
+        logger.info("💡 You can restart the bot using the web interface")
+
+        # Keep the main process alive to maintain web interface
+        while web_server_running:
+            await asyncio.sleep(5)
+
+    except KeyboardInterrupt:
+        logger.info("Received keyboard interrupt")
+        if bot_manager:
+            await bot_manager.stop("Manual shutdown via keyboard interrupt")
+        logger.info("🌐 Web interface remains active")
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        if bot_manager:
+            await bot_manager.stop(f"Unexpected error: {e}")
+        logger.info("🌐 Web interface remains active despite bot error")
+
 async def main():
+    """Main function for web dashboard bot restart"""
     global bot_manager, web_server_running
 
     # Setup logging
@@ -203,7 +274,7 @@ if __name__ == "__main__":
     # Make it globally accessible for web interface
     sys.modules[__name__].bot_manager = None
 
-    # Start web dashboard in persistent background thread
+    # Start web dashboard in persistent background thread - SINGLE LAUNCH POINT
     web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
     web_thread.start()
 
@@ -212,8 +283,8 @@ if __name__ == "__main__":
     logger.info("🌐 Persistent Web Dashboard started - accessible via Replit webview")
 
     try:
-        # Start the main trading bot
-        asyncio.run(main())
+        # Start the main trading bot WITHOUT starting web dashboard again
+        asyncio.run(main_bot_only())
 
     except KeyboardInterrupt:
         logger.info("🔴 BOT STOPPED: Manual shutdown via console (Ctrl+C)")
