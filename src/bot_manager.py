@@ -729,8 +729,7 @@ Interval: every {assessment_interval} seconds
 
                 # CRITICAL: Also update the trading config manager to persist changes
                 from src.config.trading_config import trading_config_manager
-                trading_config_manager.update_```python
-strategy_params(strategy_name, updates)
+                trading_config_manager.update_strategy_params(strategy_name, updates)
 
                 self.logger.info(f"✅ CONFIGURATION UPDATED | {strategy_name} | {updates}")
 
