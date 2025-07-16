@@ -21,8 +21,8 @@
     "macd_fast": 12,
     "macd_slow": 26,
     "macd_signal": 9,
-    "min_histogram_threshold": 0.000001,
-    "min_distance_threshold": 0.0001,
+    "min_histogram_threshold": 1e-07,
+    "min_distance_threshold": 1e-05,
     "confirmation_candles": 1,
     "min_volume": 100000,
     "cooldown_period": 60
