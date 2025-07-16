@@ -92,14 +92,26 @@ def dashboard():
         # Get current bot status
         status = get_bot_status()
 
-        # Get balance
+        # Get balance and strategies
         if IMPORTS_AVAILABLE:
             balance = balance_fetcher.get_usdt_balance() or 0
             strategies = trading_config_manager.get_all_strategies()
+            
+            # Ensure we always have both strategies available for display
+            if 'rsi_oversold' not in strategies:
+                strategies['rsi_oversold'] = {
+                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
+                    'max_loss_pct': 5, 'assessment_interval': 20
+                }
+            if 'macd_divergence' not in strategies:
+                strategies['macd_divergence'] = {
+                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
+                    'max_loss_pct': 10, 'assessment_interval': 60
+                }
         else:
             balance = 100.0  # Default for demo
             strategies = {
-                'rsi_oversold': {'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m'},
+                'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
                 'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m'}
             }
 
