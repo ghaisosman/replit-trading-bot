@@ -370,62 +370,53 @@ def get_bot_status():
 
 @app.route('/api/strategies')
 def get_strategies():
-    """Get all strategy configurations"""
+    """Get all strategy configurations - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
     try:
         if IMPORTS_AVAILABLE:
-            strategies = {}
-            for name, overrides in trading_config_manager.strategy_overrides.items():
-                base_config = {
-                    **trading_config_manager.default_params.to_dict(),
-                    **overrides
-                }
-
+            # Get all strategies from web dashboard configuration manager
+            strategies = trading_config_manager.get_all_strategies()
+            
+            # Ensure all required parameters are present for each strategy
+            for name, config in strategies.items():
                 # Ensure assessment_interval is included
-                if 'assessment_interval' not in base_config:
-                    base_config['assessment_interval'] = 300
+                if 'assessment_interval' not in config:
+                    config['assessment_interval'] = 60 if 'rsi' in name.lower() else 30
+                
+                # Ensure all required parameters exist with defaults
+                if 'max_loss_pct' not in config:
+                    config['max_loss_pct'] = 10
+                
+                # RSI strategy defaults
+                if 'rsi' in name.lower():
+                    config.setdefault('rsi_long_entry', 40)
+                    config.setdefault('rsi_long_exit', 70)
+                    config.setdefault('rsi_short_entry', 60)
+                    config.setdefault('rsi_short_exit', 30)
+                
+                # MACD strategy defaults
+                elif 'macd' in name.lower():
+                    config.setdefault('macd_fast', 12)
+                    config.setdefault('macd_slow', 26)
+                    config.setdefault('macd_signal', 9)
+                    config.setdefault('min_histogram_threshold', 0.0001)
+                    config.setdefault('min_distance_threshold', 0.005)
+                    config.setdefault('confirmation_candles', 2)
 
-                # Add strategy-specific parameters from config files
-                try:
-                    if 'rsi' in name.lower():
-                        from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
-                        rsi_config = RSIOversoldConfig.get_config()
-                        base_config.update({
-                            'max_loss_pct': rsi_config.get('max_loss_pct', 10),
-                            'rsi_long_entry': rsi_config.get('rsi_long_entry', 40),
-                            'rsi_long_exit': rsi_config.get('rsi_long_exit', 70),
-                            'rsi_short_entry': rsi_config.get('rsi_short_entry', 60),
-                            'rsi_short_exit': rsi_config.get('rsi_short_exit', 30)
-                        })
-                    elif 'macd' in name.lower():
-                        from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
-                        macd_config = MACDDivergenceConfig.get_config()
-                        base_config.update({
-                            'max_loss_pct': macd_config.get('max_loss_pct', 10),
-                            'macd_fast': macd_config.get('macd_fast', 12),
-                            'macd_slow': macd_config.get('macd_slow', 26),
-                            'macd_signal': macd_config.get('macd_signal', 9),
-                            'min_histogram_threshold': macd_config.get('min_histogram_threshold', 0.0001),
-                            'min_distance_threshold': macd_config.get('min_distance_threshold', 0.005),
-                            'confirmation_candles': macd_config.get('confirmation_candles', 2)
-                        })
-                except ImportError as e:
-                    logger.warning(f"Could not import strategy config for {name}: {e}")
-
-                strategies[name] = base_config
+            logger.info(f"🌐 WEB DASHBOARD: Serving configurations for {len(strategies)} strategies")
             return jsonify(strategies)
         else:
-            # Return default strategies for demo with strategy-specific parameters
+            # Return default strategies for demo
             return jsonify({
                 'rsi_oversold': {
                     'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
                     'max_loss_pct': 10, 'rsi_long_entry': 40, 'rsi_long_exit': 70,
-                    'rsi_short_entry': 60, 'rsi_short_exit': 30, 'assessment_interval': 300
+                    'rsi_short_entry': 60, 'rsi_short_exit': 30, 'assessment_interval': 60
                 },
                 'macd_divergence': {
                     'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m',
                     'max_loss_pct': 10, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
                     'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2,
-                    'assessment_interval': 300
+                    'assessment_interval': 30
                 }
             })
     except Exception as e:
@@ -479,37 +470,12 @@ def update_strategy(strategy_name):
         except ValueError as ve:
             return jsonify({'success': False, 'message': f'Invalid parameter value: {ve}'})
 
-        # Update strategy parameters in config manager (basic params only)
-        basic_params = {k: v for k, v in data.items() if k in ['symbol', 'margin', 'leverage', 'timeframe', 'assessment_interval']}
-        if basic_params:
-            trading_config_manager.update_strategy_params(strategy_name, basic_params)
-
-        # WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Update strategy-specific config files as backup only
-        try:
-            if 'rsi' in strategy_name.lower():
-                from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
-                rsi_updates = {k: v for k, v in data.items() if k.startswith('rsi_') or k == 'max_loss_pct'}
-                if rsi_updates:
-                    logger.info(f"🌐 WEB DASHBOARD PRIORITY: RSI config {rsi_updates} (overrides file)")
-                    # Update file as backup, but web dashboard takes priority
-                    RSIOversoldConfig.update_config(rsi_updates)
-
-            elif 'macd' in strategy_name.lower():
-                from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
-                macd_updates = {k: v for k, v in data.items() if k.startswith('macd_') or k.startswith('min_') or k in ['confirmation_candles', 'max_loss_pct']}
-                if macd_updates:
-                    logger.info(f"🌐 WEB DASHBOARD PRIORITY: MACD config {macd_updates} (overrides file)")
-                    # Update file as backup, but web dashboard takes priority
-                    MACDDivergenceConfig.update_config(macd_updates)
-
-        except ImportError as e:
-            logger.warning(f"Could not update strategy-specific config for {strategy_name}: {e}")
-        except Exception as e:
-            logger.error(f"Error updating strategy config file for {strategy_name}: {e}")
-            
-        # PRIORITY: Force immediate update to trading config manager (SINGLE SOURCE OF TRUTH)
+        # WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Update all parameters
+        trading_config_manager.update_strategy_params(strategy_name, data)
+        
         logger.info(f"🎯 WEB DASHBOARD: Setting as SINGLE SOURCE OF TRUTH for {strategy_name}")
-        logger.info(f"🔄 FORCING UPDATE: {data}")
+        logger.info(f"🔄 UPDATING ALL PARAMETERS: {data}")
+        logger.info(f"📁 CONFIG FILES IGNORED - Web dashboard overrides everything")
 
         # Always try to get the latest shared bot manager
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)

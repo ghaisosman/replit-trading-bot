@@ -1,5 +1,9 @@
 from typing import Dict, Any
 
+# DEPRECATED: WEB DASHBOARD IS NOW SINGLE SOURCE OF TRUTH
+# This file is kept for backwards compatibility only
+# All configurations are now managed through the web dashboard
+
 class MACDDivergenceConfig:
     """Configuration for MACD Divergence Strategy"""
 

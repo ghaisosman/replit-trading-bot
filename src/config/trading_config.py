@@ -23,51 +23,76 @@ class TradingParameters:
         }
 
 class TradingConfigManager:
-    """Manages trading configurations for all strategies"""
+    """Manages trading configurations for all strategies - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
     
     def __init__(self):
-        # Default parameters for easy modification
+        # Default parameters only as fallback - WEB DASHBOARD OVERRIDES EVERYTHING
         self.default_params = TradingParameters()
         
-        # Strategy-specific overrides
-        self.strategy_overrides = {
-            'rsi_oversold': {
-                'symbol': 'SOLUSDT',
-                'margin': 12.5,
-                'leverage': 25,
-                'timeframe': '15m',
-                'rsi_long_entry': 40,
-                'rsi_long_exit': 55,
-                'rsi_short_entry': 60,  # WEB DASHBOARD SETTING (YOUR SETTING)
-                'rsi_short_exit': 45,
-                'max_loss_pct': 10,
-                'assessment_interval': 60,  # 1 minute for faster response
-                # WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - OVERRIDES ALL FILES
-            },
-            'macd_divergence': {
-                'symbol': 'BTCUSDT',
-                'margin': 23,
-                'leverage': 5,
-                'timeframe': '5m',
-                'assessment_interval': 30,  # 30 seconds for 5m timeframe
-            },
-        }
+        # WEB DASHBOARD IS THE ONLY SOURCE OF TRUTH
+        # All configurations come from web dashboard updates
+        self.strategy_overrides = {}
+        
+        # Load any existing web dashboard configurations
+        self._load_web_dashboard_configs()
+    
+    def _load_web_dashboard_configs(self):
+        """Load configurations previously set via web dashboard"""
+        import os
+        import json
+        
+        config_file = "trading_data/web_dashboard_configs.json"
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, 'r') as f:
+                    self.strategy_overrides = json.load(f)
+                
+                import logging
+                logging.getLogger(__name__).info(f"🌐 WEB DASHBOARD: Loaded saved configurations for {len(self.strategy_overrides)} strategies")
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Could not load web dashboard configs: {e}")
+    
+    def _save_web_dashboard_configs(self):
+        """Save web dashboard configurations to persistent storage"""
+        import os
+        import json
+        
+        config_file = "trading_data/web_dashboard_configs.json"
+        os.makedirs(os.path.dirname(config_file), exist_ok=True)
+        
+        try:
+            with open(config_file, 'w') as f:
+                json.dump(self.strategy_overrides, f, indent=2)
+            
+            import logging
+            logging.getLogger(__name__).info(f"💾 WEB DASHBOARD: Saved configurations to {config_file}")
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"❌ Failed to save web dashboard configs: {e}")
     
     def get_strategy_config(self, strategy_name: str, base_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Get strategy config with applied trading parameters - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
-        # Start with base strategy config
-        config = base_config.copy()
+        """Get strategy config - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
+        # Start with minimal base strategy config (only technical parameters)
+        config = {
+            'name': strategy_name,
+            'enabled': True
+        }
         
-        # Apply default parameters
+        # Apply default parameters as absolute fallback
         default_params = self.default_params.to_dict()
-        
-        # Apply strategy-specific overrides from web dashboard (HIGHEST PRIORITY)
-        if strategy_name in self.strategy_overrides:
-            strategy_params = self.strategy_overrides[strategy_name]
-            default_params.update(strategy_params)
-        
-        # Web dashboard settings ALWAYS override file-based configs
         config.update(default_params)
+        
+        # WEB DASHBOARD SETTINGS OVERRIDE EVERYTHING
+        if strategy_name in self.strategy_overrides:
+            web_config = self.strategy_overrides[strategy_name]
+            config.update(web_config)
+            
+            import logging
+            logging.getLogger(__name__).info(f"🌐 WEB DASHBOARD: Using web config for {strategy_name}")
+        else:
+            import logging
+            logging.getLogger(__name__).info(f"⚠️ {strategy_name}: No web dashboard config found, using defaults")
         
         # Log the final config being used for debugging
         import logging
@@ -76,11 +101,11 @@ class TradingConfigManager:
         return config
     
     def update_strategy_params(self, strategy_name: str, updates: Dict[str, Any]):
-        """Update trading parameters for a specific strategy - WEB DASHBOARD PRIORITY"""
+        """Update trading parameters for a specific strategy - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
         if strategy_name not in self.strategy_overrides:
             self.strategy_overrides[strategy_name] = {}
         
-        # Ensure assessment_interval is properly handled
+        # Validate and clean parameters
         if 'assessment_interval' in updates:
             updates['assessment_interval'] = int(updates['assessment_interval'])
             # Validate assessment interval (5 seconds to 5 minutes)
@@ -89,8 +114,21 @@ class TradingConfigManager:
             elif updates['assessment_interval'] > 300:
                 updates['assessment_interval'] = 300
         
+        if 'margin' in updates:
+            updates['margin'] = float(updates['margin'])
+            if updates['margin'] <= 0:
+                updates['margin'] = 50.0
+        
+        if 'leverage' in updates:
+            updates['leverage'] = int(updates['leverage'])
+            if updates['leverage'] <= 0 or updates['leverage'] > 125:
+                updates['leverage'] = 5
+        
         # WEB DASHBOARD SETTINGS OVERRIDE ALL OTHER SOURCES
         self.strategy_overrides[strategy_name].update(updates)
+        
+        # Save to persistent storage
+        self._save_web_dashboard_configs()
         
         # Force update any running bot instance immediately
         self._force_update_running_bot(strategy_name, updates)
@@ -98,7 +136,7 @@ class TradingConfigManager:
         # Log the update for debugging
         import logging
         logging.getLogger(__name__).info(f"🌐 WEB DASHBOARD UPDATE | {strategy_name} | {updates}")
-        logging.getLogger(__name__).info(f"🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - OVERRIDES ALL FILES")
+        logging.getLogger(__name__).info(f"🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - ALL CONFIG FILES IGNORED")
         if 'assessment_interval' in updates:
             logging.getLogger(__name__).info(f"📅 {strategy_name} assessment interval set to {updates['assessment_interval']} seconds")
     
@@ -119,6 +157,46 @@ class TradingConfigManager:
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning(f"Could not update running bot: {e}")
+    
+    def get_all_strategies(self) -> Dict[str, Dict[str, Any]]:
+        """Get all strategy configurations from web dashboard"""
+        strategies = {}
+        
+        # If no web dashboard configs exist, provide minimal defaults for setup
+        if not self.strategy_overrides:
+            strategies = {
+                'rsi_oversold': {
+                    **self.default_params.to_dict(),
+                    'symbol': 'SOLUSDT',
+                    'margin': 12.5,
+                    'leverage': 25,
+                    'rsi_long_entry': 40,
+                    'rsi_long_exit': 70,
+                    'rsi_short_entry': 60,
+                    'rsi_short_exit': 30,
+                },
+                'macd_divergence': {
+                    **self.default_params.to_dict(),
+                    'symbol': 'BTCUSDT',
+                    'margin': 23.0,
+                    'leverage': 5,
+                    'timeframe': '5m',
+                    'assessment_interval': 30,
+                    'macd_fast': 12,
+                    'macd_slow': 26,
+                    'macd_signal': 9,
+                    'min_histogram_threshold': 0.0001,
+                    'min_distance_threshold': 0.005,
+                    'confirmation_candles': 2,
+                }
+            }
+        else:
+            # Use web dashboard configurations
+            for strategy_name, config in self.strategy_overrides.items():
+                full_config = {**self.default_params.to_dict(), **config}
+                strategies[strategy_name] = full_config
+        
+        return strategies
     
     def update_default_params(self, updates: Dict[str, Any]):
         """Update default trading parameters for all strategies"""
