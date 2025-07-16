@@ -16,7 +16,7 @@ class MACDDivergenceConfig:
         import os
 
         default_config = {
-            'max_loss_pct': 10,    # Maximum loss percentage before stop loss
+            'max_loss_pct': 10,    # Maximum loss percentage before stop loss (10% for MACD strategy)
             'macd_fast': 12,       # MACD fast EMA period
             'macd_slow': 26,       # MACD slow EMA period
             'macd_signal': 9,      # MACD signal line EMA period

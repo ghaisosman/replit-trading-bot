@@ -16,7 +16,7 @@ class RSIOversoldConfig:
         import os
 
         default_config = {
-            'max_loss_pct': 10,  # Maximum loss percentage before stop loss
+            'max_loss_pct': 5,   # Maximum loss percentage before stop loss (5% for RSI strategy)
             'rsi_period': 14,    # RSI calculation period
             'rsi_long_entry': 40,  # RSI level for long entry
             'rsi_long_exit': 70,   # RSI level for long exit
