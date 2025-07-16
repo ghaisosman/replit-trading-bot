@@ -71,7 +71,7 @@ class WebLogHandler(logging.Handler):
             recent = list(self.logs)[-count:] if self.logs else []
             if not recent:
                 return ['[INFO] Bot is starting up...']
-            
+
             # Extract message strings from log entries
             log_messages = []
             for log in recent:
@@ -81,7 +81,7 @@ class WebLogHandler(logging.Handler):
                     log_messages.append(log)
                 else:
                     log_messages.append(str(log))
-            
+
             return log_messages
         except Exception as e:
             return [f'[ERROR] Could not retrieve logs: {str(e)}']
@@ -197,12 +197,12 @@ For MAINNET:
 
         # Add to root logger to capture all logs
         root_logger = logging.getLogger()
-        
+
         # Remove any existing web log handlers to prevent duplicates
         existing_handlers = [h for h in root_logger.handlers if isinstance(h, WebLogHandler)]
         for handler in existing_handlers:
             root_logger.removeHandler(handler)
-        
+
         # Add the new handler
         root_logger.addHandler(self.log_handler)
 
@@ -732,7 +732,8 @@ Interval: every {assessment_interval} seconds
                     # Check strategy-specific exit conditions (take profit, RSI levels, etc.)
                     exit_reason = self.signal_processor.evaluate_exit_conditions(
                         df, 
-                        {'entry_price': position.entry_price, 'stop_loss': position.stop_loss, 'take_profit': position.take_profit, 'side': position.side, 'quantity': position.quantity}, 
+                        {'entry_price': position.entry_price,```python
+ 'stop_loss': position.stop_loss, 'take_profit': position.take_profit, 'side': position.side, 'quantity': position.quantity}, 
                         strategy_config_with_name
                     )
 
@@ -748,16 +749,25 @@ Interval: every {assessment_interval} seconds
                         if self.order_manager.close_position(strategy_name, exit_reason):
                             self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:,.1f} | Exit: ${current_price:,.1f} | Final PnL: ${pnl:.1f}")
 
-                            from dataclasses import asdict
-                            position_data = asdict(position)
-                            position_data['exit_price'] = current_price
-                            self.telegram_reporter.report_position_closed(
-                                position_data, 
-                                exit_reason, 
-                                pnl
-                            )
-                        else:
-                            self.logger.warning(f"❌ CLOSE FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not close position")
+                            # Send Telegram notification for position closed
+                            try:
+                                from dataclasses import asdict
+                                position_data = asdict(position)
+                                position_data['exit_price'] = current_price
+
+                                self.logger.info(f"🔍 TELEGRAM DEBUG: Sending position closed notification for {strategy_name}")
+                                success = self.telegram_reporter.report_position_closed(
+                                    position_data, exit_reason, pnl)
+
+                                if success:
+                                    self.logger.info(f"🔍 TELEGRAM DEBUG: Position closed notification sent successfully")
+                                else:
+                                    self.logger.warning(f"🔍 TELEGRAM DEBUG: Failed to send position closed notification")
+
+                            except Exception as e:
+                                self.logger.error(f"❌ TELEGRAM ERROR: Failed to send position closed notification: {e}")
+                                import traceback
+                                self.logger.error(f"❌ TELEGRAM ERROR: Traceback: {traceback.format_exc()}")
 
                 except Exception as e:
                     self.logger.error(f"Error checking exit conditions for {strategy_name}: {e}")
@@ -1336,167 +1346,6 @@ Interval: every {assessment_interval} seconds
 
         except Exception as e:
             self.error(f"Error in position monitoring: {e}")
-
-    async def _check_positions_for_exit(self):
-        """Check exit conditions for all open positions with improved error handling"""
-        try:
-            active_positions = self.order_manager.get_active_positions()
-
-            for strategy_name, position in active_positions.items():
-                try:
-                    strategy_config = self.strategies.get(strategy_name)
-                    if not strategy_config:
-                        continue
-
-                    # FIRST: Check Binance-based stop loss (most accurate)
-                    current_price = self._get_current_price(strategy_config['symbol'])
-                    if current_price and await self._check_stop_loss(strategy_name, strategy_config, position, current_price):
-                        continue  # Position was closed by stop loss, skip other checks
-
-                    # Get current market data
-                    df = self.price_fetcher.get_ohlcv_data(
-                        strategy_config['symbol'],
-                        strategy_config['timeframe']
-                    )
-
-                    if df is None or df.empty:
-                        continue
-
-                    # Calculate indicators
-                    df = self.price_fetcher.calculate_indicators(df)
-
-                    # Ensure strategy name is in config for exit conditions
-                    strategy_config_with_name = strategy_config.copy()
-                    strategy_config_with_name['name'] = strategy_name
-
-                    # Check strategy-specific exit conditions (take profit, RSI levels, etc.)
-                    exit_reason = self.signal_processor.evaluate_exit_conditions(
-                        df,
-                        {'entry_price': position.entry_price, 'stop_loss': position.stop_loss, 'take_profit': position.take_profit, 'side': position.side, 'quantity': position.quantity},
-                        strategy_config_with_name
-                    )
-
-                    if exit_reason:
-                        current_price = df['close'].iloc[-1]
-                        pnl = self._calculate_pnl(position, current_price)
-
-                        pnl_status = "PROFIT" if pnl > 0 else "LOSS"
-
-                        self.logger.info(f"🔄 EXIT TRIGGERED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Exit: ${current_price:,.1f} | PnL: ${pnl:.1f} ({pnl_status})")
-
-                        # Close position
-                        if self.order_manager.close_position(strategy_name, exit_reason):
-                            self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:,.1f} | Exit: ${current_price:,.1f} | Final PnL: ${pnl:.1f}")
-
-                            from dataclasses import asdict
-                            position_data = asdict(position)
-                            position_data['exit_price'] = current_price
-                            self.telegram_reporter.report_position_closed(
-                                position_data,
-                                exit_reason,
-                                pnl
-                            )
-                        else:
-                            self.logger.warning(f"❌ CLOSE FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not close position")
-                    else:
-                        # Get additional indicators for consolidated logging
-                        margin = strategy_config.get('margin', 50.0)
-                        leverage = strategy_config.get('leverage', 5)
-
-                        # Get current RSI
-                        current_rsi = None
-                        if 'rsi' in df.columns:
-                            current_rsi = df['rsi'].iloc[-1]
-
-                        # Log active position with current market data and RSI
-                        rsi_text = f"{current_rsi:.1f}" if current_rsi is not None else "N/A"
-                        self.logger.info(f"TRADE IN PROGRESS | {strategy_name.upper()} | {strategy_config['symbol']} | Side: {position.side} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.1f} | RSI: {rsi_text} | Config: ${margin:.1f} USDT @ {leverage}x | PnL: ${pnl:.1f} USDT ({pnl:.1f}%)")
-
-                except Exception as e:
-                    self.logger.error(f"Error checking exit conditions for {strategy_name}: {e}")
-
-        except Exception as e:
-            self.logger.error(f"Error checking exit conditions: {e}")
-            self.telegram_reporter.report_error("Exit Check Error", str(e))
-
-    def _get_strategy_config(self, strategy_name: str) -> Dict:
-        """Helper method to get strategy configuration by name"""
-        return self.strategies.get(strategy_name, {})
-
-    def _monitor_positions(self) -> None:
-        """Monitor active positions and display their status"""
-        try:
-            active_positions = self.order_manager.get_active_positions()
-
-            if not active_positions:
-                return
-
-            for strategy_name, position in active_positions.items():
-                try:
-                    # Get current price
-                    current_price = self._get_current_price(position.symbol)
-                    if not current_price:
-                        continue
-
-                    # Get strategy config for display
-                    strategy_config = self.strategies.get(strategy_name, {})
-                    configured_margin = strategy_config.get('margin', 0.0)
-                    configured_leverage = strategy_config.get('leverage', 1)
-
-                    # Calculate actual margin used (position value / leverage)
-                    position_value = position.entry_price * position.quantity
-                    actual_margin_used = position_value / configured_leverage
-
-                    # Get unrealized PnL from Binance directly
-                    unrealized_pnl_usdt = 0.0
-                    pnl_percentage = 0.0
-
-                    try:
-                        if self.binance_client.is_futures:
-                            # Get position information from Binance
-                            positions = self.binance_client.client.futures_position_information(symbol=position.symbol)
-                            for pos in positions:
-                                if pos.get('symbol') == position.symbol:
-                                    position_amt = float(pos.get('positionAmt', 0))
-                                    # Only get PnL if there's an actual position
-                                    if abs(position_amt) > 0.001:
-                                        unrealized_pnl_usdt = float(pos.get('unRealizedProfit', 0))
-                                        self.logger.debug(f"🔍 PnL DEBUG | {strategy_name} | Binance Position Amt: {position_amt} | Unrealized PnL: ${unrealized_pnl_usdt:.2f}")
-                                        break
-                            else:
-                                self.logger.warning(f"⚠️ No active position found on Binance for {position.symbol}")
-
-                        # Calculate PnL percentage against configured margin
-                        if configured_margin > 0:
-                            pnl_percentage = (unrealized_pnl_usdt / configured_margin) * 100
-                        else:
-                            pnl_percentage = 0.0
-
-                        self.logger.debug(f"🔍 PnL CALCULATION | {strategy_name} | Unrealized PnL: ${unrealized_pnl_usdt:.2f} | Margin: ${configured_margin} | Percentage: {pnl_percentage:+.2f}%")
-
-                    except Exception as e:
-                        self.logger.error(f"❌ Error getting unrealized PnL for {position.symbol}: {e}")
-                        unrealized_pnl_usdt = 0.0
-                        pnl_percentage = 0.0
-
-                    # Log position status with proper formatting
-                    status_message = f"""📊 TRADE IN PROGRESS
-🎯 Strategy: {strategy_name}
-💱 Symbol: {position.symbol}
-📊 Side: {position.side}
-💵 Entry: ${position.entry_price:.1f}
-📊 Current: ${current_price:.1f}
-⚡ Config: ${configured_margin} USDT @ {configured_leverage}x
-💸 Actual Margin: ${actual_margin_used:.1f} USDT
-💰 PnL: ${unrealized_pnl_usdt:.1f} USDT ({pnl_percentage:+.1f}%)"""
-
-                    self.logger.info(status_message)
-
-                except Exception as e:
-                    self.logger.error(f"Error monitoring position {strategy_name}: {e}")
-
-        except Exception as e:
-            self.logger.error(f"Error in position monitoring: {e}")
 
     async def _check_positions_for_exit(self):
         """Check exit conditions for all open positions with improved error handling"""

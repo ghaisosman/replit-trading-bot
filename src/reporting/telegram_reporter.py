@@ -300,52 +300,54 @@ class TelegramReporter:
     def report_position_closed(self, position_data: dict, exit_reason: str, pnl: float):
         """Report position closed to Telegram"""
         try:
+            self.logger.info(f"🔍 TELEGRAM DEBUG: report_position_closed() called")
+            self.logger.info(f"🔍 TELEGRAM DEBUG: position_data={position_data}")
+            self.logger.info(f"🔍 TELEGRAM DEBUG: exit_reason={exit_reason}")
+            self.logger.info(f"🔍 TELEGRAM DEBUG: pnl={pnl}")
+
             pnl_emoji = "🟢" if pnl >= 0 else "🔴"
-            position_value_usdt = position_data['entry_price'] * position_data['quantity']
-            pnl_percent = (pnl / position_value_usdt) * 100
+
+            # Calculate position value and PnL percentage
+            entry_price = position_data.get('entry_price', 0)
+            quantity = position_data.get('quantity', 0)
+            position_value_usdt = entry_price * quantity
+
+            # Calculate margin used (assuming 5x leverage from config)
+            margin_used = position_value_usdt / 5.0
+
+            # Calculate PnL percentage based on margin used (more accurate for leveraged trading)
+            pnl_percent = (pnl / margin_used) * 100 if margin_used > 0 else 0
 
             # Get current balance
-            from src.data_fetcher.balance_fetcher import BalanceFetcher
-            from src.binance_client.client import BinanceClientWrapper
+            current_balance = self._get_current_balance()
 
-            binance_client = BinanceClientWrapper()
-            balance_fetcher = BalanceFetcher(binance_client)
-            current_balance = balance_fetcher.get_usdt_balance() or 0
+            # Get current open trades count (after position was closed)
+            open_trades_count = self._get_open_trades_count()
 
-            # Calculate margin used
-            margin_used = position_value_usdt / 5  # Assuming 5x leverage
+            message = f"""🔴 TRADE CLOSED
+⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+🎯 Strategy Name: {position_data.get('strategy_name', 'Unknown').upper()}
+💰 Pair: {position_data.get('symbol', 'Unknown')}
+📊 Direction: {position_data.get('side', 'Unknown')}
+💵 Entry Price: ${entry_price:.4f}
+🚪 Exit Price: ${position_data.get('exit_price', 0):.4f}
+📦 Position Value: ${position_value_usdt:.2f} USDT
+💸 Margin Used: ${margin_used:.2f} USDT
+💰 Realized PNL: ${pnl:.2f} USDT ({pnl_percent:+.2f}%)
+🎯 Exit Reason: {exit_reason}
+💰 Current Balance: ${current_balance:.2f} USDT
+📈 Current Open Trades: {open_trades_count}"""
 
-            # Get actual current open trades count from bot manager
-            open_trades_count = 0
-            try:
-                # Import here to avoid circular imports
-                import sys
-                for module_name, module in sys.modules.items():
-                    if hasattr(module, 'shared_bot_instance') and module.shared_bot_instance:
-                        open_trades_count = len(module.shared_bot_instance.order_manager.active_positions)
-                        break
-            except Exception as e:
-                self.logger.debug(f"Could not get open trades count: {e}")
-                open_trades_count = 0
+            self.logger.info(f"🔍 TELEGRAM DEBUG: Prepared message, calling send_message()")
+            result = self.send_message(message)
+            self.logger.info(f"🔍 TELEGRAM DEBUG: send_message() returned: {result}")
 
-            message = f"""
-{pnl_emoji} <b>TRADE CLOSED</b>
-⏰ <b>Time:</b> {datetime.now().strftime("%Y-%m-%d %H:%M")}
-🎯 <b>Strategy Name:</b> {position_data['strategy_name'].upper()}
-💰 <b>Pair:</b> {position_data['symbol']}
-📊 <b>Direction:</b> {position_data['side']}
-💵 <b>Entry Price:</b> ${position_data['entry_price']:.4f}
-🚪 <b>Exit Price:</b> ${position_data.get('exit_price', 0):.4f}
-📦 <b>Position Value:</b> ${position_value_usdt:.2f} USDT
-💸 <b>Margin Used:</b> ${margin_used:.2f} USDT
-💰 <b>Realized PNL:</b> ${pnl:.2f} USDT ({pnl_percent:+.2f}%)
-🎯 <b>Exit Reason:</b> {exit_reason}
-💰 <b>Current Balance:</b> ${current_balance:.2f} USDT
-📈 <b>Current Open Trades:</b> {open_trades_count}
-            """
-            self.send_message(message)
+            return result
         except Exception as e:
             self.logger.error(f"Failed to send position closed report: {e}")
+            import traceback
+            self.logger.error(f"Full traceback: {traceback.format_exc()}")
+            return False
 
     def report_orphan_trade_detected(self, strategy_name: str, symbol: str, side: str, entry_price: float):
         """Report orphan trade detection to Telegram"""
