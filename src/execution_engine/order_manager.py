@@ -294,27 +294,27 @@ class OrderManager:
                         max_drawdown=0  # Could be calculated if tracking is implemented
                     )
                     
-                    # CRITICAL FIX: Update trade database when position closes
-                    try:
-                        from src.execution_engine.trade_database import TradeDatabase
-                        trade_db = TradeDatabase()
-                        trade_db.update_trade(position.trade_id, {
-                            'trade_status': 'CLOSED',
-                            'exit_price': current_price,
-                            'exit_reason': reason,
-                            'pnl_usdt': pnl,
-                            'pnl_percentage': pnl_percentage,
-                            'duration_minutes': duration_minutes
-                        })
-                        self.logger.debug(f"✅ Trade database updated for {position.trade_id}")
-                    except Exception as db_error:
-                        self.logger.error(f"❌ Error updating trade database: {db_error}")
-                        
-            except Exception as e:
+                    except Exception as e:
                 self.logger.error(f"❌ Error logging trade exit: {e}")
 
             # Calculate duration before updating anything
             duration_minutes = (datetime.now() - position.entry_time).total_seconds() / 60 if position.entry_time else 0
+            
+            # CRITICAL FIX: Update trade database when position closes
+            try:
+                from src.execution_engine.trade_database import TradeDatabase
+                trade_db = TradeDatabase()
+                trade_db.update_trade(position.trade_id, {
+                    'trade_status': 'CLOSED',
+                    'exit_price': current_price,
+                    'exit_reason': reason,
+                    'pnl_usdt': pnl,
+                    'pnl_percentage': pnl_percentage,
+                    'duration_minutes': duration_minutes
+                })
+                self.logger.debug(f"✅ Trade database updated for {position.trade_id}")
+            except Exception as db_error:
+                self.logger.error(f"❌ Error updating trade database: {db_error}")
             
             # Update position status
             position.status = "CLOSED"
