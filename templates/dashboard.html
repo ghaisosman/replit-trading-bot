@@ -253,6 +253,11 @@
                             <input type="number" class="form-control" id="assessmentInterval" step="1" min="5" max="300" placeholder="e.g., 60">
                             <div class="form-text">How often the bot scans the market for entry signals (5-300 seconds)</div>
                         </div>
+                        <div class="mb-3">
+                            <label for="cooldownPeriod" class="form-label">Cooldown Period (seconds)</label>
+                            <input type="number" class="form-control" id="cooldownPeriod" step="1" min="30" max="3600" placeholder="e.g., 300">
+                            <div class="form-text">Time to wait before allowing another trade on the same symbol/strategy (30-3600 seconds)</div>
+                        </div>
 
                         <!-- RSI Strategy Parameters (shown only for RSI strategies) -->
                         <div id="rsiParameters" style="display: none;">
@@ -415,6 +420,7 @@
                         document.getElementById('strategyTimeframe').value = config.timeframe || '';
                         document.getElementById('strategyMaxLoss').value = config.max_loss_pct || 10;
                         document.getElementById('assessmentInterval').value = config.assessment_interval || 300;
+                        document.getElementById('cooldownPeriod').value = config.cooldown_period || 300;
 
                         // Hide all strategy-specific sections first
                         document.getElementById('rsiParameters').style.display = 'none';
@@ -457,7 +463,8 @@
                 leverage: parseInt(document.getElementById('strategyLeverage').value) || 5,
                 timeframe: document.getElementById('strategyTimeframe').value || '15m',
                 max_loss_pct: parseFloat(document.getElementById('strategyMaxLoss').value) || 10,
-                assessment_interval: parseInt(document.getElementById('assessmentInterval').value) || 300
+                assessment_interval: parseInt(document.getElementById('assessmentInterval').value) || 300,
+                cooldown_period: parseInt(document.getElementById('cooldownPeriod').value) || 300
             };
 
             // Add RSI-specific parameters if RSI strategy

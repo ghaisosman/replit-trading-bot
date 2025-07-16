@@ -463,6 +463,11 @@ def update_strategy(strategy_name):
                 if data['assessment_interval'] < 5 or data['assessment_interval'] > 300:
                     return jsonify({'success': False, 'message': 'Assessment interval must be between 5 and 300 seconds'})
 
+            if 'cooldown_period' in data:
+                data['cooldown_period'] = int(data['cooldown_period'])
+                if data['cooldown_period'] < 30 or data['cooldown_period'] > 3600:
+                    return jsonify({'success': False, 'message': 'Cooldown period must be between 30 and 3600 seconds'})
+
             # Validate RSI parameters
             if 'rsi_long_entry' in data:
                 data['rsi_long_entry'] = int(data['rsi_long_entry'])
