@@ -1,4 +1,106 @@
-/api/balance', methods=['GET'])
+from flask import Flask, render_template, jsonify, request
+from datetime import datetime
+import json
+import os
+import sys
+import logging
+import time
+from collections import deque
+import threading
+import traceback
+
+# Import bot manager and other components
+try:
+    from src.bot_manager import BotManager
+    from src.data_fetcher.balance_fetcher import BalanceFetcher
+    from src.data_fetcher.price_fetcher import PriceFetcher
+    from src.config.trading_config import TradingConfig
+    IMPORTS_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ Import error: {e}")
+    IMPORTS_AVAILABLE = False
+
+# Initialize Flask app
+app = Flask(__name__, template_folder='templates')
+
+# Global variables
+bot_manager = None
+shared_bot_manager = None
+current_bot = None
+balance_fetcher = None
+price_fetcher = None
+trading_config = None
+
+# Initialize components if imports are available
+if IMPORTS_AVAILABLE:
+    try:
+        balance_fetcher = BalanceFetcher()
+        price_fetcher = PriceFetcher()
+        trading_config = TradingConfig()
+    except Exception as e:
+        print(f"⚠️ Failed to initialize components: {e}")
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Trades directory
+trades_dir = os.path.join(os.getcwd(), 'trading_data', 'trades')
+os.makedirs(trades_dir, exist_ok=True)
+
+def get_current_bot_manager():
+    """Get the current bot manager instance from main module"""
+    global bot_manager, shared_bot_manager, current_bot
+    
+    # Try multiple sources for bot manager
+    if shared_bot_manager:
+        return shared_bot_manager
+    
+    if bot_manager:
+        return bot_manager
+    
+    if current_bot:
+        return current_bot
+    
+    # Try to get from main module
+    try:
+        import sys
+        main_module = sys.modules.get('__main__')
+        if main_module and hasattr(main_module, 'bot_manager'):
+            return main_module.bot_manager
+    except Exception as e:
+        logger.debug(f"Could not get bot manager from main module: {e}")
+    
+    return None
+
+@app.route('/')
+def dashboard():
+    """Main dashboard page"""
+    return render_template('dashboard.html')
+
+@app.route('/api/health')
+def health_check():
+    """Health check endpoint"""
+    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
+
+@app.route('/api/bot/status')
+def get_bot_status():
+    """Get bot status"""
+    try:
+        current_bot = get_current_bot_manager()
+        if current_bot:
+            return jsonify({
+                'running': getattr(current_bot, 'is_running', False),
+                'strategies': list(getattr(current_bot, 'strategies', {}).keys()),
+                'uptime': getattr(current_bot, 'uptime', 0)
+            })
+        else:
+            return jsonify({'running': False, 'strategies': [], 'uptime': 0})
+    except Exception as e:
+        logger.error(f"❌ API ERROR: /api/bot/status - {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/balance', methods=['GET'])
 def get_balance():
     """Get current balance via API"""
     try:
