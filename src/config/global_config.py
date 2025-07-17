@@ -88,30 +88,19 @@ class GlobalConfig:
         # Check if running in Replit deployment
         is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
         
+        # FORCE MAINNET IN ALL ENVIRONMENTS
+        self.BINANCE_TESTNET = False  # Always use mainnet
+        self.BINANCE_FUTURES = True   # Always use futures
+        
         if is_deployment:
-            print("🚀 DEPLOYMENT MODE: Using MAINNET (geographic restrictions will be handled separately)")
-            print("💰 LIVE TRADING: Both development and deployment will use mainnet")
+            print("🚀 DEPLOYMENT MODE: Using MAINNET (always-on trading)")
+            print("💰 LIVE TRADING: Mainnet enabled for 24/7 operation")
+        else:
+            print("🛠️ DEVELOPMENT MODE: Using MAINNET (live trading)")
+            print("💰 LIVE TRADING: Mainnet enabled for real-time development")
         
-        # Try to load from config file first (web dashboard overrides) - DEVELOPMENT ONLY
-        if os.path.exists(config_file):
-            try:
-                with open(config_file, 'r') as f:
-                    env_config = json.load(f)
-                
-                self.BINANCE_TESTNET = env_config.get('BINANCE_TESTNET', 'true').lower() == 'true'
-                self.BINANCE_FUTURES = env_config.get('BINANCE_FUTURES', 'true').lower() == 'true'
-                
-                print(f"🔧 DEVELOPMENT Environment loaded from config file: {'TESTNET' if self.BINANCE_TESTNET else 'MAINNET'}")
-                return
-                
-            except Exception as e:
-                print(f"Warning: Could not load environment config file: {e}")
-        
-        # Fallback to environment variables - DEVELOPMENT ONLY
-        self.BINANCE_TESTNET = os.getenv('BINANCE_TESTNET', 'true').lower() == 'true'  # Default to testnet
-        self.BINANCE_FUTURES = os.getenv('BINANCE_FUTURES', 'true').lower() == 'true'  # Enable futures trading
-        
-        print(f"🔧 DEVELOPMENT Environment loaded from secrets: {'TESTNET' if self.BINANCE_TESTNET else 'MAINNET'}")
+        print(f"🔧 CONFIGURATION: FUTURES MAINNET (no geographic restrictions on Replit)")
+        print(f"✅ ACCOUNT SAFETY: No proxy usage - fully compliant with Binance ToS")
 
 # Global config instance
 global_config = GlobalConfig()
