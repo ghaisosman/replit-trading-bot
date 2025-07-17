@@ -1950,11 +1950,40 @@
       "symbol": "ETHUSDT",
       "side": "BUY",
       "entry_price": 3346.82,
-      "exit_price": null,
+      "exit_price": 3367.94,
       "quantity": 0.01,
       "margin_used": 6.69364,
       "leverage": 5,
       "position_value_usdt": 33.4682,
+      "rsi_at_entry": null,
+      "macd_at_entry": null,
+      "sma_20_at_entry": null,
+      "sma_50_at_entry": null,
+      "volume_at_entry": null,
+      "pnl_usdt": 0.20820000000000163,
+      "pnl_percentage": 2.0820000000000163,
+      "exit_reason": "Take Profit (MACD Bearish Divergence)",
+      "duration_minutes": 0.6109732333333333,
+      "market_trend": null,
+      "volatility_score": null,
+      "risk_reward_ratio": null,
+      "max_drawdown": null,
+      "entry_signal_strength": null,
+      "market_phase": null,
+      "trade_status": "CLOSED"
+    },
+    "RSI_OVERSOLD1_XRPUSDT_20250717_061540": {
+      "trade_id": "RSI_OVERSOLD1_XRPUSDT_20250717_061540",
+      "timestamp": "2025-07-17T06:15:40.282164",
+      "strategy_name": "RSI_OVERSOLD1",
+      "symbol": "XRPUSDT",
+      "side": "SELL",
+      "entry_price": 3.1573,
+      "exit_price": null,
+      "quantity": 7.9,
+      "margin_used": 4.9885340000000005,
+      "leverage": 5,
+      "position_value_usdt": 24.942670000000003,
       "rsi_at_entry": null,
       "macd_at_entry": null,
       "sma_20_at_entry": null,
@@ -1973,5 +2002,5 @@
       "trade_status": "OPEN"
     }
   },
-  "last_updated": "2025-07-17T03:08:49.031423"
+  "last_updated": "2025-07-17T06:16:14.176917"
 }
