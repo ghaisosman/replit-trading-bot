@@ -56,7 +56,34 @@ def run_web_dashboard():
         if not check_port_available(5000):
             logger.error("🚨 PORT 5000 UNAVAILABLE: Another web dashboard instance detected")
             logger.error("🚫 MAIN.PY: Cleaning up duplicate instances")
-            return
+            
+            # Kill existing processes using port 5000
+            try:
+                import subprocess
+                result = subprocess.run(['lsof', '-t', '-i:5000'], capture_output=True, text=True)
+                if result.returncode == 0 and result.stdout.strip():
+                    pids = result.stdout.strip().split('\n')
+                    for pid in pids:
+                        try:
+                            subprocess.run(['kill', '-9', pid], check=True)
+                            logger.info(f"🔄 Killed process {pid} using port 5000")
+                        except subprocess.CalledProcessError:
+                            pass
+                    
+                    # Wait for port to be freed
+                    time.sleep(3)
+                    
+                    # Check if port is now available
+                    if check_port_available(5000):
+                        logger.info("✅ Port 5000 successfully freed")
+                    else:
+                        logger.error("❌ Port 5000 still unavailable after cleanup")
+                        return
+                else:
+                    logger.info("🔍 No processes found using port 5000")
+            except Exception as e:
+                logger.error(f"Error during port cleanup: {e}")
+                return
 
         web_server_running = True
         logger.info("🌐 Starting web dashboard on 0.0.0.0:5000")
@@ -85,11 +112,18 @@ def run_web_dashboard():
                                     proc.terminate()
                                     logger.info(f"🔄 Terminated process {proc.pid}: {proc.info['name']}")
                                     killed_count += 1
+                                    # Wait for process to terminate
+                                    try:
+                                        proc.wait(timeout=3)
+                                    except psutil.TimeoutExpired:
+                                        proc.kill()  # Force kill if it doesn't terminate
                     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                         continue
 
                 if killed_count > 0:
                     logger.info(f"🔄 Terminated {killed_count} processes")
+                    # Wait longer for cleanup to complete
+                    time.sleep(5)
                 else:
                     logger.info("🔍 No conflicting processes found")
 
@@ -99,6 +133,20 @@ def run_web_dashboard():
                 # Check again
                 if not check_port_available(5000):
                     logger.error("🚨 CRITICAL: Port 5000 still unavailable after cleanup")
+                    logger.error("💡 Trying alternative port cleanup method...")
+                    
+                    # Alternative cleanup using netstat
+                    try:
+                        import subprocess
+                        result = subprocess.run(['netstat', '-tlnp'], capture_output=True, text=True)
+                        if result.returncode == 0:
+                            lines = result.stdout.split('\n')
+                            for line in lines:
+                                if ':5000' in line and 'LISTEN' in line:
+                                    logger.info(f"🔍 Found port 5000 in use: {line.strip()}")
+                    except:
+                        pass
+                    
                     logger.error("💡 Please restart the entire Repl to clear port conflicts")
                     return
                 else:
