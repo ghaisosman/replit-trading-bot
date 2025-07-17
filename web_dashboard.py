@@ -240,7 +240,7 @@ try:
     # Always use the trading_config_manager for configuration management
     from src.config.trading_config import trading_config_manager
     print("✅ Trading config manager loaded - Web dashboard is single source of truth")
-    
+
     # Set up balance fetcher
     try:
         if current_bot and hasattr(current_bot, 'balance_fetcher'):
@@ -252,7 +252,7 @@ try:
             balance_fetcher = BalanceFetcher(binance_client)
     except:
         balance_fetcher = DummyBalanceFetcher()
-        
+
 except ImportError:
     # Fallback to dummy config manager only if imports fail
     trading_config_manager = DummyConfigManagerFull()
@@ -606,7 +606,7 @@ def get_strategies():
     try:
         # Always prioritize web dashboard configuration
         print("🌐 WEB DASHBOARD: Getting strategies as single source of truth")
-        
+
         if IMPORTS_AVAILABLE and hasattr(trading_config_manager, 'get_all_strategies'):
             # Get all strategies from web dashboard configuration manager
             strategies = trading_config_manager.get_all_strategies()
@@ -694,8 +694,8 @@ def get_strategies():
                         config.setdefault('decimals', 3)
 
         logger.info(f"🌐 WEB DASHBOARD: Serving configurations for {len(strategies)} strategies")
-        return jsonify(strategies)
-        
+            return jsonify(strategies)
+
     except Exception as e:
         logger.error(f"Error in get_strategies endpoint: {e}")
         return jsonify({'error': str(e), 'strategies': {}}), 500
@@ -1040,7 +1040,7 @@ def get_trading_environment():
     try:
         # Get current bot manager
         current_bot = get_current_bot_manager()
-        
+
         if current_bot and hasattr(current_bot, 'is_running'):
             environment_info = {
                 'bot_running': current_bot.is_running,
@@ -1055,9 +1055,9 @@ def get_trading_environment():
                 'web_dashboard_active': True,
                 'config_source': 'web_dashboard'
             }
-        
+
         return jsonify(environment_info)
-        
+
     except Exception as e:
         print(f"❌ API ERROR: /api/trading/environment - {e}")
         return jsonify({'error': str(e), 'environment': 'UNKNOWN'}), 500
