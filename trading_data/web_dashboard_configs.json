@@ -1,6 +1,16 @@
 {
   "rsi_oversold": {
-    "margin": 30.0,
-    "leverage": 8
+    "margin": 10.0,
+    "leverage": 5,
+    "symbol": "BTCUSDT",
+    "timeframe": "15m",
+    "max_loss_pct": 10.0,
+    "assessment_interval": 60,
+    "decimals": 2,
+    "cooldown_period": 60,
+    "rsi_long_entry": 30,
+    "rsi_long_exit": 60,
+    "rsi_short_entry": 70,
+    "rsi_short_exit": 40
   }
 }
