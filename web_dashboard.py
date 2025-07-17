@@ -695,10 +695,10 @@ def get_strategies():
                             config.setdefault('decimals', 3)
 
             logger.info(f"🌐 WEB DASHBOARD: Serving configurations for {len(strategies)} strategies")
-            return jsonify(strategies)
-        else:
-            # Return default strategies for demo
-            return jsonify({
+        return jsonify(strategies)
+    except Exception as e:
+        logger.error(f"Error in get_strategies endpoint: {e}")
+        return jsonify({'error': str(e), 'strategies': {}}), 500
                 'rsi_oversold': {
                     'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
                     'max_loss_pct': 10, 'rsi_long_entry': 40, 'rsi_long_exit': 70,
