@@ -13,8 +13,7 @@ requiredFiles = [".replit", "replit.nix"]
 
 [deployment]
 run = ["sh", "-c", "python main.py"]
-deploymentTarget = "gce"
-ignorePorts = true
+deploymentTarget = "cloudrun"
 
 [workflows]
 runButton = "Start Trading Bot"
