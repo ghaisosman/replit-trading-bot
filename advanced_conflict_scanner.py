@@ -22,7 +22,7 @@ def scan_all_python_processes():
     current_pid = os.getpid()
     conflicting_processes = []
     
-    for proc in psutil.process_iter(['pid', 'ppid', 'name', 'cmdline', 'create_time', 'status', 'cwd', 'connections']):
+    for proc in psutil.process_iter(['pid', 'ppid', 'name', 'cmdline', 'create_time', 'status', 'cwd']):
         try:
             if proc.info['pid'] == current_pid:
                 continue
@@ -43,7 +43,8 @@ def scan_all_python_processes():
                     # Get process connections
                     connections = []
                     try:
-                        for conn in proc.connections():
+                        process = psutil.Process(proc.info['pid'])
+                        for conn in process.connections():
                             if conn.laddr.port == 5000:
                                 connections.append(f"Port {conn.laddr.port} ({conn.status})")
                     except:
