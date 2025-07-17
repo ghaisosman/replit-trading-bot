@@ -106,7 +106,10 @@ def dashboard():
             if 'macd_divergence' not in strategies:
                 strategies['macd_divergence'] = {
                     'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
-                    'max_loss_pct': 10, 'assessment_interval': 60
+                    'max_loss_pct': 10, 'assessment_interval': 60,
+                    'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
+                    'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005,
+                    'confirmation_candles': 2
                 }
         else:
             balance = 100.0  # Default for demo

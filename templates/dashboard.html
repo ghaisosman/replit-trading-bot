@@ -686,33 +686,67 @@
                             <div id="macdParameters" style="display: none;">
                                 <h6 class="text-primary mt-3">MACD Strategy Parameters</h6>
                                 <div class="row">
-                                    <div class="col-4">
-                                        <label for="macdFast" class="form-label">MACD Fast</label>
-                                        <input type="number" class="form-control" id="macdFast" min="5" max="20" placeholder="e.g., 12">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="macdFast" class="form-label">MACD Fast Length</label>
+                                            <input type="number" class="form-control" id="macdFast" min="2" max="30" placeholder="e.g., 12">
+                                            <div class="form-text">Shorter EMA period</div>
+                                        </div>
                                     </div>
-                                    <div class="col-4">
-                                        <label for="macdSlow" class="form-label">MACD Slow</label>
-                                        <input type="number" class="form-control" id="macdSlow" min="20" max="40" placeholder="e.g., 26">
-                                    </div>
-                                    <div class="col-4">
-                                        <label for="macdSignal" class="form-label">MACD Signal</label>
-                                        <input type="number" class="form-control" id="macdSignal" min="5" max="15" placeholder="e.g., 9">
-                                    </div>
-                                </div>
-                                <div class="row mt-2">
-                                    <div class="col-6">
-                                        <label for="macdMinHistogram" class="form-label">Min Histogram Threshold</label>
-                                        <input type="number" class="form-control" id="macdMinHistogram" step="0.0001" min="0.0001" max="0.01" placeholder="e.g., 0.0001">
-                                    </div>
-                                    <div class="col-6">
-                                        <label for="macdMinDistance" class="form-label">Min Distance Threshold (%)</label>
-                                        <input type="number" class="form-control" id="macdMinDistance" step="0.001" min="0.001" max="5" placeholder="e.g., 0.005">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="macdSlow" class="form-label">MACD Slow Length</label>
+                                            <input type="number" class="form-control" id="macdSlow" min="12" max="50" placeholder="e.g., 26">
+                                            <div class="form-text">Longer EMA period</div>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="row mt-2">
-                                    <div class="col-6">
-                                        <label for="macdConfirmationCandles" class="form-label">Confirmation Candles</label>
-                                        <input type="number" class="form-control" id="macdConfirmationCandles" min="1" max="5" placeholder="e.g., 2">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="macdSignal" class="form-label">MACD Signal Length</label>
+                                            <input type="number" class="form-control" id="macdSignal" min="2" max="20" placeholder="e.g., 9">
+                                            <div class="form-text">SMA of MACD line</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="minHistogramThreshold" class="form-label">Min Histogram Threshold</label>
+                                            <input type="number" class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g., 0.0001">
+                                            <div class="form-text">Minimum histogram value for signal</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="macdEntryThreshold" class="form-label">Entry Threshold</label>
+                                            <input type="number" class="form-control" id="macdEntryThreshold" step="0.01" placeholder="e.g., 0.05">
+                                            <div class="form-text">Required MACD crossover magnitude</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="macdExitThreshold" class="form-label">Exit Threshold</label>
+                                            <input type="number" class="form-control" id="macdExitThreshold" step="0.01" placeholder="e.g., 0.02">
+                                            <div class="form-text">MACD crossover magnitude to exit</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="histogramDivergenceLookback" class="form-label">Histogram Divergence Lookback</label>
+                                            <input type="number" class="form-control" id="histogramDivergenceLookback" min="5" max="50" placeholder="e.g., 10">
+                                            <div class="form-text">Periods to check for divergence</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="priceDivergenceLookback" class="form-label">Price Divergence Lookback</label>
+                                            <input type="number" class="form-control" id="priceDivergenceLookback" min="5" max="50" placeholder="e.g., 10">
+                                            <div class="form-text">Periods to check for price action</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -983,9 +1017,11 @@
                             document.getElementById('macdFast').value = config.macd_fast || 12;
                             document.getElementById('macdSlow').value = config.macd_slow || 26;
                             document.getElementById('macdSignal').value = config.macd_signal || 9;
-                            document.getElementById('macdMinHistogram').value = config.min_histogram_threshold || 0.0001;
-                            document.getElementById('macdMinDistance').value = config.min_distance_threshold || 0.005;
-                            document.getElementById('macdConfirmationCandles').value = config.confirmation_candles || 2;
+                             document.getElementById('minHistogramThreshold').value = config.min_histogram_threshold || 0.0001;
+                            document.getElementById('macdEntryThreshold').value = config.macd_entry_threshold || 0.05;
+                            document.getElementById('macdExitThreshold').value = config.macd_exit_threshold || 0.02;
+                            document.getElementById('histogramDivergenceLookback').value = config.histogram_divergence_lookback || 10;
+                            document.getElementById('priceDivergenceLookback').value = config.price_divergence_lookback || 10;
                         }
 
                         // Show and populate Liquidity Reversal parameters if it's a liquidity strategy
@@ -1044,13 +1080,15 @@
                 updates.rsi_short_exit = parseInt(document.getElementById('rsiShortExit').value);
             }
 
-            if (strategyName.toLowerCase().includes('macd')) {
+             if (strategyName.toLowerCase().includes('macd')) {
                 updates.macd_fast = parseInt(document.getElementById('macdFast').value);
                 updates.macd_slow = parseInt(document.getElementById('macdSlow').value);
                 updates.macd_signal = parseInt(document.getElementById('macdSignal').value);
-                updates.min_histogram_threshold = parseFloat(document.getElementById('macdMinHistogram').value);
-                updates.min_distance_threshold = parseFloat(document.getElementById('macdMinDistance').value);
-                updates.confirmation_candles = parseInt(document.getElementById('macdConfirmationCandles').value);
+                updates.min_histogram_threshold = parseFloat(document.getElementById('minHistogramThreshold').value);
+                updates.macd_entry_threshold = parseFloat(document.getElementById('macdEntryThreshold').value);
+                updates.macd_exit_threshold = parseFloat(document.getElementById('macdExitThreshold').value);
+                updates.histogram_divergence_lookback = parseInt(document.getElementById('histogramDivergenceLookback').value);
+                updates.price_divergence_lookback = parseInt(document.getElementById('priceDivergenceLookback').value);
             }
 
             // Liquidity reversal parameters
