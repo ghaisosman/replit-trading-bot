@@ -71,7 +71,7 @@ def run_web_dashboard():
         logger.error(f"Web dashboard error: {e}")
         if "Address already in use" in str(e):
             logger.error("🚨 PORT 5000 UNAVAILABLE: Another web dashboard instance detected")
-            logger.error("🚫 MAIN.PY: Cleaning up duplicate in
+            logger.error("🚫 MAIN.PY: Cleaning up duplicate instances...")
             try:
                 # Kill Python processes that might be using port 5000
                 killed_count = 0
