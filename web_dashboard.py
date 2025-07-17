@@ -653,28 +653,18 @@ def update_strategy(strategy_name):
 
 @app.route('/api/balance')
 def get_balance():
+    """Get current account balance"""
     try:
-        balance_file = "trading_data/balance.json"
-        if os.path.exists(balance_file):
-            with open(balance_file, 'r') as f:
-                balance_data = json.load(f)
-            return jsonify(balance_data)
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+
+        if current_bot and hasattr(current_bot, 'balance_fetcher'):
+            balance = current_bot.balance_fetcher.get_usdt_balance()
+            return jsonify({'success': True, 'balance': balance or 0})
         else:
-            return jsonify({
-                'total_balance': 1000.0,
-                'available_balance': 1000.0,
-                'used_balance': 0.0,
-                'last_updated': datetime.now().isoformat()
-            })
+            return jsonify({'success': True, 'balance': 0, 'error': 'Bot not running'})
     except Exception as e:
-        # Return safe fallback data instead of error
-        return jsonify({
-            'total_balance': 0.0,
-            'available_balance': 0.0,
-            'used_balance': 0.0,
-            'last_updated': datetime.now().isoformat(),
-            'error': 'Balance data unavailable'
-        }), 200
+        logger.error(f"Error getting balance: {e}")
+        return jsonify({'success': True, 'balance': 0, 'error': str(e)}), 200
 
 @app.route('/api/positions')
 def get_positions():
@@ -1187,7 +1177,7 @@ def get_proxy_status():
         proxy_enabled = os.getenv('PROXY_ENABLED', 'false').lower() == 'true'
         proxy_urls = os.getenv('PROXY_URLS', '').split(',')
         proxy_urls = [url.strip() for url in proxy_urls if url.strip()]
-        
+
         status = {
             'is_deployment': is_deployment,
             'proxy_enabled': proxy_enabled,
@@ -1195,7 +1185,7 @@ def get_proxy_status():
             'geographic_restrictions': is_deployment and not proxy_enabled,
             'recommendation': ''
         }
-        
+
         if is_deployment and not proxy_enabled:
             status['recommendation'] = 'Enable proxy to bypass geographic restrictions'
         elif is_deployment and proxy_enabled and len(proxy_urls) == 0:
@@ -1204,7 +1194,7 @@ def get_proxy_status():
             status['recommendation'] = 'Proxy configured and active'
         else:
             status['recommendation'] = 'Development mode - no proxy needed'
-            
+
         return jsonify(status)
     except Exception as e:
         return jsonify({'error': str(e)})
@@ -1289,3 +1279,35 @@ if __name__ == '__main__':
     print("💡 Please run 'python main.py' to start the trading bot with web interface")
     print("🚨 This prevents port conflicts and ensures proper initialization")
     sys.exit(1)
+
+@app.route('/api/bot-status')
+def get_bot_status():
+    """Get bot status"""
+    try:
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+
+        if current_bot:
+            status = current_bot.get_bot_status()
+            return jsonify({'success': True, 'status': status})
+        else:
+            return jsonify({
+                'success': True, 
+                'status': {
+                    'is_running': False,
+                    'active_positions': 0,
+                    'strategies': [],
+                    'balance': 0
+                }
+            })
+    except Exception as e:
+        logger.error(f"Error getting bot status: {e}")
+        return jsonify({
+            'success': True, 
+            'status': {
+                'is_running': False,
+                'active_positions': 0,
+                'strategies': [],
+                'balance': 0
+            },
+            'error': str(e)
+        }), 200
