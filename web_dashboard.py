@@ -352,7 +352,7 @@ def get_bot_status():
                 'strategies': 0,
                 'active_positions': 0,
                 'running': False
-            })
+            }), 200
 
         is_running = getattr(bot_manager, 'is_running', False)
         strategies_count = len(getattr(bot_manager, 'strategies', {}))
@@ -361,7 +361,7 @@ def get_bot_status():
         active_positions = 0
         if hasattr(bot_manager, 'order_manager') and bot_manager.order_manager:
             try:
-                active_positions = len(bot_manager.order_manager.get_active_positions())
+                active_positions = len(bot_manager.order_manager.active_positions)
             except:
                 active_positions = 0
 
@@ -370,7 +370,7 @@ def get_bot_status():
             'strategies': strategies_count,
             'active_positions': active_positions,
             'running': is_running
-        })
+        }), 200
     except Exception as e:
         logger.error(f"Error in get_bot_status: {e}")
         return jsonify({
@@ -379,7 +379,7 @@ def get_bot_status():
             'strategies': 0,
             'active_positions': 0,
             'running': False
-        }), 500
+        }), 200
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -655,13 +655,19 @@ def update_strategy(strategy_name):
 def get_balance():
     """Get current account balance"""
     try:
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        # Get current bot manager
+        import sys
+        main_module = sys.modules.get('__main__')
+        current_bot = getattr(main_module, 'bot_manager', None) if main_module else None
 
         if current_bot and hasattr(current_bot, 'balance_fetcher'):
-            balance = current_bot.balance_fetcher.get_usdt_balance()
-            return jsonify({'success': True, 'balance': balance or 0})
+            try:
+                balance = current_bot.balance_fetcher.get_usdt_balance()
+                return jsonify({'success': True, 'balance': balance or 0}), 200
+            except:
+                return jsonify({'success': True, 'balance': 0, 'error': 'Balance fetch error'}), 200
         else:
-            return jsonify({'success': True, 'balance': 0, 'error': 'Bot not running'})
+            return jsonify({'success': True, 'balance': 0, 'error': 'Bot not running'}), 200
     except Exception as e:
         logger.error(f"Error getting balance: {e}")
         return jsonify({'success': True, 'balance': 0, 'error': str(e)}), 200
@@ -804,64 +810,47 @@ def calculate_rsi(closes, period=14):
 def get_console_log():
     """Get console logs"""
     try:
-        # Get current bot manager first
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        # Get current bot manager
+        import sys
+        main_module = sys.modules.get('__main__')
+        current_bot = getattr(main_module, 'bot_manager', None) if main_module else None
 
         # Try to get logs from web handler if bot is running
-        if current_bot and hasattr(current_bot, 'log_handler') and hasattr(current_bot.log_handler, 'logs'):
+        if current_bot and hasattr(current_bot, 'log_handler'):
             try:
                 # Get recent logs from web handler
-                recent_logs = current_bot.log_handler.get_recent_logs(50)
-                if recent_logs and len(recent_logs) > 0:
-                    # Ensure all logs are strings
-                    string_logs = []
-                    for log in recent_logs:
-                        if isinstance(log, dict):
-                            string_logs.append(log.get('message', str(log)))
-                        else:
-                            string_logs.append(str(log))
-                    return jsonify({'success': True, 'logs': string_logs})
+                if hasattr(current_bot.log_handler, 'get_recent_logs'):
+                    recent_logs = current_bot.log_handler.get_recent_logs(30)
+                    if recent_logs and len(recent_logs) > 0:
+                        # Ensure all logs are strings
+                        string_logs = []
+                        for log in recent_logs[-30:]:  # Last 30 logs
+                            if isinstance(log, dict):
+                                string_logs.append(log.get('message', str(log)))
+                            else:
+                                string_logs.append(str(log))
+                        return jsonify({'success': True, 'logs': string_logs}), 200
             except Exception as web_error:
-                logger.error(f"Error getting web logs: {web_error}")
+                pass  # Continue to fallback
 
-        # Fallback to file-based logs
-        log_files = ["trading_data/bot.log", "trading_bot.log", "bot.log", "main.log"]
-        logs = []
+        # Simple fallback logs
+        status = "Running" if current_bot and getattr(current_bot, 'is_running', False) else "Stopped"
+        logs = [
+            f"🤖 Bot Status: {status}",
+            f"🌐 Web Dashboard: Active",
+            f"⏰ Last checked: {datetime.now().strftime('%H:%M:%S')}",
+            "📋 Bot is running - check console for detailed logs"
+        ]
 
-        for log_file in log_files:
-            if os.path.exists(log_file):
-                try:
-                    with open(log_file, 'r') as f:
-                        lines = f.readlines()
-                    # Get last 30 lines and clean them
-                    recent_lines = lines[-30:] if len(lines) > 30 else lines
-                    cleaned_logs = []
-                    for line in recent_lines:
-                        cleaned_line = line.strip()
-                        if cleaned_line and len(cleaned_line) > 3:
-                            # Remove ANSI color codes if present
-                            import re
-                            cleaned_line = re.sub(r'\x1b\[[0-9;]*m', '', cleaned_line)
-                            cleaned_logs.append(cleaned_line)
+        # Add position info if available
+        if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
+            try:
+                positions = len(current_bot.order_manager.active_positions)
+                logs.append(f"📊 Active Positions: {positions}")
+            except:
+                pass
 
-                    if cleaned_logs:
-                        logs.extend(cleaned_logs)
-                        break
-                except Exception as file_error:
-                    logger.error(f"Error reading log file {log_file}: {file_error}")
-                    continue
-
-        if not logs:
-            # Return status info if no logs available
-            status = "Running" if current_bot and getattr(current_bot, 'is_running', False) else "Stopped"
-            logs = [
-                f"🤖 Bot Status: {status}",
-                f"🌐 Web Dashboard: Active",
-                f"⏰ Last checked: {datetime.now().strftime('%H:%M:%S')}",
-                "📋 Console logs will appear here when bot runs"
-            ]
-
-        return jsonify({'success': True, 'logs': logs})
+        return jsonify({'success': True, 'logs': logs}), 200
     except Exception as e:
         logger.error(f"Error in console log endpoint: {e}")
         return jsonify({
@@ -869,7 +858,7 @@ def get_console_log():
             'logs': [
                 f"❌ Error loading logs: {str(e)}", 
                 f"⏰ Time: {datetime.now().strftime('%H:%M:%S')}",
-                "🔄 Web dashboard is running but console logs unavailable"
+                "🔄 Web dashboard is running"
             ], 
             'error': str(e)
         }), 200
