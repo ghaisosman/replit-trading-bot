@@ -211,6 +211,18 @@ class ColoredFormatter(logging.Formatter):
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝{reset}
 """
+        elif "TRADE IN PROGRESS" in message:
+            # Trade in progress - prevent nested formatting
+            msg_lines = format_structured_message(message)
+            formatted_lines = "║\n".join([f"║ {line}" for line in msg_lines])
+            formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
+║ 📊 TRADE IN PROGRESS                             ║
+║ ⏰ {timestamp}                                        ║
+║                                                   ║
+{formatted_lines}
+║                                                   ║
+╚═══════════════════════════════════════════════════╝{reset}
+"""
         elif "MARKET ASSESSMENT" in message:
             # Check if this is the start of a consolidated market assessment
             if message.strip() == "📈 MARKET ASSESSMENT":
@@ -318,7 +330,7 @@ def setup_logger():
     file_handler = logging.FileHandler('trading_bot.log')
     file_handler.setFormatter(SimpleFileFormatter())
     file_handler.setLevel(logging.DEBUG)
-    
+
     # Also create a copy in trading_data for web interface
     file_handler_web = logging.FileHandler('trading_data/bot.log')
     file_handler_web.setFormatter(SimpleFileFormatter())
