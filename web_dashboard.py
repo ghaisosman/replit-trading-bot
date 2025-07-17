@@ -546,47 +546,83 @@ def get_strategies():
 
 @app.route('/api/strategies', methods=['POST'])
 def create_strategy():
-    """Create a new strategy"""
+    """Create a new strategy - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
     try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'message': 'Strategy creation not available in demo mode'})
+
         data = request.get_json()
 
         if not data or 'name' not in data:
             return jsonify({'success': False, 'message': 'Strategy name is required'})
 
-        strategy_name = data['name']
+        strategy_name = data['name'].strip()
 
-        # Validate strategy name
-        if not strategy_name.lower().strip():
+        # Comprehensive validation
+        if not strategy_name:
             return jsonify({'success': False, 'message': 'Strategy name cannot be empty'})
+
+        # Validate strategy name format
+        if not strategy_name.replace('_', '').replace('-', '').isalnum():
+            return jsonify({'success': False, 'message': 'Strategy name can only contain letters, numbers, underscores and hyphens'})
 
         # Check if strategy already exists
         existing_strategies = trading_config_manager.get_all_strategies()
         if strategy_name in existing_strategies:
-            return jsonify({'success': False, 'message': f'Strategy {strategy_name} already exists'})
+            return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" already exists'})
 
         # Validate strategy type
         if 'rsi' not in strategy_name.lower() and 'macd' not in strategy_name.lower():
-            return jsonify({'success': False, 'message': 'Strategy name must contain "rsi" or "macd"'})
+            return jsonify({'success': False, 'message': 'Strategy name must contain "rsi" or "macd" to determine strategy type'})
 
-        # Create strategy configuration
+        # Validate symbol
+        symbol = data.get('symbol', '').strip().upper()
+        if not symbol or len(symbol) < 6:
+            return jsonify({'success': False, 'message': 'Valid symbol is required (e.g., BTCUSDT)'})
+
+        # Validate margin and leverage
+        try:
+            margin = float(data.get('margin', 50.0))
+            leverage = int(data.get('leverage', 5))
+            
+            if margin <= 0 or margin > 10000:
+                return jsonify({'success': False, 'message': 'Margin must be between 0.01 and 10000 USDT'})
+            
+            if leverage <= 0 or leverage > 125:
+                return jsonify({'success': False, 'message': 'Leverage must be between 1 and 125'})
+                
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid margin or leverage values'})
+
+        # Create comprehensive strategy configuration with web dashboard as source of truth
         new_config = {
-            'symbol': data.get('symbol', 'BTCUSDT'),
-            'margin': float(data.get('margin', 50.0)),
-            'leverage': int(data.get('leverage', 5)),
+            'symbol': symbol,
+            'margin': margin,
+            'leverage': leverage,
             'timeframe': data.get('timeframe', '15m'),
             'max_loss_pct': float(data.get('max_loss_pct', 10.0)),
             'assessment_interval': int(data.get('assessment_interval', 60)),
-            'cooldown_period': int(data.get('cooldown_period', 300))
+            'cooldown_period': int(data.get('cooldown_period', 300)),
+            'decimals': 2 if 'ETH' in symbol or 'SOL' in symbol else 3,
+            'min_volume': 1000000
         }
 
-        # Add strategy-specific parameters
+        # Add strategy-specific parameters with validation
         if 'rsi' in strategy_name.lower():
             new_config.update({
-                'rsi_long_entry': int(data.get('rsi_long_entry', 40)),
+                'rsi_period': 14,
+                'rsi_long_entry': int(data.get('rsi_long_entry', 30)),
                 'rsi_long_exit': int(data.get('rsi_long_exit', 70)),
-                'rsi_short_entry': int(data.get('rsi_short_entry', 60)),
+                'rsi_short_entry': int(data.get('rsi_short_entry', 70)),
                 'rsi_short_exit': int(data.get('rsi_short_exit', 30))
             })
+            
+            # Validate RSI parameters
+            if not (10 <= new_config['rsi_long_entry'] <= 50):
+                return jsonify({'success': False, 'message': 'RSI Long Entry must be between 10 and 50'})
+            if not (50 <= new_config['rsi_long_exit'] <= 90):
+                return jsonify({'success': False, 'message': 'RSI Long Exit must be between 50 and 90'})
+                
         elif 'macd' in strategy_name.lower():
             new_config.update({
                 'macd_fast': int(data.get('macd_fast', 12)),
@@ -596,21 +632,27 @@ def create_strategy():
                 'min_distance_threshold': float(data.get('min_distance_threshold', 0.005)),
                 'confirmation_candles': int(data.get('confirmation_candles', 2))
             })
+            
+            # Validate MACD parameters
+            if new_config['macd_fast'] >= new_config['macd_slow']:
+                return jsonify({'success': False, 'message': 'MACD Fast must be less than MACD Slow'})
 
-        # Save the new strategy
+        # 🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Save to persistent config
         trading_config_manager.update_strategy_params(strategy_name, new_config)
 
         logger.info(f"🆕 NEW STRATEGY CREATED: {strategy_name} via web dashboard")
+        logger.info(f"🌐 WEB DASHBOARD: New strategy config saved as single source of truth")
+        logger.info(f"📝 STRATEGY CONFIG: {new_config}")
 
         return jsonify({
             'success': True, 
-            'message': f'Strategy {strategy_name} created successfully',
+            'message': f'Strategy "{strategy_name}" created successfully! Restart bot to activate.',
             'strategy': new_config
         })
 
     except Exception as e:
         logger.error(f"Error creating strategy: {e}")
-        return jsonify({'success': False, 'message': f'Failed to create strategy: {e}'})
+        return jsonify({'success': False, 'message': f'Failed to create strategy: {str(e)}'})
 
 @app.route('/api/strategies/<strategy_name>', methods=['POST'])
 def update_strategy(strategy_name):

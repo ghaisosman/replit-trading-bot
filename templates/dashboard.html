@@ -260,6 +260,7 @@
                         <p><strong>Status:</strong> <span id="botStatus" class="badge bg-secondary">Loading...</span></p>
                         <p><strong>Balance:</strong> $<span id="balance">Loading...</span> USDT</p>
                         <p><strong>Active Positions:</strong> <span id="activePositions">0</span></p>
+                        <p><strong>Active Strategies:</strong> <span id="activeStrategies">0</span></p>
                         <p><strong>Environment:</strong> <span id="environment" class="badge bg-info">MAINNET</span></p>
                         <button class="btn btn-info btn-sm" onclick="refreshData()">
                             <i class="fas fa-sync"></i> Refresh
@@ -508,6 +509,152 @@
                         </div>
                     </div>
                     {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Add New Strategy Modal -->
+        <div class="modal fade" id="addStrategyModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add New Strategy</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="addStrategyForm">
+                            <div class="mb-3">
+                                <label for="newStrategyName" class="form-label">Strategy Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="newStrategyName" placeholder="e.g., my_rsi_strategy or custom_macd_strategy" required>
+                                <div class="form-text">Name must contain "rsi" or "macd" to determine strategy type</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="newStrategySymbol" class="form-label">Symbol <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="newStrategySymbol" placeholder="e.g., BTCUSDT" required>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="newStrategyMargin" class="form-label">Margin (USDT) <span class="text-danger">*</span></label>
+                                        <input type="number" class="form-control" id="newStrategyMargin" step="0.1" min="1" value="50" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="newStrategyLeverage" class="form-label">Leverage <span class="text-danger">*</span></label>
+                                        <input type="number" class="form-control" id="newStrategyLeverage" min="1" max="125" value="5" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="newStrategyTimeframe" class="form-label">Timeframe</label>
+                                        <select class="form-control" id="newStrategyTimeframe">
+                                            <option value="1m">1 minute</option>
+                                            <option value="5m">5 minutes</option>
+                                            <option value="15m" selected>15 minutes</option>
+                                            <option value="1h">1 hour</option>
+                                            <option value="4h">4 hours</option>
+                                            <option value="1d">1 day</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="newStrategyMaxLoss" class="form-label">Max Loss % (of margin)</label>
+                                        <input type="number" class="form-control" id="newStrategyMaxLoss" step="0.1" min="1" max="50" value="10">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="newAssessmentInterval" class="form-label">Assessment Interval (seconds)</label>
+                                        <input type="number" class="form-control" id="newAssessmentInterval" step="1" min="5" max="300" value="60">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="newCooldownPeriod" class="form-label">Cooldown Period (seconds)</label>
+                                        <input type="number" class="form-control" id="newCooldownPeriod" step="1" min="30" max="3600" value="300">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- RSI Strategy Parameters -->
+                            <div id="newRsiParameters" style="display: none;">
+                                <h6 class="text-primary mt-3">RSI Strategy Parameters</h6>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <label for="newRsiLongEntry" class="form-label">RSI Long Entry</label>
+                                        <input type="number" class="form-control" id="newRsiLongEntry" min="10" max="50" value="30">
+                                    </div>
+                                    <div class="col-6">
+                                        <label for="newRsiLongExit" class="form-label">RSI Long Exit</label>
+                                        <input type="number" class="form-control" id="newRsiLongExit" min="50" max="90" value="70">
+                                    </div>
+                                </div>
+                                <div class="row mt-2">
+                                    <div class="col-6">
+                                        <label for="newRsiShortEntry" class="form-label">RSI Short Entry</label>
+                                        <input type="number" class="form-control" id="newRsiShortEntry" min="50" max="90" value="70">
+                                    </div>
+                                    <div class="col-6">
+                                        <label for="newRsiShortExit" class="form-label">RSI Short Exit</label>
+                                        <input type="number" class="form-control" id="newRsiShortExit" min="10" max="50" value="30">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- MACD Strategy Parameters -->
+                            <div id="newMacdParameters" style="display: none;">
+                                <h6 class="text-primary mt-3">MACD Strategy Parameters</h6>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="newMacdFast" class="form-label">Fast EMA</label>
+                                            <input type="number" class="form-control" id="newMacdFast" min="2" max="30" value="12">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="newMacdSlow" class="form-label">Slow EMA</label>
+                                            <input type="number" class="form-control" id="newMacdSlow" min="12" max="50" value="26">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="newMacdSignal" class="form-label">Signal Line</label>
+                                            <input type="number" class="form-control" id="newMacdSignal" min="2" max="20" value="9">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="newMinHistogramThreshold" class="form-label">Min Histogram Threshold</label>
+                                            <input type="number" class="form-control" id="newMinHistogramThreshold" step="0.00001" value="0.0001">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="newMinDistanceThreshold" class="form-label">Min Distance Threshold</label>
+                                            <input type="number" class="form-control" id="newMinDistanceThreshold" step="0.001" value="0.005">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="newConfirmationCandles" class="form-label">Confirmation Candles</label>
+                                    <input type="number" class="form-control" id="newConfirmationCandles" min="1" max="10" value="2">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -839,6 +986,12 @@
                         activePositions.textContent = data.active_positions || 0;
                     }
 
+                    // Update active strategies count
+                    const activeStrategiesElement = document.getElementById('activeStrategies');
+                    if (activeStrategiesElement) {
+                        activeStrategiesElement.textContent = data.strategies || 0;
+                    }
+
                     // Log successful status update for debugging
                     console.debug('Bot status updated:', {
                         running: data.running,
@@ -1168,8 +1321,117 @@
 
         // Add new strategy function
         function addNewStrategy() {
-            // TODO: Implement functionality to add a new strategy
-            alert('Functionality to add a new strategy will be implemented soon.');
+            // Reset form
+            document.getElementById('addStrategyForm').reset();
+            document.getElementById('newRsiParameters').style.display = 'none';
+            document.getElementById('newMacdParameters').style.display = 'none';
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('addStrategyModal'));
+            modal.show();
+        }
+
+        // Monitor strategy name input to show/hide relevant parameters
+        document.addEventListener('DOMContentLoaded', function() {
+            const strategyNameInput = document.getElementById('newStrategyName');
+            if (strategyNameInput) {
+                strategyNameInput.addEventListener('input', function() {
+                    const name = this.value.toLowerCase();
+                    const rsiParams = document.getElementById('newRsiParameters');
+                    const macdParams = document.getElementById('newMacdParameters');
+                    
+                    // Hide all first
+                    rsiParams.style.display = 'none';
+                    macdParams.style.display = 'none';
+                    
+                    // Show relevant parameters based on name
+                    if (name.includes('rsi')) {
+                        rsiParams.style.display = 'block';
+                    } else if (name.includes('macd')) {
+                        macdParams.style.display = 'block';
+                    }
+                });
+            }
+        });
+
+        // Save new strategy
+        function saveNewStrategy() {
+            const name = document.getElementById('newStrategyName').value.trim();
+            
+            if (!name) {
+                alert('Strategy name is required');
+                return;
+            }
+            
+            if (!name.toLowerCase().includes('rsi') && !name.toLowerCase().includes('macd')) {
+                alert('Strategy name must contain "rsi" or "macd" to determine strategy type');
+                return;
+            }
+
+            const symbol = document.getElementById('newStrategySymbol').value.trim();
+            if (!symbol) {
+                alert('Symbol is required');
+                return;
+            }
+
+            const newStrategy = {
+                name: name,
+                symbol: symbol.toUpperCase(),
+                margin: parseFloat(document.getElementById('newStrategyMargin').value),
+                leverage: parseInt(document.getElementById('newStrategyLeverage').value),
+                timeframe: document.getElementById('newStrategyTimeframe').value,
+                max_loss_pct: parseFloat(document.getElementById('newStrategyMaxLoss').value),
+                assessment_interval: parseInt(document.getElementById('newAssessmentInterval').value),
+                cooldown_period: parseInt(document.getElementById('newCooldownPeriod').value)
+            };
+
+            // Add strategy-specific parameters
+            if (name.toLowerCase().includes('rsi')) {
+                newStrategy.rsi_long_entry = parseInt(document.getElementById('newRsiLongEntry').value);
+                newStrategy.rsi_long_exit = parseInt(document.getElementById('newRsiLongExit').value);
+                newStrategy.rsi_short_entry = parseInt(document.getElementById('newRsiShortEntry').value);
+                newStrategy.rsi_short_exit = parseInt(document.getElementById('newRsiShortExit').value);
+            } else if (name.toLowerCase().includes('macd')) {
+                newStrategy.macd_fast = parseInt(document.getElementById('newMacdFast').value);
+                newStrategy.macd_slow = parseInt(document.getElementById('newMacdSlow').value);
+                newStrategy.macd_signal = parseInt(document.getElementById('newMacdSignal').value);
+                newStrategy.min_histogram_threshold = parseFloat(document.getElementById('newMinHistogramThreshold').value);
+                newStrategy.min_distance_threshold = parseFloat(document.getElementById('newMinDistanceThreshold').value);
+                newStrategy.confirmation_candles = parseInt(document.getElementById('newConfirmationCandles').value);
+            }
+
+            fetch('/api/strategies', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(newStrategy)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('addStrategyModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+                    
+                    alert('✅ Strategy created successfully!\n\n' + 
+                          '• Strategy: ' + data.strategy.symbol + '\n' +
+                          '• Margin: $' + data.strategy.margin + ' USDT\n' +
+                          '• Leverage: ' + data.strategy.leverage + 'x\n\n' +
+                          'The strategy will be active when the bot restarts.');
+                    
+                    // Refresh the page to show new strategy
+                    location.reload();
+                } else {
+                    alert('❌ Error creating strategy:\n\n' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error creating strategy:', error);
+                alert('Error creating strategy: ' + error);
+            });
         }
 
         // Console log functions
@@ -1219,6 +1481,7 @@
                     document.getElementById('botStatus').textContent = data.running ? 'RUNNING' : 'STOPPED';
                     document.getElementById('botStatus').className = `badge bg-${data.running ? 'success' : 'danger'}`;
                     document.getElementById('activePositions').textContent = data.active_positions;
+                    document.getElementById('activeStrategies').textContent = data.strategies || 0;
                     document.getElementById('statusBadge').textContent = data.running ? 'RUNNING' : 'STOPPED';
                     document.getElementById('statusBadge').className = `badge bg-${data.running ? 'success' : 'danger'} me-2`;
                     document.getElementById('botToggle').textContent = data.running ? 'Stop Bot' : 'Start Bot';
