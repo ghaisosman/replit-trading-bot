@@ -1,0 +1,6 @@
+{
+  "rsi_oversold": {
+    "margin": 30.0,
+    "leverage": 8
+  }
+}

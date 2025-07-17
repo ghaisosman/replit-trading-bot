@@ -1,0 +1,2 @@
+trade_id,timestamp,strategy_name,symbol,side,entry_price,exit_price,quantity,margin_used,leverage,position_value_usdt,rsi_at_entry,macd_at_entry,sma_20_at_entry,sma_50_at_entry,volume_at_entry,pnl_usdt,pnl_percentage,exit_reason,duration_minutes,market_trend,volatility_score,risk_reward_ratio,max_drawdown,entry_signal_strength,market_phase,trade_status
+rsi_oversold_BTCUSDT_20250717_180511,2025-07-17T18:05:11.047810,rsi_oversold,BTCUSDT,SELL,119334.1,,0.001,14.9167625,8,119.3341,,,,,,,,,,,,,,,,OPEN
