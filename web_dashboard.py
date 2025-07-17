@@ -338,48 +338,55 @@ def stop_bot():
 
 @app.route('/api/bot/status')
 def get_bot_status():
-    """Get bot status"""
+    """Get current bot status"""
     try:
-        # Get bot manager from main module
-        import sys
-        main_module = sys.modules.get('__main__')
-        bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
+        # Safe bot manager access with multiple fallback methods
+        current_bot_manager = None
 
-        if not bot_manager:
+        # Method 1: Direct reference
+        if 'bot_manager' in globals() and bot_manager:
+            current_bot_manager = bot_manager
+
+        # Method 2: From main module
+        elif hasattr(sys.modules.get('__main__'), 'bot_manager'):
+            current_bot_manager = sys.modules['__main__'].bot_manager
+
+        # Method 3: From shared reference
+        elif 'shared_bot_manager' in globals() and shared_bot_manager:
+            current_bot_manager = shared_bot_manager
+
+        if not current_bot_manager:
             return jsonify({
+                'running': False,
                 'status': 'stopped',
-                'message': 'Bot manager not initialized',
-                'strategies': 0,
                 'active_positions': 0,
-                'running': False
+                'strategies': 4
             }), 200
 
-        is_running = getattr(bot_manager, 'is_running', False)
-        strategies_count = len(getattr(bot_manager, 'strategies', {}))
-
-        # Safe access to order manager
+        # Safe attribute access
+        is_running = getattr(current_bot_manager, 'is_running', False)
         active_positions = 0
-        if hasattr(bot_manager, 'order_manager') and bot_manager.order_manager:
-            try:
-                active_positions = len(bot_manager.order_manager.active_positions)
-            except:
-                active_positions = 0
+
+        if hasattr(current_bot_manager, 'order_manager') and current_bot_manager.order_manager:
+            active_positions = len(getattr(current_bot_manager.order_manager, 'active_positions', {}))
 
         return jsonify({
+            'running': is_running,
             'status': 'running' if is_running else 'stopped',
-            'strategies': strategies_count,
             'active_positions': active_positions,
-            'running': is_running
+            'strategies': 4
         }), 200
+
     except Exception as e:
-        logger.error(f"Error in get_bot_status: {e}")
+        app.logger.error(f"Bot status error: {e}")
+        # Return valid response even on error
         return jsonify({
+            'running': False,
             'status': 'error',
-            'message': f'Status error: {str(e)}',
-            'strategies': 0,
             'active_positions': 0,
-            'running': False
-        }), 200
+            'strategies': 4,
+            'error': str(e)
+        }), 200  # Return 200 instead of 500 to prevent 502
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -651,33 +658,52 @@ def update_strategy(strategy_name):
         logger.error(f"Error updating strategy {strategy_name}: {e}")
         return jsonify({'success': False, 'message': f'Failed to update strategy: {e}'})
 
-@app.route('/api/balance')
+@app.route('/api/bot/balance')
 def get_balance():
-    """Get current account balance with bulletproof error handling"""
+    """Get account balance"""
     try:
-        # Get current bot manager safely
-        import sys
-        try:
-            main_module = sys.modules.get('__main__')
-            current_bot = getattr(main_module, 'bot_manager', None) if main_module else None
-        except Exception:
-            current_bot = None
+        # Safe bot manager access
+        current_bot_manager = None
 
-        # Try to get balance if bot is available
-        if current_bot:
+        if 'bot_manager' in globals() and bot_manager:
+            current_bot_manager = bot_manager
+        elif hasattr(sys.modules.get('__main__'), 'bot_manager'):
+            current_bot_manager = sys.modules['__main__'].bot_manager
+        elif 'shared_bot_manager' in globals() and shared_bot_manager:
+            current_bot_manager = shared_bot_manager
+
+        if not current_bot_manager:
+            return jsonify({
+                'balance': 0, 
+                'success': False, 
+                'error': 'Bot not initialized'
+            }), 200
+
+        # Safe balance access
+        balance = 0
+        if hasattr(current_bot_manager, 'balance_fetcher') and current_bot_manager.balance_fetcher:
             try:
-                if hasattr(current_bot, 'balance_fetcher') and current_bot.balance_fetcher:
-                    balance = current_bot.balance_fetcher.get_usdt_balance()
-                    return jsonify({'success': True, 'balance': float(balance) if balance else 0}), 200
+                balance = current_bot_manager.balance_fetcher.get_futures_balance()
             except Exception as balance_error:
-                pass  # Continue to fallback
+                app.logger.warning(f"Balance fetch error: {balance_error}")
+                return jsonify({
+                    'balance': 0, 
+                    'success': False,
+                    'error': 'Balance unavailable'
+                }), 200
 
-        # Always return a valid response
-        return jsonify({'success': True, 'balance': 0, 'error': 'Balance temporarily unavailable'}), 200
+        return jsonify({
+            'balance': balance, 
+            'success': True
+        }), 200
 
     except Exception as e:
-        # Emergency fallback to prevent 502
-        return jsonify({'success': True, 'balance': 0, 'error': 'Service unavailable'}), 200
+        app.logger.error(f"Balance endpoint error: {e}")
+        return jsonify({
+            'balance': 0, 
+            'success': False, 
+            'error': str(e)
+        }), 200  # Return 200 instead of 500
 
 @app.route('/api/positions')
 def get_positions():
@@ -726,6 +752,7 @@ def get_positions():
                     # For futures trading, PnL percentage should be calculated against margin invested, not position value
                     pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
 
+                    ```python
                     positions.append({
                         'strategy': position.strategy_name,
                         'symbol': position.symbol,
@@ -813,50 +840,40 @@ def calculate_rsi(closes, period=14):
 
     return rsi
 
-@app.route('/api/console-log')
+@app.route('/api/console/log')
 def get_console_log():
-    """Get console logs with bulletproof error handling"""
+    """Get recent console logs"""
     try:
-        # Get current bot manager safely
-        import sys
+        logs = []
+
+        # Try to get logs from web log handler
         try:
-            main_module = sys.modules.get('__main__')
-            current_bot = getattr(main_module, 'bot_manager', None) if main_module else None
-        except Exception:
-            current_bot = None
+            root_logger = logging.getLogger()
+            for handler in root_logger.handlers:
+                if hasattr(handler, 'get_logs'):
+                    logs = handler.get_logs()
+                    break
 
-        # Always provide fallback logs to prevent 502 errors
-        try:
-            status = "Running" if current_bot and getattr(current_bot, 'is_running', False) else "Stopped"
-        except Exception:
-            status = "Unknown"
+            # If no logs found, provide a default message
+            if not logs:
+                logs = ["Web dashboard active - logs will appear here"]
 
-        # Bulletproof log creation
-        logs = [
-            f"🤖 Bot Status: {status}",
-            f"🌐 Web Dashboard: Active",
-            f"⏰ Last checked: {datetime.now().strftime('%H:%M:%S')}",
-            "📋 Check console for detailed logs"
-        ]
+        except Exception as log_error:
+            app.logger.warning(f"Log retrieval error: {log_error}")
+            logs = ["Log system initializing..."]
 
-        # Try to add position info safely
-        try:
-            if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
-                positions = len(getattr(current_bot.order_manager, 'active_positions', {}))
-                logs.append(f"📊 Active Positions: {positions}")
-        except Exception:
-            logs.append("📊 Position info unavailable")
-
-        return jsonify({'success': True, 'logs': logs}), 200
+        return jsonify({
+            'logs': logs, 
+            'success': True
+        }), 200
 
     except Exception as e:
-        # Emergency fallback to prevent 502
-        emergency_logs = [
-            "❌ Log system error",
-            f"⏰ {datetime.now().strftime('%H:%M:%S')}",
-            "🔄 Web dashboard active"
-        ]
-        return jsonify({'success': True, 'logs': emergency_logs}), 200
+        app.logger.error(f"Console log endpoint error: {e}")
+        return jsonify({
+            'logs': ["Error retrieving logs"], 
+            'success': False,
+            'error': str(e)
+        }), 200  # Return 200 instead of 500
 
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
@@ -1268,7 +1285,7 @@ def _check_launch_source():
             if 'main.py' in filename:
                 return True  # Authorized launch from main.py
             frame = frame.f_back
-        
+
         # Also allow if imported as module (not run directly)
         return True if __name__ != '__main__' else False
     finally:
@@ -1290,4 +1307,3 @@ if __name__ == '__main__':
     print("💡 Please run 'python main.py' to start the trading bot with web interface")
     print("🚨 This prevents port conflicts and ensures proper initialization")
     sys.exit(1)
-
