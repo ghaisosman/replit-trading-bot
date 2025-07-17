@@ -319,27 +319,16 @@
                         </div>
                     </div>
 
-                    <!-- Environment Switch -->
-                    <div class="environment-section">
-                        <h3>Trading Environment</h3>
-                        <div class="environment-controls">
-                            <div class="environment-info">
-                                <span id="currentEnvironment" class="environment-badge">Loading...</span>
-                            </div>
-                            <div class="environment-switch">
-                                <label class="switch">
-                                    <input type="checkbox" id="environmentToggle">
-                                    <span class="slider">
-                                        <span class="slider-text testnet">TESTNET</span>
-                                        <span class="slider-text mainnet">MAINNET</span>
-                                    </span>
-                                </label>
-                            </div>
-                            <div class="environment-warning" id="environmentWarning" style="display: none;">
-                                <p>⚠️ Bot restart required for environment change to take effect</p>
-                            </div>
-                        </div>
+                    <!-- Trading Mode Info -->
+            <div class="environment-section">
+                <h3>🌐 Trading Environment</h3>
+                <div class="environment-controls">
+                    <div style="text-align: center; padding: 15px; background: #c8e6c9; border: 1px solid #4caf50; border-radius: 5px; color: #2e7d32;">
+                        <strong>🚀 MAINNET MODE ACTIVE</strong><br>
+                        <small>Trading with real funds</small>
                     </div>
+                </div>
+            </div>
                 </div>
             </div>
 
@@ -1155,32 +1144,12 @@
             }
         }
 
-        // Environment toggle
-        document.getElementById('environmentToggle').addEventListener('change', function() {
-            const isTestnet = this.checked;
-            const newEnvironment = isTestnet ? 'TESTNET' : 'MAINNET';
-            document.getElementById('currentEnvironment').textContent = newEnvironment;
-            document.getElementById('currentEnvironment').className = `environment-badge ${newEnvironment.toLowerCase()}`;
-            document.getElementById('environmentWarning').style.display = 'block';
+        // Environment is now fixed to mainnet - no loading needed
+        function loadTradingEnvironment() {
+            console.log('Environment: MAINNET (fixed)');
+        }
 
-            fetch('/api/environment', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ environment: newEnvironment })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (!data.success) {
-                    alert('Failed to switch environment: ' + data.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Connection error');
-            });
-        });
+        // Environment is now fixed to mainnet - no toggle needed
 
         // Utility functions
         function formatNumber(number) {

@@ -1115,28 +1115,28 @@ def get_binance_positions():
 
 @app.route('/api/trading/environment', methods=['GET'])
 def get_trading_environment():
-    """Get current trading environment configuration"""
+    """Get current trading environment configuration - Always mainnet"""
     try:
         if IMPORTS_AVAILABLE:
             return jsonify({
                 'success': True,
                 'environment': {
-                    'is_testnet': global_config.BINANCE_TESTNET,
+                    'is_testnet': False,
                     'is_futures': global_config.BINANCE_FUTURES,
                     'api_key_configured': bool(global_config.BINANCE_API_KEY),
                     'secret_key_configured': bool(global_config.BINANCE_SECRET_KEY),
-                    'mode': 'FUTURES TESTNET' if global_config.BINANCE_TESTNET else 'FUTURES MAINNET'
+                    'mode': 'FUTURES MAINNET'
                 }
             })
         else:
             return jsonify({
                 'success': True,
                 'environment': {
-                    'is_testnet': True,
+                    'is_testnet': False,
                     'is_futures': True,
                     'api_key_configured': False,
                     'secret_key_configured': False,
-                    'mode': 'DEMO MODE'
+                    'mode': 'MAINNET (DEMO)'
                 }
             })
     except Exception as e:

@@ -94,11 +94,11 @@ class GlobalConfig:
             except Exception as e:
                 print(f"Warning: Could not load environment config file: {e}")
 
-        # Fallback to environment variables
-        self.BINANCE_TESTNET = os.getenv('BINANCE_TESTNET', 'true').lower() == 'true'  # Default to testnet
+        # Fallback to environment variables - FORCE MAINNET
+        self.BINANCE_TESTNET = False  # Always use mainnet
         self.BINANCE_FUTURES = os.getenv('BINANCE_FUTURES', 'true').lower() == 'true'  # Enable futures trading
 
-        print(f"🔧 Environment loaded from secrets: {'TESTNET' if self.BINANCE_TESTNET else 'MAINNET'}")
+        print(f"🔧 Environment loaded from secrets: MAINNET (forced)")
 
 # Global config instance
 global_config = GlobalConfig()
