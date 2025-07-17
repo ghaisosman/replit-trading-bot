@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 Trading Bot Web Dashboard
@@ -84,28 +85,6 @@ except ImportError as e:
 
     trading_config_manager = DummyConfigManager()
     balance_fetcher = DummyBalanceFetcher()
-
-def get_current_price(symbol):
-    """Get current price for symbol"""
-    try:
-        if IMPORTS_AVAILABLE and price_fetcher:
-            return price_fetcher.get_current_price(symbol)
-        return None
-    except:
-        return None
-
-def calculate_pnl(position, current_price):
-    """Calculate PnL for position"""
-    if not current_price:
-        return 0
-    
-    try:
-        if position.side == 'BUY':
-            return (current_price - position.entry_price) * position.quantity
-        else:
-            return (position.entry_price - current_price) * position.quantity
-    except:
-        return 0
 
 @app.route('/')
 def dashboard():
@@ -413,234 +392,649 @@ def get_strategies():
 
             # Ensure all required parameters are present for each strategy
             for name, config in strategies.items():
-                config.setdefault('enabled', True)
-                config.setdefault('symbol', 'BTCUSDT')
-                config.setdefault('margin', 50.0)
-                config.setdefault('leverage', 5)
-                config.setdefault('timeframe', '15m')
-                config.setdefault('max_loss_pct', 10.0)
-                config.setdefault('assessment_interval', 60)
+                # Ensure assessment_interval is included
+                if 'assessment_interval' not in config:
+                    config['assessment_interval'] = 60 if 'rsi' in name.lower() else 30
 
+                # Ensure all required parameters exist with defaults
+                if 'max_loss_pct' not in config:
+                    config['max_loss_pct'] = 10
+
+                # RSI strategy defaults
+                if 'rsi' in name.lower():
+                    config.setdefault('rsi_long_entry', 40)
+                    config.setdefault('rsi_long_exit', 70)
+                    config.setdefault('rsi_short_entry', 60)
+                    config.setdefault('rsi_short_exit', 30)
+                    # Set default decimals based on symbol
+                    if not config.get('decimals'):
+                        symbol = config.get('symbol', '').upper()
+                        if 'ETH' in symbol or 'SOL' in symbol:
+                            config.setdefault('decimals', 2)
+                        elif 'BTC' in symbol:
+                            config.setdefault('decimals', 3)
+                        else:
+                            config.setdefault('decimals', 2)
+
+                # MACD strategy defaults
+                elif 'macd' in name.lower():
+                    config.setdefault('macd_fast', 12)
+                    config.setdefault('macd_slow', 26)
+                    config.setdefault('macd_signal', 9)
+                    config.setdefault('min_histogram_threshold', 0.0001)
+                    config.setdefault('min_distance_threshold', 0.005)
+                    # Set default decimals based on symbol
+                    if not config.get('decimals'):
+                        symbol = config.get('symbol', '').upper()
+                        if 'ETH' in symbol or 'SOL' in symbol:
+                            config.setdefault('decimals', 2)
+                        elif 'BTC' in symbol:
+                            config.setdefault('decimals', 3)
+                        else:
+                            config.setdefault('decimals', 2)
+                    config.setdefault('confirmation_candles', 2)
+
+            logger.info(f"🌐 WEB DASHBOARD: Serving configurations for {len(strategies)} strategies")
             return jsonify(strategies)
         else:
+            # Return default strategies for demo
             return jsonify({
-                'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
-                'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m'}
+                'rsi_oversold': {
+                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
+                    'max_loss_pct': 10, 'rsi_long_entry': 40, 'rsi_long_exit': 70,
+                    'rsi_short_entry': 60, 'rsi_short_exit': 30, 'assessment_interval': 60
+                },
+                'macd_divergence': {
+                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
+                    'max_loss_pct': 10, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
+                    'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2,
+                    'assessment_interval': 60
+                }
             })
     except Exception as e:
-        logger.error(f"Error getting strategies: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in get_strategies endpoint: {e}")
+        return jsonify({'error': str(e), 'strategies': {}}), 500
+
+@app.route('/api/strategies', methods=['POST'])
+def create_strategy():
+    """Create a new strategy"""
+    try:
+        data = request.get_json()
+
+        if not data or 'name' not in data:
+            return jsonify({'success': False, 'message': 'Strategy name is required'})
+
+        strategy_name = data['name']
+
+        # Validate strategy name
+        if not strategy_name.lower().strip():
+            return jsonify({'success': False, 'message': 'Strategy name cannot be empty'})
+
+        # Check if strategy already exists
+        existing_strategies = trading_config_manager.get_all_strategies()
+        if strategy_name in existing_strategies:
+            return jsonify({'success': False, 'message': f'Strategy {strategy_name} already exists'})
+
+        # Validate strategy type
+        if 'rsi' not in strategy_name.lower() and 'macd' not in strategy_name.lower():
+            return jsonify({'success': False, 'message': 'Strategy name must contain "rsi" or "macd"'})
+
+        # Create strategy configuration
+        new_config = {
+            'symbol': data.get('symbol', 'BTCUSDT'),
+            'margin': float(data.get('margin', 50.0)),
+            'leverage': int(data.get('leverage', 5)),
+            'timeframe': data.get('timeframe', '15m'),
+            'max_loss_pct': float(data.get('max_loss_pct', 10.0)),
+            'assessment_interval': int(data.get('assessment_interval', 60)),
+            'cooldown_period': int(data.get('cooldown_period', 300))
+        }
+
+        # Add strategy-specific parameters
+        if 'rsi' in strategy_name.lower():
+            new_config.update({
+                'rsi_long_entry': int(data.get('rsi_long_entry', 40)),
+                'rsi_long_exit': int(data.get('rsi_long_exit', 70)),
+                'rsi_short_entry': int(data.get('rsi_short_entry', 60)),
+                'rsi_short_exit': int(data.get('rsi_short_exit', 30))
+            })
+        elif 'macd' in strategy_name.lower():
+            new_config.update({
+                'macd_fast': int(data.get('macd_fast', 12)),
+                'macd_slow': int(data.get('macd_slow', 26)),
+                'macd_signal': int(data.get('macd_signal', 9)),
+                'min_histogram_threshold': float(data.get('min_histogram_threshold', 0.0001)),
+                'min_distance_threshold': float(data.get('min_distance_threshold', 0.005)),
+                'confirmation_candles': int(data.get('confirmation_candles', 2))
+            })
+
+        # Save the new strategy
+        trading_config_manager.update_strategy_params(strategy_name, new_config)
+
+        logger.info(f"🆕 NEW STRATEGY CREATED: {strategy_name} via web dashboard")
+
+        return jsonify({
+            'success': True, 
+            'message': f'Strategy {strategy_name} created successfully',
+            'strategy': new_config
+        })
+
+    except Exception as e:
+        logger.error(f"Error creating strategy: {e}")
+        return jsonify({'success': False, 'message': f'Failed to create strategy: {e}'})
 
 @app.route('/api/strategies/<strategy_name>', methods=['POST'])
 def update_strategy(strategy_name):
-    """Update strategy configuration - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
+    """Update strategy configuration"""
     try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'message': 'Trading configuration not available'})
+        data = request.get_json()
 
-        updates = request.json
-        logger.info(f"🌐 WEB INTERFACE: Updating {strategy_name} config: {updates}")
+        # Validate data to prevent errors
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'})
 
-        # Update configuration using web dashboard manager
-        trading_config_manager.update_strategy_params(strategy_name, updates)
-
-        # Force update any running bot instance
+        # Basic parameter validation
         try:
-            import sys
-            main_module = sys.modules.get('__main__')
-            bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
-            
-            if bot_manager and hasattr(bot_manager, 'strategies') and strategy_name in bot_manager.strategies:
-                bot_manager.strategies[strategy_name].update(updates)
-                logger.info(f"🌐 WEB INTERFACE: Updated {strategy_name} config in shared bot: {bot_manager.strategies[strategy_name]}")
-        except Exception as e:
-            logger.warning(f"Could not update running bot: {e}")
+            if 'margin' in data:
+                data['margin'] = float(data['margin'])
+                if data['margin'] <= 0:
+                    return jsonify({'success': False, 'message': 'Margin must be positive'})
 
-        return jsonify({'success': True, 'message': f'Strategy {strategy_name} updated successfully'})
+            if 'leverage' in data:
+                data['leverage'] = int(data['leverage'])
+                if data['leverage'] <= 0 or data['leverage'] > 125:
+                    return jsonify({'success': False, 'message': 'Leverage must be between 1 and 125'})
 
-    except Exception as e:
-        logger.error(f"Error updating strategy: {e}")
-        return jsonify({'success': False, 'message': f'Error updating strategy: {e}'})
+            if 'assessment_interval' in data:
+                data['assessment_interval'] = int(data['assessment_interval'])
+                if data['assessment_interval'] < 5 or data['assessment_interval'] > 300:
+                    return jsonify({'success': False, 'message': 'Assessment interval must be between 5 and 300 seconds'})
 
-@app.route('/api/balance', methods=['GET'])
-def get_balance():
-    """Get current balance via API"""
-    try:
-        if IMPORTS_AVAILABLE and balance_fetcher:
-            balance = balance_fetcher.get_usdt_balance() or 0
-            return jsonify({'balance': balance})
+            if 'cooldown_period' in data:
+                data['cooldown_period'] = int(data['cooldown_period'])
+                if data['cooldown_period'] < 30 or data['cooldown_period'] > 3600:
+                    return jsonify({'success': False, 'message': 'Cooldown period must be between 30 and 3600 seconds'})
+
+            # Validate RSI parameters
+            if 'rsi_long_entry' in data:
+                data['rsi_long_entry'] = int(data['rsi_long_entry'])
+                if data['rsi_long_entry'] < 10 or data['rsi_long_entry'] > 50:
+                    return jsonify({'success': False, 'message': 'RSI Long Entry must be between 10 and 50'})
+
+            if 'rsi_short_entry' in data:
+                data['rsi_short_entry'] = int(data['rsi_short_entry'])
+                if data['rsi_short_entry'] < 50 or data['rsi_short_entry'] > 90:
+                    return jsonify({'success': False, 'message': 'RSI Short Entry must be between 50 and 90'})
+
+            # Validate MACD parameters
+            if 'macd_fast' in data:
+                data['macd_fast'] = int(data['macd_fast'])
+                if data['macd_fast'] < 5 or data['macd_fast'] > 20:
+                    return jsonify({'success': False, 'message': 'MACD Fast must be between 5 and 20'})
+
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': f'Invalid parameter value: {ve}'})
+
+        # WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Update all parameters
+        trading_config_manager.update_strategy_params(strategy_name, data)
+
+        logger.info(f"🎯 WEB DASHBOARD: Setting as SINGLE SOURCE OF TRUTH for {strategy_name}")
+        logger.info(f"🔄 UPDATING ALL PARAMETERS: {data}")
+        logger.info(f"📁 CONFIG FILES IGNORED - Web dashboard overrides everything")
+
+        # Always try to get the latest shared bot manager
+        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+
+        # FORCE IMMEDIATE UPDATE to running bot configuration (WEB DASHBOARD PRIORITY)
+        bot_updated = False
+
+        # Check shared bot manager first - FORCE WEB DASHBOARD SETTINGS
+        if shared_bot_manager and hasattr(shared_bot_manager, 'strategies') and strategy_name in shared_bot_manager.strategies:
+            # COMPLETE OVERRIDE - Web dashboard is single source of truth
+            shared_bot_manager.strategies[strategy_name].update(data)
+            logger.info(f"🌐 WEB DASHBOARD OVERRIDE: {strategy_name} config FORCED in shared bot: {data}")
+            logger.info(f"🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - File configs ignored")
+            bot_updated = True
+
+        # Fallback to standalone bot - FORCE WEB DASHBOARD SETTINGS
+        elif bot_manager and hasattr(bot_manager, 'strategies') and strategy_name in bot_manager.strategies:
+            # COMPLETE OVERRIDE - Web dashboard is single source of truth
+            bot_manager.strategies[strategy_name].update(data)
+            logger.info(f"🌐 WEB DASHBOARD OVERRIDE: {strategy_name} config FORCED in standalone bot: {data}")
+            logger.info(f"🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - File configs ignored")
+            bot_updated = True
+
+        message = f'🌐 WEB DASHBOARD: {strategy_name} updated successfully'
+        if bot_updated:
+            message += ' (LIVE UPDATE - Web dashboard is single source of truth)'
         else:
-            return jsonify({'balance': 0})
-    except Exception as e:
-        logger.error(f"Error getting balance: {e}")
-        return jsonify({'error': str(e)}), 500
+            message += ' (Will apply on restart - Web dashboard overrides all files)'
 
-@app.route('/api/positions', methods=['GET'])
+        # Log final confirmation
+        logger.info(f"✅ WEB DASHBOARD UPDATE COMPLETE | {strategy_name}")
+        logger.info(f"🎯 YOUR RSI SHORT ENTRY: {data.get('rsi_short_entry', 'Not set')} (overrides file configs)")
+
+        return jsonify({'success': True, 'message': message})
+    except Exception as e:
+        logger.error(f"Error updating strategy {strategy_name}: {e}")
+        return jsonify({'success': False, 'message': f'Failed to update strategy: {e}'})
+
+@app.route('/api/balance')
+def get_balance():
+    try:
+        balance_file = "trading_data/balance.json"
+        if os.path.exists(balance_file):
+            with open(balance_file, 'r') as f:
+                balance_data = json.load(f)
+            return jsonify(balance_data)
+        else:
+            return jsonify({
+                'total_balance': 1000.0,
+                'available_balance': 1000.0,
+                'used_balance': 0.0,
+                'last_updated': datetime.now().isoformat()
+            })
+    except Exception as e:
+        # Return safe fallback data instead of error
+        return jsonify({
+            'total_balance': 0.0,
+            'available_balance': 0.0,
+            'used_balance': 0.0,
+            'last_updated': datetime.now().isoformat(),
+            'error': 'Balance data unavailable'
+        }), 200
+
+@app.route('/api/positions')
 def get_positions():
     """Get active positions"""
     try:
         positions = []
+
+        # Try shared bot manager first
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
 
         if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
+            # Create a safe copy to prevent "dictionary changed size during iteration" error
             active_positions = dict(current_bot.order_manager.active_positions)
 
             for strategy_name, position in active_positions.items():
+                # Check if this position has an anomaly (orphan/ghost trade)
                 anomaly_status = None
                 if hasattr(current_bot, 'anomaly_detector'):
                     anomaly_status = current_bot.anomaly_detector.get_anomaly_status(strategy_name)
 
-                current_price = None
-                if IMPORTS_AVAILABLE and price_fetcher:
-                    current_price = price_fetcher.get_current_price(position.symbol)
+                # Get current price
+                current_price = price_fetcher.get_current_price(position.symbol)
 
+                # Calculate PnL
                 if current_price:
                     entry_price = position.entry_price
                     quantity = position.quantity
                     side = position.side
-                    
-                    if side == 'BUY':
+
+                    # For futures trading, PnL calculation (matches console calculation)
+                    if side == 'BUY':  # Long position
                         pnl = (current_price - entry_price) * quantity
-                    elif side == 'SELL':
+                    else:  # Short position (SELL)
                         pnl = (entry_price - current_price) * quantity
-                    else:
-                        pnl = 0
-                else:
-                    pnl = 0
 
-                position_value_usdt = position.entry_price * position.quantity
-                strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
-                leverage = strategy_config.get('leverage', 5)
-                margin_invested = strategy_config.get('margin', 50.0)
-                pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
+                    # Calculate position value and get actual margin invested
+                    position_value_usdt = entry_price * quantity
 
-                positions.append({
-                    'strategy': strategy_name,
-                    'symbol': position.symbol,
-                    'side': position.side,
-                    'entry_price': position.entry_price,
-                    'quantity': position.quantity,
-                    'position_value_usdt': position_value_usdt,
-                    'margin_invested': margin_invested,
-                    'current_price': current_price,
-                    'pnl': pnl,
-                    'pnl_percent': pnl_percent,
-                    'anomaly_status': anomaly_status
-                })
+                    # Get leverage and margin from strategy config (default 5x if not found)
+                    strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
+                    leverage = strategy_config.get('leverage', 5)
+
+                    # Use the configured margin as the actual margin invested (matches trading logic)
+                    margin_invested = strategy_config.get('margin', 50.0)
+
+                    # For futures trading, PnL percentage should be calculated against margin invested, not position value
+                    pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
+
+                    positions.append({
+                        'strategy': position.strategy_name,
+                        'symbol': position.symbol,
+                        'side': position.side,
+                        'entry_price': entry_price,
+                        'current_price': current_price,
+                        'quantity': quantity,
+                        'position_value_usdt': position_value_usdt,
+                        'margin_invested': margin_invested,
+                        'pnl': pnl,
+                        'pnl_percent': pnl_percent,
+                        'anomaly_status': anomaly_status  # Add anomaly status
+                    })
 
         return jsonify({'success': True, 'positions': positions})
     except Exception as e:
-        logger.error(f"Error getting positions: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"Error in get_positions endpoint: {e}")
+        return jsonify({'success': False, 'error': str(e), 'positions': []}), 200
 
-@app.route('/api/trades', methods=['GET'])
-def get_trades():
-    """Get recent trades"""
+@app.route('/api/rsi/<symbol>')
+def get_rsi(symbol):
+    """Get RSI value for a symbol"""
     try:
-        trades = []
-        trades_dir_path = os.path.join(os.getcwd(), 'trading_data', 'trades')
-        if os.path.exists(trades_dir_path):
-            for filename in sorted(os.listdir(trades_dir_path), reverse=True)[:10]:
-                if filename.endswith(".json"):
-                    filepath = os.path.join(trades_dir_path, filename)
-                    with open(filepath, 'r') as f:
-                        trade_data = json.load(f)
-                        trades.append(trade_data)
-        return jsonify(trades)
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Binance client not available'})
+
+        # Get more historical data for accurate RSI calculation (same as bot uses)
+        klines = binance_client.get_klines(symbol=symbol, interval='15m', limit=100)
+        if not klines:
+            return jsonify({'success': False, 'error': f'Could not fetch klines for {symbol}'})
+
+        # Convert to closes
+        closes = [float(kline[4]) for kline in klines]
+
+        if len(closes) < 50:
+            return jsonify({'success': False, 'error': f'Not enough data points for RSI calculation for {symbol}'})
+
+        # Calculate RSI using the same method as the bot
+        rsi = calculate_rsi(closes, period=14)
+
+        return jsonify({'success': True, 'rsi': round(rsi, 2)})
     except Exception as e:
-        logger.error(f"Error getting trades: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in get_rsi endpoint for {symbol}: {e}")
+        return jsonify({'success': False, 'error': f'Failed to calculate RSI: {str(e)}'}), 200
 
-@app.route('/api/console/log', methods=['GET'])
+def calculate_rsi(closes, period=14):
+    """Calculate RSI (Relative Strength Index) - matches bot's calculation"""
+    if len(closes) < period + 1:
+        return 50.0  # Default RSI if not enough data
+
+    # Calculate price changes
+    deltas = []
+    for i in range(1, len(closes)):
+        deltas.append(closes[i] - closes[i-1])
+
+    # Separate gains and losses
+    gains = []
+    losses = []
+    for delta in deltas:
+        if delta > 0:
+            gains.append(delta)
+            losses.append(0)
+        else:
+            gains.append(0)
+            losses.append(abs(delta))
+
+    # Use exponential moving average like the bot does
+    if len(gains) < period:
+        return 50.0
+
+    # Calculate initial averages
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
+
+    # Calculate RSI using smoothed averages for remaining periods
+    for i in range(period, len(gains)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+
+    if avg_loss == 0:
+        return 100.0
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+
+    return rsi
+
+@app.route('/api/console-log')
 def get_console_log():
-    """Get recent console logs from bot manager"""
+    """Get console logs"""
     try:
+        # Get current bot manager first
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
 
-        if current_bot and hasattr(current_bot, 'log_handler'):
-            logs = list(current_bot.log_handler.logs)
-            return jsonify({'logs': logs})
-        else:
-            sample_logs = [
-                {'timestamp': '15:44:53', 'message': '🌐 Web dashboard active - Bot can be started via Start Bot button'},
-                {'timestamp': '15:44:53', 'message': '📊 Ready for trading operations'},
-                {'timestamp': '15:44:53', 'message': '💡 Use the web interface to control the bot'}
+        # Try to get logs from web handler if bot is running
+        if current_bot and hasattr(current_bot, 'log_handler') and hasattr(current_bot.log_handler, 'logs'):
+            try:
+                # Get recent logs from web handler
+                recent_logs = current_bot.log_handler.get_recent_logs(50)
+                if recent_logs and len(recent_logs) > 0:
+                    # Ensure all logs are strings
+                    string_logs = []
+                    for log in recent_logs:
+                        if isinstance(log, dict):
+                            string_logs.append(log.get('message', str(log)))
+                        else:
+                            string_logs.append(str(log))
+                    return jsonify({'success': True, 'logs': string_logs})
+            except Exception as web_error:
+                logger.error(f"Error getting web logs: {web_error}")
+
+        # Fallback to file-based logs
+        log_files = ["trading_data/bot.log", "trading_bot.log", "bot.log", "main.log"]
+        logs = []
+
+        for log_file in log_files:
+            if os.path.exists(log_file):
+                try:
+                    with open(log_file, 'r') as f:
+                        lines = f.readlines()
+                    # Get last 30 lines and clean them
+                    recent_lines = lines[-30:] if len(lines) > 30 else lines
+                    cleaned_logs = []
+                    for line in recent_lines:
+                        cleaned_line = line.strip()
+                        if cleaned_line and len(cleaned_line) > 3:
+                            # Remove ANSI color codes if present
+                            import re
+                            cleaned_line = re.sub(r'\x1b\[[0-9;]*m', '', cleaned_line)
+                            cleaned_logs.append(cleaned_line)
+
+                    if cleaned_logs:
+                        logs.extend(cleaned_logs)
+                        break
+                except Exception as file_error:
+                    logger.error(f"Error reading log file {log_file}: {file_error}")
+                    continue
+
+        if not logs:
+            # Return status info if no logs available
+            status = "Running" if current_bot and getattr(current_bot, 'is_running', False) else "Stopped"
+            logs = [
+                f"🤖 Bot Status: {status}",
+                f"🌐 Web Dashboard: Active",
+                f"⏰ Last checked: {datetime.now().strftime('%H:%M:%S')}",
+                "📋 Console logs will appear here when bot runs"
             ]
-            return jsonify({'logs': sample_logs})
+
+        return jsonify({'success': True, 'logs': logs})
     except Exception as e:
-        logger.error(f"Error getting console log: {e}")
-        return jsonify({'logs': [], 'error': str(e)}), 500
+        logger.error(f"Error in console log endpoint: {e}")
+        return jsonify({
+            'success': False, 
+            'logs': [
+                f"❌ Error loading logs: {str(e)}", 
+                f"⏰ Time: {datetime.now().strftime('%H:%M:%S')}",
+                "🔄 Web dashboard is running but console logs unavailable"
+            ], 
+            'error': str(e)
+        }), 200
 
-@app.route('/api/console-log', methods=['GET'])
-def get_console_log_alt():
-    """Alternative console log endpoint"""
-    return get_console_log()
+def get_bot_status():
+    """Get current bot status with enhanced error handling"""
+    global bot_running, bot_manager,shared_bot_manager
 
-@app.route('/api/console/logs', methods=['GET'])
-def get_console_logs_plural():
-    """Console logs endpoint with plural naming"""
-    return get_console_log()
+    try:
+        # Always get fresh reference to shared bot manager
+        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
 
-@app.route('/api/bot-status', methods=['GET'])
-def get_bot_status_alt():
-    """Alternative bot status endpoint"""
-    return get_bot_status()
+        # Check shared bot manager first
+        if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
+            try:
+                status = {
+                    'is_running': getattr(shared_bot_manager, 'is_running', False),
+                    'active_positions': len(getattr(shared_bot_manager.order_manager, 'active_positions', {})) if hasattr(shared_bot_manager, 'order_manager') else 0,
+                    'strategies': list(getattr(shared_bot_manager, 'strategies', {}).keys()) if hasattr(shared_bot_manager, 'strategies') else [],
+                    'balance': 0  # Will be updated separately
+                }
+                return status
+            except Exception as e:
+                logger.error(f"Error getting shared bot status: {e}")
+                return {
+                    'is_running': False,
+                    'active_positions': 0,
+                    'strategies': [],
+                    'balance': 0,
+                    'error': f'Status error: {str(e)}'
+                }
 
-@app.route('/api/status', methods=['GET'])
-def get_status_alt():
-    """Alternative status endpoint"""
-    return get_bot_status()
+        # Fallback status
+        return {
+            'is_running': False,
+            'active_positions': 0,
+            'strategies': [],
+            'balance': 0,
+            'error': 'Bot manager not available'
+        }
+    except Exception as e:
+        logger.error(f"Error in get_bot_status: {e}")
+        return {
+            'is_running': False,
+            'active_positions': 0,
+            'strategies': [],
+            'balance': 0,
+            'error': f'Critical status error: {str(e)}'
+        }
+
+def get_current_price(symbol):
+    """Get current price for a symbol"""
+    try:
+        if IMPORTS_AVAILABLE:
+            return price_fetcher.get_current_price(symbol)
+        return None
+    except:
+        return None
+
+def calculate_pnl(position, current_price):
+    """Calculate P&L for a position"""
+    if not current_price:
+        return 0
+
+    if position.side == 'BUY':  # Long position
+        return (current_price - position.entry_price) * position.quantity
+    else:  # Short position
+        return (position.entry_price - current_price) * position.quantity
+
+@app.route('/api/binance/positions', methods=['GET'])
+def get_binance_positions():
+    """Get Binance positions data"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Binance client not available'})
+
+        # Return basic positions response
+        return jsonify({
+            'success': True,
+            'positions': [],
+            'message': 'Binance positions endpoint active'
+        })
+    except Exception as e:
+        logger.error(f"Error in get_binance_positions: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'positions': []
+        }), 500
 
 @app.route('/api/trading/environment', methods=['GET'])
 def get_trading_environment():
-    """Get trading environment configuration"""
+    """Get current trading environment configuration"""
     try:
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-
-        if current_bot and hasattr(current_bot, 'is_running'):
-            environment_info = {
-                'bot_running': current_bot.is_running,
-                'environment': 'MAINNET',
-                'web_dashboard_active': True,
-                'config_source': 'web_dashboard'
-            }
+        if IMPORTS_AVAILABLE:
+            return jsonify({
+                'success': True,
+                'environment': {
+                    'is_testnet': global_config.BINANCE_TESTNET,
+                    'is_futures': global_config.BINANCE_FUTURES,
+                    'api_key_configured': bool(global_config.BINANCE_API_KEY),
+                    'secret_key_configured': bool(global_config.BINANCE_SECRET_KEY),
+                    'mode': 'FUTURES TESTNET' if global_config.BINANCE_TESTNET else 'FUTURES MAINNET'
+                }
+            })
         else:
-            environment_info = {
-                'bot_running': False,
-                'environment': 'MAINNET',
-                'web_dashboard_active': True,
-                'config_source': 'web_dashboard'
-            }
-
-        return jsonify(environment_info)
-
+            return jsonify({
+                'success': True,
+                'environment': {
+                    'is_testnet': True,
+                    'is_futures': True,
+                    'api_key_configured': False,
+                    'secret_key_configured': False,
+                    'mode': 'DEMO MODE'
+                }
+            })
     except Exception as e:
         logger.error(f"Error getting trading environment: {e}")
-        return jsonify({'error': str(e), 'environment': 'UNKNOWN'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-# Add a catch-all route for debugging 404s
-@app.route('/<path:path>')
-def catch_all(path):
-    """Catch-all route to debug 404 errors"""
-    logger.error(f"❌ 404 ERROR: Requested path not found: /{path}")
-    logger.error(f"📍 Available routes:")
-    for rule in app.url_map.iter_rules():
-        if rule.rule != '/<path:path>':
-            methods = ', '.join(sorted(rule.methods - {'OPTIONS', 'HEAD'}))
-            logger.error(f"    {rule.rule} ({methods})")
+@app.route('/ml_reports')
+def ml_reports():
+    """ML Reports page"""
+    return render_template('ml_reports.html')
 
-    return jsonify({
-        'error': 'Not Found',
-        'message': f'The requested path /{path} was not found',
-        'available_routes': [rule.rule for rule in app.url_map.iter_rules() if rule.rule != '/<path:path>']
-    }), 404
+@app.route('/trades_database')
+def trades_database():
+    """Trades Database page"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return render_template('trades_database.html', trades=[], error="Database not available in demo mode")
+        
+        # Get all trades from the database
+        from src.execution_engine.trade_database import TradeDatabase
+        trade_db = TradeDatabase()
+        
+        # Convert trades to list format for template
+        trades_list = []
+        for trade_id, trade_data in trade_db.trades.items():
+            trade_info = {
+                'trade_id': trade_id,
+                'strategy_name': trade_data.get('strategy_name', 'N/A'),
+                'symbol': trade_data.get('symbol', 'N/A'),
+                'side': trade_data.get('side', 'N/A'),
+                'entry_price': trade_data.get('entry_price', 0),
+                'exit_price': trade_data.get('exit_price', 0),
+                'quantity': trade_data.get('quantity', 0),
+                'leverage': trade_data.get('leverage', 0),
+                'margin_usdt': trade_data.get('margin_usdt', 0),
+                'trade_status': trade_data.get('trade_status', 'UNKNOWN'),
+                'timestamp': trade_data.get('timestamp', 'N/A'),
+                'exit_reason': trade_data.get('exit_reason', 'N/A'),
+                'pnl_usdt': trade_data.get('pnl_usdt', 0),
+                'pnl_percentage': trade_data.get('pnl_percentage', 0),
+                'duration_minutes': trade_data.get('duration_minutes', 0)
+            }
+            trades_list.append(trade_info)
+        
+        # BULLETPROOF FIX: Convert all None values to safe strings before ANY processing
+        for trade in trades_list:
+            # Fix ALL None values in the trade object to prevent any comparison errors
+            for key, value in trade.items():
+                if value is None:
+                    if key == 'timestamp':
+                        trade[key] = 'N/A'
+                    elif key in ['entry_price', 'exit_price', 'quantity', 'leverage', 'margin_usdt', 'pnl_usdt', 'pnl_percentage', 'duration_minutes']:
+                        trade[key] = 0
+                    else:
+                        trade[key] = 'N/A'
+        
+        # Sort trades by timestamp (newest first) - now safe since no None values
+        def safe_sort_key(trade):
+            timestamp = trade.get('timestamp', 'N/A')
+            if timestamp == 'N/A' or timestamp is None:
+                return datetime.min.isoformat()
+            return str(timestamp)
+        
+        try:
+            trades_list.sort(key=safe_sort_key, reverse=True)
+        except Exception as sort_error:
+            logger.warning(f"Could not sort trades, using original order: {sort_error}")
+        
+        return render_template('trades_database.html', trades=trades_list)
+    except Exception as e:
+        logger.error(f"Error in trades_database endpoint: {e}")
+        return render_template('trades_database.html', trades=[], error=f"Error loading trades: {str(e)}")
 
 if __name__ == '__main__':
-    # This block should never execute in production
-    # Web dashboard should ONLY be launched from main.py
-    logger.warning("🚫 DIRECT WEB_DASHBOARD.PY LAUNCH BLOCKED")
-    logger.warning("🔄 Web dashboard should only be started from main.py")
-    logger.warning("💡 Run 'python main.py' instead")
-    print("❌ Direct execution of web_dashboard.py is disabled")
-    print("🔄 Please run 'python main.py' to start the bot with web dashboard")
-    exit(1)
+    logger.info("🌐 Starting Trading Bot Web Dashboard on port 5000")
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
