@@ -32,13 +32,6 @@ CORS(app, resources={
     }
 })
 
-# Ensure this Flask app is only started from main.py
-if __name__ == '__main__':
-    import sys
-    print("🚫 BLOCKED: Direct web_dashboard.py execution")
-    print("🔄 Use: python main.py")
-    sys.exit(1)
-
 # Global error handler to prevent 502 errors
 @app.errorhandler(Exception)
 def handle_exception(e):
@@ -1140,6 +1133,13 @@ def catch_all(path):
         'message': f'The requested path /{path} was not found',
         'available_routes': [rule.rule for rule in app.url_map.iter_rules() if rule.rule != '/<path:path>']
     }), 404
+
+# Ensure all routes are registered before any blocking checks
+print("Flask app routes:")
+for rule in app.url_map.iter_rules():
+    methods = ', '.join(sorted(rule.methods - {'OPTIONS', 'HEAD'}))
+    print(f"  {rule.rule} -> {rule.endpoint}")
+print("RSI endpoint check complete")
 
 if __name__ == '__main__':
     # This block should never execute in production
