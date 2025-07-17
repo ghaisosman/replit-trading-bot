@@ -22,6 +22,16 @@ class TradingParameters:
             'assessment_interval': self.assessment_interval
         }
 
+class TradingConfig:
+    """Legacy TradingConfig class for backward compatibility"""
+    
+    def __init__(self):
+        self.default_params = TradingParameters()
+    
+    def get_strategy_config(self, strategy_name: str) -> Dict[str, Any]:
+        """Get basic strategy config for backward compatibility"""
+        return self.default_params.to_dict()
+
 class TradingConfigManager:
     """Manages trading configurations for all strategies - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
     

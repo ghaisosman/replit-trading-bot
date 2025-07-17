@@ -1,52 +1,98 @@
-from flask import Flask, render_template, jsonify, request
-from datetime import datetime
+
+#!/usr/bin/env python3
+"""
+Trading Bot Web Dashboard
+Complete web interface for managing the trading bot
+"""
+
+from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask_cors import CORS
 import json
-import os
-import sys
-import logging
-import time
-from collections import deque
+import asyncio
 import threading
-import traceback
+import os
+from datetime import datetime, timedelta
+from pathlib import Path
+import logging
+from typing import Dict, Any
 
-# Import bot manager and other components
-try:
-    from src.bot_manager import BotManager
-    from src.data_fetcher.balance_fetcher import BalanceFetcher
-    from src.data_fetcher.price_fetcher import PriceFetcher
-    from src.config.trading_config import TradingConfig
-    IMPORTS_AVAILABLE = True
-except ImportError as e:
-    print(f"⚠️ Import error: {e}")
-    IMPORTS_AVAILABLE = False
+# Define trades directory path
+trades_dir = Path("trading_data/trades")
 
-# Initialize Flask app
-app = Flask(__name__, template_folder='templates')
+app = Flask(__name__)
+app.secret_key = 'your-secret-key-here'
 
-# Global variables
-bot_manager = None
-shared_bot_manager = None
-current_bot = None
-balance_fetcher = None
-price_fetcher = None
-trading_config = None
+# Enable CORS for web dashboard
+CORS(app)
 
-# Initialize components if imports are available
-if IMPORTS_AVAILABLE:
-    try:
-        balance_fetcher = BalanceFetcher()
-        price_fetcher = PriceFetcher()
-        trading_config = TradingConfig()
-    except Exception as e:
-        print(f"⚠️ Failed to initialize components: {e}")
+# Suppress Flask's default request logging to reduce console noise
+import logging as flask_logging
+werkzeug_logger = flask_logging.getLogger('werkzeug')
+werkzeug_logger.setLevel(flask_logging.WARNING)
 
-# Set up logging
+# Setup logging for web dashboard
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Trades directory
-trades_dir = os.path.join(os.getcwd(), 'trading_data', 'trades')
-os.makedirs(trades_dir, exist_ok=True)
+# Global bot instance - shared with main.py
+bot_manager = None
+bot_thread = None
+bot_running = False
+
+# Import the shared bot manager from main.py if it exists
+import sys
+shared_bot_manager = None
+
+# Try to safely import required modules
+try:
+    from src.config.trading_config import trading_config_manager, TradingConfig
+    from src.config.global_config import global_config
+    from src.binance_client.client import BinanceClientWrapper
+    from src.data_fetcher.price_fetcher import PriceFetcher
+    from src.data_fetcher.balance_fetcher import BalanceFetcher
+    from src.bot_manager import BotManager
+    from src.utils.logger import setup_logger
+
+    # Setup proper logging
+    setup_logger()
+    logger = logging.getLogger(__name__)
+
+    if hasattr(sys.modules.get('__main__', None), 'bot_manager'):
+        shared_bot_manager = sys.modules['__main__'].bot_manager
+
+    # Initialize clients for web interface
+    binance_client = BinanceClientWrapper()
+    price_fetcher = PriceFetcher(binance_client)
+    balance_fetcher = BalanceFetcher(binance_client)
+
+    IMPORTS_AVAILABLE = True
+    logger.info("✅ All imports successful - Full functionality available")
+
+except ImportError as e:
+    logger.warning(f"⚠️ Import error - Limited functionality: {e}")
+    IMPORTS_AVAILABLE = False
+
+    # Create dummy objects for basic web interface
+    class DummyConfigManager:
+        strategy_overrides = {
+            'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
+            'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m'}
+        }
+        
+        def get_all_strategies(self):
+            return self.strategy_overrides
+        
+        def update_strategy_params(self, strategy_name, updates):
+            if strategy_name not in self.strategy_overrides:
+                self.strategy_overrides[strategy_name] = {}
+            self.strategy_overrides[strategy_name].update(updates)
+
+    class DummyBalanceFetcher:
+        def get_usdt_balance(self):
+            return 100.0
+
+    trading_config_manager = DummyConfigManager()
+    balance_fetcher = DummyBalanceFetcher()
 
 def get_current_bot_manager():
     """Get the current bot manager instance from main module"""
@@ -58,9 +104,6 @@ def get_current_bot_manager():
     
     if bot_manager:
         return bot_manager
-    
-    if current_bot:
-        return current_bot
     
     # Try to get from main module
     try:
@@ -108,7 +151,7 @@ def get_balance():
         if current_bot and hasattr(current_bot, 'balance_fetcher'):
             balance = current_bot.balance_fetcher.get_usdt_balance() or 0
             return jsonify({'balance': balance})
-        elif balance_fetcher:
+        elif IMPORTS_AVAILABLE and balance_fetcher:
             balance = balance_fetcher.get_usdt_balance() or 0
             return jsonify({'balance': balance})
         else:
@@ -138,7 +181,7 @@ def get_positions():
 
                 # Get current price
                 current_price = None
-                if IMPORTS_AVAILABLE and 'price_fetcher' in globals():
+                if IMPORTS_AVAILABLE and price_fetcher:
                     current_price = price_fetcher.get_current_price(position.symbol)
 
                 # Calculate PnL
@@ -192,12 +235,14 @@ def get_trades():
     """Get recent trades"""
     try:
         trades = []
-        for filename in sorted(os.listdir(trades_dir), reverse=True)[:10]:
-            if filename.endswith(".json"):
-                filepath = os.path.join(trades_dir, filename)
-                with open(filepath, 'r') as f:
-                    trade_data = json.load(f)
-                    trades.append(trade_data)
+        trades_dir_path = os.path.join(os.getcwd(), 'trading_data', 'trades')
+        if os.path.exists(trades_dir_path):
+            for filename in sorted(os.listdir(trades_dir_path), reverse=True)[:10]:
+                if filename.endswith(".json"):
+                    filepath = os.path.join(trades_dir_path, filename)
+                    with open(filepath, 'r') as f:
+                        trade_data = json.load(f)
+                        trades.append(trade_data)
         return jsonify(trades)
     except Exception as e:
         print(f"❌ API ERROR: /api/trades - {e}")
@@ -216,9 +261,9 @@ def get_console_log():
         else:
             # Return sample logs if no bot is running
             sample_logs = [
-                {'timestamp': '14:20:39', 'message': '🌐 Web dashboard active - Bot can be started via Start Bot button'},
-                {'timestamp': '14:20:39', 'message': '📊 Ready for trading operations'},
-                {'timestamp': '14:20:39', 'message': '💡 Use the web interface to control the bot'}
+                {'timestamp': '15:44:53', 'message': '🌐 Web dashboard active - Bot can be started via Start Bot button'},
+                {'timestamp': '15:44:53', 'message': '📊 Ready for trading operations'},
+                {'timestamp': '15:44:53', 'message': '💡 Use the web interface to control the bot'}
             ]
             return jsonify({'logs': sample_logs})
     except Exception as e:
@@ -301,8 +346,10 @@ def get_trading_environment():
 def get_current_price(symbol):
     """Helper function to get the current price of a symbol"""
     try:
-        current_price = price_fetcher.get_current_price(symbol)
-        return current_price
+        if IMPORTS_AVAILABLE and price_fetcher:
+            current_price = price_fetcher.get_current_price(symbol)
+            return current_price
+        return None
     except Exception as e:
         print(f"❌ PRICE API ERROR: {e}")
         return None
@@ -327,24 +374,6 @@ def calculate_pnl(position, current_price):
         print(f"❌ PNL CALC ERROR: {e}")
         return 0
 
-# Route debugging function
-def log_routes():
-    """Log all registered routes for debugging"""
-    print("🔍 FLASK ROUTES REGISTERED:")
-    for rule in app.url_map.iter_rules():
-        methods = ', '.join(sorted(rule.methods - {'OPTIONS', 'HEAD'}))
-        print(f"  {rule.rule} -> {rule.endpoint} ({methods})")
-
-# Route verification function (will be called in main block)
-def verify_routes():
-    """Verify all routes are properly registered"""
-    logger.info("🔍 ROUTE VERIFICATION:")
-    critical_routes = ['/api/health', '/api/bot/status', '/api/balance', '/api/console/log']
-    for route in app.url_map.iter_rules():
-        status = "✅ FOUND" if route in critical_routes else "❌ MISSING"
-        logger.info(f"  {route}: {status}")
-    logger.info("🔍 Route verification complete")
-
 # Add a catch-all route for debugging 404s
 @app.route('/<path:path>')
 def catch_all(path):
@@ -361,13 +390,6 @@ def catch_all(path):
         'message': f'The requested path /{path} was not found',
         'available_routes': [rule.rule for rule in app.url_map.iter_rules() if rule.rule != '/<path:path>']
     }), 404
-
-# Ensure all routes are registered before any blocking checks
-print("Flask app routes:")
-for rule in app.url_map.iter_rules():
-    methods = ', '.join(sorted(rule.methods - {'OPTIONS', 'HEAD'}))
-    print(f"  {rule.rule} -> {rule.endpoint}")
-print("RSI endpoint check complete")
 
 if __name__ == '__main__':
     # This block should never execute in production
