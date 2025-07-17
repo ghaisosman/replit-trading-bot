@@ -695,7 +695,6 @@ def get_strategies():
                         config.setdefault('decimals', 3)
 
         logger.info(f"🌐 WEB DASHBOARD: Serving configurations for {len(strategies)} strategies")
-        
         return jsonify(strategies)
     
     except Exception as e:
