@@ -98,13 +98,6 @@ class TradingConfigManager:
         import logging
         logging.getLogger(__name__).info(f"🎯 FINAL CONFIG for {strategy_name}: {config}")
         
-        return configort logging
-            logging.getLogger(__name__).info(f"⚠️ {strategy_name}: No web dashboard config found, using defaults")
-        
-        # Log the final config being used for debugging
-        import logging
-        logging.getLogger(__name__).info(f"🎯 FINAL CONFIG for {strategy_name}: {config}")
-        
         return config
     
     def update_strategy_params(self, strategy_name: str, updates: Dict[str, Any]):
