@@ -21,8 +21,14 @@ trades_dir = Path("trading_data/trades")
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
 
-# Enable CORS for web dashboard
-CORS(app)
+# Enable CORS for web dashboard with specific configuration
+CORS(app, resources={
+    r"/api/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
 
 # Global error handler to prevent 502 errors
 @app.errorhandler(Exception)
@@ -553,6 +559,7 @@ def health_check():
 def get_bot_status():
     """Get current bot status via API"""
     try:
+        print(f"🔍 API CALL: /api/bot/status - Getting bot status...")
         # Get the current bot manager with fresh check
         current_bot = get_current_bot_manager()
 
@@ -950,14 +957,17 @@ def get_trades():
 def get_console_log():
     """Get console logs for web dashboard"""
     try:
+        print(f"🔍 API CALL: /api/console/log - Getting console logs...")
         current_bot = get_current_bot_manager()
         
         if current_bot and hasattr(current_bot, 'log_handler'):
             # Get logs from the web log handler
             logs = list(current_bot.log_handler.logs)
+            print(f"📝 Returning {len(logs)} logs from bot")
             return jsonify({'logs': logs})
         else:
             # Return sample logs if no bot is running
+            print("📝 Returning sample logs - no bot log handler found")
             sample_logs = [
                 {'timestamp': '14:20:39', 'message': '🌐 Web dashboard active - Bot can be started via Start Bot button'},
                 {'timestamp': '14:20:39', 'message': '📊 Ready for trading operations'},
@@ -972,6 +982,21 @@ def get_console_log():
 def get_console_log_alt():
     """Alternative console log endpoint that frontend might be calling"""
     return get_console_log()
+
+@app.route('/api/console/logs', methods=['GET'])
+def get_console_logs_plural():
+    """Console logs endpoint with plural naming"""
+    return get_console_log()
+
+@app.route('/api/bot-status', methods=['GET'])
+def get_bot_status_alt():
+    """Alternative bot status endpoint"""
+    return get_bot_status()
+
+@app.route('/api/status', methods=['GET'])
+def get_status_alt():
+    """Alternative status endpoint"""
+    return get_bot_status()
 
 def get_current_price(symbol):
     """Helper function to get the current price of a symbol"""
@@ -1001,6 +1026,35 @@ def calculate_pnl(position, current_price):
     except Exception as e:
         print(f"❌ PNL CALC ERROR: {e}")
         return 0
+
+# Route debugging function (called manually since before_first_request is deprecated)
+def log_routes():
+    """Log all registered routes for debugging"""
+    print("🔍 FLASK ROUTES REGISTERED:")
+    for rule in app.url_map.iter_rules():
+        methods = ', '.join(sorted(rule.methods - {'OPTIONS', 'HEAD'}))
+        print(f"  {rule.rule} -> {rule.endpoint} ({methods})")
+
+# Call route logging after all routes are registered
+with app.app_context():
+    log_routes()
+
+# Add a catch-all route for debugging 404s
+@app.route('/<path:path>')
+def catch_all(path):
+    """Catch-all route to debug 404 errors"""
+    print(f"❌ 404 ERROR: Requested path not found: /{path}")
+    print(f"📍 Available routes:")
+    for rule in app.url_map.iter_rules():
+        if rule.rule != '/<path:path>':  # Don't show the catch-all
+            methods = ', '.join(sorted(rule.methods - {'OPTIONS', 'HEAD'}))
+            print(f"    {rule.rule} ({methods})")
+    
+    return jsonify({
+        'error': 'Not Found',
+        'message': f'The requested path /{path} was not found',
+        'available_routes': [rule.rule for rule in app.url_map.iter_rules() if rule.rule != '/<path:path>']
+    }), 404
 
 if __name__ == '__main__':
     # Debug: Print all registered routes
