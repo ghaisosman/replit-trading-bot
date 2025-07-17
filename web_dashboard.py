@@ -32,7 +32,7 @@ def handle_exception(e):
         logger.error(f"Unhandled exception: {e}")
     except:
         pass
-    
+
     # Return a valid JSON response instead of letting Flask crash
     return jsonify({
         'success': False,
@@ -98,6 +98,78 @@ except ImportError as e:
         def get_usdt_balance(self):
             return 100.0
 
+    trading_config_manager = DummyConfigManager()
+    balance_fetcher = DummyBalanceFetcher()
+
+# Global variables for bot integration
+bot_manager = None
+shared_bot_manager = None
+current_bot = None
+
+# Try to get bot manager from main module
+try:
+    import sys
+    if '__main__' in sys.modules and hasattr(sys.modules['__main__'], 'bot_manager'):
+        bot_manager = sys.modules['__main__'].bot_manager
+        shared_bot_manager = bot_manager
+        current_bot = bot_manager
+        print(f"✅ Bot manager loaded from main module: {bot_manager is not None}")
+    else:
+        print("⚠️ Bot manager not found in main module")
+except Exception as e:
+    print(f"❌ Error loading bot manager: {e}")
+
+# Dummy classes for when bot manager is not available
+class DummyBotManager:
+    def __init__(self):
+        self.is_running = False
+        self.strategies = {}
+
+    def get_bot_status(self):
+        return {
+            'is_running': False,
+            'active_positions': 0,
+            'strategies': [],
+            'balance': 0
+        }
+
+    def update_strategy_config(self, strategy_name, updates):
+        pass
+
+class DummyConfigManager:
+    def get_all_strategies(self):
+        return {}
+
+    def update_strategy_params(self, strategy_name, updates):
+        pass
+
+class DummyBalanceFetcher:
+    def get_usdt_balance(self):
+        return 0.0
+
+# Initialize fallback instances
+if not bot_manager:
+    bot_manager = DummyBotManager()
+    shared_bot_manager = bot_manager
+    current_bot = bot_manager
+    print("🔄 Using dummy bot manager for API endpoints")
+
+# Create instances for dashboard
+try:
+    if current_bot and hasattr(current_bot, 'strategies'):
+        trading_config_manager = current_bot
+        balance_fetcher = current_bot.balance_fetcher if hasattr(current_bot, 'balance_fetcher') else DummyBalanceFetcher()
+    else:
+        from src.config.trading_config import trading_config_manager
+        from src.data_fetcher.balance_fetcher import BalanceFetcher
+        from src.binance_client.client import BinanceClientWrapper
+
+        try:
+            binance_client = BinanceClientWrapper()
+            balance_fetcher = BalanceFetcher(binance_client)
+        except:
+            balance_fetcher = DummyBalanceFetcher()
+except:
     trading_config_manager = DummyConfigManager()
     balance_fetcher = DummyBalanceFetcher()
 
@@ -352,62 +424,35 @@ def stop_bot():
         logger.error(f"Error stopping bot: {e}")
         return jsonify({'success': False, 'message': f'Failed to stop bot: {e}'})
 
+def get_current_bot_manager():
+    """Helper function to get the current bot manager instance"""
+    # Safely get bot manager (shared or standalone)
+    if shared_bot_manager:
+        return shared_bot_manager
+    elif bot_manager:
+        return bot_manager
+    return None
+
 @app.route('/api/bot/status')
 def get_bot_status():
-    """Get current bot status with bulletproof error handling"""
+    """Get current bot status via API"""
     try:
-        # Safe bot manager access with multiple fallback methods
-        current_bot_manager = None
+        # Get the current bot manager
+        current_bot = get_current_bot_manager()
 
-        # Method 1: Direct reference
-        if 'bot_manager' in globals() and bot_manager:
-            current_bot_manager = bot_manager
-
-        # Method 2: From main module
-        elif hasattr(sys.modules.get('__main__'), 'bot_manager'):
-            current_bot_manager = sys.modules['__main__'].bot_manager
-
-        # Method 3: From shared reference
-        elif 'shared_bot_manager' in globals() and shared_bot_manager:
-            current_bot_manager = shared_bot_manager
-
-        if not current_bot_manager:
+        if current_bot and hasattr(current_bot, 'get_bot_status'):
+            status = current_bot.get_bot_status()
+            return jsonify(status)
+        else:
             return jsonify({
-                'running': False,
-                'status': 'stopped',
+                'is_running': False,
                 'active_positions': 0,
-                'strategies': 4
-            }), 200
-
-        # Safe attribute access
-        is_running = getattr(current_bot_manager, 'is_running', False)
-        active_positions = 0
-
-        if hasattr(current_bot_manager, 'order_manager') and current_bot_manager.order_manager:
-            active_positions = len(getattr(current_bot_manager.order_manager, 'active_positions', {}))
-
-        return jsonify({
-            'running': is_running,
-            'status': 'running' if is_running else 'stopped',
-            'active_positions': active_positions,
-            'strategies': 4
-        }), 200
-
+                'strategies': [],
+                'balance': 0
+            })
     except Exception as e:
-        # Ultra-robust error handling to prevent HTTP 502 errors
-        try:
-            app.logger.error(f"Bot status error: {e}")
-        except:
-            pass  # Even logging can fail
-        
-        # Always return valid JSON structure regardless of error
-        return jsonify({
-            'running': False,
-            'status': 'error',
-            'active_positions': 0,
-            'strategies': 4,
-            'error': 'Status unavailable'
-        }), 200
+        print(f"❌ API ERROR: /api/bot/status - {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -679,52 +724,22 @@ def update_strategy(strategy_name):
         logger.error(f"Error updating strategy {strategy_name}: {e}")
         return jsonify({'success': False, 'message': f'Failed to update strategy: {e}'})
 
-@app.route('/api/bot/balance')
+@app.route('/api/balance')
 def get_balance():
-    """Get account balance"""
+    """Get current balance via API"""
     try:
-        # Safe bot manager access
-        current_bot_manager = None
-
-        if 'bot_manager' in globals() and bot_manager:
-            current_bot_manager = bot_manager
-        elif hasattr(sys.modules.get('__main__'), 'bot_manager'):
-            current_bot_manager = sys.modules['__main__'].bot_manager
-        elif 'shared_bot_manager' in globals() and shared_bot_manager:
-            current_bot_manager = shared_bot_manager
-
-        if not current_bot_manager:
-            return jsonify({
-                'balance': 0, 
-                'success': False, 
-                'error': 'Bot not initialized'
-            }), 200
-
-        # Safe balance access
-        balance = 0
-        if hasattr(current_bot_manager, 'balance_fetcher') and current_bot_manager.balance_fetcher:
-            try:
-                balance = current_bot_manager.balance_fetcher.get_futures_balance()
-            except Exception as balance_error:
-                app.logger.warning(f"Balance fetch error: {balance_error}")
-                return jsonify({
-                    'balance': 0, 
-                    'success': False,
-                    'error': 'Balance unavailable'
-                }), 200
-
-        return jsonify({
-            'balance': balance, 
-            'success': True
-        }), 200
-
+        current_bot = get_current_bot_manager()
+        if current_bot and hasattr(current_bot, 'balance_fetcher'):
+            balance = current_bot.balance_fetcher.get_usdt_balance() or 0
+            return jsonify({'balance': balance})
+        elif balance_fetcher:
+            balance = balance_fetcher.get_usdt_balance() or 0
+            return jsonify({'balance': balance})
+        else:
+            return jsonify({'balance': 0})
     except Exception as e:
-        app.logger.error(f"Balance endpoint error: {e}")
-        return jsonify({
-            'balance': 0, 
-            'success': False, 
-            'error': str(e)
-        }), 200  # Return 200 instead of 500
+        print(f"❌ API ERROR: /api/balance - {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/positions')
 def get_positions():
@@ -756,582 +771,4 @@ def get_positions():
 
                     # For futures trading, PnL calculation (matches console calculation)
                     if side == 'BUY':  # Long position
-                        pnl = (current_price - entry_price) * quantity
-                    else:  # Short position (SELL)
-                        pnl = (entry_price - current_price) * quantity
-
-                    # Calculate position value and get actual margin invested
-                    position_value_usdt = entry_price * quantity
-
-                    # Get leverage and margin from strategy config (default 5x if not found)
-                    strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
-                    leverage = strategy_config.get('leverage', 5)
-
-                    # Use the configured margin as the actual margin invested (matches trading logic)
-                    margin_invested = strategy_config.get('margin', 50.0)
-
-                    # For futures trading, PnL percentage should be calculated against margin invested, not position value
-                    pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
-
-                    positions.append({
-                        'strategy': position.strategy_name,
-                        'symbol': position.symbol,
-                        'side': position.side,
-                        'entry_price': entry_price,
-                        'current_price': current_price,
-                        'quantity': quantity,
-                        'position_value_usdt': position_value_usdt,
-                        'margin_invested': margin_invested,
-                        'pnl': pnl,
-                        'pnl_percent': pnl_percent,
-                        'anomaly_status': anomaly_status  # Add anomaly status
-                    })
-
-        return jsonify({'success': True, 'positions': positions})
-    except Exception as e:
-        logger.error(f"Error in get_positions endpoint: {e}")
-        return jsonify({'success': False, 'error': str(e), 'positions': []}), 200
-
-@app.route('/api/rsi/<symbol>')
-def get_rsi(symbol):
-    """Get RSI value for a symbol"""
-    try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'Binance client not available'})
-
-        # Get more historical data for accurate RSI calculation (same as bot uses)
-        klines = binance_client.get_klines(symbol=symbol, interval='15m', limit=100)
-        if not klines:
-            return jsonify({'success': False, 'error': f'Could not fetch klines for {symbol}'})
-
-        # Convert to closes
-        closes = [float(kline[4]) for kline in klines]
-
-        if len(closes) < 50:
-            return jsonify({'success': False, 'error': f'Not enough data points for RSI calculation for {symbol}'})
-
-        # Calculate RSI using the same method as the bot
-        rsi = calculate_rsi(closes, period=14)
-
-        return jsonify({'success': True, 'rsi': round(rsi, 2)})
-    except Exception as e:
-        logger.error(f"Error in get_rsi endpoint for {symbol}: {e}")
-        return jsonify({'success': False, 'error': f'Failed to calculate RSI: {str(e)}'}), 200
-
-def calculate_rsi(closes, period=14):
-    """Calculate RSI (Relative Strength Index) - matches bot's calculation"""
-    if len(closes) < period + 1:
-        return 50.0  # Default RSI if not enough data
-
-    # Calculate price changes
-    deltas = []
-    for i in range(1, len(closes)):
-        deltas.append(closes[i] - closes[i-1])
-
-    # Separate gains and losses
-    gains = []
-    losses = []
-    for delta in deltas:
-        if delta > 0:
-            gains.append(delta)
-            losses.append(0)
-        else:
-            gains.append(0)
-            losses.append(abs(delta))
-
-    # Use exponential moving average like the bot does
-    if len(gains) < period:
-        return 50.0
-
-    # Calculate initial averages
-    avg_gain = sum(gains[:period]) / period
-    avg_loss = sum(losses[:period]) / period
-
-    # Calculate RSI using smoothed averages for remaining periods
-    for i in range(period, len(gains)):
-        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
-        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
-
-    if avg_loss == 0:
-        return 100.0
-
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-
-    return rsi
-
-@app.route('/api/console/log')
-def get_console_log():
-    """Get recent console logs with bulletproof error handling"""
-    # Ultra-safe default response
-    default_response = {
-        'logs': ["Bot monitoring active"], 
-        'success': True
-    }
-    
-    try:
-        logs = []
-
-        # Try to get logs from web log handler with multiple fallbacks
-        try:
-            root_logger = logging.getLogger()
-            for handler in root_logger.handlers:
-                if hasattr(handler, 'get_logs'):
-                    potential_logs = handler.get_logs()
-                    if potential_logs and isinstance(potential_logs, list):
-                        logs = potential_logs
-                        break
-
-            # Multiple fallback strategies
-            if not logs:
-                logs = ["Web dashboard active - monitoring bot status"]
-
-        except Exception:
-            # Fallback to safe default
-            logs = ["Console monitoring active"]
-
-        # Ensure logs is always a list
-        if not isinstance(logs, list):
-            logs = ["Console system operational"]
-
-        return jsonify({
-            'logs': logs, 
-            'success': True
-        }), 200
-
-    except Exception:
-        # Ultimate fallback - always return valid response
-        return jsonify(default_response), 200
-
-def get_bot_status():
-    """Get current bot status with enhanced error handling"""
-    global bot_running, bot_manager,shared_bot_manager
-
-    try:
-        # Always get fresh reference to shared bot manager
-        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-
-        # Check shared bot manager first
-        if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
-            try:
-                status = {
-                    'is_running': getattr(shared_bot_manager, 'is_running', False),
-                    'active_positions': len(getattr(shared_bot_manager.order_manager, 'active_positions', {})) if hasattr(shared_bot_manager, 'order_manager') else 0,
-                    'strategies': list(getattr(shared_bot_manager, 'strategies', {}).keys()) if hasattr(shared_bot_manager, 'strategies') else [],
-                    'balance': 0  # Will be updated separately
-                }
-                return status
-            except Exception as e:
-                logger.error(f"Error getting shared bot status: {e}")
-                return {
-                    'is_running': False,
-                    'active_positions': 0,
-                    'strategies': [],
-                    'balance': 0,
-                    'error': f'Status error: {str(e)}'
-                }
-
-        # Fallback status
-        return {
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': [],
-            'balance': 0,
-            'error': 'Bot manager not available'
-        }
-    except Exception as e:
-        logger.error(f"Error in get_bot_status: {e}")
-        return {
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': [],
-            'balance': 0,
-            'error': f'Critical status error: {str(e)}'
-        }
-    except Exception as e:
-        logger.error(f"Error in get_bot_status: {e}")
-        return {
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': [],
-            'balance': 0,
-            'error': f'Critical status error: {str(e)}'
-        }
-
-def get_current_price(symbol):
-    """Get current price for a symbol"""
-    try:
-        if IMPORTS_AVAILABLE:
-            return price_fetcher.get_current_price(symbol)
-        return None
-    except:
-        return None
-
-def calculate_pnl(position, current_price):
-    """Calculate P&L for a position"""
-    if not current_price:
-        return 0
-
-    if position.side == 'BUY':  # Long position
-        return (current_price - position.entry_price) * position.quantity
-    else:  # Short position
-        return (position.entry_price - current_price) * position.quantity
-
-@app.route('/api/binance/positions', methods=['GET'])
-def get_binance_positions():
-    """Get Binance positions data"""
-    try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'Binance client not available'})
-
-        # Return basic positions response
-        return jsonify({
-            'success': True,
-            'positions': [],
-            'message': 'Binance positions endpoint active'
-        })
-    except Exception as e:
-        logger.error(f"Error in get_binance_positions: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'positions': []
-        }), 500
-
-@app.route('/api/trading/environment', methods=['GET'])
-def get_trading_environment():
-    """Get current trading environment configuration"""
-    try:
-        if IMPORTS_AVAILABLE:
-            return jsonify({
-                'success': True,
-                'environment': {
-                    'is_testnet': global_config.BINANCE_TESTNET,
-                    'is_futures': global_config.BINANCE_FUTURES,
-                    'api_key_configured': bool(global_config.BINANCE_API_KEY),
-                    'secret_key_configured': bool(global_config.BINANCE_SECRET_KEY),
-                    'mode': 'FUTURES TESTNET' if global_config.BINANCE_TESTNET else 'FUTURES MAINNET'
-                }
-            })
-        else:
-            return jsonify({
-                'success': True,
-                'environment': {
-                    'is_testnet': True,
-                    'is_futures': True,
-                    'api_key_configured': False,
-                    'secret_key_configured': False,
-                    'mode': 'DEMO MODE'
-                }
-            })
-    except Exception as e:
-        logger.error(f"Error getting trading environment: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/ml_reports')
-def ml_reports():
-    """ML Reports page"""
-    return render_template('ml_reports.html')
-
-@app.route('/trades_database')
-def trades_database():
-    """Trades Database page"""
-    try:
-        if not IMPORTS_AVAILABLE:
-            return render_template('trades_database.html', trades=[], error="Database not available in demo mode")
-
-        # Get all trades from the database
-        from src.execution_engine.trade_database import TradeDatabase
-        trade_db = TradeDatabase()
-
-        # Convert trades to list format for template
-        trades_list = []
-        for trade_id, trade_data in trade_db.trades.items():
-            trade_info = {
-                'trade_id': trade_id,
-                'strategy_name': trade_data.get('strategy_name', 'N/A'),
-                'symbol': trade_data.get('symbol', 'N/A'),
-                'side': trade_data.get('side', 'N/A'),
-                'entry_price': trade_data.get('entry_price', 0),
-                'exit_price': trade_data.get('exit_price', 0),
-                'quantity': trade_data.get('quantity', 0),
-                'leverage': trade_data.get('leverage', 0),
-                'margin_usdt': trade_data.get('margin_usdt', 0),
-                'trade_status': trade_data.get('trade_status', 'UNKNOWN'),
-                'timestamp': trade_data.get('timestamp', 'N/A'),
-                'exit_reason': trade_data.get('exit_reason', 'N/A'),
-                'pnl_usdt': trade_data.get('pnl_usdt', 0),
-                'pnl_percentage': trade_data.get('pnl_percentage', 0),
-                'duration_minutes': trade_data.get('duration_minutes', 0)
-            }
-            trades_list.append(trade_info)
-
-        # BULLETPROOF FIX: Convert all None values to safe strings before ANY processing
-        for trade in trades_list:
-            # Fix ALL None values in the trade object to prevent any comparison errors
-            for key, value in trade.items():
-                if value is None:
-                    if key == 'timestamp':
-                        trade[key] = '1900-01-01T00:00:00'
-                    elif key in ['pnl_usdt', 'pnl_percentage', 'entry_price', 'exit_price', 'quantity', 'duration_minutes']:
-                        trade[key] = 0
-                    else:
-                        trade[key] = 'N/A'
-
-            # FIX: Pre-calculate absolute values for template (abs() not available in Jinja2)
-            trade['abs_pnl_usdt'] = abs(trade.get('pnl_usdt', 0))
-
-            # Ensure duration is displayed with 2 decimals
-            if isinstance(trade.get('duration_minutes'), (int, float)):
-                trade['duration_minutes'] = round(float(trade['duration_minutes']), 2)
-
-        # Now sort safely - all None values have been eliminated
-        try:
-            trades_list.sort(key=lambda x: str(x.get('timestamp', '1900-01-01T00:00:00')), reverse=True)
-        except Exception as sort_error:
-            # If sorting still fails for any reason, don't sort
-            logger.error(f"Sort failed despite None handling: {sort_error}")
-
-        final_trades_list = trades_list
-
-        return render_template('trades_database.html', trades=final_trades_list, total_trades=len(final_trades_list))
-
-    except Exception as e:
-        logger.error(f"Error loading trades database page: {e}")
-        return render_template('trades_database.html', trades=[], error=str(e))
-
-@app.route('/api/ml_insights')
-def get_ml_insights():
-    """Get ML insights for the dashboard"""
-    try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
-
-        # Import ML analyzer
-        from src.analytics.ml_analyzer import ml_analyzer
-
-        # Generate insights
-        insights = ml_analyzer.generate_insights()
-
-        if "error" in insights:
-            return jsonify({'success': False, 'error': insights['error']})
-
-        return jsonify({'success': True, 'insights': insights})
-
-    except Exception as e:
-        logger.error(f"Error getting ML insights: {e}")
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/ml_predictions')
-def get_ml_predictions():
-    """Get ML predictions for current market conditions"""
-    try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
-
-        # Import ML analyzer
-        from src.analytics.ml_analyzer import ml_analyzer
-
-        # Sample predictions for current strategies
-        predictions = []
-        strategies = trading_config_manager.get_all_strategies()
-
-        for strategy_name, config in strategies.items():
-            # Create sample trade features
-            sample_features = {
-                'strategy': strategy_name,
-                'symbol': config.get('symbol', 'BTCUSDT'),
-                'side': 'BUY',
-                'leverage': config.get('leverage', 5),
-                'position_size_usdt': config.get('margin', 50),
-                'hour_of_day': datetime.now().hour,
-                'day_of_week': datetime.now().weekday(),
-                'market_trend': 'BULLISH',
-                'volatility_score': 0.3,
-                'signal_strength': 0.7
-            }
-
-            # Add strategy-specific features
-            if 'rsi' in strategy_name.lower():
-                sample_features['rsi_entry'] = 30  # Oversold
-            elif 'macd' in strategy_name.lower():
-                sample_features['macd_entry'] = 0.1
-
-            prediction = ml_analyzer.predict_trade_outcome(sample_features)
-
-            if "error" not in prediction:
-                predictions.append({
-                    'strategy': strategy_name,
-                    'symbol': config.get('symbol', 'BTCUSDT'),
-                    'predicted_profitable': prediction.get('profit_probability', 0.5) > 0.5,
-                    'predicted_pnl': prediction.get('predicted_pnl_percentage', 0),
-                    'confidence': prediction.get('confidence', 0),
-                    'recommendation': prediction.get('recommendation', 'HOLD')
-                })
-
-        return jsonify({'success': True, 'predictions': predictions})
-
-    except Exception as e:
-        logger.error(f"Error getting ML predictions: {e}")
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/train_models', methods=['POST'])
-def train_models():
-    """Train ML models"""
-    try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
-
-        # Import ML analyzer
-        from src.analytics.ml_analyzer import ml_analyzer
-
-        # Train models
-        results = ml_analyzer.train_models()
-
-        if "error" in results:
-            return jsonify({'success': False, 'error': results['error']})
-
-        return jsonify({'success': True, 'results': results})
-
-    except Exception as e:
-        logger.error(f"Error training ML models: {e}")
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/proxy/status')
-def get_proxy_status():
-    """Get current proxy status and configuration"""
-    try:
-        import os
-        is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
-        proxy_enabled = os.getenv('PROXY_ENABLED', 'false').lower() == 'true'
-        proxy_urls = os.getenv('PROXY_URLS', '').split(',')
-        proxy_urls = [url.strip() for url in proxy_urls if url.strip()]
-
-        status = {
-            'is_deployment': is_deployment,
-            'proxy_enabled': proxy_enabled,
-            'proxy_count': len(proxy_urls),
-            'geographic_restrictions': is_deployment and not proxy_enabled,
-            'recommendation': ''
-        }
-
-        if is_deployment and not proxy_enabled:
-            status['recommendation'] = 'Enable proxy to bypass geographic restrictions'
-        elif is_deployment and proxy_enabled and len(proxy_urls) == 0:
-            status['recommendation'] = 'Configure PROXY_URLS in Secrets'
-        elif is_deployment and proxy_enabled and len(proxy_urls) > 0:
-            status['recommendation'] = 'Proxy configured and active'
-        else:
-            status['recommendation'] = 'Development mode - no proxy needed'
-
-        return jsonify(status)
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/trading/environment', methods=['POST'])
-def update_trading_environment():
-    """Update trading environment (testnet/mainnet)"""
-    try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'message': 'Configuration update not available in demo mode'})
-
-        data = request.get_json()
-
-        if not data or 'is_testnet' not in data:
-            return jsonify({'success': False, 'message': 'Missing is_testnet parameter'})
-
-        is_testnet = bool(data['is_testnet'])
-
-        # Update the global config in memory
-        global_config.BINANCE_TESTNET = is_testnet
-
-        # Save to environment configuration file for persistence
-        env_config = {
-            'BINANCE_TESTNET': str(is_testnet).lower(),
-            'BINANCE_FUTURES': str(global_config.BINANCE_FUTURES).lower()
-        }
-
-        # Write to a config file for persistence across restarts
-        config_file = "trading_data/environment_config.json"
-        os.makedirs(os.path.dirname(config_file), exist_ok=True)
-
-        with open(config_file, 'w') as f:
-            json.dump(env_config, f, indent=2)
-
-        mode = 'FUTURES TESTNET' if is_testnet else 'FUTURES MAINNET'
-
-        # Log the environment change
-        logger.info(f"🔄 ENVIRONMENT CHANGED: {mode}")
-        logger.info(f"🌐 WEB DASHBOARD: Trading environment updated via web interface")
-
-        # Check if bot is running and warn about restart requirement
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-        bot_running = current_bot and getattr(current_bot, 'is_running', False)
-
-        message = f'Trading environment updated to {mode}'
-        if bot_running:
-            message += ' (Bot restart required to apply changes)'
-            logger.warning("⚠️ Bot restart required for environment change to take effect")
-
-        return jsonify({
-            'success': True, 
-            'message': message,
-            'environment': {
-                'is_testnet': is_testnet,
-                'is_futures': global_config.BINANCE_FUTURES,
-                'mode': mode,
-                'restart_required': bot_running
-            }
-        })
-
-    except Exception as e:
-        logger.error(f"Error updating trading environment: {e}")
-        return jsonify({'success': False, 'message': f'Failed to update environment: {e}'})
-
-def run_dashboard(bot_manager_instance=None):
-    global bot_manager
-    if bot_manager_instance:
-        bot_manager = bot_manager_instance
-
-    import os
-    host = '0.0.0.0' if os.getenv('REPL_DEPLOYMENT') == '1' else 'localhost'
-    port = int(os.environ.get('PORT', 5000))
-
-    app.run(debug=False, host=host, port=port, use_reloader=False)
-
-# CRITICAL: Block ALL web dashboard launches except from main.py
-import inspect
-import os
-
-def _check_launch_source():
-    """Ensure web dashboard only launches from main.py"""
-    frame = inspect.currentframe()
-    try:
-        # Check if we're being called from main.py or imported properly
-        while frame:
-            filename = frame.f_code.co_filename
-            if 'main.py' in filename:
-                return True  # Authorized launch from main.py
-            frame = frame.f_back
-
-        # Also allow if imported as module (not run directly)
-        return True if __name__ != '__main__' else False
-    finally:
-        del frame
-
-# Block unauthorized launches only if run directly
-if __name__ == '__main__' and not _check_launch_source():
-    logger.error("🚫 UNAUTHORIZED WEB DASHBOARD LAUNCH BLOCKED")
-    logger.error("💡 Web dashboard must ONLY be launched from main.py")
-    logger.error("🔧 Run 'python main.py' instead to start the complete system")
-    sys.exit(1)
-
-if __name__ == '__main__':
-    logger.error("🚫 DIRECT LAUNCH NOT ALLOWED - SINGLE SOURCE CONTROL ENFORCED")
-    logger.error("💡 Web dashboard must ONLY be launched from main.py")
-    logger.error("🔧 Run 'python main.py' instead to start the complete system")
-    logger.error("🚨 MULTIPLE LAUNCH SOURCES CAUSE PORT CONFLICTS")
-    print("🚫 ERROR: Direct web dashboard launch is STRICTLY DISABLED")
-    print("💡 Please run 'python main.py' to start the trading bot with web interface")
-    print("🚨 This prevents port conflicts and ensures proper initialization")
-    sys.exit(1)
+                        p
