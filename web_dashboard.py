@@ -619,83 +619,81 @@ def get_strategies():
 
         # Ensure all required parameters are present for each strategy
         for name, config in strategies.items():
-                # Ensure assessment_interval is included
-                if 'assessment_interval' not in config:
-                    config['assessment_interval'] = 60 if 'rsi' in name.lower() else 30
+            # Ensure assessment_interval is included
+            if 'assessment_interval' not in config:
+                config['assessment_interval'] = 60 if 'rsi' in name.lower() else 30
 
-                # Ensure all required parameters exist with defaults
-                if 'max_loss_pct' not in config:
-                    config['max_loss_pct'] = 10
+            # Ensure all required parameters exist with defaults
+            if 'max_loss_pct' not in config:
+                config['max_loss_pct'] = 10
 
-                # RSI strategy defaults
-                if 'rsi' in name.lower():
-                    config.setdefault('rsi_long_entry', 40)
-                    config.setdefault('rsi_long_exit', 70)
-                    config.setdefault('rsi_short_entry', 60)
-                    config.setdefault('rsi_short_exit', 30)
-                    # Set default decimals based on symbol
-                    if not config.get('decimals'):
-                        symbol = config.get('symbol', '').upper()
-                        if 'ETH' in symbol or 'SOL' in symbol:
-                            config.setdefault('decimals', 2)
-                        elif 'BTC' in symbol:
-                            config.setdefault('decimals', 3)
-                        else:
-                            config.setdefault('decimals', 2)
+            # RSI strategy defaults
+            if 'rsi' in name.lower():
+                config.setdefault('rsi_long_entry', 40)
+                config.setdefault('rsi_long_exit', 70)
+                config.setdefault('rsi_short_entry', 60)
+                config.setdefault('rsi_short_exit', 30)
+                # Set default decimals based on symbol
+                if not config.get('decimals'):
+                    symbol = config.get('symbol', '').upper()
+                    if 'ETH' in symbol or 'SOL' in symbol:
+                        config.setdefault('decimals', 2)
+                    elif 'BTC' in symbol:
+                        config.setdefault('decimals', 3)
+                    else:
+                        config.setdefault('decimals', 2)
 
-                # Show and populate MACD parameters if it's a MACD strategy
-                elif 'macd' in name.lower():
-                    config.setdefault('macd_fast', 12)
-                    config.setdefault('macd_slow', 26)
-                    config.setdefault('macd_signal', 9)
-                    config.setdefault('min_histogram_threshold', 0.0001)
-                    config.setdefault('min_distance_threshold', 0.005)
-                    config.setdefault('confirmation_candles', 2)
-                    # Set default decimals based on symbol
-                    if not config.get('decimals'):
-                        symbol = config.get('symbol', '').upper()
-                        if 'ETH' in symbol or 'SOL' in symbol:
-                            config.setdefault('decimals', 2)
-                        elif 'BTC' in symbol:
-                            config.setdefault('decimals', 3)
-                        else:
-                            config.setdefault('decimals', 2)
-                    config.setdefault('confirmation_candles', 2)
+            # Show and populate MACD parameters if it's a MACD strategy
+            elif 'macd' in name.lower():
+                config.setdefault('macd_fast', 12)
+                config.setdefault('macd_slow', 26)
+                config.setdefault('macd_signal', 9)
+                config.setdefault('min_histogram_threshold', 0.0001)
+                config.setdefault('min_distance_threshold', 0.005)
+                config.setdefault('confirmation_candles', 2)
+                # Set default decimals based on symbol
+                if not config.get('decimals'):
+                    symbol = config.get('symbol', '').upper()
+                    if 'ETH' in symbol or 'SOL' in symbol:
+                        config.setdefault('decimals', 2)
+                    elif 'BTC' in symbol:
+                        config.setdefault('decimals', 3)
+                    else:
+                        config.setdefault('decimals', 2)
 
-                # Liquidity Reversal strategy defaults
-                elif 'liquidity' in name.lower():
-                    # Core detection parameters
-                    config.setdefault('swing_lookback', 20)
-                    config.setdefault('sweep_threshold', 0.5)
-                    config.setdefault('volume_surge_multiplier', 2.0)
-                    config.setdefault('confirmation_candles', 2)
+            # Liquidity Reversal strategy defaults
+            elif 'liquidity' in name.lower():
+                # Core detection parameters
+                config.setdefault('swing_lookback', 20)
+                config.setdefault('sweep_threshold', 0.5)
+                config.setdefault('volume_surge_multiplier', 2.0)
+                config.setdefault('confirmation_candles', 2)
 
-                    # Profit targeting parameters
-                    config.setdefault('profit_target_method', 'mean_reversion')
-                    config.setdefault('fixed_profit_percent', 2.0)
-                    config.setdefault('mean_reversion_periods', 50)
-                    config.setdefault('mean_reversion_buffer', 0.5)
+                # Profit targeting parameters
+                config.setdefault('profit_target_method', 'mean_reversion')
+                config.setdefault('fixed_profit_percent', 2.0)
+                config.setdefault('mean_reversion_periods', 50)
+                config.setdefault('mean_reversion_buffer', 0.5)
 
-                    # RSI-based exit parameters
-                    config.setdefault('rsi_exit_overbought', 70)
-                    config.setdefault('rsi_exit_oversold', 30)
+                # RSI-based exit parameters
+                config.setdefault('rsi_exit_overbought', 70)
+                config.setdefault('rsi_exit_oversold', 30)
 
-                    # Dynamic profit parameters
-                    config.setdefault('dynamic_profit_min', 1.0)
-                    config.setdefault('dynamic_profit_max', 4.0)
+                # Dynamic profit parameters
+                config.setdefault('dynamic_profit_min', 1.0)
+                config.setdefault('dynamic_profit_max', 4.0)
 
-                    # Set default decimals based on symbol
-                    if not config.get('decimals'):
-                        symbol = config.get('symbol', '').upper()
-                        if 'ETH' in symbol or 'SOL' in symbol:
-                            config.setdefault('decimals', 2)
-                        elif 'BTC' in symbol:
-                            config.setdefault('decimals', 3)
-                        else:
-                            config.setdefault('decimals', 3)
+                # Set default decimals based on symbol
+                if not config.get('decimals'):
+                    symbol = config.get('symbol', '').upper()
+                    if 'ETH' in symbol or 'SOL' in symbol:
+                        config.setdefault('decimals', 2)
+                    elif 'BTC' in symbol:
+                        config.setdefault('decimals', 3)
+                    else:
+                        config.setdefault('decimals', 3)
 
-            logger.info(f"🌐 WEB DASHBOARD: Serving configurations for {len(strategies)} strategies")
-        
+        logger.info(f"🌐 WEB DASHBOARD: Serving configurations for {len(strategies)} strategies")
         return jsonify(strategies)
         
     except Exception as e:
