@@ -356,7 +356,7 @@ def get_bot_status():
         # Always try to get the latest shared bot manager first
         import sys
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-        
+
         # Initialize default response structure
         response_data = {
             'status': 'stopped',
@@ -431,7 +431,7 @@ def get_bot_status():
             try:
                 strategies = trading_config_manager.get_all_strategies()
                 strategies_count = len(strategies) if strategies else 0
-                
+
                 response_data.update({
                     'status': 'stopped',
                     'strategies': strategies_count,
@@ -511,6 +511,31 @@ def get_strategies():
                     config.setdefault('min_distance_threshold', 0.005)
                     config.setdefault('confirmation_candles', 2)
 
+                # Liquidity Reversal Strategy Specific Parameters
+                elif 'liquidity' in name.lower() or 'reversal' in name.lower():
+                    config.setdefault('lookback_candles', 100)
+                    config.setdefault('liquidity_threshold', 0.02)
+                    config.setdefault('reclaim_timeout', 5)
+                    config.setdefault('min_volume_spike', 1.5)
+                    config.setdefault('max_risk_per_trade', 0.5)
+                    config.setdefault('stop_loss_buffer', 0.1)
+                    config.setdefault('profit_target_multiplier', 2.0)
+                    config.setdefault('swing_strength', 3)
+                    config.setdefault('min_wick_ratio', 0.6)
+                    config.setdefault('min_volume', 5000000)
+                    config.setdefault('decimals', 2)
+                    config.setdefault('cooldown_period', 600)
+
+                # Universal Strategy Parameters (for any future strategy)
+                else:
+                    config.setdefault('decimals', 2)
+                    config.setdefault('cooldown_period', 300)
+                    config.setdefault('min_volume', 1000000)
+                    config.setdefault('entry_threshold', 0.1)
+                    config.setdefault('exit_threshold', 0.05)
+                    config.setdefault('signal_period', 14)
+                    config.setdefault('confirmation_period', 2)
+
             logger.info(f"🌐 WEB DASHBOARD: Serving COMPLETE configurations for {len(strategies)} strategies")
             logger.info(f"📋 All parameters available for manual configuration via dashboard")
             return jsonify(strategies)
@@ -584,13 +609,13 @@ def create_strategy():
         try:
             margin = float(data.get('margin', 50.0))
             leverage = int(data.get('leverage', 5))
-            
+
             if margin <= 0 or margin > 10000:
                 return jsonify({'success': False, 'message': 'Margin must be between 0.01 and 10000 USDT'})
-            
+
             if leverage <= 0 or leverage > 125:
                 return jsonify({'success': False, 'message': 'Leverage must be between 1 and 125'})
-                
+
         except (ValueError, TypeError):
             return jsonify({'success': False, 'message': 'Invalid margin or leverage values'})
 
@@ -616,13 +641,13 @@ def create_strategy():
                 'rsi_short_entry': int(data.get('rsi_short_entry', 70)),
                 'rsi_short_exit': int(data.get('rsi_short_exit', 30))
             })
-            
+
             # Validate RSI parameters
             if not (10 <= new_config['rsi_long_entry'] <= 50):
                 return jsonify({'success': False, 'message': 'RSI Long Entry must be between 10 and 50'})
             if not (50 <= new_config['rsi_long_exit'] <= 90):
                 return jsonify({'success': False, 'message': 'RSI Long Exit must be between 50 and 90'})
-                
+
         elif 'macd' in strategy_name.lower():
             new_config.update({
                 'macd_fast': int(data.get('macd_fast', 12)),
@@ -632,7 +657,7 @@ def create_strategy():
                 'min_distance_threshold': float(data.get('min_distance_threshold', 0.005)),
                 'confirmation_candles': int(data.get('confirmation_candles', 2))
             })
-            
+
             # Validate MACD parameters
             if new_config['macd_fast'] >= new_config['macd_slow']:
                 return jsonify({'success': False, 'message': 'MACD Fast must be less than MACD Slow'})
@@ -881,7 +906,7 @@ def get_balance():
                 usdt_balance = balance_fetcher.get_usdt_balance()
                 if usdt_balance is None:
                     usdt_balance = 0.0
-                
+
                 return jsonify({
                     'total_balance': float(usdt_balance),
                     'available_balance': float(usdt_balance),
@@ -890,7 +915,7 @@ def get_balance():
                 })
             except Exception as balance_error:
                 logger.error(f"Error getting live balance: {balance_error}")
-                
+
         # Fallback to file-based balance
         balance_file = "trading_data/balance.json"
         if os.path.exists(balance_file):
@@ -1404,7 +1429,7 @@ def get_ml_predictions():
 def train_models():
     """Train ML models"""
     try:
-        if not IMPORTS_AVAILABLE:
+        if notIMPORTS_AVAILABLE:
             return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
 
         # Import ML analyzer
@@ -1434,14 +1459,14 @@ def update_environment():
         data = request.get_json()
         if not data or 'environment' not in data:
             return jsonify({'success': False, 'message': 'Missing environment parameter'})
-        
+
         environment = data['environment']
         is_testnet = environment == 'TESTNET'
-        
+
         # Update global config
         if IMPORTS_AVAILABLE:
             global_config.BINANCE_TESTNET = is_testnet
-            
+
         return jsonify({
             'success': True,
             'message': f'Environment updated to {environment}',
@@ -1516,12 +1541,12 @@ def run_web_dashboard():
         # Get port from environment for deployment compatibility
         port = int(os.environ.get('PORT', 5000))
         logger.info(f"🌐 Starting web dashboard on 0.0.0.0:{port}")
-        
+
         # Disable Flask's default request logging
         import logging as flask_logging
         werkzeug_logger = flask_logging.getLogger('werkzeug')
         werkzeug_logger.setLevel(flask_logging.WARNING)
-        
+
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
     except Exception as e:
         logger.error(f"Web dashboard error: {e}")

@@ -213,7 +213,7 @@ class TradingConfigManager:
             if validated_updates['confirmation_candles'] < 1 or validated_updates['confirmation_candles'] > 5:
                 validated_updates['confirmation_candles'] = 2
 
-        # Liquidity Reversal Strategy Parameters
+        # Liquidity Reversal Strategy Parameters (Complete Set)
         if 'lookback_candles' in updates:
             validated_updates['lookback_candles'] = int(updates['lookback_candles'])
             if validated_updates['lookback_candles'] < 50 or validated_updates['lookback_candles'] > 200:
@@ -223,6 +223,11 @@ class TradingConfigManager:
             validated_updates['liquidity_threshold'] = float(updates['liquidity_threshold'])
             if validated_updates['liquidity_threshold'] < 0.01 or validated_updates['liquidity_threshold'] > 0.05:
                 validated_updates['liquidity_threshold'] = 0.02
+
+        if 'reclaim_timeout' in updates:
+            validated_updates['reclaim_timeout'] = int(updates['reclaim_timeout'])
+            if validated_updates['reclaim_timeout'] < 2 or validated_updates['reclaim_timeout'] > 10:
+                validated_updates['reclaim_timeout'] = 5
 
         if 'min_volume_spike' in updates:
             validated_updates['min_volume_spike'] = float(updates['min_volume_spike'])
@@ -239,6 +244,11 @@ class TradingConfigManager:
             if validated_updates['stop_loss_buffer'] < 0.05 or validated_updates['stop_loss_buffer'] > 0.5:
                 validated_updates['stop_loss_buffer'] = 0.1
 
+        if 'profit_target_multiplier' in updates:
+            validated_updates['profit_target_multiplier'] = float(updates['profit_target_multiplier'])
+            if validated_updates['profit_target_multiplier'] < 1.0 or validated_updates['profit_target_multiplier'] > 5.0:
+                validated_updates['profit_target_multiplier'] = 2.0
+
         if 'min_wick_ratio' in updates:
             validated_updates['min_wick_ratio'] = float(updates['min_wick_ratio'])
             if validated_updates['min_wick_ratio'] < 0.3 or validated_updates['min_wick_ratio'] > 1.0:
@@ -248,6 +258,33 @@ class TradingConfigManager:
             validated_updates['swing_strength'] = int(updates['swing_strength'])
             if validated_updates['swing_strength'] < 2 or validated_updates['swing_strength'] > 5:
                 validated_updates['swing_strength'] = 3
+
+        # Universal Strategy Parameters (for any future strategy)
+        # This makes the system future-proof for any new strategy type
+        universal_float_params = [
+            'entry_threshold', 'exit_threshold', 'volatility_filter', 'volume_filter',
+            'momentum_threshold', 'trend_strength', 'signal_confidence', 'risk_multiplier',
+            'profit_multiplier', 'drawdown_limit', 'correlation_threshold', 'spread_threshold'
+        ]
+        
+        universal_int_params = [
+            'lookback_period', 'confirmation_period', 'signal_period', 'trend_period',
+            'volume_period', 'momentum_period', 'filter_period', 'threshold_period'
+        ]
+        
+        # Validate universal float parameters (0.001 to 10.0)
+        for param in universal_float_params:
+            if param in updates:
+                validated_updates[param] = float(updates[param])
+                if validated_updates[param] < 0.001 or validated_updates[param] > 10.0:
+                    validated_updates[param] = 0.1  # Safe default
+        
+        # Validate universal int parameters (1 to 100)
+        for param in universal_int_params:
+            if param in updates:
+                validated_updates[param] = int(updates[param])
+                if validated_updates[param] < 1 or validated_updates[param] > 100:
+                    validated_updates[param] = 14  # Safe default
 
         # WEB DASHBOARD SETTINGS OVERRIDE ALL OTHER SOURCES
         self.strategy_overrides[strategy_name].update(validated_updates)
@@ -388,6 +425,18 @@ class TradingConfigManager:
                     full_config.setdefault('min_volume', 5000000)
                     full_config.setdefault('decimals', 2)
                     full_config.setdefault('cooldown_period', 600)
+                else:
+                    # Universal defaults for ANY future strategy type
+                    # This ensures the system is future-proof
+                    full_config.setdefault('decimals', 2)
+                    full_config.setdefault('cooldown_period', 300)
+                    full_config.setdefault('min_volume', 1000000)
+                    
+                    # Add universal strategy parameters with safe defaults
+                    full_config.setdefault('entry_threshold', 0.1)
+                    full_config.setdefault('exit_threshold', 0.05)
+                    full_config.setdefault('signal_period', 14)
+                    full_config.setdefault('confirmation_period', 2)
 
                 # Ensure all configs have required base parameters
                 full_config.setdefault('assessment_interval', 60)
