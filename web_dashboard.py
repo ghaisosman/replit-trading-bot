@@ -1270,6 +1270,31 @@ def run_dashboard(bot_manager_instance=None):
 
     app.run(debug=False, host=host, port=port, use_reloader=False)
 
+# CRITICAL: Block ALL web dashboard launches except from main.py
+import inspect
+import os
+
+def _check_launch_source():
+    """Ensure web dashboard only launches from main.py"""
+    frame = inspect.currentframe()
+    try:
+        # Check if we're being called from main.py
+        while frame:
+            filename = frame.f_code.co_filename
+            if 'main.py' in filename and frame.f_code.co_name == 'run_web_dashboard':
+                return True  # Authorized launch from main.py
+            frame = frame.f_back
+        return False  # Unauthorized launch
+    finally:
+        del frame
+
+# Block unauthorized launches
+if not _check_launch_source():
+    logger.error("🚫 UNAUTHORIZED WEB DASHBOARD LAUNCH BLOCKED")
+    logger.error("💡 Web dashboard must ONLY be launched from main.py")
+    logger.error("🔧 Run 'python main.py' instead to start the complete system")
+    sys.exit(1)
+
 if __name__ == '__main__':
     logger.error("🚫 DIRECT LAUNCH NOT ALLOWED - SINGLE SOURCE CONTROL ENFORCED")
     logger.error("💡 Web dashboard must ONLY be launched from main.py")

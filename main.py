@@ -49,67 +49,113 @@ def run_web_dashboard():
         logger.info("🚀 RUNNING IN REPLIT DEPLOYMENT MODE")
 
     try:
-        # ENHANCED SINGLE SOURCE CHECK - Ensure no duplicate web dashboard instances
-        if not check_port_available(5000):
-            logger.error("🚨 PORT 5000 UNAVAILABLE: Another web dashboard instance detected")
-            logger.error("🚫 MAIN.PY: SINGLE SOURCE CONTROL - Cleaning up ALL duplicate instances...")
+        # ENHANCED PORT CLEANUP - More robust approach
+        max_retries = 3
+        for attempt in range(max_retries):
+            if check_port_available(5000):
+                logger.info("✅ Port 5000 is available")
+                break
 
-            # Force kill any processes using port 5000 - more aggressive cleanup
+            logger.warning(f"🔄 PORT CLEANUP ATTEMPT {attempt + 1}/{max_retries}")
+
             try:
                 import subprocess
                 killed_count = 0
 
-                # First try to find processes using port 5000
+                # AGGRESSIVE PORT CLEANUP - Force kill any processes using port 5000
                 try:
-                    result = subprocess.run(['lsof', '-ti:5000'], capture_output=True, text=True)
-                    if result.stdout:
-                        pids = result.stdout.strip().split('\n')
-                        for pid in pids:
-                            if pid and pid.isdigit():
-                                try:
-                                    subprocess.run(['kill', '-9', pid], check=False)
-                                    logger.info(f"🔄 Force killed process using port 5000: {pid}")
-                                    killed_count += 1
-                                except:
-                                    pass
-                except:
-                    pass
+                    import subprocess
+                    killed_count = 0
 
-                # Also check Python processes that might be using port 5000
-                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    # Kill all processes using port 5000
                     try:
-                        if proc.info['cmdline']:
-                            cmdline_str = ' '.join(proc.info['cmdline'])
-                            if ('python' in proc.info['name'].lower() and 
-                                ('web_dashboard' in cmdline_str or 'flask' in cmdline_str)):
-                                if proc.pid != os.getpid():  # Don't kill ourselves
-                                    proc.kill()  # Use kill() instead of terminate() for immediate cleanup
-                                    logger.info(f"🔄 Force killed Python process {proc.pid}: {proc.info['name']}")
+                        # Use fuser to kill processes on port 5000
+                        subprocess.run(['fuser', '-k', '5000/tcp'], capture_output=True, text=True)
+                        killed_count += 1
+                        logger.info("🔄 Force killed all processes using port 5000 via fuser")
+                    except:
+                        pass
+
+                    # Try lsof method as backup
+                    try:
+                        result = subprocess.run(['lsof', '-ti:5000'], capture_output=True, text=True)
+                        if result.stdout:
+                            pids = result.stdout.strip().split('\n')
+                            for pid in pids:
+                                if pid and pid.isdigit():
+                                    try:
+                                        subprocess.run(['kill', '-9', pid], check=False)
+                                        logger.info(f"🔄 Force killed process using port 5000: {pid}")
+                                        killed_count += 1
+                                    except:
+                                        pass
+                    except:
+                        pass
+
+                    # Kill Python processes that might be web dashboard instances
+                    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                        try:
+                            if proc.info['cmdline']:
+                                cmdline_str = ' '.join(proc.info['cmdline'])
+                                if ('python' in proc.info['name'].lower() and 
+                                    ('web_dashboard' in cmdline_str or 'flask' in cmdline_str or ':5000' in cmdline_str)):
+                                    if proc.pid != os.getpid():  # Don't kill ourselves
+                                        proc.kill()
+                                        logger.info(f"🔄 Force killed conflicting Python process {proc.pid}: {proc.info['name']}")
+                                        killed_count += 1
+                        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                            continue
+
+                    if killed_count > 0:
+                        logger.info(f"🔄 AGGRESSIVE CLEANUP: Terminated {killed_count} processes")
+                    else:
+                        logger.info("🔍 No conflicting processes found")
+
+                    # Wait longer for cleanup to complete
+                    time.sleep(8)
+
+                except Exception as cleanup_error:
+                    logger.error(f"Cleanup error: {cleanup_error}")
+
+                # Also clean up Python processes
+                try:
+                    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                        try:
+                            if proc.info['cmdline']:
+                                cmdline_str = ' '.join(proc.info['cmdline'])
+                                if (proc.pid != os.getpid() and 
+                                    'python' in proc.info['name'].lower() and 
+                                    ('web_dashboard' in cmdline_str or 'flask' in cmdline_str or ':5000' in cmdline_str)):
+                                    proc.kill()
+                                    logger.info(f"🔄 Killed Python process {proc.pid}")
                                     killed_count += 1
-                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                        continue
+                            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                                continue
+                    except Exception:
+                        pass
 
-                if killed_count > 0:
-                    logger.info(f"🔄 FORCE CLEANUP: Terminated {killed_count} processes")
-                else:
-                    logger.info("🔍 No conflicting processes found")
+                logger.info(f"🔄 Cleanup attempt {attempt + 1}: {killed_count} processes terminated")
 
-                # Wait longer for cleanup
-                time.sleep(5)
-
-                # Check again
-                if not check_port_available(5000):
-                    logger.error("🚨 CRITICAL: Port 5000 still unavailable after aggressive cleanup")
-                    logger.error("💡 SOLUTION: Restart the entire Repl to clear all port conflicts")
-                    logger.error("🚫 Dashboard cannot load due to port conflicts")
-                    return
-                else:
-                    logger.info("✅ Port 5000 CLEARED - Single source control established")
+                # Wait for cleanup to complete
+                time.sleep(3)
 
             except Exception as cleanup_error:
-                logger.error(f"Error during port cleanup: {cleanup_error}")
-                logger.error("💡 Try restarting the Repl to clear port conflicts")
+                logger.error(f"Cleanup error: {cleanup_error}")
+
+        # Final check
+        if not check_port_available(5000):
+            logger.error("🚨 CRITICAL: Port 5000 still unavailable after all cleanup attempts")
+            # Try alternative port
+            for alt_port in [5001, 5002, 5003]:
+                if check_port_available(alt_port):
+                    logger.info(f"🔄 Using alternative port {alt_port}")
+                    os.environ['PORT'] = str(alt_port)
+                    break
+            else:
+                logger.error("🚫 No available ports found - Dashboard startup failed")
                 return
+        else:
+            logger.info("✅ Port 5000 CLEARED - Single source control established")
 
         web_server_running = True
         logger.info("🌐 WEB DASHBOARD: SINGLE SOURCE CONTROL - Starting from main.py ONLY")
