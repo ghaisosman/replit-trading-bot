@@ -12,5 +12,22 @@
     "rsi_long_exit": 60,
     "rsi_short_entry": 70,
     "rsi_short_exit": 40
+  },
+  "macd_divergence": {
+    "symbol": "BTCUSDT",
+    "margin": 10.0,
+    "leverage": 5,
+    "timeframe": "5m",
+    "assessment_interval": 30,
+    "decimals": 2,
+    "cooldown_period": 300,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "min_histogram_threshold": 0.0001,
+    "min_distance_threshold": 0.005,
+    "confirmation_candles": 2,
+    "min_volume": 1000000,
+    "max_loss_pct": 10.0
   }
 }
