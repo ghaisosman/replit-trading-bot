@@ -93,6 +93,14 @@ except ImportError as e:
             'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
             'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m'}
         }
+        
+        def get_all_strategies(self):
+            return self.strategy_overrides
+        
+        def update_strategy_params(self, strategy_name, updates):
+            if strategy_name not in self.strategy_overrides:
+                self.strategy_overrides[strategy_name] = {}
+            self.strategy_overrides[strategy_name].update(updates)
 
     class DummyBalanceFetcher:
         def get_usdt_balance(self):
@@ -136,12 +144,20 @@ class DummyBotManager:
     def update_strategy_config(self, strategy_name, updates):
         pass
 
-class DummyConfigManager:
+class DummyConfigManagerFull:
+    def __init__(self):
+        self.strategy_overrides = {
+            'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
+            'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m'}
+        }
+
     def get_all_strategies(self):
-        return {}
+        return self.strategy_overrides
 
     def update_strategy_params(self, strategy_name, updates):
-        pass
+        if strategy_name not in self.strategy_overrides:
+            self.strategy_overrides[strategy_name] = {}
+        self.strategy_overrides[strategy_name].update(updates)
 
 class DummyBalanceFetcher:
     def get_usdt_balance(self):
@@ -170,7 +186,7 @@ try:
         except:
             balance_fetcher = DummyBalanceFetcher()
 except:
-    trading_config_manager = DummyConfigManager()
+    trading_config_manager = DummyConfigManagerFull()
     balance_fetcher = DummyBalanceFetcher()
 
 @app.route('/')
