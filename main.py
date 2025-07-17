@@ -164,18 +164,12 @@ async def main_bot_only():
         # Set startup source for notifications
         logger.info("🌐 BOT STARTUP INITIATED FROM: Console")
 
-        # Start web dashboard in background thread
-        import threading
-        def start_web_dashboard():
-            try:
-                from web_dashboard import app
-                logger.info("🌐 Starting web dashboard on port 5000...")
-                app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
-            except Exception as e:
-                logger.error(f"❌ Failed to start web dashboard: {e}")
-
-        web_thread = threading.Thread(target=start_web_dashboard, daemon=True)
-        web_thread.start()
+        # Ensure web dashboard is running from main thread management
+        if not web_server_running:
+            logger.info("🌐 Starting web dashboard alongside bot...")
+            web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
+            web_thread.start()
+            await asyncio.sleep(2)  # Give web dashboard time to start
 
         # Start the bot
         bot_task = asyncio.create_task(bot_manager.start())
