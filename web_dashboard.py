@@ -241,17 +241,18 @@ try:
     from src.config.trading_config import trading_config_manager
     print("✅ Trading config manager loaded - Web dashboard is single source of truth")
 
-    # Set up balance fetcher
-    try:
-        if current_bot and hasattr(current_bot, 'balance_fetcher'):
-            balance_fetcher = current_bot.balance_fetcher
-        else:
-            from src.data_fetcher.balance_fetcher import BalanceFetcher
-            from src.binance_client.client import BinanceClientWrapper
-            binance_client = BinanceClientWrapper()
-            balance_fetcher = BalanceFetcher(binance_client)
-    except:
-        balance_fetcher = DummyBalanceFetcher()
+    # Set up balance fetcher only if not already available
+    if not globals().get('balance_fetcher'):
+        try:
+            if current_bot and hasattr(current_bot, 'balance_fetcher'):
+                balance_fetcher = current_bot.balance_fetcher
+            else:
+                from src.data_fetcher.balance_fetcher import BalanceFetcher
+                from src.binance_client.client import BinanceClientWrapper
+                binance_client = BinanceClientWrapper()
+                balance_fetcher = BalanceFetcher(binance_client)
+        except:
+            balance_fetcher = DummyBalanceFetcher()
 
 except ImportError:
     # Fallback to dummy config manager only if imports fail
@@ -1142,3 +1143,4 @@ if __name__ == '__main__':
     logger.warning("💡 Run 'python main.py' instead")
     print("❌ Direct execution of web_dashboard.py is disabled")
     print("🔄 Please run 'python main.py' to start the bot with web dashboard")
+    exit(1)  # Prevent execution
