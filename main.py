@@ -68,16 +68,35 @@ def run_web_dashboard():
             try:
                 with open(lock_file, 'r') as f:
                     existing_pid = int(f.read().strip())
-                # Check if process is still running
+                
+                # Check if process is still running AND is actually a web dashboard
                 try:
-                    os.kill(existing_pid, 0)  # Check if process exists
-                    logger.error(f"🚨 Another web dashboard is running (PID: {existing_pid})")
-                    logger.error("🚫 MAIN.PY: Preventing duplicate instance")
-                    return
+                    # First check if PID exists
+                    os.kill(existing_pid, 0)
+                    
+                    # Then check if it's actually a web dashboard process
+                    try:
+                        proc = psutil.Process(existing_pid)
+                        cmdline = ' '.join(proc.cmdline())
+                        
+                        # If it's actually a web dashboard process, prevent duplicate
+                        if ('web_dashboard' in cmdline or 'flask' in cmdline.lower() or 'main.py' in cmdline):
+                            logger.error(f"🚨 Another web dashboard is running (PID: {existing_pid})")
+                            logger.error("🚫 MAIN.PY: Preventing duplicate instance")
+                            return
+                        else:
+                            # PID exists but not a web dashboard, remove stale lock
+                            os.remove(lock_file)
+                            logger.info("🔄 Removed stale lock file (PID not web dashboard)")
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        # Process exists but can't access details, remove stale lock
+                        os.remove(lock_file)
+                        logger.info("🔄 Removed stale lock file (process access denied)")
+                        
                 except OSError:
                     # Process doesn't exist, remove stale lock file
                     os.remove(lock_file)
-                    logger.info("🔄 Removed stale lock file")
+                    logger.info("🔄 Removed stale lock file (process doesn't exist)")
             except (ValueError, FileNotFoundError):
                 # Invalid or missing lock file, remove it
                 try:
@@ -265,8 +284,14 @@ def run_web_dashboard():
         lock_file = "/tmp/web_dashboard.lock"
         try:
             if os.path.exists(lock_file):
-                os.remove(lock_file)
-                logger.info("🔓 Removed web dashboard lock file")
+                # Verify it's our lock file before removing
+                with open(lock_file, 'r') as f:
+                    lock_pid = int(f.read().strip())
+                if lock_pid == os.getpid():
+                    os.remove(lock_file)
+                    logger.info("🔓 Removed web dashboard lock file")
+                else:
+                    logger.warning(f"Lock file belongs to different process ({lock_pid}), not removing")
         except Exception as e:
             logger.warning(f"Could not remove lock file: {e}")
         logger.info("🔴 Web dashboard stopped")
