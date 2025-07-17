@@ -94,7 +94,14 @@ def dashboard():
 
         # Get balance and strategies
         if IMPORTS_AVAILABLE:
-            balance = balance_fetcher.get_usdt_balance() or 0
+            try:
+                balance = balance_fetcher.get_usdt_balance()
+                if balance is None:
+                    balance = 0.0
+                balance = float(balance)
+            except Exception as e:
+                logger.error(f"Error getting balance for dashboard: {e}")
+                balance = 0.0
             strategies = trading_config_manager.get_all_strategies()
 
             # Ensure we always have both strategies available for display
@@ -762,12 +769,30 @@ def update_strategy(strategy_name):
 @app.route('/api/balance')
 def get_balance():
     try:
+        if IMPORTS_AVAILABLE:
+            # Get real balance from Binance
+            try:
+                usdt_balance = balance_fetcher.get_usdt_balance()
+                if usdt_balance is None:
+                    usdt_balance = 0.0
+                
+                return jsonify({
+                    'total_balance': float(usdt_balance),
+                    'available_balance': float(usdt_balance),
+                    'used_balance': 0.0,
+                    'last_updated': datetime.now().isoformat()
+                })
+            except Exception as balance_error:
+                logger.error(f"Error getting live balance: {balance_error}")
+                
+        # Fallback to file-based balance
         balance_file = "trading_data/balance.json"
         if os.path.exists(balance_file):
             with open(balance_file, 'r') as f:
                 balance_data = json.load(f)
             return jsonify(balance_data)
         else:
+            # Default balance for demo/testnet
             return jsonify({
                 'total_balance': 1000.0,
                 'available_balance': 1000.0,
@@ -775,6 +800,7 @@ def get_balance():
                 'last_updated': datetime.now().isoformat()
             })
     except Exception as e:
+        logger.error(f"Error in balance endpoint: {e}")
         # Return safe fallback data instead of error
         return jsonify({
             'total_balance': 0.0,
