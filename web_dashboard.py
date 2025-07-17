@@ -1280,34 +1280,3 @@ if __name__ == '__main__':
     print("🚨 This prevents port conflicts and ensures proper initialization")
     sys.exit(1)
 
-@app.route('/api/bot-status')
-def get_bot_status():
-    """Get bot status"""
-    try:
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-
-        if current_bot:
-            status = current_bot.get_bot_status()
-            return jsonify({'success': True, 'status': status})
-        else:
-            return jsonify({
-                'success': True, 
-                'status': {
-                    'is_running': False,
-                    'active_positions': 0,
-                    'strategies': [],
-                    'balance': 0
-                }
-            })
-    except Exception as e:
-        logger.error(f"Error getting bot status: {e}")
-        return jsonify({
-            'success': True, 
-            'status': {
-                'is_running': False,
-                'active_positions': 0,
-                'strategies': [],
-                'balance': 0
-            },
-            'error': str(e)
-        }), 200
