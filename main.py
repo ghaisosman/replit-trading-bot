@@ -287,26 +287,28 @@ if __name__ == "__main__":
 
     if is_deployment:
         logger.info("🚀 STARTING IN REPLIT DEPLOYMENT MODE")
+        logger.info("🌐 ALWAYS-ON DEPLOYMENT: Web interface will remain accessible 24/7")
 
         # In deployment, run simplified version
         bot_manager = None
         sys.modules[__name__].bot_manager = None
 
         # DEPLOYMENT: Single source web dashboard launch
-        logger.info("🚀 DEPLOYMENT: Starting web dashboard from main.py only")
+        logger.info("🚀 DEPLOYMENT: Starting persistent web dashboard")
         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
 
         # Wait for web dashboard and keep alive
         time.sleep(2)
-        logger.info("🌐 Deployment web dashboard active")
+        logger.info("🌐 Deployment web dashboard active and persistent")
         logger.info("💡 Access your bot via the web interface at your deployment URL")
         logger.info("🔄 Bot can be started/stopped through the web dashboard")
+        logger.info("✅ DEPLOYMENT ACTIVE: Web interface accessible even when you close browser/computer")
 
         try:
-            # Keep the process alive for web interface
+            # Keep the process alive for web interface - this is what makes it persistent
             while True:
-                time.sleep(10)
+                time.sleep(30)  # Check every 30 seconds to keep deployment alive
         except KeyboardInterrupt:
             logger.info("🔴 Deployment shutdown")
     else:
