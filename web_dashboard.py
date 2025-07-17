@@ -101,10 +101,10 @@ except ImportError as e:
             'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
             'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m'}
         }
-        
+
         def get_all_strategies(self):
             return self.strategy_overrides
-        
+
         def update_strategy_params(self, strategy_name, updates):
             if strategy_name not in self.strategy_overrides:
                 self.strategy_overrides[strategy_name] = {}
@@ -132,13 +132,13 @@ def get_bot_manager_from_main():
             if manager is not None:
                 print(f"✅ Bot manager loaded from main module: {type(manager).__name__}")
                 return manager
-        
+
         # Also try to get from global scope
         if 'bot_manager' in globals() and globals()['bot_manager'] is not None:
             manager = globals()['bot_manager']
             print(f"✅ Bot manager loaded from globals: {type(manager).__name__}")
             return manager
-            
+
         print("⚠️ Bot manager not found in main module or globals")
         return None
     except Exception as e:
@@ -220,7 +220,7 @@ def dashboard():
     try:
         # Get current bot status directly from bot manager
         current_bot = get_current_bot_manager()
-        
+
         if current_bot and hasattr(current_bot, 'get_bot_status') and not isinstance(current_bot, DummyBotManager):
             bot_status_data = current_bot.get_bot_status()
             status = {
@@ -244,7 +244,7 @@ def dashboard():
                 balance = balance_fetcher.get_usdt_balance() or 0
             except:
                 balance = 0
-            
+
             # Try to get strategies from bot manager first, then fallback to config manager
             strategies = {}
             if current_bot and hasattr(current_bot, 'strategies'):
@@ -257,7 +257,7 @@ def dashboard():
                 except Exception as e:
                     print(f"Error getting strategies from config manager: {e}")
                     strategies = {}
-            
+
             # Ensure we always have strategies available for display
             if not strategies:
                 strategies = {
@@ -507,60 +507,23 @@ def stop_bot():
         return jsonify({'success': False, 'message': f'Failed to stop bot: {e}'})
 
 def get_current_bot_manager():
-    """Helper function to get the current bot manager instance"""
-    global bot_manager, shared_bot_manager, current_bot
-    
-    # Try multiple methods to get the real bot manager
-    
-    # Method 1: Check main module
+    """Get the current bot manager instance"""
+
+    # Try to get from main module first (most reliable)
     try:
-        import sys
         main_module = sys.modules.get('__main__')
-        if main_module and hasattr(main_module, 'bot_manager'):
-            manager = getattr(main_module, 'bot_manager')
-            if manager is not None and not isinstance(manager, DummyBotManager):
-                print(f"✅ Found real bot manager from main module: {type(manager).__name__}")
-                bot_manager = manager
-                shared_bot_manager = manager
-                current_bot = manager
-                return manager
+        if main_module and hasattr(main_module, 'bot_manager') and main_module.bot_manager:
+            return main_module.bot_manager
     except Exception as e:
-        print(f"Error checking main module: {e}")
-    
-    # Method 2: Check if we can import and get the bot manager directly
-    try:
-        from main import bot_manager as main_bot_manager
-        if main_bot_manager is not None and not isinstance(main_bot_manager, DummyBotManager):
-            print(f"✅ Found real bot manager from main import: {type(main_bot_manager).__name__}")
-            bot_manager = main_bot_manager
-            shared_bot_manager = main_bot_manager
-            current_bot = main_bot_manager
-            return main_bot_manager
-    except Exception as e:
-        print(f"Could not import bot manager from main: {e}")
-    
-    # Method 3: Try to access via globals
-    try:
-        if IMPORTS_AVAILABLE:
-            # Try to create a temporary bot manager instance to check if the real one exists
-            from src.bot_manager import BotManager
-            print("✅ BotManager class available - checking for running instance")
-    except Exception as e:
-        print(f"Could not access BotManager class: {e}")
-    
-    # Fallback to existing references
-    if shared_bot_manager and not isinstance(shared_bot_manager, DummyBotManager):
-        print(f"✅ Using existing shared bot manager: {type(shared_bot_manager).__name__}")
-        return shared_bot_manager
-    elif bot_manager and not isinstance(bot_manager, DummyBotManager):
-        print(f"✅ Using existing bot manager: {type(bot_manager).__name__}")
+        pass
+
+    # Fallback to global bot_manager
+    global bot_manager
+    if bot_manager and not isinstance(bot_manager, DummyBotManager):
         return bot_manager
-    elif current_bot and not isinstance(current_bot, DummyBotManager):
-        print(f"✅ Using existing current bot: {type(current_bot).__name__}")
-        return current_bot
-    
-    print("⚠️ No real bot manager found - using dummy")
-    return None
+
+    # Last resort - return dummy
+    return DummyBotManager()
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -573,23 +536,19 @@ def health_check():
 
 @app.route('/api/bot/status', methods=['GET'])
 def get_bot_status():
-    """Get current bot status via API"""
+    """Get current bot status"""
     try:
-        print(f"🔍 API CALL: /api/bot/status - Getting bot status...")
-        # Get the current bot manager with fresh check
         current_bot = get_current_bot_manager()
 
         if current_bot and hasattr(current_bot, 'get_bot_status') and not isinstance(current_bot, DummyBotManager):
-            status = current_bot.get_bot_status()
-            print(f"✅ Real bot status: {status}")
-            return jsonify(status)
+            bot_status = current_bot.get_bot_status()
+            return jsonify(bot_status)
         else:
-            print("⚠️ Using dummy bot status - no real bot manager found")
             return jsonify({
                 'is_running': False,
                 'active_positions': 0,
                 'strategies': [],
-                'balance': 0,
+                'balance': 0.0,
                 'status': 'dummy'
             })
     except Exception as e:
@@ -947,7 +906,7 @@ def get_positions():
                     'pnl_percent': pnl_percent,
                     'anomaly_status': anomaly_status
                 })
-        
+
         return jsonify({'success': True, 'positions': positions})
     except Exception as e:
         print(f"❌ API ERROR: /api/positions - {e}")
@@ -971,19 +930,16 @@ def get_trades():
 
 @app.route('/api/console/log', methods=['GET'])
 def get_console_log():
-    """Get console logs for web dashboard"""
+    """Get recent console logs from bot manager"""
     try:
-        print(f"🔍 API CALL: /api/console/log - Getting console logs...")
         current_bot = get_current_bot_manager()
-        
+
         if current_bot and hasattr(current_bot, 'log_handler'):
             # Get logs from the web log handler
             logs = list(current_bot.log_handler.logs)
-            print(f"📝 Returning {len(logs)} logs from bot")
             return jsonify({'logs': logs})
         else:
             # Return sample logs if no bot is running
-            print("📝 Returning sample logs - no bot log handler found")
             sample_logs = [
                 {'timestamp': '14:20:39', 'message': '🌐 Web dashboard active - Bot can be started via Start Bot button'},
                 {'timestamp': '14:20:39', 'message': '📊 Ready for trading operations'},
@@ -1016,60 +972,25 @@ def get_status_alt():
 
 @app.route('/api/rsi/<symbol>', methods=['GET'])
 def get_rsi_for_symbol(symbol):
-    """Get RSI data for a specific symbol"""
+    """Get RSI data for a specific symbol from bot manager"""
     try:
-        print(f"🔍 API CALL: /api/rsi/{symbol} - Getting RSI data...")
-        
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'rsi': 50.0, 'symbol': symbol, 'status': 'demo'})
-        
-        # Get RSI data using price fetcher
-        try:
-            # Find the timeframe for this symbol from strategies
-            timeframe = '15m'  # Default
-            
-            # Try to get strategies from real bot manager first
-            current_bot = get_current_bot_manager()
-            strategies = {}
-            
-            if current_bot and hasattr(current_bot, 'strategies') and not isinstance(current_bot, DummyBotManager):
-                strategies = current_bot.strategies
-                print(f"✅ RSI: Using real bot manager strategies: {list(strategies.keys())}")
-            else:
-                # Fallback to config manager
-                try:
-                    strategies = trading_config_manager.get_all_strategies()
-                    print(f"✅ RSI: Using config manager strategies: {list(strategies.keys())}")
-                except Exception as e:
-                    print(f"❌ RSI: Error getting strategies from config manager: {e}")
-                    return jsonify({'rsi': 50.0, 'symbol': symbol, 'status': 'no_strategies'})
-            
-            for strategy_config in strategies.values():
-                if strategy_config.get('symbol') == symbol:
-                    timeframe = strategy_config.get('timeframe', '15m')
-                    break
-            
-            # Get market data
-            df = price_fetcher.get_ohlcv_data(symbol, timeframe)
-            if df is not None and not df.empty:
-                # Calculate indicators including RSI
-                df = price_fetcher.calculate_indicators(df)
-                if 'rsi' in df.columns and len(df) > 0:
-                    current_rsi = df['rsi'].iloc[-1]
-                    return jsonify({
-                        'rsi': round(current_rsi, 2),
-                        'symbol': symbol,
-                        'timeframe': timeframe,
-                        'timestamp': datetime.now().isoformat()
-                    })
-            
-            # Fallback to neutral RSI if no data
-            return jsonify({'rsi': 50.0, 'symbol': symbol, 'status': 'no_data'})
-            
-        except Exception as e:
-            print(f"❌ RSI API ERROR: /api/rsi/{symbol} - {e}")
-            return jsonify({'rsi': 50.0, 'symbol': symbol, 'error': str(e)})
-            
+        current_bot = get_current_bot_manager()
+
+        if current_bot and not isinstance(current_bot, DummyBotManager):
+            strategies = getattr(current_bot, 'strategies', {})
+
+            # Get RSI data from any RSI-based strategy
+            for strategy_name, strategy in strategies.items():
+                if hasattr(strategy, 'get_rsi_data'):
+                    try:
+                        rsi_data = strategy.get_rsi_data(symbol)
+                        if rsi_data:
+                            return jsonify(rsi_data)
+                    except Exception as e:
+                        continue
+
+        return jsonify({'error': 'No RSI data found for symbol'}), 404
+
     except Exception as e:
         print(f"❌ API ERROR: /api/rsi/{symbol} - {e}")
         return jsonify({'error': str(e)}), 500
@@ -1116,13 +1037,8 @@ def verify_routes():
     """Verify all routes are properly registered"""
     logger.info("🔍 ROUTE VERIFICATION:")
     critical_routes = ['/api/health', '/api/bot/status', '/api/balance', '/api/console/log']
-    for route in critical_routes:
-        found = False
-        for rule in app.url_map.iter_rules():
-            if rule.rule == route:
-                found = True
-                break
-        status = "✅ FOUND" if found else "❌ MISSING"
+    for route in app.url_map.iter_rules():
+        status = "✅ FOUND" if route in critical_routes else "❌ MISSING"
         logger.info(f"  {route}: {status}")
     logger.info("🔍 Route verification complete")
 
@@ -1136,7 +1052,7 @@ def catch_all(path):
         if rule.rule != '/<path:path>':  # Don't show the catch-all
             methods = ', '.join(sorted(rule.methods - {'OPTIONS', 'HEAD'}))
             print(f"    {rule.rule} ({methods})")
-    
+
     return jsonify({
         'error': 'Not Found',
         'message': f'The requested path /{path} was not found',
