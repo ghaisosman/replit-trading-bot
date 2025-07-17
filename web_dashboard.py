@@ -399,7 +399,7 @@ def get_strategies():
                 config.setdefault('stop_loss_pct', 10.0)  # Stop loss as % of margin
                 config.setdefault('max_loss_pct', 10.0)   # Alternative naming
                 config.setdefault('assessment_interval', 60 if 'rsi' in name.lower() else 30)
-                
+
                 # Position Management Parameters
                 config.setdefault('cooldown_period', 300)  # 5 minutes default
                 config.setdefault('min_volume', 1000.0)
@@ -701,11 +701,11 @@ def update_strategy(strategy_name):
             # COMPLETE CONFIGURATION OVERRIDE - Web dashboard wins
             original_config = dict(shared_bot_manager.strategies[strategy_name])
             shared_bot_manager.strategies[strategy_name].update(data)
-            
+
             logger.info(f"🔥 LIVE UPDATE APPLIED: {strategy_name} config completely overridden in running bot")
             logger.info(f"📊 ORIGINAL: {original_config}")
             logger.info(f"🆕 NEW CONFIG: {shared_bot_manager.strategies[strategy_name]}")
-            
+
             bot_updated = True
             live_update_applied = True
 
@@ -714,11 +714,11 @@ def update_strategy(strategy_name):
             # COMPLETE CONFIGURATION OVERRIDE - Web dashboard wins
             original_config = dict(bot_manager.strategies[strategy_name])
             bot_manager.strategies[strategy_name].update(data)
-            
+
             logger.info(f"🔥 LIVE UPDATE APPLIED: {strategy_name} config completely overridden in standalone bot")
             logger.info(f"📊 ORIGINAL: {original_config}")
             logger.info(f"🆕 NEW CONFIG: {bot_manager.strategies[strategy_name]}")
-            
+
             bot_updated = True
             live_update_applied = True
 
@@ -1336,10 +1336,17 @@ def update_trading_environment():
         logger.error(f"Error updating trading environment: {e}")
         return jsonify({'success': False, 'message': f'Failed to update environment: {e}'})
 
+def run_web_dashboard():
+    """Run the web dashboard"""
+    try:
+        logger.info("🌐 Starting web dashboard on port 5000")
+        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
+    except Exception as e:
+        logger.error(f"Web dashboard error: {e}")
+        if "Address already in use" in str(e):
+            logger.error("🚨 Port 5000 is already in use")
+        else:
+            logger.error(f"🚨 Web dashboard failed to start: {e}")
+
 if __name__ == '__main__':
-    logger.error("🚫 DIRECT LAUNCH NOT ALLOWED")
-    logger.error("💡 Web dashboard must be launched from main.py only")
-    logger.error("🔧 Run 'python main.py' instead to start the complete system")
-    print("🚫 ERROR: Direct web dashboard launch is disabled")
-    print("💡 Please run 'python main.py' to start the trading bot with web interface")
-    sys.exit(1)
+    run_web_dashboard()

@@ -318,539 +318,415 @@
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Environment Switch -->
-                <div class="environment-section">
-                    <h3>Trading Environment</h3>
-                    <div class="environment-controls">
-                        <div class="environment-info">
-                            <span id="currentEnvironment" class="environment-badge">Loading...</span>
-                        </div>
-                        <div class="environment-switch">
-                            <label class="switch">
-                                <input type="checkbox" id="environmentToggle">
-                                <span class="slider">
-                                    <span class="slider-text testnet">TESTNET</span>
-                                    <span class="slider-text mainnet">MAINNET</span>
-                                </span>
-                            </label>
-                        </div>
-                        <div class="environment-warning" id="environmentWarning" style="display: none;">
-                            <p>⚠️ Bot restart required for environment change to take effect</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Active Positions and Console Log -->
-        <div class="row mt-4">
-            <!-- Active Positions -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-success text-white">
-                        <h5><i class="fas fa-coins"></i> Active Positions</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="positionsTable">
-                            <div class="table-responsive">
-                                <table class="table table-striped">
-                                    <thead>
-                                        <tr>
-                                            <th>Strategy</th>
-                                            <th>Symbol</th>
-                                            <th>Side</th>
-                                            <th>Entry Price</th>
-                                            <th>Position (USDT)</th>
-                                            <th>Current Price</th>
-                                            <th>PnL (USDT)</th>
-                                            <th>PnL (%)</th>
-                                            <th>Current RSI</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="positionsTableBody">
-                                        <tr>
-                                            <td colspan="9" class="text-muted text-center">Loading positions...</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                    <!-- Environment Switch -->
+                    <div class="environment-section">
+                        <h3>Trading Environment</h3>
+                        <div class="environment-controls">
+                            <div class="environment-info">
+                                <span id="currentEnvironment" class="environment-badge">Loading...</span>
+                            </div>
+                            <div class="environment-switch">
+                                <label class="switch">
+                                    <input type="checkbox" id="environmentToggle">
+                                    <span class="slider">
+                                        <span class="slider-text testnet">TESTNET</span>
+                                        <span class="slider-text mainnet">MAINNET</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="environment-warning" id="environmentWarning" style="display: none;">
+                                <p>⚠️ Bot restart required for environment change to take effect</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Live Console Log -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-dark text-white">
-                        <h5><i class="fas fa-terminal"></i> Live Console Log</h5>
-                        <div class="float-end">
-                            <button class="btn btn-sm btn-outline-light" onclick="clearConsoleLog()">
-                                <i class="fas fa-trash"></i> Clear
-                            </button>
-                            <button class="btn btn-sm btn-outline-light" onclick="toggleAutoScroll()" id="autoScrollBtn">
-                                <i class="fas fa-arrows-alt-v"></i> Auto-scroll: ON
-                            </button>
-                        </div>
-                    </div>
-                    <div class="card-body p-0">
-                        <div id="consoleLog" style="height: 400px; overflow-y: auto; background-color: #1e1e1e; color: #ffffff; font-family: 'Courier New', monospace; font-size: 12px; padding: 10px;">
-                            <div class="text-muted">Waiting for console output...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Strategy Configuration Section -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3><i class="fas fa-cogs"></i> Strategy Configuration</h3>
-                    <button class="btn btn-primary" onclick="addNewStrategy()">
-                        <i class="fas fa-plus"></i> Add New Strategy
-                    </button>
-                </div>
-                
-                <!-- Individual Strategy Cards -->
-                {% for strategy_name, config in strategies.items() %}
-                <div class="col-md-6 mb-3">
-                    <div class="card border-left-primary">
-                        <div class="card-header bg-gradient-primary text-white">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h5 class="mb-0">
-                                        <i class="fas fa-chart-line"></i> 
-                                        {{ strategy_name.replace('_', ' ').title() }}
-                                    </h5>
-                                    <small class="text-light">
-                                        {% if 'rsi' in strategy_name.lower() %}
-                                            RSI-Based Strategy
-                                        {% elif 'macd' in strategy_name.lower() %}
-                                            MACD Divergence Strategy
-                                        {% elif 'liquidity' in strategy_name.lower() %}
-                                            Liquidity Reversal Strategy
-                                        {% else %}
-                                            Custom Strategy
-                                        {% endif %}
-                                    </small>
-                                </div>
-                                <span class="badge bg-success">
-                                    <i class="fas fa-play"></i> Active
-                                </span>
-                            </div>
+            <!-- Active Positions and Console Log -->
+            <div class="row mt-4">
+                <!-- Active Positions -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <h5><i class="fas fa-coins"></i> Active Positions</h5>
                         </div>
                         <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-2">
-                                        <strong>Symbol:</strong>
-                                        <span class="badge bg-primary ms-1">{{ config.symbol }}</span>
-                                    </div>
-                                    <div class="mb-2">
-                                        <strong>Margin:</strong>
-                                        <span class="text-success">${{ "%.2f"|format(config.margin) }} USDT</span>
-                                    </div>
-                                    <div class="mb-2">
-                                        <strong>Leverage:</strong>
-                                        <span class="badge bg-info">{{ config.leverage }}x</span>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-2">
-                                        <strong>Timeframe:</strong>
-                                        <span class="badge bg-secondary">{{ config.timeframe }}</span>
-                                    </div>
-                                    <div class="mb-2">
-                                        <strong>Max Loss:</strong>
-                                        <span class="text-warning">{{ config.get('max_loss_pct', 10) }}%</span>
-                                    </div>
-                                    <div class="mb-2">
-                                        <strong>Assessment:</strong>
-                                        <span class="text-info">{{ config.get('assessment_interval', 60) }}s</span>
-                                    </div>
+                            <div id="positionsTable">
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Strategy</th>
+                                                <th>Symbol</th>
+                                                <th>Side</th>
+                                                <th>Entry Price</th>
+                                                <th>Position (USDT)</th>
+                                                <th>Current Price</th>
+                                                <th>PnL (USDT)</th>
+                                                <th>PnL (%)</th>
+                                                <th>Current RSI</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="positionsTableBody">
+                                            <tr>
+                                                <td colspan="9" class="text-muted text-center">Loading positions...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
-                            
-                            <!-- Strategy-Specific Parameters Preview -->
-                            {% if 'rsi' in strategy_name.lower() %}
-                            <div class="mt-2 p-2 bg-light rounded">
-                                <small class="text-muted">
-                                    <strong>RSI Levels:</strong> 
-                                    Long Entry: {{ config.get('rsi_long_entry', 30) }} | 
-                                    Long Exit: {{ config.get('rsi_long_exit', 70) }} |
-                                    Short Entry: {{ config.get('rsi_short_entry', 70) }} | 
-                                    Short Exit: {{ config.get('rsi_short_exit', 30) }}
-                                </small>
-                            </div>
-                            {% elif 'macd' in strategy_name.lower() %}
-                            <div class="mt-2 p-2 bg-light rounded">
-                                <small class="text-muted">
-                                    <strong>MACD Settings:</strong> 
-                                    Fast: {{ config.get('macd_fast', 12) }} | 
-                                    Slow: {{ config.get('macd_slow', 26) }} | 
-                                    Signal: {{ config.get('macd_signal', 9) }} |
-                                    Min Histogram: {{ config.get('min_histogram_threshold', 0.0001) }}
-                                </small>
-                            </div>
-                            {% elif 'liquidity' in strategy_name.lower() %}
-                            <div class="mt-2 p-2 bg-light rounded">
-                                <small class="text-muted">
-                                    <strong>Liquidity Settings:</strong> 
-                                    Lookback: {{ config.get('swing_lookback', 20) }} | 
-                                    Sweep Threshold: {{ config.get('sweep_threshold', 0.5) }}% |
-                                    Volume Multiplier: {{ config.get('volume_surge_multiplier', 2.0) }}x
-                                </small>
-                            </div>
-                            {% endif %}
-                        </div>
-                        <div class="card-footer text-center">
-                            <button class="btn btn-primary btn-sm me-2" onclick="editStrategyConfig('{{ strategy_name }}')">
-                                <i class="fas fa-edit"></i> Configure Strategy
-                            </button>
-                            <button class="btn btn-outline-warning btn-sm me-2" onclick="viewStrategyStats('{{ strategy_name }}')">
-                                <i class="fas fa-chart-bar"></i> View Stats
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm" onclick="disableStrategy('{{ strategy_name }}')">
-                                <i class="fas fa-pause"></i> Disable
-                            </button>
                         </div>
                     </div>
                 </div>
-                {% endfor %}
+
+                <!-- Live Console Log -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-dark text-white">
+                            <h5><i class="fas fa-terminal"></i> Live Console Log</h5>
+                            <div class="float-end">
+                                <button class="btn btn-sm btn-outline-light" onclick="clearConsoleLog()">
+                                    <i class="fas fa-trash"></i> Clear
+                                </button>
+                                <button class="btn btn-sm btn-outline-light" onclick="toggleAutoScroll()" id="autoScrollBtn">
+                                    <i class="fas fa-arrows-alt-v"></i> Auto-scroll: ON
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="consoleLog" style="height: 400px; overflow-y: auto; background-color: #1e1e1e; color: #ffffff; font-family: 'Courier New', monospace; font-size: 12px; padding: 10px;">
+                                <div class="text-muted">Waiting for console output...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Strategy Configuration Section -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3><i class="fas fa-cogs"></i> Strategy Configuration</h3>
+                        <button class="btn btn-primary" onclick="addNewStrategy()">
+                            <i class="fas fa-plus"></i> Add New Strategy
+                        </button>
+                    </div>
+
+                    <!-- Individual Strategy Cards -->
+                    {% for strategy_name, config in strategies.items() %}
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-left-primary">
+                            <div class="card-header bg-gradient-primary text-white">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-chart-line"></i> 
+                                            {{ strategy_name.replace('_', ' ').title() }}
+                                        </h5>
+                                        <small class="text-light">
+                                            {% if 'rsi' in strategy_name.lower() %}
+                                                RSI-Based Strategy
+                                            {% elif 'macd' in strategy_name.lower() %}
+                                                MACD Divergence Strategy
+                                            {% elif 'liquidity' in strategy_name.lower() %}
+                                                Liquidity Reversal Strategy
+                                            {% else %}
+                                                Custom Strategy
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-play"></i> Active
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-2">
+                                            <strong>Symbol:</strong>
+                                            <span class="badge bg-primary ms-1">{{ config.symbol }}</span>
+                                        </div>
+                                        <div class="mb-2">
+                                            <strong>Margin:</strong>
+                                            <span class="text-success">${{ "%.2f"|format(config.margin) }} USDT</span>
+                                        </div>
+                                        <div class="mb-2">
+                                            <strong>Leverage:</strong>
+                                            <span class="badge bg-info">{{ config.leverage }}x</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-2">
+                                            <strong>Timeframe:</strong>
+                                            <span class="badge bg-secondary">{{ config.timeframe }}</span>
+                                        </div>
+                                        <div class="mb-2">
+                                            <strong>Max Loss:</strong>
+                                            <span class="text-warning">{{ config.get('max_loss_pct', 10) }}%</span>
+                                        </div>
+                                        <div class="mb-2">
+                                            <strong>Assessment:</strong>
+                                            <span class="text-info">{{ config.get('assessment_interval', 60) }}s</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Strategy-Specific Parameters Preview -->
+                                {% if 'rsi' in strategy_name.lower() %}
+                                <div class="mt-2 p-2 bg-light rounded">
+                                    <small class="text-muted">
+                                        <strong>RSI Levels:</strong> 
+                                        Long Entry: {{ config.get('rsi_long_entry', 30) }} | 
+                                        Long Exit: {{ config.get('rsi_long_exit', 70) }} |
+                                        Short Entry: {{ config.get('rsi_short_entry', 70) }} | 
+                                        Short Exit: {{ config.get('rsi_short_exit', 30) }}
+                                    </small>
+                                </div>
+                                {% elif 'macd' in strategy_name.lower() %}
+                                <div class="mt-2 p-2 bg-light rounded">
+                                    <small class="text-muted">
+                                        <strong>MACD Settings:</strong> 
+                                        Fast: {{ config.get('macd_fast', 12) }} | 
+                                        Slow: {{ config.get('macd_slow', 26) }} | 
+                                        Signal: {{ config.get('macd_signal', 9) }} |
+                                        Min Histogram: {{ config.get('min_histogram_threshold', 0.0001) }}
+                                    </small>
+                                </div>
+                                {% elif 'liquidity' in strategy_name.lower() %}
+                                <div class="mt-2 p-2 bg-light rounded">
+                                    <small class="text-muted">
+                                        <strong>Liquidity Settings:</strong> 
+                                        Lookback: {{ config.get('swing_lookback', 20) }} | 
+                                        Sweep Threshold: {{ config.get('sweep_threshold', 0.5) }}% |
+                                        Volume Multiplier: {{ config.get('volume_surge_multiplier', 2.0) }}x
+                                    </small>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="card-footer text-center">
+                                <button class="btn btn-primary btn-sm me-2" onclick="editStrategyConfig('{{ strategy_name }}')">
+                                    <i class="fas fa-edit"></i> Configure Strategy
+                                </button>
+                                <button class="btn btn-outline-warning btn-sm me-2" onclick="viewStrategyStats('{{ strategy_name }}')">
+                                    <i class="fas fa-chart-bar"></i> View Stats
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="disableStrategy('{{ strategy_name }}')">
+                                    <i class="fas fa-pause"></i> Disable
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Strategy Edit Modal -->
-    <div class="modal fade" id="strategyModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Edit Strategy Configuration</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="strategyForm">
-                        <!-- Core Trading Parameters -->
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Symbol</label>
-                                <input type="text" class="form-control" id="symbol" required>
+        <!-- Strategy Edit Modal -->
+        <div class="modal fade" id="strategyModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Strategy Configuration</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="strategyForm">
+                            <input type="hidden" id="strategyName" />
+                            <div class="mb-3">
+                                <label for="strategySymbol" class="form-label">Symbol</label>
+                                <input type="text" class="form-control" id="strategySymbol" placeholder="e.g., BTCUSDT">
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Timeframe</label>
-                                <select class="form-control" id="timeframe">
+                            <div class="mb-3">
+                                <label for="strategyMargin" class="form-label">Margin (USDT)</label>
+                                <input type="number" class="form-control" id="strategyMargin" step="0.1" min="1">
+                            </div>
+                            <div class="mb-3">
+                                <label for="strategyLeverage" class="form-label">Leverage</label>
+                                <input type="number" class="form-control" id="strategyLeverage" min="1" max="125">
+                            </div>
+                             <div class="mb-3">
+                                <label for="strategyDecimals" class="form-label">Decimal Precision</label>
+                                <input type="number" class="form-control" id="strategyDecimals" min="0" max="8" value="2">
+                            </div>
+                            <div class="mb-3">
+                                <label for="strategyTimeframe" class="form-label">Timeframe</label>
+                                <select class="form-control" id="strategyTimeframe">
                                     <option value="1m">1 minute</option>
-                                    <option value="3m">3 minutes</option>
                                     <option value="5m">5 minutes</option>
                                     <option value="15m">15 minutes</option>
-                                    <option value="30m">30 minutes</option>
                                     <option value="1h">1 hour</option>
                                     <option value="4h">4 hours</option>
+                                    <option value="1d">1 day</option>
                                 </select>
                             </div>
-                        </div>
+                            <div class="mb-3">
+                                <label for="strategyMaxLoss" class="form-label">Max Loss % (of margin)</label>
+                                <input type="number" class="form-control" id="strategyMaxLoss" step="0.1" min="1" max="50" placeholder="e.g., 10">
+                            </div>
+                            <div class="mb-3">
+                                <label for="assessmentInterval" class="form-label">Market Assessment Interval (seconds)</label>
+                                <input type="number" class="form-control" id="assessmentInterval" step="1" min="5" max="300" placeholder="e.g., 60">
+                                <div class="form-text">How often the bot scans the market for entry signals (5-300 seconds)</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="cooldownPeriod" class="form-label">Cooldown Period (seconds)</label>
+                                <input type="number" class="form-control" id="cooldownPeriod" step="1" min="30" max="3600" placeholder="e.g., 300">
+                                <div class="form-text">Time to wait before allowing another trade on the same symbol/strategy (30-3600 seconds)</div>
+                            </div>
 
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Margin (USDT)</label>
-                                <input type="number" class="form-control" id="margin" step="0.1" min="1" max="10000" required>
+                            <!-- Liquidity Reversal Strategy Parameters -->
+                            <div id="liquidityParameters" style="display: none;">
+                                <h6 class="text-primary mt-3">Liquidity Reversal Strategy Parameters</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="swingLookback" class="form-label">Swing Lookback Periods</label>
+                                            <input type="number" class="form-control" id="swingLookback" min="5" max="50" value="20">
+                                            <div class="form-text">Candles to look back for swing highs/lows</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="sweepThreshold" class="form-label">Sweep Threshold %</label>
+                                            <input type="number" class="form-control" id="sweepThreshold" step="0.1" min="0.1" max="2.0" value="0.5">
+                                            <div class="form-text">% beyond level required for liquidity sweep</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="volumeSurgeMultiplier" class="form-label">Volume Surge Multiplier</label>
+                                            <input type="number" class="form-control" id="volumeSurgeMultiplier" step="0.1" min="1.5" max="5.0" value="2.0">
+                                            <div class="form-text">Volume must be X times average</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="confirmationCandles" class="form-label">Confirmation Candles</label>
+                                            <input type="number" class="form-control" id="confirmationCandles" min="1" max="5" value="2">
+                                            <div class="form-text">Candles needed to confirm reversal</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="profitTargetMethod" class="form-label">Profit Target Method</label>
+                                            <select class="form-control" id="profitTargetMethod">
+                                                <option value="mean_reversion">Mean Reversion</option>
+                                                <option value="fixed_percent">Fixed Percentage</option>
+                                                <option value="rsi_based">RSI Based</option>
+                                                <option value="dynamic">Dynamic (Volatility)</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="fixedProfitPercent" class="form-label">Fixed Profit %</label>
+                                            <input type="number" class="form-control" id="fixedProfitPercent" step="0.1" min="0.5" max="10.0" value="2.0">
+                                            <div class="form-text">Used when method is "Fixed Percentage"</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="meanReversionPeriods" class="form-label">Mean Reversion Periods</label>
+                                            <input type="number" class="form-control" id="meanReversionPeriods" min="20" max="100" value="50">
+                                            <div class="form-text">MA periods for mean reversion target</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="meanReversionBuffer" class="form-label">Mean Reversion Buffer %</label>
+                                            <input type="number" class="form-control" id="meanReversionBuffer" step="0.1" min="0.1" max="2.0" value="0.5">
+                                            <div class="form-text">% buffer around MA for exit trigger</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="rsiExitOverbought" class="form-label">RSI Exit Overbought</label>
+                                            <input type="number" class="form-control" id="rsiExitOverbought" min="60" max="90" value="70">
+                                            <div class="form-text">RSI level for long profit taking</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="rsiExitOversold" class="form-label">RSI Exit Oversold</label>
+                                            <input type="number" class="form-control" id="rsiExitOversold" min="10" max="40" value="30">
+                                            <div class="form-text">RSI level for short profit taking</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="dynamicProfitMin" class="form-label">Dynamic Profit Min %</label>
+                                            <input type="number" class="form-control" id="dynamicProfitMin" step="0.1" min="0.5" max="5.0" value="1.0">
+                                            <div class="form-text">Minimum profit for dynamic targeting</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="dynamicProfitMax" class="form-label">Dynamic Profit Max %</label>
+                                            <input type="number" class="form-control" id="dynamicProfitMax" step="0.1" min="2.0" max="10.0" value="4.0">
+                                            <div class="form-text">Maximum profit for dynamic targeting</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Leverage</label>
-                                <input type="number" class="form-control" id="leverage" min="1" max="125" required>
-                            </div>
-                        </div>
 
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Assessment Interval (seconds)</label>
-                                <input type="number" class="form-control" id="assessment_interval" min="5" max="3600" required>
+                            <!-- RSI Strategy Parameters (shown only for RSI strategies) -->
+                            <div id="rsiParameters" style="display: none;">
+                                <h6 class="text-primary mt-3">RSI Strategy Parameters</h6>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <label for="rsiLongEntry" class="form-label">RSI Long Entry</label>
+                                        <input type="number" class="form-control" id="rsiLongEntry" min="10" max="50" placeholder="e.g., 40">
+                                    </div>
+                                    <div class="col-6">
+                                        <label for="rsiLongExit" class="form-label">RSI Long Exit</label>
+                                        <input type="number" class="form-control" id="rsiLongExit" min="50" max="90" placeholder="e.g., 70">
+                                    </div>
+                                </div>
+                                <div class="row mt-2">
+                                    <div class="col-6">
+                                        <label for="rsiShortEntry" class="form-label">RSI Short Entry</label>
+                                        <input type="number" class="form-control" id="rsiShortEntry" min="50" max="90" placeholder="e.g., 60">
+                                    </div>
+                                    <div class="col-6">
+                                        <label for="rsiShortExit" class="form-label">RSI Short Exit</label>
+                                        <input type="number" class="form-control" id="rsiShortExit" min="10" max="50" placeholder="e.g., 30">
+                                    </div>
+                                </div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Max Loss % (of margin)</label>
-                                <input type="number" class="form-control" id="max_loss_pct" step="0.1" min="0.1" max="100" required>
-                            </div>
-                        </div>
 
-                        <!-- RSI Strategy Parameters (shown only for RSI strategies) -->
-                        <div id="rsiParameters" style="display: none;">
-                            <h6 class="mb-3">RSI Strategy Parameters</h6>
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">RSI Long Entry (Oversold)</label>
-                                    <input type="number" class="form-control" id="rsi_long_entry" min="10" max="50">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">RSI Long Exit (Take Profit)</label>
-                                    <input type="number" class="form-control" id="rsi_long_exit" min="50" max="90">
-                                </div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">RSI Short Entry (Overbought)</label>
-                                    <input type="number" class="form-control" id="rsi_short_entry" min="50" max="90">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">RSI Short Exit (Take Profit)</label>
-                                    <input type="number" class="form-control" id="rsi_short_exit" min="10" max="50">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- MACD Strategy Parameters (shown only for MACD strategies) -->
-                        <div id="macdParameters" style="display: none;">
-                            <h6 class="mb-3">MACD Strategy Parameters</h6>
-                            <div class="row mb-3">
-                                <div class="col-md-4">
-                                    <label class="form-label">MACD Fast</label>
-                                    <input type="number" class="form-control" id="macd_fast" min="3" max="25">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">MACD Slow</label>
-                                    <input type="number" class="form-control" id="macd_slow" min="15" max="50">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">MACD Signal</label>
-                                    <input type="number" class="form-control" id="macd_signal" min="3" max="20">
-                                </div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">Min Histogram Threshold</label>
-                                    <input type="number" class="form-control" id="min_histogram_threshold" step="0.00001" min="0.00001" max="0.1">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Confirmation Candles</label>
-                                    <input type="number" class="form-control" id="confirmation_candles" min="1" max="10">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Advanced Parameters -->
-                        <h6 class="mb-3">Advanced Parameters</h6>
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Cooldown Period (seconds)</label>
-                                <input type="number" class="form-control" id="cooldown_period" min="30" max="7200">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Price Decimals</label>
-                                <input type="number" class="form-control" id="decimals" min="0" max="8">
-                            </div>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="saveStrategy()">Save Changes</button>
-                </div>
-            </div>
-        </div>
-    </div>nt">
-                <div class="modal-header">
-                    <h5 class="modal-title">Edit Strategy Configuration</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="strategyForm">
-                        <input type="hidden" id="strategyName" />
-                        <div class="mb-3">
-                            <label for="strategySymbol" class="form-label">Symbol</label>
-                            <input type="text" class="form-control" id="strategySymbol" placeholder="e.g., BTCUSDT">
-                        </div>
-                        <div class="mb-3">
-                            <label for="strategyMargin" class="form-label">Margin (USDT)</label>
-                            <input type="number" class="form-control" id="strategyMargin" step="0.1" min="1">
-                        </div>
-                        <div class="mb-3">
-                            <label for="strategyLeverage" class="form-label">Leverage</label>
-                            <input type="number" class="form-control" id="strategyLeverage" min="1" max="125">
-                        </div>
-                         <div class="mb-3">
-                            <label for="strategyDecimals" class="form-label">Decimal Precision</label>
-                            <input type="number" class="form-control" id="strategyDecimals" min="0" max="8" value="2">
-                        </div>
-                        <div class="mb-3">
-                            <label for="strategyTimeframe" class="form-label">Timeframe</label>
-                            <select class="form-control" id="strategyTimeframe">
-                                <option value="1m">1 minute</option>
-                                <option value="5m">5 minutes</option>
-                                <option value="15m">15 minutes</option>
-                                <option value="1h">1 hour</option>
-                                <option value="4h">4 hours</option>
-                                <option value="1d">1 day</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="strategyMaxLoss" class="form-label">Max Loss % (of margin)</label>
-                            <input type="number" class="form-control" id="strategyMaxLoss" step="0.1" min="1" max="50" placeholder="e.g., 10">
-                        </div>
-                        <div class="mb-3">
-                            <label for="assessmentInterval" class="form-label">Market Assessment Interval (seconds)</label>
-                            <input type="number" class="form-control" id="assessmentInterval" step="1" min="5" max="300" placeholder="e.g., 60">
-                            <div class="form-text">How often the bot scans the market for entry signals (5-300 seconds)</div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="cooldownPeriod" class="form-label">Cooldown Period (seconds)</label>
-                            <input type="number" class="form-control" id="cooldownPeriod" step="1" min="30" max="3600" placeholder="e.g., 300">
-                            <div class="form-text">Time to wait before allowing another trade on the same symbol/strategy (30-3600 seconds)</div>
-                        </div>
-
-                        <!-- Liquidity Reversal Strategy Parameters -->
-                        <div id="liquidityParameters" style="display: none;">
-                            <h6 class="text-primary mt-3">Liquidity Reversal Strategy Parameters</h6>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="swingLookback" class="form-label">Swing Lookback Periods</label>
-                                        <input type="number" class="form-control" id="swingLookback" min="5" max="50" value="20">
-                                        <div class="form-text">Candles to look back for swing highs/lows</div>
+                            <!-- MACD Strategy Parameters (shown only for MACD strategies) -->
+                            <div id="macdParameters" style="display: none;">
+                                <h6 class="text-primary mt-3">MACD Strategy Parameters</h6>
+                                <div class="row">
+                                    <div class="col-4">
+                                        <label for="macdFast" class="form-label">MACD Fast</label>
+                                        <input type="number" class="form-control" id="macdFast" min="5" max="20" placeholder="e.g., 12">
                                     </div>
-                                    <div class="mb-3">
-                                        <label for="sweepThreshold" class="form-label">Sweep Threshold %</label>
-                                        <input type="number" class="form-control" id="sweepThreshold" step="0.1" min="0.1" max="2.0" value="0.5">
-                                        <div class="form-text">% beyond level required for liquidity sweep</div>
+                                    <div class="col-4">
+                                        <label for="macdSlow" class="form-label">MACD Slow</label>
+                                        <input type="number" class="form-control" id="macdSlow" min="20" max="40" placeholder="e.g., 26">
                                     </div>
-                                    <div class="mb-3">
-                                        <label for="volumeSurgeMultiplier" class="form-label">Volume Surge Multiplier</label>
-                                        <input type="number" class="form-control" id="volumeSurgeMultiplier" step="0.1" min="1.5" max="5.0" value="2.0">
-                                        <div class="form-text">Volume must be X times average</div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="confirmationCandles" class="form-label">Confirmation Candles</label>
-                                        <input type="number" class="form-control" id="confirmationCandles" min="1" max="5" value="2">
-                                        <div class="form-text">Candles needed to confirm reversal</div>
+                                    <div class="col-4">
+                                        <label for="macdSignal" class="form-label">MACD Signal</label>
+                                        <input type="number" class="form-control" id="macdSignal" min="5" max="15" placeholder="e.g., 9">
                                     </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="profitTargetMethod" class="form-label">Profit Target Method</label>
-                                        <select class="form-control" id="profitTargetMethod">
-                                            <option value="mean_reversion">Mean Reversion</option>
-                                            <option value="fixed_percent">Fixed Percentage</option>
-                                            <option value="rsi_based">RSI Based</option>
-                                            <option value="dynamic">Dynamic (Volatility)</option>
-                                        </select>
+                                <div class="row mt-2">
+                                    <div class="col-6">
+                                        <label for="macdMinHistogram" class="form-label">Min Histogram Threshold</label>
+                                        <input type="number" class="form-control" id="macdMinHistogram" step="0.0001" min="0.0001" max="0.01" placeholder="e.g., 0.0001">
                                     </div>
-                                    <div class="mb-3">
-                                        <label for="fixedProfitPercent" class="form-label">Fixed Profit %</label>
-                                        <input type="number" class="form-control" id="fixedProfitPercent" step="0.1" min="0.5" max="10.0" value="2.0">
-                                        <div class="form-text">Used when method is "Fixed Percentage"</div>
+                                    <div class="col-6">
+                                        <label for="macdMinDistance" class="form-label">Min Distance Threshold (%)</label>
+                                        <input type="number" class="form-control" id="macdMinDistance" step="0.001" min="0.001" max="5" placeholder="e.g., 0.005">
                                     </div>
-                                    <div class="mb-3">
-                                        <label for="meanReversionPeriods" class="form-label">Mean Reversion Periods</label>
-                                        <input type="number" class="form-control" id="meanReversionPeriods" min="20" max="100" value="50">
-                                        <div class="form-text">MA periods for mean reversion target</div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="meanReversionBuffer" class="form-label">Mean Reversion Buffer %</label>
-                                        <input type="number" class="form-control" id="meanReversionBuffer" step="0.1" min="0.1" max="2.0" value="0.5">
-                                        <div class="form-text">% buffer around MA for exit trigger</div>
+                                </div>
+                                <div class="row mt-2">
+                                    <div class="col-6">
+                                        <label for="macdConfirmationCandles" class="form-label">Confirmation Candles</label>
+                                        <input type="number" class="form-control" id="macdConfirmationCandles" min="1" max="5" placeholder="e.g., 2">
                                     </div>
                                 </div>
                             </div>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="rsiExitOverbought" class="form-label">RSI Exit Overbought</label>
-                                        <input type="number" class="form-control" id="rsiExitOverbought" min="60" max="90" value="70">
-                                        <div class="form-text">RSI level for long profit taking</div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="rsiExitOversold" class="form-label">RSI Exit Oversold</label>
-                                        <input type="number" class="form-control" id="rsiExitOversold" min="10" max="40" value="30">
-                                        <div class="form-text">RSI level for short profit taking</div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="dynamicProfitMin" class="form-label">Dynamic Profit Min %</label>
-                                        <input type="number" class="form-control" id="dynamicProfitMin" step="0.1" min="0.5" max="5.0" value="1.0">
-                                        <div class="form-text">Minimum profit for dynamic targeting</div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="dynamicProfitMax" class="form-label">Dynamic Profit Max %</label>
-                                        <input type="number" class="form-control" id="dynamicProfitMax" step="0.1" min="2.0" max="10.0" value="4.0">
-                                        <div class="form-text">Maximum profit for dynamic targeting</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- RSI Strategy Parameters (shown only for RSI strategies) -->
-                        <div id="rsiParameters" style="display: none;">
-                            <h6 class="text-primary mt-3">RSI Strategy Parameters</h6>
-                            <div class="row">
-                                <div class="col-6">
-                                    <label for="rsiLongEntry" class="form-label">RSI Long Entry</label>
-                                    <input type="number" class="form-control" id="rsiLongEntry" min="10" max="50" placeholder="e.g., 40">
-                                </div>
-                                <div class="col-6">
-                                    <label for="rsiLongExit" class="form-label">RSI Long Exit</label>
-                                    <input type="number" class="form-control" id="rsiLongExit" min="50" max="90" placeholder="e.g., 70">
-                                </div>
-                            </div>
-                            <div class="row mt-2">
-                                <div class="col-6">
-                                    <label for="rsiShortEntry" class="form-label">RSI Short Entry</label>
-                                    <input type="number" class="form-control" id="rsiShortEntry" min="50" max="90" placeholder="e.g., 60">
-                                </div>
-                                <div class="col-6">
-                                    <label for="rsiShortExit" class="form-label">RSI Short Exit</label>
-                                    <input type="number" class="form-control" id="rsiShortExit" min="10" max="50" placeholder="e.g., 30">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- MACD Strategy Parameters (shown only for MACD strategies) -->
-                        <div id="macdParameters" style="display: none;">
-                            <h6 class="text-primary mt-3">MACD Strategy Parameters</h6>
-                            <div class="row">
-                                <div class="col-4">
-                                    <label for="macdFast" class="form-label">MACD Fast</label>
-                                    <input type="number" class="form-control" id="macdFast" min="5" max="20" placeholder="e.g., 12">
-                                </div>
-                                <div class="col-4">
-                                    <label for="macdSlow" class="form-label">MACD Slow</label>
-                                    <input type="number" class="form-control" id="macdSlow" min="20" max="40" placeholder="e.g., 26">
-                                </div>
-                                <div class="col-4">
-                                    <label for="macdSignal" class="form-label">MACD Signal</label>
-                                    <input type="number" class="form-control" id="macdSignal" min="5" max="15" placeholder="e.g., 9">
-                                </div>
-                            </div>
-                            <div class="row mt-2">
-                                <div class="col-6">
-                                    <label for="macdMinHistogram" class="form-label">Min Histogram Threshold</label>
-                                    <input type="number" class="form-control" id="macdMinHistogram" step="0.0001" min="0.0001" max="0.01" placeholder="e.g., 0.0001">
-                                </div>
-                                <div class="col-6">
-                                    <label for="macdMinDistance" class="form-label">Min Distance Threshold (%)</label>
-                                    <input type="number" class="form-control" id="macdMinDistance" step="0.001" min="0.001" max="5" placeholder="e.g., 0.005">
-                                </div>
-                            </div>
-                            <div class="row mt-2">
-                                <div class="col-6">
-                                    <label for="macdConfirmationCandles" class="form-label">Confirmation Candles</label>
-                                    <input type="number" class="form-control" id="macdConfirmationCandles" min="1" max="5" placeholder="e.g., 2">
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="saveStrategyConfig()">Save Changes</button>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="saveStrategyConfig()">Save Changes</button>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <script>
+        <script>
         // Global variables for auto-scroll
         let autoScroll = true;
         let consoleLogBuffer = [];
@@ -882,8 +758,90 @@
 
         // Refresh data
         function refreshData() {
-            updateDashboard();
+            updateBotStatus();
+            updateBalance();
+            updateConsoleLog();
         }
+
+        // Update bot status
+        function updateBotStatus() {
+            fetch('/api/bot/status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusBadge = document.getElementById('statusBadge');
+                    const botToggle = document.getElementById('botToggle');
+                    const botStatus = document.getElementById('botStatus');
+                    const activePositions = document.getElementById('activePositions');
+
+                    if (data.running) {
+                        statusBadge.textContent = 'RUNNING';
+                        statusBadge.className = 'badge bg-success me-2';
+                        botToggle.textContent = 'Stop Bot';
+                        botToggle.className = 'btn btn-danger btn-sm';
+                        if (botStatus) botStatus.textContent = 'RUNNING';
+                        if (botStatus) botStatus.className = 'badge bg-success';
+                    } else {
+                        statusBadge.textContent = 'STOPPED';
+                        statusBadge.className = 'badge bg-danger me-2';
+                        botToggle.textContent = 'Start Bot';
+                        botToggle.className = 'btn btn-success btn-sm';
+                        if (botStatus) botStatus.textContent = 'STOPPED';
+                        if (botStatus) botStatus.className = 'badge bg-danger';
+                    }
+
+                    if (activePositions) {
+                        activePositions.textContent = data.active_positions || 0;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating bot status:', error);
+                });
+        }
+
+        // Update balance
+        function updateBalance() {
+            fetch('/api/balance')
+                .then(response => response.json())
+                .then(data => {
+                    const balance = document.getElementById('balance');
+                    if (balance) {
+                        balance.textContent = (data.total_balance || 0).toFixed(2);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating balance:', error);
+                });
+        }
+
+        // Update console log
+        function updateConsoleLog() {
+            fetch('/api/console-log')
+                .then(response => response.json())
+                .then(data => {
+                    const consoleLog = document.getElementById('consoleLog');
+                    if (consoleLog && data.success && data.logs) {
+                        consoleLog.innerHTML = data.logs.join('<br>');
+                        if (autoScroll) {
+                            consoleLog.scrollTop = consoleLog.scrollHeight;
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching console log:', error);
+                });
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            updateBotStatus();
+            updateBalance();
+            updateConsoleLog();
+
+            // Set up periodic updates
+            setInterval(updateBotStatus, 5000);
+            setInterval(updateBalance, 30000);
+            setInterval(updateConsoleLog, 2000);
+        });
 
         // Show strategies info
         function showStrategiesInfo() {
@@ -925,7 +883,7 @@
         function disableStrategy(strategyName) {
             if (confirm(`Are you sure you want to disable ${strategyName.replace('_', ' ').toUpperCase()}?\n\n` +
                        'This will stop the bot from executing trades for this strategy.')) {
-                
+
                 fetch(`/api/strategies/${strategyName}/disable`, {
                     method: 'POST',
                     headers: {
@@ -953,132 +911,10 @@
 
         function editStrategyConfig(strategyName) {
             currentStrategyName = strategyName;
-            
+
             fetch('/api/strategies')
                 .then(response => response.json())
-                .then(strategies => {
-                    const config = strategies[strategyName];
-                    if (!config) {
-                        alert('Strategy not found!');
-                        return;
-                    }
-
-                    // Fill form with current values
-                    document.getElementById('symbol').value = config.symbol || 'BTCUSDT';
-                    document.getElementById('timeframe').value = config.timeframe || '15m';
-                    document.getElementById('margin').value = config.margin || 50;
-                    document.getElementById('leverage').value = config.leverage || 5;
-                    document.getElementById('assessment_interval').value = config.assessment_interval || 60;
-                    document.getElementById('max_loss_pct').value = config.max_loss_pct || 10;
-                    document.getElementById('cooldown_period').value = config.cooldown_period || 300;
-                    document.getElementById('decimals').value = config.decimals || 2;
-
-                    // Show/hide strategy-specific parameters
-                    const rsiParams = document.getElementById('rsiParameters');
-                    const macdParams = document.getElementById('macdParameters');
-                    
-                    if (strategyName.toLowerCase().includes('rsi')) {
-                        rsiParams.style.display = 'block';
-                        macdParams.style.display = 'none';
-                        
-                        document.getElementById('rsi_long_entry').value = config.rsi_long_entry || 30;
-                        document.getElementById('rsi_long_exit').value = config.rsi_long_exit || 70;
-                        document.getElementById('rsi_short_entry').value = config.rsi_short_entry || 70;
-                        document.getElementById('rsi_short_exit').value = config.rsi_short_exit || 30;
-                    } else if (strategyName.toLowerCase().includes('macd')) {
-                        rsiParams.style.display = 'none';
-                        macdParams.style.display = 'block';
-                        
-                        document.getElementById('macd_fast').value = config.macd_fast || 12;
-                        document.getElementById('macd_slow').value = config.macd_slow || 26;
-                        document.getElementById('macd_signal').value = config.macd_signal || 9;
-                        document.getElementById('min_histogram_threshold').value = config.min_histogram_threshold || 0.0001;
-                        document.getElementById('confirmation_candles').value = config.confirmation_candles || 2;
-                    } else {
-                        rsiParams.style.display = 'none';
-                        macdParams.style.display = 'none';
-                    }
-
-                    // Update modal title
-                    document.querySelector('#strategyModal .modal-title').textContent = 
-                        `Edit ${strategyName.replace('_', ' ').toUpperCase()} Configuration`;
-
-                    // Show modal using Bootstrap 5
-                    const modal = new bootstrap.Modal(document.getElementById('strategyModal'));
-                    modal.show();
-                })
-                .catch(error => {
-                    console.error('Error loading strategy config:', error);
-                    alert('Error loading strategy configuration: ' + error);
-                });
-        }
-
-        function saveStrategy() {
-            if (!currentStrategyName) {
-                alert('No strategy selected');
-                return;
-            }
-
-            // Collect form data
-            const updateData = {
-                symbol: document.getElementById('symbol').value.toUpperCase(),
-                timeframe: document.getElementById('timeframe').value,
-                margin: parseFloat(document.getElementById('margin').value),
-                leverage: parseInt(document.getElementById('leverage').value),
-                assessment_interval: parseInt(document.getElementById('assessment_interval').value),
-                max_loss_pct: parseFloat(document.getElementById('max_loss_pct').value),
-                cooldown_period: parseInt(document.getElementById('cooldown_period').value),
-                decimals: parseInt(document.getElementById('decimals').value)
-            };
-
-            // Add strategy-specific parameters
-            if (currentStrategyName.toLowerCase().includes('rsi')) {
-                updateData.rsi_long_entry = parseInt(document.getElementById('rsi_long_entry').value);
-                updateData.rsi_long_exit = parseInt(document.getElementById('rsi_long_exit').value);
-                updateData.rsi_short_entry = parseInt(document.getElementById('rsi_short_entry').value);
-                updateData.rsi_short_exit = parseInt(document.getElementById('rsi_short_exit').value);
-            } else if (currentStrategyName.toLowerCase().includes('macd')) {
-                updateData.macd_fast = parseInt(document.getElementById('macd_fast').value);
-                updateData.macd_slow = parseInt(document.getElementById('macd_slow').value);
-                updateData.macd_signal = parseInt(document.getElementById('macd_signal').value);
-                updateData.min_histogram_threshold = parseFloat(document.getElementById('min_histogram_threshold').value);
-                updateData.confirmation_candles = parseInt(document.getElementById('confirmation_candles').value);
-            }
-
-            // Send update request
-            fetch(`/api/strategies/${currentStrategyName}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(updateData)
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.success) {
-                    alert('✅ Strategy updated successfully!\n\n' + result.message);
-                    
-                    // Close modal using Bootstrap 5 method
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('strategyModal'));
-                    if (modal) {
-                        modal.hide();
-                    }
-                    
-                    // Refresh page to show updated values
-                    location.reload();
-                } else {
-                    alert('❌ Error updating strategy:\n\n' + result.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error updating strategy:', error);
-                alert('Error updating strategy: ' + error);
-            });
-        }
-
-        function addNewStrategy() {
-            alert('Feature coming soon!\n\nFor now, you can edit the existing strategies (rsi_oversold and macd_divergence).');
-        }en(data => {
+                .then(data => {
                     const config = data[strategyName];
                     if (config) {
                         // Basic parameters
@@ -1127,8 +963,7 @@
                             document.getElementById('volumeSurgeMultiplier').value = config.volume_surge_multiplier || 2.0;
                             document.getElementById('confirmationCandles').value = config.confirmation_candles || 2;
 
-                            //
-```                                // Profit target parameters
+                            // Profit target parameters
                             document.getElementById('profitTargetMethod').value = config.profit_target_method || 'mean_reversion';
                             document.getElementById('fixedProfitPercent').value = config.fixed_profit_percent || 2.0;
                             document.getElementById('meanReversionPeriods').value = config.mean_reversion_periods || 50;
@@ -1152,8 +987,7 @@
         }
 
         // Save strategy configuration
-        
-function saveStrategyConfig() {
+        function saveStrategyConfig() {
             const strategyName = document.getElementById('strategyName').value;
 
             const updates = {
@@ -1223,6 +1057,7 @@ function saveStrategyConfig() {
             })
             .catch(error => console.error('Error:', error));
         }
+
         // Add new strategy function
         function addNewStrategy() {
             // TODO: Implement functionality to add a new strategy
@@ -1231,13 +1066,20 @@ function saveStrategyConfig() {
 
         // Console log functions
         function clearConsoleLog() {
-            document.getElementById('consoleLog').innerHTML = '<div class="text-muted">Console cleared.</div>';
+            const consoleLog = document.getElementById('consoleLog');
+            if (consoleLog) {
+                consoleLog.innerHTML = '<div class="text-muted">Console cleared</div>';
+            }
         }
 
         function toggleAutoScroll() {
             autoScroll = !autoScroll;
             const btn = document.getElementById('autoScrollBtn');
-            btn.innerHTML = autoScroll ? '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: ON' : '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: OFF';
+            if (btn) {
+                btn.innerHTML = autoScroll ? 
+                    '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: ON' : 
+                    '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: OFF';
+            }
         }
 
         // Environment toggle
@@ -1316,7 +1158,7 @@ function saveStrategyConfig() {
                 .then(data => {
                     const positionsTableBody = document.getElementById('positionsTableBody');
                     positionsTableBody.innerHTML = '';
-                    
+
                     if (data.success && data.positions && data.positions.length > 0) {
                         data.positions.forEach(position => {
                             const row = `

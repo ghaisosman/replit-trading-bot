@@ -49,10 +49,23 @@ def run_web_dashboard():
         logger.info("🚀 RUNNING IN REPLIT DEPLOYMENT MODE")
 
     try:
+        # Import and run web dashboard
+        from web_dashboard import app
+        
         # SINGLE SOURCE CHECK - Ensure no duplicate web dashboard instances
         if not check_port_available(5000):
             logger.error("🚨 PORT 5000 UNAVAILABLE: Another web dashboard instance detected")
-            logger.error("🚫 MAIN.PY: Cleaning up duplicate instances...")
+            logger.error("🚫 MAIN.PY: Cleaning up duplicate instances")
+            return
+
+        web_server_running = True
+        logger.info("🌐 Starting web dashboard on 0.0.0.0:5000")
+        
+        # Get port from environment for deployment compatibility
+        port = int(os.environ.get('PORT', 5000))
+        
+        # Run Flask app
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)stances...")
 
             # Try to kill any processes using port 5000
             try:
