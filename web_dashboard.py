@@ -154,19 +154,7 @@ current_bot = bot_manager
 class DummyBotManager:
     def __init__(self):
         self.is_running = False
-        self.strategies = {}
-
-    def get_bot_status(self):
-        return {
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': [],
-            'balance': 0
-        }
-
-    def get_all_strategies(self):
-        """Return default strategies for web dashboard configuration"""
-        return {
+        self.strategies = {
             'rsi_oversold': {
                 'symbol': 'SOLUSDT', 'margin': 5.0, 'leverage': 5, 'timeframe': '15m',
                 'max_loss_pct': 10, 'assessment_interval': 60,
@@ -201,8 +189,21 @@ class DummyBotManager:
             }
         }
 
+    def get_bot_status(self):
+        return {
+            'is_running': False,
+            'active_positions': 0,
+            'strategies': [],
+            'balance': 0
+        }
+
+    def get_all_strategies(self):
+        """Return default strategies for web dashboard configuration"""
+        return self.strategies
+
     def update_strategy_config(self, strategy_name, updates):
-        pass
+        if strategy_name in self.strategies:
+            self.strategies[strategy_name].update(updates)
 
 class DummyConfigManagerFull:
     def __init__(self):
@@ -225,12 +226,14 @@ class DummyBalanceFetcher:
     def get_usdt_balance(self):
         return 0.0
 
-# Initialize fallback instances
-if not bot_manager:
+# Initialize fallback instances only if no real bot manager exists
+if not bot_manager and not IMPORTS_AVAILABLE:
     bot_manager = DummyBotManager()
     shared_bot_manager = bot_manager
     current_bot = bot_manager
     print("🔄 Using dummy bot manager for API endpoints")
+elif not bot_manager:
+    print("⚠️ No bot manager available but imports are working")
 
 # Create instances for dashboard - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH
 try:
