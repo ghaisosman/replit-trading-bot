@@ -540,7 +540,16 @@ def get_current_bot_manager():
     print("⚠️ No real bot manager found - using dummy")
     return None
 
-@app.route('/api/bot/status')
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Health check endpoint to verify API is working"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'message': 'Web dashboard API is running'
+    })
+
+@app.route('/api/bot/status', methods=['GET'])
 def get_bot_status():
     """Get current bot status via API"""
     try:
@@ -834,7 +843,7 @@ def update_strategy(strategy_name):
         logger.error(f"Error updating strategy {strategy_name}: {e}")
         return jsonify({'success': False, 'message': f'Failed to update strategy: {e}'})
 
-@app.route('/api/balance')
+@app.route('/api/balance', methods=['GET'])
 def get_balance():
     """Get current balance via API"""
     try:
@@ -934,7 +943,7 @@ def get_trades():
         print(f"❌ API ERROR: /api/trades - {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/console/log')
+@app.route('/api/console/log', methods=['GET'])
 def get_console_log():
     """Get console logs for web dashboard"""
     try:
@@ -947,9 +956,9 @@ def get_console_log():
         else:
             # Return sample logs if no bot is running
             sample_logs = [
-                {'timestamp': '14:14:17', 'message': '🌐 Web dashboard active - Bot can be started via Start Bot button'},
-                {'timestamp': '14:14:17', 'message': '📊 Ready for trading operations'},
-                {'timestamp': '14:14:17', 'message': '💡 Use the web interface to control the bot'}
+                {'timestamp': '14:20:39', 'message': '🌐 Web dashboard active - Bot can be started via Start Bot button'},
+                {'timestamp': '14:20:39', 'message': '📊 Ready for trading operations'},
+                {'timestamp': '14:20:39', 'message': '💡 Use the web interface to control the bot'}
             ]
             return jsonify({'logs': sample_logs})
     except Exception as e:
@@ -986,4 +995,9 @@ def calculate_pnl(position, current_price):
         return 0
 
 if __name__ == '__main__':
+    # Debug: Print all registered routes
+    print("🔍 REGISTERED ROUTES:")
+    for rule in app.url_map.iter_rules():
+        print(f"  {rule.rule} -> {rule.endpoint} ({', '.join(rule.methods)})")
+    
     app.run(debug=True, host='0.0.0.0', port=5000)
