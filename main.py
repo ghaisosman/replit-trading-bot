@@ -134,8 +134,8 @@ def run_web_dashboard():
                                     killed_count += 1
                         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                             continue
-                    except Exception:
-                        pass
+                except Exception:
+                    pass
 
                 logger.info(f"🔄 Cleanup attempt {attempt + 1}: {killed_count} processes terminated")
 
