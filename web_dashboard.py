@@ -389,65 +389,78 @@ def get_strategies():
             # Get all strategies from web dashboard configuration manager
             strategies = trading_config_manager.get_all_strategies()
 
-            # Ensure all required parameters are present for each strategy
+            # Ensure ALL configurable parameters are present for each strategy
             for name, config in strategies.items():
-                # Ensure assessment_interval is included
-                if 'assessment_interval' not in config:
-                    config['assessment_interval'] = 60 if 'rsi' in name.lower() else 30
+                # Core Trading Parameters (All strategies)
+                config.setdefault('symbol', 'BTCUSDT')
+                config.setdefault('timeframe', '15m')
+                config.setdefault('margin', 50.0)
+                config.setdefault('leverage', 5)
+                config.setdefault('stop_loss_pct', 10.0)  # Stop loss as % of margin
+                config.setdefault('max_loss_pct', 10.0)   # Alternative naming
+                config.setdefault('assessment_interval', 60 if 'rsi' in name.lower() else 30)
+                
+                # Position Management Parameters
+                config.setdefault('cooldown_period', 300)  # 5 minutes default
+                config.setdefault('min_volume', 1000.0)
+                config.setdefault('take_profit_pct', 20.0)  # Take profit as % of margin
+                config.setdefault('trailing_stop_pct', 2.0)
+                config.setdefault('max_position_time', 3600)  # 1 hour max
 
-                # Ensure all required parameters exist with defaults
-                if 'max_loss_pct' not in config:
-                    config['max_loss_pct'] = 10
+                # Set default decimals based on symbol
+                if 'decimals' not in config:
+                    symbol = config.get('symbol', '').upper()
+                    if 'ETH' in symbol or 'SOL' in symbol:
+                        config['decimals'] = 2
+                    elif 'BTC' in symbol:
+                        config['decimals'] = 3
+                    else:
+                        config['decimals'] = 2
 
-                # RSI strategy defaults
+                # RSI Strategy Specific Parameters
                 if 'rsi' in name.lower():
-                    config.setdefault('rsi_long_entry', 40)
-                    config.setdefault('rsi_long_exit', 70)
-                    config.setdefault('rsi_short_entry', 60)
-                    config.setdefault('rsi_short_exit', 30)
-                    # Set default decimals based on symbol
-                    if not config.get('decimals'):
-                        symbol = config.get('symbol', '').upper()
-                        if 'ETH' in symbol or 'SOL' in symbol:
-                            config.setdefault('decimals', 2)
-                        elif 'BTC' in symbol:
-                            config.setdefault('decimals', 3)
-                        else:
-                            config.setdefault('decimals', 2)
+                    config.setdefault('rsi_period', 14)
+                    config.setdefault('rsi_long_entry', 30)    # Oversold entry
+                    config.setdefault('rsi_long_exit', 70)     # Take profit (overbought)
+                    config.setdefault('rsi_short_entry', 70)   # Overbought entry  
+                    config.setdefault('rsi_short_exit', 30)    # Take profit (oversold)
 
-                # MACD strategy defaults
+                # MACD Strategy Specific Parameters
                 elif 'macd' in name.lower():
                     config.setdefault('macd_fast', 12)
                     config.setdefault('macd_slow', 26)
                     config.setdefault('macd_signal', 9)
                     config.setdefault('min_histogram_threshold', 0.0001)
                     config.setdefault('min_distance_threshold', 0.005)
-                    # Set default decimals based on symbol
-                    if not config.get('decimals'):
-                        symbol = config.get('symbol', '').upper()
-                        if 'ETH' in symbol or 'SOL' in symbol:
-                            config.setdefault('decimals', 2)
-                        elif 'BTC' in symbol:
-                            config.setdefault('decimals', 3)
-                        else:
-                            config.setdefault('decimals', 2)
                     config.setdefault('confirmation_candles', 2)
 
-            logger.info(f"🌐 WEB DASHBOARD: Serving configurations for {len(strategies)} strategies")
+            logger.info(f"🌐 WEB DASHBOARD: Serving COMPLETE configurations for {len(strategies)} strategies")
+            logger.info(f"📋 All parameters available for manual configuration via dashboard")
             return jsonify(strategies)
         else:
-            # Return default strategies for demo
+            # Return comprehensive default strategies for demo
             return jsonify({
                 'rsi_oversold': {
-                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
-                    'max_loss_pct': 10, 'rsi_long_entry': 40, 'rsi_long_exit': 70,
-                    'rsi_short_entry': 60, 'rsi_short_exit': 30, 'assessment_interval': 60
+                    # Core Parameters
+                    'symbol': 'SOLUSDT', 'timeframe': '15m', 'margin': 12.5, 'leverage': 25,
+                    'stop_loss_pct': 10.0, 'max_loss_pct': 10.0, 'assessment_interval': 60,
+                    # Position Management
+                    'cooldown_period': 300, 'min_volume': 1000.0, 'decimals': 2,
+                    'take_profit_pct': 20.0, 'trailing_stop_pct': 2.0, 'max_position_time': 3600,
+                    # RSI Specific
+                    'rsi_period': 14, 'rsi_long_entry': 30, 'rsi_long_exit': 70,
+                    'rsi_short_entry': 70, 'rsi_short_exit': 30
                 },
                 'macd_divergence': {
-                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
-                    'max_loss_pct': 10, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
-                    'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2,
-                    'assessment_interval': 60
+                    # Core Parameters
+                    'symbol': 'BTCUSDT', 'timeframe': '15m', 'margin': 50.0, 'leverage': 5,
+                    'stop_loss_pct': 10.0, 'max_loss_pct': 10.0, 'assessment_interval': 30,
+                    # Position Management
+                    'cooldown_period': 300, 'min_volume': 1000.0, 'decimals': 3,
+                    'take_profit_pct': 15.0, 'trailing_stop_pct': 2.0, 'max_position_time': 3600,
+                    # MACD Specific
+                    'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
+                    'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2
                 }
             })
     except Exception as e:
@@ -524,7 +537,7 @@ def create_strategy():
 
 @app.route('/api/strategies/<strategy_name>', methods=['POST'])
 def update_strategy(strategy_name):
-    """Update strategy configuration"""
+    """Update strategy configuration - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
     try:
         data = request.get_json()
 
@@ -532,156 +545,212 @@ def update_strategy(strategy_name):
         if not data:
             return jsonify({'success': False, 'message': 'No data provided'})
 
-        # Comprehensive parameter validation
+        # Comprehensive parameter validation for ALL configurable parameters
         try:
-            # Basic trading parameters
+            # Core Trading Parameters
             if 'symbol' in data:
                 data['symbol'] = str(data['symbol']).upper()
                 if not data['symbol'] or len(data['symbol']) < 6:
                     return jsonify({'success': False, 'message': 'Symbol must be valid (e.g., BTCUSDT)'})
-
-            if 'margin' in data:
-                data['margin'] = float(data['margin'])
-                if data['margin'] <= 0:
-                    return jsonify({'success': False, 'message': 'Margin must be positive'})
-
-            if 'leverage' in data:
-                data['leverage'] = int(data['leverage'])
-                if data['leverage'] <= 0 or data['leverage'] > 125:
-                    return jsonify({'success': False, 'message': 'Leverage must be between 1 and 125'})
 
             if 'timeframe' in data:
                 valid_timeframes = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d']
                 if data['timeframe'] not in valid_timeframes:
                     return jsonify({'success': False, 'message': f'Timeframe must be one of: {", ".join(valid_timeframes)}'})
 
+            if 'margin' in data:
+                data['margin'] = float(data['margin'])
+                if data['margin'] <= 0 or data['margin'] > 10000:
+                    return jsonify({'success': False, 'message': 'Margin must be between 0.01 and 10000 USDT'})
+
+            if 'leverage' in data:
+                data['leverage'] = int(data['leverage'])
+                if data['leverage'] <= 0 or data['leverage'] > 125:
+                    return jsonify({'success': False, 'message': 'Leverage must be between 1 and 125'})
+
+            # Stop Loss as Percentage of Margin
+            if 'stop_loss_pct' in data:
+                data['stop_loss_pct'] = float(data['stop_loss_pct'])
+                if data['stop_loss_pct'] <= 0 or data['stop_loss_pct'] > 100:
+                    return jsonify({'success': False, 'message': 'Stop Loss % must be between 0.1 and 100% of margin'})
+
+            # Max Loss as Percentage of Margin (alternative naming)
             if 'max_loss_pct' in data:
                 data['max_loss_pct'] = float(data['max_loss_pct'])
-                if data['max_loss_pct'] <= 0 or data['max_loss_pct'] > 50:
-                    return jsonify({'success': False, 'message': 'Max Loss % must be between 0.1 and 50'})
+                if data['max_loss_pct'] <= 0 or data['max_loss_pct'] > 100:
+                    return jsonify({'success': False, 'message': 'Max Loss % must be between 0.1 and 100% of margin'})
 
+            # Market Assessment Intervals
             if 'assessment_interval' in data:
                 data['assessment_interval'] = int(data['assessment_interval'])
-                if data['assessment_interval'] < 5 or data['assessment_interval'] > 300:
-                    return jsonify({'success': False, 'message': 'Assessment interval must be between 5 and 300 seconds'})
+                if data['assessment_interval'] < 5 or data['assessment_interval'] > 3600:
+                    return jsonify({'success': False, 'message': 'Market assessment interval must be between 5 and 3600 seconds'})
 
+            # Position Management
             if 'decimals' in data:
                 data['decimals'] = int(data['decimals'])
                 if data['decimals'] < 0 or data['decimals'] > 8:
-                    return jsonify({'success': False, 'message': 'Decimals must be between 0 and 8'})
+                    return jsonify({'success': False, 'message': 'Price decimals must be between 0 and 8'})
 
             if 'cooldown_period' in data:
                 data['cooldown_period'] = int(data['cooldown_period'])
-                if data['cooldown_period'] < 30 or data['cooldown_period'] > 3600:
-                    return jsonify({'success': False, 'message': 'Cooldown period must be between 30 and 3600 seconds'})
+                if data['cooldown_period'] < 30 or data['cooldown_period'] > 7200:
+                    return jsonify({'success': False, 'message': 'Cooldown period must be between 30 and 7200 seconds'})
 
             if 'min_volume' in data:
                 data['min_volume'] = float(data['min_volume'])
                 if data['min_volume'] < 0:
                     return jsonify({'success': False, 'message': 'Minimum volume must be positive'})
 
-            # RSI strategy parameters
+            # RSI Strategy Parameters (All Configurable)
             if 'rsi_period' in data:
                 data['rsi_period'] = int(data['rsi_period'])
                 if data['rsi_period'] < 5 or data['rsi_period'] > 50:
                     return jsonify({'success': False, 'message': 'RSI Period must be between 5 and 50'})
 
+            # RSI Long Entry/Exit Parameters
             if 'rsi_long_entry' in data:
                 data['rsi_long_entry'] = int(data['rsi_long_entry'])
                 if data['rsi_long_entry'] < 10 or data['rsi_long_entry'] > 50:
-                    return jsonify({'success': False, 'message': 'RSI Long Entry must be between 10 and 50'})
+                    return jsonify({'success': False, 'message': 'RSI Long Entry threshold must be between 10 and 50 (oversold level)'})
 
             if 'rsi_long_exit' in data:
                 data['rsi_long_exit'] = int(data['rsi_long_exit'])
                 if data['rsi_long_exit'] < 50 or data['rsi_long_exit'] > 90:
-                    return jsonify({'success': False, 'message': 'RSI Long Exit must be between 50 and 90'})
+                    return jsonify({'success': False, 'message': 'RSI Long Exit (Take Profit) must be between 50 and 90 (overbought level)'})
 
+            # RSI Short Entry/Exit Parameters
             if 'rsi_short_entry' in data:
                 data['rsi_short_entry'] = int(data['rsi_short_entry'])
                 if data['rsi_short_entry'] < 50 or data['rsi_short_entry'] > 90:
-                    return jsonify({'success': False, 'message': 'RSI Short Entry must be between 50 and 90'})
+                    return jsonify({'success': False, 'message': 'RSI Short Entry threshold must be between 50 and 90 (overbought level)'})
 
             if 'rsi_short_exit' in data:
                 data['rsi_short_exit'] = int(data['rsi_short_exit'])
                 if data['rsi_short_exit'] < 10 or data['rsi_short_exit'] > 50:
-                    return jsonify({'success': False, 'message': 'RSI Short Exit must be between 10 and 50'})
+                    return jsonify({'success': False, 'message': 'RSI Short Exit (Take Profit) must be between 10 and 50 (oversold level)'})
 
-            # MACD strategy parameters
+            # MACD Strategy Parameters (All Configurable)
             if 'macd_fast' in data:
                 data['macd_fast'] = int(data['macd_fast'])
-                if data['macd_fast'] < 5 or data['macd_fast'] > 20:
-                    return jsonify({'success': False, 'message': 'MACD Fast must be between 5 and 20'})
+                if data['macd_fast'] < 3 or data['macd_fast'] > 25:
+                    return jsonify({'success': False, 'message': 'MACD Fast EMA must be between 3 and 25 periods'})
 
             if 'macd_slow' in data:
                 data['macd_slow'] = int(data['macd_slow'])
-                if data['macd_slow'] < 20 or data['macd_slow'] > 50:
-                    return jsonify({'success': False, 'message': 'MACD Slow must be between 20 and 50'})
+                if data['macd_slow'] < 15 or data['macd_slow'] > 50:
+                    return jsonify({'success': False, 'message': 'MACD Slow EMA must be between 15 and 50 periods'})
 
             if 'macd_signal' in data:
                 data['macd_signal'] = int(data['macd_signal'])
-                if data['macd_signal'] < 5 or data['macd_signal'] > 15:
-                    return jsonify({'success': False, 'message': 'MACD Signal must be between 5 and 15'})
+                if data['macd_signal'] < 3 or data['macd_signal'] > 20:
+                    return jsonify({'success': False, 'message': 'MACD Signal line must be between 3 and 20 periods'})
 
+            # MACD Threshold Parameters
             if 'min_histogram_threshold' in data:
                 data['min_histogram_threshold'] = float(data['min_histogram_threshold'])
-                if data['min_histogram_threshold'] < 0.0001 or data['min_histogram_threshold'] > 0.01:
-                    return jsonify({'success': False, 'message': 'Min Histogram Threshold must be between 0.0001 and 0.01'})
+                if data['min_histogram_threshold'] < 0.00001 or data['min_histogram_threshold'] > 0.1:
+                    return jsonify({'success': False, 'message': 'MACD Histogram threshold must be between 0.00001 and 0.1'})
 
             if 'min_distance_threshold' in data:
                 data['min_distance_threshold'] = float(data['min_distance_threshold'])
-                if data['min_distance_threshold'] < 0.001 or data['min_distance_threshold'] > 5.0:
-                    return jsonify({'success': False, 'message': 'Min Distance Threshold must be between 0.001 and 5.0'})
+                if data['min_distance_threshold'] < 0.0001 or data['min_distance_threshold'] > 10.0:
+                    return jsonify({'success': False, 'message': 'MACD Distance threshold must be between 0.0001 and 10.0'})
 
             if 'confirmation_candles' in data:
                 data['confirmation_candles'] = int(data['confirmation_candles'])
-                if data['confirmation_candles'] < 1 or data['confirmation_candles'] > 5:
-                    return jsonify({'success': False, 'message': 'Confirmation Candles must be between 1 and 5'})
+                if data['confirmation_candles'] < 1 or data['confirmation_candles'] > 10:
+                    return jsonify({'success': False, 'message': 'Confirmation candles must be between 1 and 10'})
+
+            # Additional Advanced Parameters
+            if 'take_profit_pct' in data:
+                data['take_profit_pct'] = float(data['take_profit_pct'])
+                if data['take_profit_pct'] <= 0 or data['take_profit_pct'] > 500:
+                    return jsonify({'success': False, 'message': 'Take Profit % must be between 0.1 and 500% of margin'})
+
+            if 'trailing_stop_pct' in data:
+                data['trailing_stop_pct'] = float(data['trailing_stop_pct'])
+                if data['trailing_stop_pct'] <= 0 or data['trailing_stop_pct'] > 50:
+                    return jsonify({'success': False, 'message': 'Trailing Stop % must be between 0.1 and 50%'})
+
+            if 'max_position_time' in data:
+                data['max_position_time'] = int(data['max_position_time'])
+                if data['max_position_time'] < 60 or data['max_position_time'] > 86400:
+                    return jsonify({'success': False, 'message': 'Max position time must be between 60 and 86400 seconds (1 min to 24 hours)'})
 
         except ValueError as ve:
             return jsonify({'success': False, 'message': f'Invalid parameter value: {ve}'})
 
-        # WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Update all parameters
+        # 🎯 WEB DASHBOARD IS THE SINGLE SOURCE OF TRUTH - Save to persistent config
         trading_config_manager.update_strategy_params(strategy_name, data)
 
-        logger.info(f"🎯 WEB DASHBOARD: Setting as SINGLE SOURCE OF TRUTH for {strategy_name}")
-        logger.info(f"🔄 UPDATING ALL PARAMETERS: {data}")
-        logger.info(f"📁 CONFIG FILES IGNORED - Web dashboard overrides everything")
+        logger.info(f"🌐 WEB DASHBOARD: SINGLE SOURCE OF TRUTH UPDATE for {strategy_name}")
+        logger.info(f"📝 ALL PARAMETERS UPDATED: {list(data.keys())}")
+        logger.info(f"🔄 VALUES: {data}")
+        logger.info(f"📁 FILE CONFIGS WILL BE OVERRIDDEN - Web dashboard has authority")
 
         # Always try to get the latest shared bot manager
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
 
-        # FORCE IMMEDIATE UPDATE to running bot configuration (WEB DASHBOARD PRIORITY)
+        # 🔥 FORCE IMMEDIATE LIVE UPDATE to running bot (WEB DASHBOARD OVERRIDE)
         bot_updated = False
+        live_update_applied = False
 
-        # Check shared bot manager first - FORCE WEB DASHBOARD SETTINGS
+        # Check shared bot manager first - COMPLETE OVERRIDE
         if shared_bot_manager and hasattr(shared_bot_manager, 'strategies') and strategy_name in shared_bot_manager.strategies:
-            # COMPLETE OVERRIDE - Web dashboard is single source of truth
+            # COMPLETE CONFIGURATION OVERRIDE - Web dashboard wins
+            original_config = dict(shared_bot_manager.strategies[strategy_name])
             shared_bot_manager.strategies[strategy_name].update(data)
-            logger.info(f"🌐 WEB DASHBOARD OVERRIDE: {strategy_name} config FORCED in shared bot: {data}")
-            logger.info(f"🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - File configs ignored")
+            
+            logger.info(f"🔥 LIVE UPDATE APPLIED: {strategy_name} config completely overridden in running bot")
+            logger.info(f"📊 ORIGINAL: {original_config}")
+            logger.info(f"🆕 NEW CONFIG: {shared_bot_manager.strategies[strategy_name]}")
+            
             bot_updated = True
+            live_update_applied = True
 
-        # Fallback to standalone bot - FORCE WEB DASHBOARD SETTINGS
+        # Fallback to standalone bot - COMPLETE OVERRIDE
         elif bot_manager and hasattr(bot_manager, 'strategies') and strategy_name in bot_manager.strategies:
-            # COMPLETE OVERRIDE - Web dashboard is single source of truth
+            # COMPLETE CONFIGURATION OVERRIDE - Web dashboard wins
+            original_config = dict(bot_manager.strategies[strategy_name])
             bot_manager.strategies[strategy_name].update(data)
-            logger.info(f"🌐 WEB DASHBOARD OVERRIDE: {strategy_name} config FORCED in standalone bot: {data}")
-            logger.info(f"🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - File configs ignored")
+            
+            logger.info(f"🔥 LIVE UPDATE APPLIED: {strategy_name} config completely overridden in standalone bot")
+            logger.info(f"📊 ORIGINAL: {original_config}")
+            logger.info(f"🆕 NEW CONFIG: {bot_manager.strategies[strategy_name]}")
+            
             bot_updated = True
+            live_update_applied = True
 
-        message = f'🌐 WEB DASHBOARD: {strategy_name} updated successfully'
-        if bot_updated:
-            message += ' (LIVE UPDATE - Web dashboard is single source of truth)'
+        # Build detailed response message
+        if live_update_applied:
+            message = f'✅ {strategy_name} configuration updated successfully'
+            message += f' | LIVE UPDATE: Changes applied immediately to running bot'
+            message += f' | Updated parameters: {", ".join(data.keys())}'
+        elif bot_updated:
+            message = f'✅ {strategy_name} configuration updated successfully'
+            message += f' | Will take effect on next strategy execution cycle'
+            message += f' | Updated parameters: {", ".join(data.keys())}'
         else:
-            message += ' (Will apply on restart - Web dashboard overrides all files)'
+            message = f'✅ {strategy_name} configuration saved successfully'
+            message += f' | Will apply when bot starts/restarts'
+            message += f' | Updated parameters: {", ".join(data.keys())}'
 
-        # Log final confirmation
-        logger.info(f"✅ WEB DASHBOARD UPDATE COMPLETE | {strategy_name}")
-        logger.info(f"🎯 YOUR RSI SHORT ENTRY: {data.get('rsi_short_entry', 'Not set')} (overrides file configs)")
+        # Final confirmation logging
+        logger.info(f"✅ WEB DASHBOARD UPDATE COMPLETE | Strategy: {strategy_name}")
+        logger.info(f"🎯 DASHBOARD IS SOURCE OF TRUTH - All file configs overridden")
+        logger.info(f"📋 Updated {len(data)} parameters: {list(data.keys())}")
 
-        return jsonify({'success': True, 'message': message})
+        return jsonify({
+            'success': True, 
+            'message': message,
+            'updated_parameters': list(data.keys()),
+            'live_update': live_update_applied,
+            'strategy_name': strategy_name
+        })
+
     except Exception as e:
-        logger.error(f"Error updating strategy {strategy_name}: {e}")
+        logger.error(f"❌ Error updating strategy {strategy_name}: {e}")
         return jsonify({'success': False, 'message': f'Failed to update strategy: {e}'})
 
 @app.route('/api/balance')
