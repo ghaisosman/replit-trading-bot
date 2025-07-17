@@ -116,10 +116,10 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h3><i class="fas fa-chart-bar"></i> Trading Summary</h3>
                 <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-outline-light btn-sm" onclick="updateSummary(1)">1D</button>
-                    <button type="button" class="btn btn-outline-light btn-sm" onclick="updateSummary(7)">7D</button>
-                    <button type="button" class="btn btn-light btn-sm active" onclick="updateSummary(30)">30D</button>
-                    <button type="button" class="btn btn-outline-light btn-sm" onclick="updateSummary(90)">90D</button>
+                    <button type="button" class="btn btn-outline-light btn-sm" onclick="updateSummaryWithButton(event, 1)">1D</button>
+                    <button type="button" class="btn btn-outline-light btn-sm" onclick="updateSummaryWithButton(event, 7)">7D</button>
+                    <button type="button" class="btn btn-light btn-sm active" onclick="updateSummaryWithButton(event, 30)">30D</button>
+                    <button type="button" class="btn btn-outline-light btn-sm" onclick="updateSummaryWithButton(event, 90)">90D</button>
                     <button type="button" class="btn btn-outline-light btn-sm" onclick="showCustomDurationModal()">Custom</button>
                 </div>
             </div>
@@ -495,15 +495,17 @@
         function updateSummary(days) {
             currentDuration = days;
             
-            // Update active button
-            document.querySelectorAll('.btn-group .btn').forEach(btn => {
-                btn.classList.remove('btn-light', 'active');
-                btn.classList.add('btn-outline-light');
-            });
-            event.target.classList.remove('btn-outline-light');
-            event.target.classList.add('btn-light', 'active');
+            // Update active button - fix button targeting
+            if (event && event.target) {
+                document.querySelectorAll('.btn-group .btn').forEach(btn => {
+                    btn.classList.remove('btn-light', 'active');
+                    btn.classList.add('btn-outline-light');
+                });
+                event.target.classList.remove('btn-outline-light');
+                event.target.classList.add('btn-light', 'active');
+            }
 
-            // Calculate summary statistics
+            // Calculate summary statistics with improved date parsing
             const cutoffDate = new Date();
             cutoffDate.setDate(cutoffDate.getDate() - days);
 
@@ -513,37 +515,88 @@
             let totalProfitPercent = 0;
             let totalLossPercent = 0;
 
+            console.log(`📊 Calculating summary for last ${days} days (cutoff: ${cutoffDate.toISOString().split('T')[0]})`);
+
             originalTableData.forEach(item => {
-                const timestampStr = item.data[14];
-                const pnlPercentStr = item.data[11];
-                const exitReason = item.data[13];
+                if (!item.data || item.data.length < 15) return;
+
+                const timestampStr = item.data[14]; // Timestamp column
+                const pnlPercentStr = item.data[11]; // PnL % column  
+                const exitReason = item.data[13]; // Exit reason column
+                const tradeStatus = item.data[9]; // Status column
 
                 try {
-                    const tradeDate = new Date(timestampStr.split('T')[0]);
-                    if (tradeDate >= cutoffDate) {
-                        totalTrades++;
-
-                        // Extract PnL percentage
-                        const pnlPercent = parseFloat(pnlPercentStr.replace(/[^0-9.-]/g, '')) || 0;
-
-                        if (exitReason.toLowerCase().includes('take profit') || exitReason.toLowerCase().includes('profit')) {
-                            takeProfitTrades++;
-                        } else if (exitReason.toLowerCase().includes('stop loss') || exitReason.toLowerCase().includes('loss')) {
-                            stopLossTrades++;
+                    // Improved date parsing - handle various timestamp formats
+                    let tradeDate;
+                    if (timestampStr && timestampStr !== 'N/A' && timestampStr.trim() !== '') {
+                        // Handle ISO format timestamps
+                        if (timestampStr.includes('T')) {
+                            tradeDate = new Date(timestampStr.split('T')[0]);
+                        } else if (timestampStr.includes('-')) {
+                            // Handle YYYY-MM-DD format
+                            tradeDate = new Date(timestampStr.split(' ')[0]);
+                        } else {
+                            // Try direct parsing
+                            tradeDate = new Date(timestampStr);
                         }
 
-                        if (pnlPercent > 0) {
-                            totalProfitPercent += pnlPercent;
-                        } else if (pnlPercent < 0) {
-                            totalLossPercent += Math.abs(pnlPercent);
+                        // Validate date
+                        if (isNaN(tradeDate.getTime())) {
+                            console.warn(`Invalid date format: ${timestampStr}`);
+                            return;
+                        }
+
+                        // Check if within date range
+                        if (tradeDate >= cutoffDate) {
+                            totalTrades++;
+
+                            // Improved PnL percentage extraction
+                            let pnlPercent = 0;
+                            if (pnlPercentStr && pnlPercentStr !== 'N/A' && pnlPercentStr.trim() !== '') {
+                                // Remove all non-numeric characters except minus and decimal
+                                const cleanedPnl = pnlPercentStr.replace(/[^\d.-]/g, '');
+                                pnlPercent = parseFloat(cleanedPnl) || 0;
+                            }
+
+                            // Improved exit reason classification
+                            const exitReasonLower = (exitReason || '').toLowerCase();
+                            const statusLower = (tradeStatus || '').toLowerCase();
+
+                            // Count take profit trades (more comprehensive matching)
+                            if (exitReasonLower.includes('take profit') || 
+                                exitReasonLower.includes('profit') ||
+                                exitReasonLower.includes('tp hit') ||
+                                exitReasonLower.includes('target reached') ||
+                                (pnlPercent > 0 && statusLower === 'closed')) {
+                                takeProfitTrades++;
+                            }
+                            // Count stop loss trades  
+                            else if (exitReasonLower.includes('stop loss') || 
+                                     exitReasonLower.includes('stop-loss') ||
+                                     exitReasonLower.includes('sl hit') ||
+                                     exitReasonLower.includes('max loss') ||
+                                     (pnlPercent < 0 && statusLower === 'closed')) {
+                                stopLossTrades++;
+                            }
+
+                            // Accumulate profits and losses
+                            if (pnlPercent > 0) {
+                                totalProfitPercent += pnlPercent;
+                            } else if (pnlPercent < 0) {
+                                totalLossPercent += Math.abs(pnlPercent);
+                            }
+
+                            console.log(`📝 Trade processed: Date=${tradeDate.toISOString().split('T')[0]}, PnL=${pnlPercent}%, Exit=${exitReason}`);
                         }
                     }
                 } catch (e) {
-                    // Skip invalid dates
+                    console.warn(`Error processing trade: ${e.message}`, timestampStr);
                 }
             });
 
             const netPnl = totalProfitPercent - totalLossPercent;
+
+            console.log(`📊 Summary Results: Total=${totalTrades}, TP=${takeProfitTrades}, SL=${stopLossTrades}, Profit=${totalProfitPercent.toFixed(2)}%, Loss=${totalLossPercent.toFixed(2)}%`);
 
             // Update display
             document.getElementById('totalTrades').textContent = totalTrades;
@@ -562,9 +615,18 @@
             modal.show();
         }
 
+        function updateSummaryWithButton(buttonEvent, days) {
+            // Set global event for updateSummary function
+            window.event = buttonEvent;
+            updateSummary(days);
+        }
+
         function applyCustomDuration() {
             const days = parseInt(document.getElementById('customDays').value);
             if (days && days > 0) {
+                // Create fake event for custom duration
+                const fakeEvent = { target: document.querySelector('.btn-group .btn.active') };
+                window.event = fakeEvent;
                 updateSummary(days);
                 bootstrap.Modal.getInstance(document.getElementById('customDurationModal')).hide();
             }
