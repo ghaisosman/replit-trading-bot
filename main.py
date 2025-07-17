@@ -197,17 +197,8 @@ def run_web_dashboard():
         flask_server = make_server('0.0.0.0', port, app, threaded=True)
         logger.info(f"🌐 Flask server created on port {port}")
         
-        # Set up signal handlers for this thread
-        import signal
-        def cleanup_handler(signum, frame):
-            global web_server_running
-            logger.info("🔄 Web dashboard cleanup signal received")
-            web_server_running = False
-            if flask_server:
-                flask_server.shutdown()
-        
-        signal.signal(signal.SIGTERM, cleanup_handler)
-        signal.signal(signal.SIGINT, cleanup_handler)
+        # Signal handling is managed by the main thread
+        # No signal setup needed in web dashboard thread
         
         # Start Flask server
         try:
