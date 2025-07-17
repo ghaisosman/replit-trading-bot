@@ -768,6 +768,15 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="confirmationCandles" class="form-label">Confirmation Candles</label>
+                                        <input type="number" class="form-control" id="confirmationCandles" min="1" max="5" placeholder="e.g., 2">
+                                        <div class="form-text">Number of candles to confirm momentum</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -1126,7 +1135,8 @@
                             document.getElementById('macdSlow').value = config.macd_slow || 26;
                             document.getElementById('macdSignal').value = config.macd_signal || 9;
                             document.getElementById('minHistogramThreshold').value = config.min_histogram_threshold || 0.0001;
-                            document.getElementById('minDistanceThreshold').value = config.min_distance_threshold || 0.005;
+                            document.getElementById('histogramDivergenceLookback').value = config.histogram_divergence_lookback || 10;
+                            document.getElementById('priceDivergenceLookback').value = config.price_divergence_lookback || 10;
                             document.getElementById('confirmationCandles').value = config.confirmation_candles || 2;
                         }
 
@@ -1168,7 +1178,8 @@
                 updates.macd_slow = parseInt(document.getElementById('macdSlow').value);
                 updates.macd_signal = parseInt(document.getElementById('macdSignal').value);
                 updates.min_histogram_threshold = parseFloat(document.getElementById('minHistogramThreshold').value);
-                updates.min_distance_threshold = parseFloat(document.getElementById('minDistanceThreshold').value);
+                updates.histogram_divergence_lookback = parseInt(document.getElementById('histogramDivergenceLookback').value);
+                updates.price_divergence_lookback = parseInt(document.getElementById('priceDivergenceLookback').value);
                 updates.confirmation_candles = parseInt(document.getElementById('confirmationCandles').value);
             }
 
