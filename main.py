@@ -25,8 +25,8 @@ sys.modules['__main__'].bot_manager = None
 
 def signal_handler(signum, frame):
     """Handle termination signals"""
-    print("\n🛑 Shutdown signal received...")
     global web_server_running, flask_server
+    print("\n🛑 Shutdown signal received...")
     
     # Set the shutdown event to trigger graceful shutdown
     if shutdown_event:
@@ -324,7 +324,6 @@ def run_web_dashboard():
         logger.info("🧹 Starting comprehensive cleanup...")
         
         # 1. Clean up Flask server
-        global flask_server
         if flask_server:
             try:
                 flask_server.shutdown()
