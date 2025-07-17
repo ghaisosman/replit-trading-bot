@@ -1011,7 +1011,24 @@ def get_rsi_for_symbol(symbol):
         try:
             # Find the timeframe for this symbol from strategies
             timeframe = '15m'  # Default
-            for strategy_config in trading_config_manager.get_all_strategies().values():
+            
+            # Try to get strategies from real bot manager first
+            current_bot = get_current_bot_manager()
+            strategies = {}
+            
+            if current_bot and hasattr(current_bot, 'strategies') and not isinstance(current_bot, DummyBotManager):
+                strategies = current_bot.strategies
+                print(f"✅ RSI: Using real bot manager strategies: {list(strategies.keys())}")
+            else:
+                # Fallback to config manager
+                try:
+                    strategies = trading_config_manager.get_all_strategies()
+                    print(f"✅ RSI: Using config manager strategies: {list(strategies.keys())}")
+                except Exception as e:
+                    print(f"❌ RSI: Error getting strategies from config manager: {e}")
+                    return jsonify({'rsi': 50.0, 'symbol': symbol, 'status': 'no_strategies'})
+            
+            for strategy_config in strategies.values():
                 if strategy_config.get('symbol') == symbol:
                     timeframe = strategy_config.get('timeframe', '15m')
                     break
