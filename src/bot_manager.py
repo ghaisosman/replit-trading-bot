@@ -147,18 +147,18 @@ For MAINNET:
         # Initialize order manager with required parameters
         self.order_manager = OrderManager(self.binance_client, trade_logger, self.telegram_reporter)
 
-        # Initialize strategies with flexible configuration
-        base_strategies = {
-            'rsi_oversold': RSIOversoldConfig.get_config(),
-            'macd_divergence': MACDDivergenceConfig.get_config()
-        }
-
-        # Apply trading parameters through config manager
-        self.strategies = {}
-        for strategy_name, base_config in base_strategies.items():
-            self.strategies[strategy_name] = trading_config_manager.get_strategy_config(
-                strategy_name, base_config
-            )
+        # Load ALL strategies from web dashboard configurations
+        self.strategies = trading_config_manager.get_all_strategies()
+        
+        # Log loaded strategies
+        strategy_names = list(self.strategies.keys())
+        self.logger.info(f"🎯 LOADED STRATEGIES: {', '.join(strategy_names)}")
+        
+        for strategy_name, config in self.strategies.items():
+            symbol = config.get('symbol', 'UNKNOWN')
+            margin = config.get('margin', 0)
+            leverage = config.get('leverage', 1)
+            self.logger.info(f"   📊 {strategy_name}: {symbol} | ${margin} @ {leverage}x")
 
         # Strategy assessment timers
         self.strategy_last_assessment = {}
@@ -186,10 +186,14 @@ For MAINNET:
         self.order_manager.set_anomaly_detector(self.anomaly_detector)
         self.logger.info("🔍 Anomaly detector initialized and connected to order manager")
 
-        # Register strategies with anomaly detector
+        # Register all loaded strategies with anomaly detector
         for strategy_name, strategy_config in self.strategies.items():
-            self.anomaly_detector.register_strategy(strategy_name, strategy_config['symbol'])
-            self.logger.debug(f"🔍 Registered strategy {strategy_name} with symbol {strategy_config['symbol']}")
+            symbol = strategy_config.get('symbol', 'UNKNOWN')
+            if symbol != 'UNKNOWN':
+                self.anomaly_detector.register_strategy(strategy_name, symbol)
+                self.logger.info(f"🔍 Registered strategy {strategy_name} with symbol {symbol}")
+            else:
+                self.logger.warning(f"⚠️ Strategy {strategy_name} has no symbol configured")
 
         # Daily reporter
         from src.analytics.daily_reporter import DailyReporter

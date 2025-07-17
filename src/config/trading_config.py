@@ -194,6 +194,23 @@ class TradingConfigManager:
             # Use web dashboard configurations
             for strategy_name, config in self.strategy_overrides.items():
                 full_config = {**self.default_params.to_dict(), **config}
+                
+                # Add strategy-specific defaults based on strategy name/type
+                if 'rsi' in strategy_name.lower():
+                    # RSI strategy defaults
+                    full_config.setdefault('rsi_long_entry', 30)
+                    full_config.setdefault('rsi_long_exit', 60)
+                    full_config.setdefault('rsi_short_entry', 70)
+                    full_config.setdefault('rsi_short_exit', 40)
+                elif 'macd' in strategy_name.lower():
+                    # MACD strategy defaults
+                    full_config.setdefault('macd_fast', 12)
+                    full_config.setdefault('macd_slow', 26)
+                    full_config.setdefault('macd_signal', 9)
+                    full_config.setdefault('min_histogram_threshold', 0.0001)
+                    full_config.setdefault('min_distance_threshold', 0.001)
+                    full_config.setdefault('confirmation_candles', 2)
+                
                 strategies[strategy_name] = full_config
         
         return strategies
