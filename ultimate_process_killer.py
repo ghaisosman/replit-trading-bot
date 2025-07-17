@@ -73,50 +73,56 @@ def kill_process_and_children(pid):
         return False
 
 def nuclear_port_cleanup():
-    """Nuclear cleanup of port 5000"""
+    """Nuclear cleanup of port 5000 - Replit compatible"""
     print("💣 NUCLEAR PORT 5000 CLEANUP")
     
-    # Method 1: lsof
+    # Method 1: Check with psutil (more reliable in Replit)
     try:
-        result = subprocess.run(['lsof', '-ti:5000'], capture_output=True, timeout=5)
-        if result.returncode == 0:
-            pids = result.stdout.decode().strip().split('\n')
-            for pid in pids:
-                if pid.strip():
-                    try:
-                        os.kill(int(pid), signal.SIGKILL)
-                        print(f"🔫 SIGKILL {pid}")
-                    except:
-                        pass
-    except:
-        pass
+        for conn in psutil.net_connections(kind='inet'):
+            if conn.laddr.port == 5000 and conn.pid:
+                try:
+                    proc = psutil.Process(conn.pid)
+                    proc.terminate()
+                    print(f"🔫 Terminated PID {conn.pid} using port 5000")
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+    except Exception as e:
+        print(f"⚠️ psutil port check failed: {e}")
     
-    # Method 2: netstat + kill
+    # Method 2: Direct socket test and process elimination
     try:
-        result = subprocess.run(['netstat', '-tulpn'], capture_output=True, timeout=5)
-        if result.returncode == 0:
-            lines = result.stdout.decode().split('\n')
-            for line in lines:
-                if ':5000' in line:
-                    parts = line.split()
-                    if len(parts) > 6:
-                        pid_program = parts[-1]
-                        if '/' in pid_program:
-                            pid = pid_program.split('/')[0]
-                            try:
-                                os.kill(int(pid), signal.SIGKILL)
-                                print(f"🔫 SIGKILL {pid} (netstat)")
-                            except:
-                                pass
-    except:
-        pass
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex(('localhost', 5000))
+        sock.close()
+        
+        if result == 0:
+            print("🔍 Port 5000 still occupied, scanning all Python processes...")
+            # Kill all Python processes that might be web servers
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    if proc.info['name'].lower() in ['python', 'python3']:
+                        if proc.info['cmdline']:
+                            cmdline = ' '.join(proc.info['cmdline'])
+                            if any(keyword in cmdline for keyword in ['flask', 'web_dashboard', 'main.py', ':5000']):
+                                if proc.pid != os.getpid():
+                                    proc.terminate()
+                                    print(f"🔫 Killed potential web server PID {proc.pid}")
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        else:
+            print("✅ Port 5000 appears free")
+    except Exception as e:
+        print(f"⚠️ Socket test failed: {e}")
     
-    # Method 3: fuser
+    # Method 3: Alternative pkill approach
     try:
-        subprocess.run(['fuser', '-k', '5000/tcp'], timeout=5)
-        print("🔫 fuser kill 5000/tcp")
-    except:
-        pass
+        subprocess.run(['pkill', '-f', 'flask'], capture_output=True, timeout=5)
+        subprocess.run(['pkill', '-f', 'web_dashboard'], capture_output=True, timeout=5)
+        print("🔫 pkill cleanup executed")
+    except Exception as e:
+        print(f"⚠️ pkill cleanup failed: {e}")
 
 def main():
     print("💀 ULTIMATE PROCESS KILLER")

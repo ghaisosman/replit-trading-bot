@@ -136,20 +136,22 @@ def nuclear_cleanup():
         except Exception as e:
             print(f"⚠️ Pattern kill failed for '{pattern}': {e}")
     
-    # Kill by port (if lsof is available)
+    # Kill by port using psutil (Replit compatible)
     try:
-        result = subprocess.run(['lsof', '-ti:5000'], capture_output=True, timeout=5)
-        if result.returncode == 0:
-            pids = result.stdout.decode().strip().split('\n')
-            for pid in pids:
-                if pid.strip():
-                    try:
-                        subprocess.run(['kill', '-9', pid.strip()], timeout=3)
-                        print(f"🔧 Killed PID {pid.strip()} using port 5000")
-                    except Exception as e:
-                        print(f"⚠️ Failed to kill PID {pid}: {e}")
+        port_users = []
+        for conn in psutil.net_connections(kind='inet'):
+            if conn.laddr.port == 5000 and conn.pid:
+                port_users.append(conn.pid)
+        
+        for pid in port_users:
+            try:
+                proc = psutil.Process(pid)
+                proc.terminate()
+                print(f"🔧 Killed PID {pid} using port 5000")
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
     except Exception as e:
-        print(f"⚠️ lsof not available or failed: {e}")
+        print(f"⚠️ Port cleanup failed: {e}")
 
 def wait_for_port_clear():
     """Wait for port 5000 to become available"""
