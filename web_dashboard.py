@@ -653,7 +653,8 @@ def get_positions():
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
 
         if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
-            active_positions = current_bot.order_manager.active_positions
+            # Create a safe copy to prevent "dictionary changed size during iteration" error
+            active_positions = dict(current_bot.order_manager.active_positions)
 
             for strategy_name, position in active_positions.items():
                 # Check if this position has an anomaly (orphan/ghost trade)
