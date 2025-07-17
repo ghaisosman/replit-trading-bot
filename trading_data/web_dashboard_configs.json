@@ -1,8 +1,8 @@
 {
   "rsi_oversold": {
-    "margin": 10.0,
-    "leverage": 5,
-    "symbol": "BTCUSDT",
+    "margin": 22.0,
+    "leverage": 3,
+    "symbol": "SOLUSDT",
     "timeframe": "15m",
     "max_loss_pct": 10.0,
     "assessment_interval": 60,
