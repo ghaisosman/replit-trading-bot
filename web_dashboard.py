@@ -824,6 +824,28 @@ def get_trades():
         print(f"❌ API ERROR: /api/trades - {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/console/log')
+def get_console_log():
+    """Get console logs for web dashboard"""
+    try:
+        current_bot = get_current_bot_manager()
+        
+        if current_bot and hasattr(current_bot, 'log_handler'):
+            # Get logs from the web log handler
+            logs = list(current_bot.log_handler.logs)
+            return jsonify({'logs': logs})
+        else:
+            # Return sample logs if no bot is running
+            sample_logs = [
+                {'timestamp': '14:14:17', 'message': '🌐 Web dashboard active - Bot can be started via Start Bot button'},
+                {'timestamp': '14:14:17', 'message': '📊 Ready for trading operations'},
+                {'timestamp': '14:14:17', 'message': '💡 Use the web interface to control the bot'}
+            ]
+            return jsonify({'logs': sample_logs})
+    except Exception as e:
+        print(f"❌ API ERROR: /api/console/log - {e}")
+        return jsonify({'logs': [], 'error': str(e)}), 500
+
 def get_current_price(symbol):
     """Helper function to get the current price of a symbol"""
     try:
