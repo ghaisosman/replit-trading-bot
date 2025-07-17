@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -321,464 +322,465 @@
                     </div>
 
                     <!-- Trading Mode Info -->
-            <div class="environment-section">
-                <h3>🌐 Trading Environment</h3>
-                <div class="environment-controls">
-                    <div style="text-align: center; padding: 15px; background: #c8e6c9; border: 1px solid #4caf50; border-radius: 5px; color: #2e7d32;">
-                        <strong>🚀 MAINNET MODE ACTIVE</strong><br>
-                        <small>Trading with real funds</small>
+                    <div class="environment-section">
+                        <h3>🌐 Trading Environment</h3>
+                        <div class="environment-controls">
+                            <div style="text-align: center; padding: 15px; background: #c8e6c9; border: 1px solid #4caf50; border-radius: 5px; color: #2e7d32;">
+                                <strong>🚀 MAINNET MODE ACTIVE</strong><br>
+                                <small>Trading with real funds</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Active Positions and Console Log -->
+        <div class="row mt-4">
+            <!-- Active Positions -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5><i class="fas fa-coins"></i> Active Positions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="positionsTable">
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Strategy</th>
+                                            <th>Symbol</th>
+                                            <th>Side</th>
+                                            <th>Entry Price</th>
+                                            <th>Position (USDT)</th>
+                                            <th>Current Price</th>
+                                            <th>PnL (USDT)</th>
+                                            <th>PnL (%)</th>
+                                            <th>Current RSI</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="positionsTableBody">
+                                        <tr>
+                                            <td colspan="9" class="text-muted text-center">Loading positions...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Active Positions and Console Log -->
-            <div class="row mt-4">
-                <!-- Active Positions -->
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header bg-success text-white">
-                            <h5><i class="fas fa-coins"></i> Active Positions</h5>
+            <!-- Live Console Log -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5><i class="fas fa-terminal"></i> Live Console Log</h5>
+                        <div class="float-end">
+                            <button class="btn btn-sm btn-outline-light" onclick="clearConsoleLog()">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                            <button class="btn btn-sm btn-outline-light" onclick="toggleAutoScroll()" id="autoScrollBtn">
+                                <i class="fas fa-arrows-alt-v"></i> Auto-scroll: ON
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="consoleLog" style="height: 400px; overflow-y: auto; background-color: #1e1e1e; color: #ffffff; font-family: 'Courier New', monospace; font-size: 12px; padding: 10px;">
+                            <div class="text-muted">Waiting for console output...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Strategy Configuration Section -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3><i class="fas fa-cogs"></i> Strategy Configuration</h3>
+                    <button class="btn btn-primary" onclick="addNewStrategy()">
+                        <i class="fas fa-plus"></i> Add New Strategy
+                    </button>
+                </div>
+
+                <!-- Individual Strategy Cards -->
+                {% for strategy_name, config in strategies.items() %}
+                <div class="col-md-6 mb-3">
+                    <div class="card border-left-primary">
+                        <div class="card-header bg-gradient-primary text-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-chart-line"></i> 
+                                        {{ strategy_name.replace('_', ' ').title() }}
+                                    </h5>
+                                    <small class="text-light">
+                                        {% if 'rsi' in strategy_name.lower() %}
+                                            RSI-Based Strategy
+                                        {% elif 'macd' in strategy_name.lower() %}
+                                            MACD Divergence Strategy
+                                        {% else %}
+                                            Custom Strategy
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                <span class="badge bg-success">
+                                    <i class="fas fa-play"></i> Active
+                                </span>
+                            </div>
                         </div>
                         <div class="card-body">
-                            <div id="positionsTable">
-                                <div class="table-responsive">
-                                    <table class="table table-striped">
-                                        <thead>
-                                            <tr>
-                                                <th>Strategy</th>
-                                                <th>Symbol</th>
-                                                <th>Side</th>
-                                                <th>Entry Price</th>
-                                                <th>Position (USDT)</th>
-                                                <th>Current Price</th>
-                                                <th>PnL (USDT)</th>
-                                                <th>PnL (%)</th>
-                                                <th>Current RSI</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="positionsTableBody">
-                                            <tr>
-                                                <td colspan="9" class="text-muted text-center">Loading positions...</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-2">
+                                        <strong>Symbol:</strong>
+                                        <span class="badge bg-primary ms-1">{{ config.symbol }}</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>Margin:</strong>
+                                        <span class="text-success">${{ "%.2f"|format(config.margin) }} USDT</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>Leverage:</strong>
+                                        <span class="badge bg-info">{{ config.leverage }}x</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-2">
+                                        <strong>Timeframe:</strong>
+                                        <span class="badge bg-secondary">{{ config.timeframe }}</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>Max Loss:</strong>
+                                        <span class="text-warning">{{ config.get('max_loss_pct', 10) }}%</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>Assessment:</strong>
+                                        <span class="text-info">{{ config.get('assessment_interval', 60) }}s</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Live Console Log -->
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header bg-dark text-white">
-                            <h5><i class="fas fa-terminal"></i> Live Console Log</h5>
-                            <div class="float-end">
-                                <button class="btn btn-sm btn-outline-light" onclick="clearConsoleLog()">
-                                    <i class="fas fa-trash"></i> Clear
-                                </button>
-                                <button class="btn btn-sm btn-outline-light" onclick="toggleAutoScroll()" id="autoScrollBtn">
-                                    <i class="fas fa-arrows-alt-v"></i> Auto-scroll: ON
-                                </button>
+                            <!-- Strategy-Specific Parameters Preview -->
+                            {% if 'rsi' in strategy_name.lower() %}
+                            <div class="mt-2 p-2 bg-light rounded">
+                                <small class="text-muted">
+                                    <strong>RSI Levels:</strong> 
+                                    Long Entry: {{ config.get('rsi_long_entry', 30) }} | 
+                                    Long Exit: {{ config.get('rsi_long_exit', 70) }} |
+                                    Short Entry: {{ config.get('rsi_short_entry', 70) }} | 
+                                    Short Exit: {{ config.get('rsi_short_exit', 30) }}
+                                </small>
                             </div>
+                            {% elif 'macd' in strategy_name.lower() %}
+                            <div class="mt-2 p-2 bg-light rounded">
+                                <small class="text-muted">
+                                    <strong>MACD Settings:</strong> 
+                                    Fast: {{ config.get('macd_fast', 12) }} | 
+                                    Slow: {{ config.get('macd_slow', 26) }} | 
+                                    Signal: {{ config.get('macd_signal', 9) }} |
+                                    Min Histogram: {{ config.get('min_histogram_threshold', 0.0001) }}
+                                </small>
+                            </div>
+                            {% endif %}
                         </div>
-                        <div class="card-body p-0">
-                            <div id="consoleLog" style="height: 400px; overflow-y: auto; background-color: #1e1e1e; color: #ffffff; font-family: 'Courier New', monospace; font-size: 12px; padding: 10px;">
-                                <div class="text-muted">Waiting for console output...</div>
-                            </div>
+                        <div class="card-footer text-center">
+                            <button class="btn btn-primary btn-sm me-2" onclick="editStrategyConfig('{{ strategy_name }}')">
+                                <i class="fas fa-edit"></i> Configure Strategy
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm me-2" onclick="viewStrategyStats('{{ strategy_name }}')">
+                                <i class="fas fa-chart-bar"></i> View Stats
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="disableStrategy('{{ strategy_name }}')">
+                                <i class="fas fa-pause"></i> Disable
+                            </button>
                         </div>
                     </div>
                 </div>
+                {% endfor %}
             </div>
+        </div>
+    </div>
 
-            <!-- Strategy Configuration Section -->
-            <div class="row mt-4">
-                <div class="col-12">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h3><i class="fas fa-cogs"></i> Strategy Configuration</h3>
-                        <button class="btn btn-primary" onclick="addNewStrategy()">
-                            <i class="fas fa-plus"></i> Add New Strategy
-                        </button>
+    <!-- Add New Strategy Modal -->
+    <div class="modal fade" id="addStrategyModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add New Strategy</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        Create a new trading strategy. All strategy types are supported: RSI, MACD, and any custom strategy.
                     </div>
 
-                    <!-- Individual Strategy Cards -->
-                    {% for strategy_name, config in strategies.items() %}
-                    <div class="col-md-6 mb-3">
-                        <div class="card border-left-primary">
-                            <div class="card-header bg-gradient-primary text-white">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h5 class="mb-0">
-                                            <i class="fas fa-chart-line"></i> 
-                                            {{ strategy_name.replace('_', ' ').title() }}
-                                        </h5>
-                                        <small class="text-light">
-                                            {% if 'rsi' in strategy_name.lower() %}
-                                                RSI-Based Strategy
-                                            {% elif 'macd' in strategy_name.lower() %}
-                                                MACD Divergence Strategy
-                                            {% else %}
-                                                Custom Strategy
-                                            {% endif %}
-                                        </small>
-                                    </div>
-                                    <span class="badge bg-success">
-                                        <i class="fas fa-play"></i> Active
-                                    </span>
+                    <form id="addStrategyForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="newStrategyName" class="form-label">Strategy Name</label>
+                                    <input type="text" class="form-control" id="newStrategyName" 
+                                           placeholder="e.g., RSI_CRYPTO, MACD_FUTURES" required>
+                                    <div class="form-text">Include "rsi", "macd", or any custom name</div>
                                 </div>
                             </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-2">
-                                            <strong>Symbol:</strong>
-                                            <span class="badge bg-primary ms-1">{{ config.symbol }}</span>
-                                        </div>
-                                        <div class="mb-2">
-                                            <strong>Margin:</strong>
-                                            <span class="text-success">${{ "%.2f"|format(config.margin) }} USDT</span>
-                                        </div>
-                                        <div class="mb-2">
-                                            <strong>Leverage:</strong>
-                                            <span class="badge bg-info">{{ config.leverage }}x</span>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-2">
-                                            <strong>Timeframe:</strong>
-                                            <span class="badge bg-secondary">{{ config.timeframe }}</span>
-                                        </div>
-                                        <div class="mb-2">
-                                            <strong>Max Loss:</strong>
-                                            <span class="text-warning">{{ config.get('max_loss_pct', 10) }}%</span>
-                                        </div>
-                                        <div class="mb-2">
-                                            <strong>Assessment:</strong>
-                                            <span class="text-info">{{ config.get('assessment_interval', 60) }}s</span>
-                                        </div>
-                                    </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="newStrategyType" class="form-label">Strategy Type</label>
+                                    <select class="form-control" id="newStrategyType">
+                                        <option value="auto">Auto-detect from name</option>
+                                        <option value="rsi">RSI Strategy</option>
+                                        <option value="macd">MACD Strategy</option>
+                                        <option value="universal">Custom/Universal</option>
+                                    </select>
                                 </div>
-
-                                <!-- Strategy-Specific Parameters Preview -->
-                                {% if 'rsi' in strategy_name.lower() %}
-                                <div class="mt-2 p-2 bg-light rounded">
-                                    <small class="text-muted">
-                                        <strong>RSI Levels:</strong> 
-                                        Long Entry: {{ config.get('rsi_long_entry', 30) }} | 
-                                        Long Exit: {{ config.get('rsi_long_exit', 70) }} |
-                                        Short Entry: {{ config.get('rsi_short_entry', 70) }} | 
-                                        Short Exit: {{ config.get('rsi_short_exit', 30) }}
-                                    </small>
-                                </div>
-                                {% elif 'macd' in strategy_name.lower() %}
-                                <div class="mt-2 p-2 bg-light rounded">
-                                    <small class="text-muted">
-                                        <strong>MACD Settings:</strong> 
-                                        Fast: {{ config.get('macd_fast', 12) }} | 
-                                        Slow: {{ config.get('macd_slow', 26) }} | 
-                                        Signal: {{ config.get('macd_signal', 9) }} |
-                                        Min Histogram: {{ config.get('min_histogram_threshold', 0.0001) }}
-                                    </small>
-                                </div>
-                                {% endif %}
-                            </div>
-                            <div class="card-footer text-center">
-                                <button class="btn btn-primary btn-sm me-2" onclick="editStrategyConfig('{{ strategy_name }}')">
-                                    <i class="fas fa-edit"></i> Configure Strategy
-                                </button>
-                                <button class="btn btn-outline-warning btn-sm me-2" onclick="viewStrategyStats('{{ strategy_name }}')">
-                                    <i class="fas fa-chart-bar"></i> View Stats
-                                </button>
-                                <button class="btn btn-outline-danger btn-sm" onclick="disableStrategy('{{ strategy_name }}')">
-                                    <i class="fas fa-pause"></i> Disable
-                                </button>
                             </div>
                         </div>
-                    </div>
-                    {% endfor %}
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="newStrategySymbol" class="form-label">Trading Symbol</label>
+                                    <input type="text" class="form-control" id="newStrategySymbol" 
+                                           placeholder="BTCUSDT" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="newStrategyTimeframe" class="form-label">Timeframe</label>
+                                    <select class="form-control" id="newStrategyTimeframe">
+                                        <option value="1m">1 minute</option>
+                                        <option value="3m">3 minutes</option>
+                                        <option value="5m">5 minutes</option>
+                                        <option value="15m" selected>15 minutes</option>
+                                        <option value="30m">30 minutes</option>
+                                        <option value="1h">1 hour</option>
+                                        <option value="4h">4 hours</option>
+                                        <option value="1d">1 day</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="newStrategyMargin" class="form-label">Margin (USDT)</label>
+                                    <input type="number" class="form-control" id="newStrategyMargin" 
+                                           value="50" min="0.01" max="10000" step="0.01" required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="newStrategyLeverage" class="form-label">Leverage</label>
+                                    <input type="number" class="form-control" id="newStrategyLeverage" 
+                                           value="5" min="1" max="125" required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="newStrategyMaxLoss" class="form-label">Max Loss %</label>
+                                    <input type="number" class="form-control" id="newStrategyMaxLoss" 
+                                           value="10" min="0.1" max="100" step="0.1" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="newStrategyInterval" class="form-label">Assessment Interval (seconds)</label>
+                                    <input type="number" class="form-control" id="newStrategyInterval" 
+                                           value="60" min="5" max="3600" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="newStrategyCooldown" class="form-label">Cooldown Period (seconds)</label>
+                                    <input type="number" class="form-control" id="newStrategyCooldown" 
+                                           value="300" min="30" max="7200" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Strategy-specific parameters will be shown based on type -->
+                        <div id="strategySpecificParams" class="mt-3">
+                            <h6>Strategy-Specific Parameters</h6>
+                            <div class="alert alert-secondary">
+                                <small>Advanced parameters can be configured after creation via the "Configure Strategy" button.</small>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Add New Strategy Modal -->
-        <div class="modal fade" id="addStrategyModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Add New Strategy</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i>
-                            Create a new trading strategy. All strategy types are supported: RSI, MACD, and any custom strategy.
+    <!-- Strategy Edit Modal -->
+    <div class="modal fade" id="strategyModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Strategy Configuration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="strategyForm">
+                        <input type="hidden" id="strategyName" />
+                        <div class="mb-3">
+                            <label for="strategySymbol" class="form-label">Symbol</label>
+                            <input type="text" class="form-control" id="strategySymbol" placeholder="e.g., BTCUSDT">
+                        </div>
+                        <div class="mb-3">
+                            <label for="strategyMargin" class="form-label">Margin (USDT)</label>
+                            <input type="number" class="form-control" id="strategyMargin" step="0.1" min="1">
+                        </div>
+                        <div class="mb-3">
+                            <label for="strategyLeverage" class="form-label">Leverage</label>
+                            <input type="number" class="form-control" id="strategyLeverage" min="1" max="125">
+                        </div>
+                         <div class="mb-3">
+                            <label for="strategyDecimals" class="form-label">Decimal Precision</label>
+                            <input type="number" class="form-control" id="strategyDecimals" min="0" max="8" value="2">
+                        </div>
+                        <div class="mb-3">
+                            <label for="strategyTimeframe" class="form-label">Timeframe</label>
+                            <select class="form-control" id="strategyTimeframe">
+                                <option value="1m">1 minute</option>
+                                <option value="5m">5 minutes</option>
+                                <option value="15m">15 minutes</option>
+                                <option value="1h">1 hour</option>
+                                <option value="4h">4 hours</option>
+                                <option value="1d">1 day</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="strategyMaxLoss" class="form-label">Max Loss % (of margin)</label>
+                            <input type="number" class="form-control" id="strategyMaxLoss" step="0.1" min="1" max="50" placeholder="e.g., 10">
+                        </div>
+                        <div class="mb-3">
+                            <label for="assessmentInterval" class="form-label">Market Assessment Interval (seconds)</label>
+                            <input type="number" class="form-control" id="assessmentInterval" step="1" min="5" max="300" placeholder="e.g., 60">
+                            <div class="form-text">How often the bot scans the market for entry signals (5-300 seconds)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="cooldownPeriod" class="form-label">Cooldown Period (seconds)</label>
+                            <input type="number" class="form-control" id="cooldownPeriod" step="1" min="30" max="3600" placeholder="e.g., 300">
+                            <div class="form-text">Time to wait before allowing another trade on the same symbol/strategy (30-3600 seconds)</div>
                         </div>
 
-                        <form id="addStrategyForm">
+                        <!-- RSI Strategy Parameters (shown only for RSI strategies) -->
+                        <div id="rsiParameters" style="display: none;">
+                            <h6 class="text-primary mt-3">RSI Strategy Parameters</h6>
+                            <div class="row">
+                                <div class="col-6">
+                                    <label for="rsiLongEntry" class="form-label">RSI Long Entry</label>
+                                    <input type="number" class="form-control" id="rsiLongEntry" min="10" max="50" placeholder="e.g., 40">
+                                </div>
+                                <div class="col-6">
+                                    <label for="rsiLongExit" class="form-label">RSI Long Exit</label>
+                                    <input type="number" class="form-control" id="rsiLongExit" min="50" max="90" placeholder="e.g., 70">
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-6">
+                                    <label for="rsiShortEntry" class="form-label">RSI Short Entry</label>
+                                    <input type="number" class="form-control" id="rsiShortEntry" min="50" max="90" placeholder="e.g., 60">
+                                </div>
+                                <div class="col-6">
+                                    <label for="rsiShortExit" class="form-label">RSI Short Exit</label>
+                                    <input type="number" class="form-control" id="rsiShortExit" min="10" max="50" placeholder="e.g., 30">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- MACD Strategy Parameters (shown only for MACD strategies) -->
+                        <div id="macdParameters" style="display: none;">
+                            <h6 class="text-primary mt-3">MACD Strategy Parameters</h6>
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="newStrategyName" class="form-label">Strategy Name</label>
-                                        <input type="text" class="form-control" id="newStrategyName" 
-                                               placeholder="e.g., RSI_CRYPTO, MACD_FUTURES" required>
-                                        <div class="form-text">Include "rsi", "macd", or any custom name</div>
+                                        <label for="macdFast" class="form-label">MACD Fast Length</label>
+                                        <input type="number" class="form-control" id="macdFast" min="2" max="30" placeholder="e.g., 12">
+                                        <div class="form-text">Shorter EMA period</div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="newStrategyType" class="form-label">Strategy Type</label>
-                                        <select class="form-control" id="newStrategyType">
-                                            <option value="auto">Auto-detect from name</option>
-                                            <option value="rsi">RSI Strategy</option>
-                                            <option value="macd">MACD Strategy</option>
-                                            <option value="universal">Custom/Universal</option>
-                                        </select>
+                                        <label for="macdSlow" class="form-label">MACD Slow Length</label>
+                                        <input type="number" class="form-control" id="macdSlow" min="12" max="50" placeholder="e.g., 26">
+                                        <div class="form-text">Longer EMA period</div>
                                     </div>
                                 </div>
                             </div>
-
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="newStrategySymbol" class="form-label">Trading Symbol</label>
-                                        <input type="text" class="form-control" id="newStrategySymbol" 
-                                               placeholder="BTCUSDT" required>
+                                        <label for="macdSignal" class="form-label">MACD Signal Length</label>
+                                        <input type="number" class="form-control" id="macdSignal" min="2" max="20" placeholder="e.g., 9">
+                                        <div class="form-text">SMA of MACD line</div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="newStrategyTimeframe" class="form-label">Timeframe</label>
-                                        <select class="form-control" id="newStrategyTimeframe">
-                                            <option value="1m">1 minute</option>
-                                            <option value="3m">3 minutes</option>
-                                            <option value="5m">5 minutes</option>
-                                            <option value="15m" selected>15 minutes</option>
-                                            <option value="30m">30 minutes</option>
-                                            <option value="1h">1 hour</option>
-                                            <option value="4h">4 hours</option>
-                                            <option value="1d">1 day</option>
-                                        </select>
+                                        <label for="minHistogramThreshold" class="form-label">Min Histogram Threshold</label>
+                                        <input type="number" class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g., 0.0001">
+                                        <div class="form-text">Minimum histogram value for signal</div>
                                     </div>
                                 </div>
                             </div>
-
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="newStrategyMargin" class="form-label">Margin (USDT)</label>
-                                        <input type="number" class="form-control" id="newStrategyMargin" 
-                                               value="50" min="0.01" max="10000" step="0.01" required>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="newStrategyLeverage" class="form-label">Leverage</label>
-                                        <input type="number" class="form-control" id="newStrategyLeverage" 
-                                               value="5" min="1" max="125" required>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="newStrategyMaxLoss" class="form-label">Max Loss %</label>
-                                        <input type="number" class="form-control" id="newStrategyMaxLoss" 
-                                               value="10" min="0.1" max="100" step="0.1" required>
-                                    </div>
-                                </div>
-                            </div>
-
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="newStrategyInterval" class="form-label">Assessment Interval (seconds)</label>
-                                        <input type="number" class="form-control" id="newStrategyInterval" 
-                                               value="60" min="5" max="3600" required>
+                                        <label for="macdEntryThreshold" class="form-label">Entry Threshold</label>
+                                        <input type="number" class="form-control" id="macdEntryThreshold" step="0.01" placeholder="e.g., 0.05">
+                                        <div class="form-text">Required MACD crossover magnitude</div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="newStrategyCooldown" class="form-label">Cooldown Period (seconds)</label>
-                                        <input type="number" class="form-control" id="newStrategyCooldown" 
-                                               value="300" min="30" max="7200" required>
+                                        <label for="macdExitThreshold" class="form-label">Exit Threshold</label>
+                                        <input type="number" class="form-control" id="macdExitThreshold" step="0.01" placeholder="e.g., 0.02">
+                                        <div class="form-text">MACD crossover magnitude to exit</div>
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- Strategy-specific parameters will be shown based on type -->
-                            <div id="strategySpecificParams" class="mt-3">
-                                <h6>Strategy-Specific Parameters</h6>
-                                <div class="alert alert-secondary">
-                                    <small>Advanced parameters can be configured after creation via the "Configure Strategy" button.</small>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="histogramDivergenceLookback" class="form-label">Histogram Divergence Lookback</label>
+                                        <input type="number" class="form-control" id="histogramDivergenceLookback" min="5" max="50" placeholder="e.g., 10">
+                                        <div class="form-text">Periods to check for divergence</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="priceDivergenceLookback" class="form-label">Price Divergence Lookback</label>
+                                        <input type="number" class="form-control" id="priceDivergenceLookback" min="5" max="50" placeholder="e.g., 10">
+                                        <div class="form-text">Periods to check for price action</div>
+                                    </div>
                                 </div>
                             </div>
-                        </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button>
-                    </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveStrategyConfig()">Save Changes</button>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Strategy Edit Modal -->
-        <div class="modal fade" id="strategyModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Edit Strategy Configuration</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="strategyForm">
-                            <input type="hidden" id="strategyName" />
-                            <div class="mb-3">
-                                <label for="strategySymbol" class="form-label">Symbol</label>
-                                <input type="text" class="form-control" id="strategySymbol" placeholder="e.g., BTCUSDT">
-                            </div>
-                            <div class="mb-3">
-                                <label for="strategyMargin" class="form-label">Margin (USDT)</label>
-                                <input type="number" class="form-control" id="strategyMargin" step="0.1" min="1">
-                            </div>
-                            <div class="mb-3">
-                                <label for="strategyLeverage" class="form-label">Leverage</label>
-                                <input type="number" class="form-control" id="strategyLeverage" min="1" max="125">
-                            </div>
-                             <div class="mb-3">
-                                <label for="strategyDecimals" class="form-label">Decimal Precision</label>
-                                <input type="number" class="form-control" id="strategyDecimals" min="0" max="8" value="2">
-                            </div>
-                            <div class="mb-3">
-                                <label for="strategyTimeframe" class="form-label">Timeframe</label>
-                                <select class="form-control" id="strategyTimeframe">
-                                    <option value="1m">1 minute</option>
-                                    <option value="5m">5 minutes</option>
-                                    <option value="15m">15 minutes</option>
-                                    <option value="1h">1 hour</option>
-                                    <option value="4h">4 hours</option>
-                                    <option value="1d">1 day</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label for="strategyMaxLoss" class="form-label">Max Loss % (of margin)</label>
-                                <input type="number" class="form-control" id="strategyMaxLoss" step="0.1" min="1" max="50" placeholder="e.g., 10">
-                            </div>
-                            <div class="mb-3">
-                                <label for="assessmentInterval" class="form-label">Market Assessment Interval (seconds)</label>
-                                <input type="number" class="form-control" id="assessmentInterval" step="1" min="5" max="300" placeholder="e.g., 60">
-                                <div class="form-text">How often the bot scans the market for entry signals (5-300 seconds)</div>
-                            </div>
-                            <div class="mb-3">
-                                <label for="cooldownPeriod" class="form-label">Cooldown Period (seconds)</label>
-                                <input type="number" class="form-control" id="cooldownPeriod" step="1" min="30" max="3600" placeholder="e.g., 300">
-                                <div class="form-text">Time to wait before allowing another trade on the same symbol/strategy (30-3600 seconds)</div>
-                            </div>
-
-                            <!-- RSI Strategy Parameters (shown only for RSI strategies) -->
-                            <div id="rsiParameters" style="display: none;">
-                                <h6 class="text-primary mt-3">RSI Strategy Parameters</h6>
-                                <div class="row">
-                                    <div class="col-6">
-                                        <label for="rsiLongEntry" class="form-label">RSI Long Entry</label>
-                                        <input type="number" class="form-control" id="rsiLongEntry" min="10" max="50" placeholder="e.g., 40">
-                                    </div>
-                                    <div class="col-6">
-                                        <label for="rsiLongExit" class="form-label">RSI Long Exit</label>
-                                        <input type="number" class="form-control" id="rsiLongExit" min="50" max="90" placeholder="e.g., 70">
-                                    </div>
-                                </div>
-                                <div class="row mt-2">
-                                    <div class="col-6">
-                                        <label for="rsiShortEntry" class="form-label">RSI Short Entry</label>
-                                        <input type="number" class="form-control" id="rsiShortEntry" min="50" max="90" placeholder="e.g., 60">
-                                    </div>
-                                    <div class="col-6">
-                                        <label for="rsiShortExit" class="form-label">RSI Short Exit</label>
-                                        <input type="number" class="form-control" id="rsiShortExit" min="10" max="50" placeholder="e.g., 30">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- MACD Strategy Parameters (shown only for MACD strategies) -->
-                            <div id="macdParameters" style="display: none;">
-                                <h6 class="text-primary mt-3">MACD Strategy Parameters</h6>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="macdFast" class="form-label">MACD Fast Length</label>
-                                            <input type="number" class="form-control" id="macdFast" min="2" max="30" placeholder="e.g., 12">
-                                            <div class="form-text">Shorter EMA period</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="macdSlow" class="form-label">MACD Slow Length</label>
-                                            <input type="number" class="form-control" id="macdSlow" min="12" max="50" placeholder="e.g., 26">
-                                            <div class="form-text">Longer EMA period</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="macdSignal" class="form-label">MACD Signal Length</label>
-                                            <input type="number" class="form-control" id="macdSignal" min="2" max="20" placeholder="e.g., 9">
-                                            <div class="form-text">SMA of MACD line</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="minHistogramThreshold" class="form-label">Min Histogram Threshold</label>
-                                            <input type="number" class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g., 0.0001">
-                                            <div class="form-text">Minimum histogram value for signal</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="macdEntryThreshold" class="form-label">Entry Threshold</label>
-                                            <input type="number" class="form-control" id="macdEntryThreshold" step="0.01" placeholder="e.g., 0.05">
-                                            <div class="form-text">Required MACD crossover magnitude</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="macdExitThreshold" class="form-label">Exit Threshold</label>
-                                            <input type="number" class="form-control" id="macdExitThreshold" step="0.01" placeholder="e.g., 0.02">
-                                            <div class="form-text">MACD crossover magnitude to exit</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="histogramDivergenceLookback" class="form-label">Histogram Divergence Lookback</label>
-                                            <input type="number" class="form-control" id="histogramDivergenceLookback" min="5" max="50" placeholder="e.g., 10">
-                                            <div class="form-text">Periods to check for divergence</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="priceDivergenceLookback" class="form-label">Price Divergence Lookback</label>
-                                            <input type="number" class="form-control" id="priceDivergenceLookback" min="5" max="50" placeholder="e.g., 10">
-                                            <div class="form-text">Periods to check for price action</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-primary" onclick="saveStrategyConfig()">Save Changes</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <script>
+    <script>
         // Global variables for auto-scroll
         let autoScroll = true;
         let consoleLogBuffer = [];
@@ -813,6 +815,7 @@
             updateBotStatus();
             updateBalance();
             updateConsoleLog();
+            updatePositions();
         }
 
         // Update bot status with enhanced error handling and strategy count display
@@ -970,16 +973,53 @@
                 });
         }
 
+        // Update positions
+        function updatePositions() {
+            fetch('/api/positions')
+                .then(response => response.json())
+                .then(data => {
+                    const positionsTableBody = document.getElementById('positionsTableBody');
+                    positionsTableBody.innerHTML = '';
+
+                    if (data.success && data.positions && data.positions.length > 0) {
+                        data.positions.forEach(position => {
+                            const row = `
+                                <tr>
+                                    <td>${position.strategy}</td>
+                                    <td>${position.symbol}</td>
+                                    <td>${position.side}</td>
+                                    <td>${formatNumber(position.entry_price)}</td>
+                                    <td>${formatNumber(position.position_value_usdt)}</td>
+                                    <td>${formatNumber(position.current_price)}</td>
+                                    <td class="${position.pnl >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl)}</td>
+                                    <td class="${position.pnl_percent >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl_percent)}%</td>
+                                    <td>Loading...</td>
+                                </tr>
+                            `;
+                            positionsTableBody.innerHTML += row;
+                        });
+                    } else {
+                        positionsTableBody.innerHTML = '<tr><td colspan="9" class="text-muted text-center">No active positions.</td></tr>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating positions:', error);
+                    document.getElementById('positionsTableBody').innerHTML = '<tr><td colspan="9" class="text-warning text-center">Error loading positions</td></tr>';
+                });
+        }
+
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
             updateBotStatus();
             updateBalance();
             updateConsoleLog();
+            updatePositions();
 
             // Set up periodic updates
             setInterval(updateBotStatus, 5000);
             setInterval(updateBalance, 30000);
             setInterval(updateConsoleLog, 2000);
+            setInterval(updatePositions, 10000);
         });
 
         // Show strategies info
@@ -1152,7 +1192,7 @@
                     if (modal) {
                         modal.hide();
                     }
-                    updateDashboard();
+                    refreshData();
                     alert('Strategy updated successfully.');
                 } else {
                     alert('Error updating strategy: ' + data.message);
@@ -1165,36 +1205,11 @@
         function addNewStrategy() {
             // Reset form
             document.getElementById('addStrategyForm').reset();
-            document.getElementById('newRsiParameters').style.display = 'none';
-            document.getElementById('newMacdParameters').style.display = 'none';
 
             // Show modal
             const modal = new bootstrap.Modal(document.getElementById('addStrategyModal'));
             modal.show();
         }
-
-        // Monitor strategy name input to show/hide relevant parameters
-        document.addEventListener('DOMContentLoaded', function() {
-            const strategyNameInput = document.getElementById('newStrategyName');
-            if (strategyNameInput) {
-                strategyNameInput.addEventListener('input', function() {
-                    const name = this.value.toLowerCase();
-                    const rsiParams = document.getElementById('newRsiParameters');
-                    const macdParams = document.getElementById('newMacdParameters');
-
-                    // Hide all first
-                    rsiParams.style.display = 'none';
-                    macdParams.style.display = 'none';
-
-                    // Show relevant parameters based on name
-                    if (name.includes('rsi')) {
-                        rsiParams.style.display = 'block';
-                    } else if (name.includes('macd')) {
-                        macdParams.style.display = 'block';
-                    }
-                });
-            }
-        });
 
         // Save new strategy
         function saveNewStrategy() {
@@ -1291,130 +1306,10 @@
             }
         }
 
-        // Environment is now fixed to mainnet - no loading needed
-        function loadTradingEnvironment() {
-            console.log('Environment: MAINNET (fixed)');
-        }
-
-        // Environment is now fixed to mainnet - no toggle needed
-
         // Utility functions
         function formatNumber(number) {
             return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(number);
         }
-
-        function getRandomColor() {
-            const letters = '0123456789ABCDEF';
-            let color = '#';
-            for (let i = 0; i < 6; i++) {
-                color += letters[Math.floor(Math.random() * 16)];
-            }
-            return color;
-        }
-
-        function updateDashboard() {
-            // Update bot status
-            fetch('/api/bot/status')
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('botStatus').textContent = data.running ? 'RUNNING' : 'STOPPED';
-                    document.getElementById('botStatus').className = `badge bg-${data.running ? 'success' : 'danger'}`;
-                    document.getElementById('activePositions').textContent = data.active_positions;
-                    document.getElementById('activeStrategies').textContent = data.strategies || 0;
-                    document.getElementById('statusBadge').textContent = data.running ? 'RUNNING' : 'STOPPED';
-                    document.getElementById('statusBadge').className = `badge bg-${data.running ? 'success' : 'danger'} me-2`;
-                    document.getElementById('botToggle').textContent = data.running ? 'Stop Bot' : 'Start Bot';
-                })
-                .catch(error => {
-                    console.error('Error updating bot status:', error);
-                    document.getElementById('botStatus').textContent = 'ERROR';
-                    document.getElementById('botStatus').className = 'badge bg-warning';
-                });
-
-            // Update balance
-            fetch('/api/balance')
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('balance').textContent = formatNumber(data.available_balance || 0);
-                })
-                .catch(error => {
-                    console.error('Error updating balance:', error);
-                    document.getElementById('balance').textContent = 'N/A';
-                });
-
-            // Update positions
-            fetch('/api/positions')
-                .then(response => response.json())
-                .then(data => {
-                    const positionsTableBody = document.getElementById('positionsTableBody');
-                    positionsTableBody.innerHTML = '';
-
-                    if (data.success && data.positions && data.positions.length > 0) {
-                        data.positions.forEach(position => {
-                            const row = `
-                                <tr>
-                                    <td>${position.strategy}</td>
-                                    <td>${position.symbol}</td>
-                                    <td>${position.side}</td>
-                                    <td>${formatNumber(position.entry_price)}</td>
-                                    <td>${formatNumber(position.position_value_usdt)}</td>
-                                    <td>${formatNumber(position.current_price)}</td>
-                                    <td class="${position.pnl >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl)}</td>
-                                    <td class="${position.pnl_percent >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl_percent)}%</td>
-                                    <td>Loading...</td>
-                                </tr>
-                            `;
-                            positionsTableBody.innerHTML += row;
-                        });
-                    } else {
-                        positionsTableBody.innerHTML = '<tr><td colspan="9" class="text-muted text-center">No active positions.</td></tr>';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error updating positions:', error);
-                    document.getElementById('positionsTableBody').innerHTML = '<tr><td colspan="9" class="text-warning text-center">Error loading positions</td></tr>';
-                });
-
-            // Fetch console logs
-            fetch('/api/console-log')
-                .then(response => response.json())
-                .then(data => {
-                    const consoleLogDiv = document.getElementById('consoleLog');
-                    consoleLogDiv.innerHTML = '';
-
-                    if (data.success && data.logs) {
-                        data.logs.forEach(log => {
-                            const logEntry = document.createElement('div');
-                            logEntry.textContent = log;
-                            logEntry.style.color = 'white';
-                            consoleLogDiv.appendChild(logEntry);
-                        });
-                    } else {
-                        consoleLogDiv.innerHTML = '<div class="text-muted">No logs available</div>';
-                    }
-
-                    // Scroll to bottom if auto-scroll is enabled
-                    if (autoScroll) {
-                        consoleLogDiv.scrollTop = consoleLogDiv.scrollHeight;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching console log:', error);
-                    document.getElementById('consoleLog').innerHTML = '<div class="text-warning">Error loading logs</div>';
-                });
-        }
-
-        // Initial dashboard update
-        updateDashboard();
-
-        // Periodically refresh dashboard data (e.g., every 30 seconds)
-        setInterval(updateDashboard, 30000);
-    }
-
-    // Set up periodic updates
-        setInterval(updateBotStatus, 5000);
-        setInterval(updateBalance, 30000);
-        setInterval(updateConsoleLog, 2000);
     </script>
 </body>
 </html>
