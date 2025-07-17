@@ -427,7 +427,7 @@ class OrderManager:
             for s in exchange_info['symbols']:
                 if s['symbol'] == symbol:
                     symbol_info = s
-                    break
+                break
 
             if symbol_info:
                 # Extract relevant filters

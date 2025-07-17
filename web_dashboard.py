@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 Trading Bot Web Dashboard
@@ -499,7 +498,7 @@ def get_positions():
                     entry_price = position.entry_price
                     quantity = position.quantity
                     side = position.side
-
+                    
                     if side == 'BUY':
                         pnl = (current_price - entry_price) * quantity
                     elif side == 'SELL':

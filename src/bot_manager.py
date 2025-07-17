@@ -725,7 +725,7 @@ Interval: every {assessment_interval} seconds
                         continue  # Position was closed by stop loss, skip other checks
 
                     # Get current market data
-                    df = self.price_fetcher.get_ohlcv_data(
+                    df = self.price_fetcher.get_ohlcv_data(```python
                         strategy_config['symbol'],
                         strategy_config['timeframe']
                     )
@@ -1428,8 +1428,7 @@ Interval: every {assessment_interval} seconds
                         if 'rsi' in df.columns:
                             current_rsi = df['rsi'].iloc[-1]
 
-                        # Log active position with current market data and RSI
-                        rsi_text = f"{current_rsi:.1f}" if current_rsi is not None else "N/A"
+                        # Log active position with current market data and RSIrsi_text = f"{current_rsi:.1f}" if current_rsi is not None else "N/A"
                         self.logger.info(f"TRADE IN PROGRESS | {strategy_name.upper()} | {strategy_config['symbol']} | Side: {position.side} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.1f} | RSI: {rsi_text} | Config: ${margin:.1f} USDT @ {leverage}x | PnL: ${pnl:.1f} USDT ({pnl:.1f}%)")
 
                 except Exception as e:
