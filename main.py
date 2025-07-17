@@ -158,8 +158,26 @@ async def main_bot_only():
         web_dashboard.bot_manager = bot_manager
         web_dashboard.shared_bot_manager = bot_manager
 
-        # Start the bot in a task so we can handle shutdown signals
+        # Start the trading bot
         logger.info("🚀 Starting trading bot main loop...")
+
+        # Set startup source for notifications
+        logger.info("🌐 BOT STARTUP INITIATED FROM: Console")
+
+        # Start web dashboard in background thread
+        import threading
+        def start_web_dashboard():
+            try:
+                from web_dashboard import app
+                logger.info("🌐 Starting web dashboard on port 5000...")
+                app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+            except Exception as e:
+                logger.error(f"❌ Failed to start web dashboard: {e}")
+
+        web_thread = threading.Thread(target=start_web_dashboard, daemon=True)
+        web_thread.start()
+
+        # Start the bot
         bot_task = asyncio.create_task(bot_manager.start())
         shutdown_task = asyncio.create_task(shutdown_event.wait())
 

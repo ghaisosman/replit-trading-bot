@@ -1282,34 +1282,54 @@ function saveStrategyConfig() {
         }
 
         function updateDashboard() {
-            fetch('/api/status')
+            // Update bot status
+            fetch('/api/bot/status')
                 .then(response => response.json())
                 .then(data => {
-                    // Update bot status
-                    document.getElementById('botStatus').textContent = data.botStatus;
-                    document.getElementById('botStatus').className = `badge bg-${data.botStatus === 'RUNNING' ? 'success' : 'danger'}`;
-                    document.getElementById('balance').textContent = formatNumber(data.balance);
-                    document.getElementById('activePositions').textContent = data.activePositions;
-                    document.getElementById('statusBadge').textContent = data.botStatus;
-                    document.getElementById('statusBadge').className = `badge bg-${data.botStatus === 'RUNNING' ? 'success' : 'danger'} me-2`;
-                    document.getElementById('botToggle').textContent = data.botStatus === 'RUNNING' ? 'Stop Bot' : 'Start Bot';
+                    document.getElementById('botStatus').textContent = data.running ? 'RUNNING' : 'STOPPED';
+                    document.getElementById('botStatus').className = `badge bg-${data.running ? 'success' : 'danger'}`;
+                    document.getElementById('activePositions').textContent = data.active_positions;
+                    document.getElementById('statusBadge').textContent = data.running ? 'RUNNING' : 'STOPPED';
+                    document.getElementById('statusBadge').className = `badge bg-${data.running ? 'success' : 'danger'} me-2`;
+                    document.getElementById('botToggle').textContent = data.running ? 'Stop Bot' : 'Start Bot';
+                })
+                .catch(error => {
+                    console.error('Error updating bot status:', error);
+                    document.getElementById('botStatus').textContent = 'ERROR';
+                    document.getElementById('botStatus').className = 'badge bg-warning';
+                });
 
-                    // Update positions table
+            // Update balance
+            fetch('/api/balance')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('balance').textContent = formatNumber(data.available_balance || 0);
+                })
+                .catch(error => {
+                    console.error('Error updating balance:', error);
+                    document.getElementById('balance').textContent = 'N/A';
+                });
+
+            // Update positions
+            fetch('/api/positions')
+                .then(response => response.json())
+                .then(data => {
                     const positionsTableBody = document.getElementById('positionsTableBody');
                     positionsTableBody.innerHTML = '';
-                    if (data.activePositions > 0) {
+                    
+                    if (data.success && data.positions && data.positions.length > 0) {
                         data.positions.forEach(position => {
                             const row = `
                                 <tr>
                                     <td>${position.strategy}</td>
                                     <td>${position.symbol}</td>
                                     <td>${position.side}</td>
-                                    <td>${formatNumber(position.entryPrice)}</td>
-                                    <td>${formatNumber(position.positionSize)}</td>
-                                    <td>${formatNumber(position.currentPrice)}</td>
-                                    <td>${formatNumber(position.pnl)}</td>
-                                    <td>${formatNumber(position.pnlPercentage)}%</td>
-                                    <td>${formatNumber(position.currentRSI)}</td>
+                                    <td>${formatNumber(position.entry_price)}</td>
+                                    <td>${formatNumber(position.position_value_usdt)}</td>
+                                    <td>${formatNumber(position.current_price)}</td>
+                                    <td class="${position.pnl >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl)}</td>
+                                    <td class="${position.pnl_percent >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl_percent)}%</td>
+                                    <td>Loading...</td>
                                 </tr>
                             `;
                             positionsTableBody.innerHTML += row;
@@ -1317,53 +1337,39 @@ function saveStrategyConfig() {
                     } else {
                         positionsTableBody.innerHTML = '<tr><td colspan="9" class="text-muted text-center">No active positions.</td></tr>';
                     }
-
-                    // Update strategy configurations
-                    const strategyTableBody = document.querySelector('.table tbody');
-                    strategyTableBody.innerHTML = '';
-                    for (const strategyName in data.strategies) {
-                        const strategy = data.strategies[strategyName];
-                        const row = `
-                            <tr>
-                                <td>${strategyName}</td>
-                                <td>${strategy.symbol}</td>
-                                <td>${strategy.margin}</td>
-                                <td>${strategy.leverage}</td>
-                                <td>${strategy.timeframe}</td>
-                                <td><span class="badge bg-${strategy.enabled ? 'success' : 'danger'}">${strategy.enabled ? 'Enabled' : 'Disabled'}</span></td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-warning" onclick="editStrategyConfig('${strategyName}')">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </button>
-                                </td>
-                            </tr>
-                        `;
-                        strategyTableBody.innerHTML += row;
-                    }
                 })
-                .catch(error => console.error('Error fetching status:', error));
+                .catch(error => {
+                    console.error('Error updating positions:', error);
+                    document.getElementById('positionsTableBody').innerHTML = '<tr><td colspan="9" class="text-warning text-center">Error loading positions</td></tr>';
+                });
 
-             // Fetch console logs
-            fetch('/api/logs')
+            // Fetch console logs
+            fetch('/api/console-log')
                 .then(response => response.json())
-                .then(logs => {
+                .then(data => {
                     const consoleLogDiv = document.getElementById('consoleLog');
-                    consoleLogDiv.innerHTML = ''; // Clear existing logs
+                    consoleLogDiv.innerHTML = '';
 
-                    logs.forEach(log => {
-                        const logEntry = document.createElement('div');
-                        logEntry.textContent = log.message;
-                        logEntry.style.color = log.color || 'white'; // Use the color from the log data
-
-                        consoleLogDiv.appendChild(logEntry);
-                    });
+                    if (data.success && data.logs) {
+                        data.logs.forEach(log => {
+                            const logEntry = document.createElement('div');
+                            logEntry.textContent = log;
+                            logEntry.style.color = 'white';
+                            consoleLogDiv.appendChild(logEntry);
+                        });
+                    } else {
+                        consoleLogDiv.innerHTML = '<div class="text-muted">No logs available</div>';
+                    }
 
                     // Scroll to bottom if auto-scroll is enabled
                     if (autoScroll) {
                         consoleLogDiv.scrollTop = consoleLogDiv.scrollHeight;
                     }
                 })
-                .catch(error => console.error('Error fetching logs:', error));
+                .catch(error => {
+                    console.error('Error fetching console log:', error);
+                    document.getElementById('consoleLog').innerHTML = '<div class="text-warning">Error loading logs</div>';
+                });
         }
 
         // Initial dashboard update
