@@ -164,6 +164,43 @@ class DummyBotManager:
             'balance': 0
         }
 
+    def get_all_strategies(self):
+        """Return default strategies for web dashboard configuration"""
+        return {
+            'rsi_oversold': {
+                'symbol': 'SOLUSDT', 'margin': 5.0, 'leverage': 5, 'timeframe': '15m',
+                'max_loss_pct': 10, 'assessment_interval': 60,
+                'rsi_long_entry': 40, 'rsi_long_exit': 70,
+                'rsi_short_entry': 60, 'rsi_short_exit': 30,
+                'decimals': 2
+            },
+            'macd_divergence': {
+                'symbol': 'ETHUSDT', 'margin': 10.0, 'leverage': 5, 'timeframe': '15m',
+                'max_loss_pct': 10, 'assessment_interval': 60,
+                'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
+                'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005,
+                'confirmation_candles': 2, 'decimals': 2
+            },
+            'RSI_OVERSOLD1': {
+                'symbol': 'XRPUSDT', 'margin': 5.0, 'leverage': 5, 'timeframe': '15m',
+                'max_loss_pct': 10, 'assessment_interval': 60,
+                'rsi_long_entry': 40, 'rsi_long_exit': 70,
+                'rsi_short_entry': 60, 'rsi_short_exit': 30,
+                'decimals': 3
+            },
+            'liquidity_reversal': {
+                'symbol': 'BTCUSDT', 'margin': 15.0, 'leverage': 5, 'timeframe': '15m',
+                'max_loss_pct': 8, 'assessment_interval': 30,
+                'swing_lookback': 20, 'sweep_threshold': 0.5,
+                'volume_surge_multiplier': 2.0, 'confirmation_candles': 2,
+                'profit_target_method': 'mean_reversion', 'fixed_profit_percent': 2.0,
+                'mean_reversion_periods': 50, 'mean_reversion_buffer': 0.5,
+                'rsi_exit_overbought': 70, 'rsi_exit_oversold': 30,
+                'dynamic_profit_min': 1.0, 'dynamic_profit_max': 4.0,
+                'decimals': 3
+            }
+        }
+
     def update_strategy_config(self, strategy_name, updates):
         pass
 
@@ -195,24 +232,29 @@ if not bot_manager:
     current_bot = bot_manager
     print("🔄 Using dummy bot manager for API endpoints")
 
-# Create instances for dashboard
+# Create instances for dashboard - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH
 try:
-    if current_bot and hasattr(current_bot, 'strategies'):
-        trading_config_manager = current_bot
-        balance_fetcher = current_bot.balance_fetcher if hasattr(current_bot, 'balance_fetcher') else DummyBalanceFetcher()
-    else:
-        from src.config.trading_config import trading_config_manager
-        from src.data_fetcher.balance_fetcher import BalanceFetcher
-        from src.binance_client.client import BinanceClientWrapper
-
-        try:
+    # Always use the trading_config_manager for configuration management
+    from src.config.trading_config import trading_config_manager
+    print("✅ Trading config manager loaded - Web dashboard is single source of truth")
+    
+    # Set up balance fetcher
+    try:
+        if current_bot and hasattr(current_bot, 'balance_fetcher'):
+            balance_fetcher = current_bot.balance_fetcher
+        else:
+            from src.data_fetcher.balance_fetcher import BalanceFetcher
+            from src.binance_client.client import BinanceClientWrapper
             binance_client = BinanceClientWrapper()
             balance_fetcher = BalanceFetcher(binance_client)
-        except:
-            balance_fetcher = DummyBalanceFetcher()
-except:
+    except:
+        balance_fetcher = DummyBalanceFetcher()
+        
+except ImportError:
+    # Fallback to dummy config manager only if imports fail
     trading_config_manager = DummyConfigManagerFull()
     balance_fetcher = DummyBalanceFetcher()
+    print("⚠️ Using dummy config manager - Limited functionality")
 
 @app.route('/')
 def dashboard():
@@ -559,12 +601,21 @@ def get_bot_status():
 def get_strategies():
     """Get all strategy configurations - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
     try:
-        if IMPORTS_AVAILABLE:
+        # Always prioritize web dashboard configuration
+        print("🌐 WEB DASHBOARD: Getting strategies as single source of truth")
+        
+        if IMPORTS_AVAILABLE and hasattr(trading_config_manager, 'get_all_strategies'):
             # Get all strategies from web dashboard configuration manager
             strategies = trading_config_manager.get_all_strategies()
+            print(f"✅ Got {len(strategies)} strategies from web dashboard config manager")
+        else:
+            # Use dummy manager if real one not available
+            dummy_manager = DummyConfigManagerFull()
+            strategies = dummy_manager.get_all_strategies()
+            print(f"⚠️ Using dummy config manager with {len(strategies)} default strategies")
 
-            # Ensure all required parameters are present for each strategy
-            for name, config in strategies.items():
+        # Ensure all required parameters are present for each strategy
+        for name, config in strategies.items():
                 # Ensure assessment_interval is included
                 if 'assessment_interval' not in config:
                     config['assessment_interval'] = 60 if 'rsi' in name.lower() else 30
@@ -994,6 +1045,34 @@ def get_rsi_for_symbol(symbol):
     except Exception as e:
         print(f"❌ API ERROR: /api/rsi/{symbol} - {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/trading/environment', methods=['GET'])
+def get_trading_environment():
+    """Get trading environment configuration"""
+    try:
+        # Get current bot manager
+        current_bot = get_current_bot_manager()
+        
+        if current_bot and hasattr(current_bot, 'is_running'):
+            environment_info = {
+                'bot_running': current_bot.is_running,
+                'environment': 'MAINNET',  # Based on Instructions.md - now using mainnet
+                'web_dashboard_active': True,
+                'config_source': 'web_dashboard'  # Web dashboard is single source of truth
+            }
+        else:
+            environment_info = {
+                'bot_running': False,
+                'environment': 'MAINNET',
+                'web_dashboard_active': True,
+                'config_source': 'web_dashboard'
+            }
+        
+        return jsonify(environment_info)
+        
+    except Exception as e:
+        print(f"❌ API ERROR: /api/trading/environment - {e}")
+        return jsonify({'error': str(e), 'environment': 'UNKNOWN'}), 500
 
 def get_current_price(symbol):
     """Helper function to get the current price of a symbol"""
