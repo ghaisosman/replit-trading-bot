@@ -733,3 +733,245 @@
                             document.getElementById('confirmationCandles').value = config.confirmation_candles || 2;
 
                             //
+```                                // Profit target parameters
+                            document.getElementById('profitTargetMethod').value = config.profit_target_method || 'mean_reversion';
+                            document.getElementById('fixedProfitPercent').value = config.fixed_profit_percent || 2.0;
+                            document.getElementById('meanReversionPeriods').value = config.mean_reversion_periods || 50;
+                            document.getElementById('meanReversionBuffer').value = config.mean_reversion_buffer || 0.5;
+
+                            // Advanced profit targeting
+                            document.getElementById('rsiExitOverbought').value = config.rsi_exit_overbought || 70;
+                            document.getElementById('rsiExitOversold').value = config.rsi_exit_oversold || 30;
+                            document.getElementById('dynamicProfitMin').value = config.dynamic_profit_min || 1.0;
+                            document.getElementById('dynamicProfitMax').value = config.dynamic_profit_max || 4.0;
+                        }
+
+                        $('#strategyModal').modal('show');
+                    } else {
+                        alert('Strategy configuration not found.');
+                    }
+                })
+                .catch(error => console.error('Error fetching strategy config:', error));
+        }
+
+        // Save strategy configuration
+        
+function saveStrategyConfig() {
+            const strategyName = document.getElementById('strategyName').value;
+
+            const updates = {
+                symbol: document.getElementById('strategySymbol').value,
+                margin: parseFloat(document.getElementById('strategyMargin').value),
+                leverage: parseInt(document.getElementById('strategyLeverage').value),
+                decimals: parseInt(document.getElementById('strategyDecimals').value),
+                timeframe: document.getElementById('strategyTimeframe').value,
+                max_loss_pct: parseFloat(document.getElementById('strategyMaxLoss').value),
+                assessment_interval: parseInt(document.getElementById('assessmentInterval').value),
+                cooldown_period: parseInt(document.getElementById('cooldownPeriod').value),
+                min_volume: parseFloat(document.getElementById('minVolume').value)
+            };
+
+            // Add strategy-specific parameters
+            if (strategyName.toLowerCase().includes('rsi')) {
+                updates.rsi_period = parseInt(document.getElementById('rsiPeriod').value);
+                updates.rsi_long_entry = parseInt(document.getElementById('rsiLongEntry').value);
+                updates.rsi_long_exit = parseInt(document.getElementById('rsiLongExit').value);
+                updates.rsi_short_entry = parseInt(document.getElementById('rsiShortEntry').value);
+                updates.rsi_short_exit = parseInt(document.getElementById('rsiShortExit').value);
+            }
+
+            if (strategyName.toLowerCase().includes('macd')) {
+                updates.macd_fast = parseInt(document.getElementById('macdFast').value);
+                updates.macd_slow = parseInt(document.getElementById('macdSlow').value);
+                updates.macd_signal = parseInt(document.getElementById('macdSignal').value);
+                updates.min_histogram_threshold = parseFloat(document.getElementById('macdMinHistogram').value);
+                updates.min_distance_threshold = parseFloat(document.getElementById('macdMinDistance').value);
+                updates.confirmation_candles = parseInt(document.getElementById('macdConfirmationCandles').value);
+            }
+
+            // Liquidity reversal parameters
+            if (strategyName.toLowerCase().includes('liquidity')) {
+                updates.swing_lookback = parseInt(document.getElementById('swingLookback').value);
+                updates.sweep_threshold = parseFloat(document.getElementById('sweepThreshold').value);
+                updates.volume_surge_multiplier = parseFloat(document.getElementById('volumeSurgeMultiplier').value);
+                updates.confirmation_candles = parseInt(document.getElementById('confirmationCandles').value);
+                updates.profit_target_method = document.getElementById('profitTargetMethod').value;
+                updates.fixed_profit_percent = parseFloat(document.getElementById('fixedProfitPercent').value);
+                updates.mean_reversion_periods = parseInt(document.getElementById('meanReversionPeriods').value);
+                updates.mean_reversion_buffer = parseFloat(document.getElementById('meanReversionBuffer').value);
+                updates.rsi_exit_overbought = parseInt(document.getElementById('rsiExitOverbought').value);
+                updates.rsi_exit_oversold = parseInt(document.getElementById('rsiExitOversold').value);
+                updates.dynamic_profit_min = parseFloat(document.getElementById('dynamicProfitMin').value);
+                updates.dynamic_profit_max = parseFloat(document.getElementById('dynamicProfitMax').value);
+            }
+
+            fetch('/api/strategies/' + strategyName, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updates)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    $('#strategyModal').modal('hide');
+                    updateDashboard();
+                    alert('Strategy updated successfully.');
+                } else {
+                    alert('Error updating strategy: ' + data.message);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+        // Add new strategy function
+        function addNewStrategy() {
+            // TODO: Implement functionality to add a new strategy
+            alert('Functionality to add a new strategy will be implemented soon.');
+        }
+
+        // Console log functions
+        function clearConsoleLog() {
+            document.getElementById('consoleLog').innerHTML = '<div class="text-muted">Console cleared.</div>';
+        }
+
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            const btn = document.getElementById('autoScrollBtn');
+            btn.innerHTML = autoScroll ? '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: ON' : '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: OFF';
+        }
+
+        // Environment toggle
+        document.getElementById('environmentToggle').addEventListener('change', function() {
+            const isTestnet = this.checked;
+            const newEnvironment = isTestnet ? 'TESTNET' : 'MAINNET';
+            document.getElementById('currentEnvironment').textContent = newEnvironment;
+            document.getElementById('currentEnvironment').className = `environment-badge ${newEnvironment.toLowerCase()}`;
+            document.getElementById('environmentWarning').style.display = 'block';
+
+            fetch('/api/environment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ environment: newEnvironment })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    alert('Failed to switch environment: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Connection error');
+            });
+        });
+
+        // Utility functions
+        function formatNumber(number) {
+            return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(number);
+        }
+
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+
+        function updateDashboard() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    // Update bot status
+                    document.getElementById('botStatus').textContent = data.botStatus;
+                    document.getElementById('botStatus').className = `badge bg-${data.botStatus === 'RUNNING' ? 'success' : 'danger'}`;
+                    document.getElementById('balance').textContent = formatNumber(data.balance);
+                    document.getElementById('activePositions').textContent = data.activePositions;
+                    document.getElementById('statusBadge').textContent = data.botStatus;
+                    document.getElementById('statusBadge').className = `badge bg-${data.botStatus === 'RUNNING' ? 'success' : 'danger'} me-2`;
+                    document.getElementById('botToggle').textContent = data.botStatus === 'RUNNING' ? 'Stop Bot' : 'Start Bot';
+
+                    // Update positions table
+                    const positionsTableBody = document.getElementById('positionsTableBody');
+                    positionsTableBody.innerHTML = '';
+                    if (data.activePositions > 0) {
+                        data.positions.forEach(position => {
+                            const row = `
+                                <tr>
+                                    <td>${position.strategy}</td>
+                                    <td>${position.symbol}</td>
+                                    <td>${position.side}</td>
+                                    <td>${formatNumber(position.entryPrice)}</td>
+                                    <td>${formatNumber(position.positionSize)}</td>
+                                    <td>${formatNumber(position.currentPrice)}</td>
+                                    <td>${formatNumber(position.pnl)}</td>
+                                    <td>${formatNumber(position.pnlPercentage)}%</td>
+                                    <td>${formatNumber(position.currentRSI)}</td>
+                                </tr>
+                            `;
+                            positionsTableBody.innerHTML += row;
+                        });
+                    } else {
+                        positionsTableBody.innerHTML = '<tr><td colspan="9" class="text-muted text-center">No active positions.</td></tr>';
+                    }
+
+                    // Update strategy configurations
+                    const strategyTableBody = document.querySelector('.table tbody');
+                    strategyTableBody.innerHTML = '';
+                    for (const strategyName in data.strategies) {
+                        const strategy = data.strategies[strategyName];
+                        const row = `
+                            <tr>
+                                <td>${strategyName}</td>
+                                <td>${strategy.symbol}</td>
+                                <td>${strategy.margin}</td>
+                                <td>${strategy.leverage}</td>
+                                <td>${strategy.timeframe}</td>
+                                <td><span class="badge bg-${strategy.enabled ? 'success' : 'danger'}">${strategy.enabled ? 'Enabled' : 'Disabled'}</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="editStrategyConfig('${strategyName}')">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                        strategyTableBody.innerHTML += row;
+                    }
+                })
+                .catch(error => console.error('Error fetching status:', error));
+
+             // Fetch console logs
+            fetch('/api/logs')
+                .then(response => response.json())
+                .then(logs => {
+                    const consoleLogDiv = document.getElementById('consoleLog');
+                    consoleLogDiv.innerHTML = ''; // Clear existing logs
+
+                    logs.forEach(log => {
+                        const logEntry = document.createElement('div');
+                        logEntry.textContent = log.message;
+                        logEntry.style.color = log.color || 'white'; // Use the color from the log data
+
+                        consoleLogDiv.appendChild(logEntry);
+                    });
+
+                    // Scroll to bottom if auto-scroll is enabled
+                    if (autoScroll) {
+                        consoleLogDiv.scrollTop = consoleLogDiv.scrollHeight;
+                    }
+                })
+                .catch(error => console.error('Error fetching logs:', error));
+        }
+
+        // Initial dashboard update
+        updateDashboard();
+
+        // Periodically refresh dashboard data (e.g., every 30 seconds)
+        setInterval(updateDashboard, 30000);
+    </script>
+</body>
+</html>

@@ -105,40 +105,129 @@ class TradingConfigManager:
         if strategy_name not in self.strategy_overrides:
             self.strategy_overrides[strategy_name] = {}
 
-        # Validate and clean parameters
-        if 'assessment_interval' in updates:
-            updates['assessment_interval'] = int(updates['assessment_interval'])
-            # Validate assessment interval (5 seconds to 5 minutes)
-            if updates['assessment_interval'] < 5:
-                updates['assessment_interval'] = 5
-            elif updates['assessment_interval'] > 300:
-                updates['assessment_interval'] = 300
+        # Comprehensive parameter validation and cleaning
+        validated_updates = {}
+
+        # Basic trading parameters
+        if 'symbol' in updates:
+            validated_updates['symbol'] = str(updates['symbol']).upper()
 
         if 'margin' in updates:
-            updates['margin'] = float(updates['margin'])
-            if updates['margin'] <= 0:
-                updates['margin'] = 50.0
+            validated_updates['margin'] = float(updates['margin'])
+            if validated_updates['margin'] <= 0:
+                validated_updates['margin'] = 50.0
 
         if 'leverage' in updates:
-            updates['leverage'] = int(updates['leverage'])
-            if updates['leverage'] <= 0 or updates['leverage'] > 125:
-                updates['leverage'] = 5
+            validated_updates['leverage'] = int(updates['leverage'])
+            if validated_updates['leverage'] <= 0 or validated_updates['leverage'] > 125:
+                validated_updates['leverage'] = 5
+
+        if 'timeframe' in updates:
+            valid_timeframes = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d']
+            timeframe = str(updates['timeframe'])
+            validated_updates['timeframe'] = timeframe if timeframe in valid_timeframes else '15m'
+
+        if 'max_loss_pct' in updates:
+            validated_updates['max_loss_pct'] = float(updates['max_loss_pct'])
+            if validated_updates['max_loss_pct'] <= 0 or validated_updates['max_loss_pct'] > 50:
+                validated_updates['max_loss_pct'] = 10.0
+
+        if 'assessment_interval' in updates:
+            validated_updates['assessment_interval'] = int(updates['assessment_interval'])
+            if validated_updates['assessment_interval'] < 5:
+                validated_updates['assessment_interval'] = 5
+            elif validated_updates['assessment_interval'] > 300:
+                validated_updates['assessment_interval'] = 300
+
+        if 'decimals' in updates:
+            validated_updates['decimals'] = int(updates['decimals'])
+            if validated_updates['decimals'] < 0 or validated_updates['decimals'] > 8:
+                validated_updates['decimals'] = 2
+
+        if 'cooldown_period' in updates:
+            validated_updates['cooldown_period'] = int(updates['cooldown_period'])
+            if validated_updates['cooldown_period'] < 30:
+                validated_updates['cooldown_period'] = 30
+            elif validated_updates['cooldown_period'] > 3600:
+                validated_updates['cooldown_period'] = 3600
+
+        if 'min_volume' in updates:
+            validated_updates['min_volume'] = float(updates['min_volume'])
+            if validated_updates['min_volume'] < 0:
+                validated_updates['min_volume'] = 1000000
+
+        # RSI Strategy Parameters
+        if 'rsi_period' in updates:
+            validated_updates['rsi_period'] = int(updates['rsi_period'])
+            if validated_updates['rsi_period'] < 5 or validated_updates['rsi_period'] > 50:
+                validated_updates['rsi_period'] = 14
+
+        if 'rsi_long_entry' in updates:
+            validated_updates['rsi_long_entry'] = int(updates['rsi_long_entry'])
+            if validated_updates['rsi_long_entry'] < 10 or validated_updates['rsi_long_entry'] > 50:
+                validated_updates['rsi_long_entry'] = 40
+
+        if 'rsi_long_exit' in updates:
+            validated_updates['rsi_long_exit'] = int(updates['rsi_long_exit'])
+            if validated_updates['rsi_long_exit'] < 50 or validated_updates['rsi_long_exit'] > 90:
+                validated_updates['rsi_long_exit'] = 70
+
+        if 'rsi_short_entry' in updates:
+            validated_updates['rsi_short_entry'] = int(updates['rsi_short_entry'])
+            if validated_updates['rsi_short_entry'] < 50 or validated_updates['rsi_short_entry'] > 90:
+                validated_updates['rsi_short_entry'] = 60
+
+        if 'rsi_short_exit' in updates:
+            validated_updates['rsi_short_exit'] = int(updates['rsi_short_exit'])
+            if validated_updates['rsi_short_exit'] < 10 or validated_updates['rsi_short_exit'] > 50:
+                validated_updates['rsi_short_exit'] = 30
+
+        # MACD Strategy Parameters
+        if 'macd_fast' in updates:
+            validated_updates['macd_fast'] = int(updates['macd_fast'])
+            if validated_updates['macd_fast'] < 5 or validated_updates['macd_fast'] > 20:
+                validated_updates['macd_fast'] = 12
+
+        if 'macd_slow' in updates:
+            validated_updates['macd_slow'] = int(updates['macd_slow'])
+            if validated_updates['macd_slow'] < 20 or validated_updates['macd_slow'] > 50:
+                validated_updates['macd_slow'] = 26
+
+        if 'macd_signal' in updates:
+            validated_updates['macd_signal'] = int(updates['macd_signal'])
+            if validated_updates['macd_signal'] < 5 or validated_updates['macd_signal'] > 15:
+                validated_updates['macd_signal'] = 9
+
+        if 'min_histogram_threshold' in updates:
+            validated_updates['min_histogram_threshold'] = float(updates['min_histogram_threshold'])
+            if validated_updates['min_histogram_threshold'] < 0.0001 or validated_updates['min_histogram_threshold'] > 0.01:
+                validated_updates['min_histogram_threshold'] = 0.0001
+
+        if 'min_distance_threshold' in updates:
+            validated_updates['min_distance_threshold'] = float(updates['min_distance_threshold'])
+            if validated_updates['min_distance_threshold'] < 0.001 or validated_updates['min_distance_threshold'] > 5.0:
+                validated_updates['min_distance_threshold'] = 0.005
+
+        if 'confirmation_candles' in updates:
+            validated_updates['confirmation_candles'] = int(updates['confirmation_candles'])
+            if validated_updates['confirmation_candles'] < 1 or validated_updates['confirmation_candles'] > 5:
+                validated_updates['confirmation_candles'] = 2
 
         # WEB DASHBOARD SETTINGS OVERRIDE ALL OTHER SOURCES
-        self.strategy_overrides[strategy_name].update(updates)
+        self.strategy_overrides[strategy_name].update(validated_updates)
 
         # Save to persistent storage
         self._save_web_dashboard_configs()
 
         # Force update any running bot instance immediately
-        self._force_update_running_bot(strategy_name, updates)
+        self._force_update_running_bot(strategy_name, validated_updates)
 
         # Log the update for debugging
         import logging
-        logging.getLogger(__name__).info(f"🌐 WEB DASHBOARD UPDATE | {strategy_name} | {updates}")
+        logging.getLogger(__name__).info(f"🌐 WEB DASHBOARD UPDATE | {strategy_name} | {validated_updates}")
         logging.getLogger(__name__).info(f"🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - ALL CONFIG FILES IGNORED")
-        if 'assessment_interval' in updates:
-            logging.getLogger(__name__).info(f"📅 {strategy_name} assessment interval set to {updates['assessment_interval']} seconds")
+        if 'assessment_interval' in validated_updates:
+            logging.getLogger(__name__).info(f"📅 {strategy_name} assessment interval set to {validated_updates['assessment_interval']} seconds")
 
     def _force_update_running_bot(self, strategy_name: str, updates: Dict[str, Any]):
         """Force update running bot with web dashboard settings"""
@@ -162,7 +251,7 @@ class TradingConfigManager:
         """Get all strategy configurations from web dashboard"""
         strategies = {}
 
-        # If no web dashboard configs exist, provide minimal defaults for setup
+        # If no web dashboard configs exist, provide comprehensive defaults for setup
         if not self.strategy_overrides:
             strategies = {
                 'rsi_oversold': {
@@ -170,10 +259,17 @@ class TradingConfigManager:
                     'symbol': 'SOLUSDT',
                     'margin': 12.5,
                     'leverage': 25,
+                    'timeframe': '15m',
+                    'assessment_interval': 60,
+                    'decimals': 2,
+                    'cooldown_period': 300,
+                    # RSI Strategy Parameters
+                    'rsi_period': 14,
                     'rsi_long_entry': 40,
                     'rsi_long_exit': 70,
                     'rsi_short_entry': 60,
                     'rsi_short_exit': 30,
+                    'min_volume': 1000000,
                 },
                 'macd_divergence': {
                     **self.default_params.to_dict(),
@@ -182,12 +278,16 @@ class TradingConfigManager:
                     'leverage': 5,
                     'timeframe': '5m',
                     'assessment_interval': 30,
+                    'decimals': 2,
+                    'cooldown_period': 300,
+                    # MACD Strategy Parameters
                     'macd_fast': 12,
                     'macd_slow': 26,
                     'macd_signal': 9,
                     'min_histogram_threshold': 0.0001,
                     'min_distance_threshold': 0.005,
                     'confirmation_candles': 2,
+                    'min_volume': 1000000,
                 }
             }
         else:
@@ -195,21 +295,32 @@ class TradingConfigManager:
             for strategy_name, config in self.strategy_overrides.items():
                 full_config = {**self.default_params.to_dict(), **config}
 
-                # Add strategy-specific defaults based on strategy name/type
+                # Add comprehensive strategy-specific defaults based on strategy name/type
                 if 'rsi' in strategy_name.lower():
-                    # RSI strategy defaults
-                    full_config.setdefault('rsi_long_entry', 30)
-                    full_config.setdefault('rsi_long_exit', 60)
-                    full_config.setdefault('rsi_short_entry', 70)
-                    full_config.setdefault('rsi_short_exit', 40)
+                    # RSI strategy comprehensive defaults
+                    full_config.setdefault('rsi_period', 14)
+                    full_config.setdefault('rsi_long_entry', 40)
+                    full_config.setdefault('rsi_long_exit', 70)
+                    full_config.setdefault('rsi_short_entry', 60)
+                    full_config.setdefault('rsi_short_exit', 30)
+                    full_config.setdefault('min_volume', 1000000)
+                    full_config.setdefault('decimals', 2)
+                    full_config.setdefault('cooldown_period', 300)
                 elif 'macd' in strategy_name.lower():
-                    # MACD strategy defaults
+                    # MACD strategy comprehensive defaults
                     full_config.setdefault('macd_fast', 12)
                     full_config.setdefault('macd_slow', 26)
                     full_config.setdefault('macd_signal', 9)
                     full_config.setdefault('min_histogram_threshold', 0.0001)
-                    full_config.setdefault('min_distance_threshold', 0.001)
+                    full_config.setdefault('min_distance_threshold', 0.005)
                     full_config.setdefault('confirmation_candles', 2)
+                    full_config.setdefault('min_volume', 1000000)
+                    full_config.setdefault('decimals', 2)
+                    full_config.setdefault('cooldown_period', 300)
+
+                # Ensure all configs have required base parameters
+                full_config.setdefault('assessment_interval', 60)
+                full_config.setdefault('max_loss_pct', 10)
 
                 strategies[strategy_name] = full_config
 

@@ -532,8 +532,14 @@ def update_strategy(strategy_name):
         if not data:
             return jsonify({'success': False, 'message': 'No data provided'})
 
-        # Basic parameter validation
+        # Comprehensive parameter validation
         try:
+            # Basic trading parameters
+            if 'symbol' in data:
+                data['symbol'] = str(data['symbol']).upper()
+                if not data['symbol'] or len(data['symbol']) < 6:
+                    return jsonify({'success': False, 'message': 'Symbol must be valid (e.g., BTCUSDT)'})
+
             if 'margin' in data:
                 data['margin'] = float(data['margin'])
                 if data['margin'] <= 0:
@@ -544,32 +550,92 @@ def update_strategy(strategy_name):
                 if data['leverage'] <= 0 or data['leverage'] > 125:
                     return jsonify({'success': False, 'message': 'Leverage must be between 1 and 125'})
 
+            if 'timeframe' in data:
+                valid_timeframes = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d']
+                if data['timeframe'] not in valid_timeframes:
+                    return jsonify({'success': False, 'message': f'Timeframe must be one of: {", ".join(valid_timeframes)}'})
+
+            if 'max_loss_pct' in data:
+                data['max_loss_pct'] = float(data['max_loss_pct'])
+                if data['max_loss_pct'] <= 0 or data['max_loss_pct'] > 50:
+                    return jsonify({'success': False, 'message': 'Max Loss % must be between 0.1 and 50'})
+
             if 'assessment_interval' in data:
                 data['assessment_interval'] = int(data['assessment_interval'])
                 if data['assessment_interval'] < 5 or data['assessment_interval'] > 300:
                     return jsonify({'success': False, 'message': 'Assessment interval must be between 5 and 300 seconds'})
+
+            if 'decimals' in data:
+                data['decimals'] = int(data['decimals'])
+                if data['decimals'] < 0 or data['decimals'] > 8:
+                    return jsonify({'success': False, 'message': 'Decimals must be between 0 and 8'})
 
             if 'cooldown_period' in data:
                 data['cooldown_period'] = int(data['cooldown_period'])
                 if data['cooldown_period'] < 30 or data['cooldown_period'] > 3600:
                     return jsonify({'success': False, 'message': 'Cooldown period must be between 30 and 3600 seconds'})
 
-            # Validate RSI parameters
+            if 'min_volume' in data:
+                data['min_volume'] = float(data['min_volume'])
+                if data['min_volume'] < 0:
+                    return jsonify({'success': False, 'message': 'Minimum volume must be positive'})
+
+            # RSI strategy parameters
+            if 'rsi_period' in data:
+                data['rsi_period'] = int(data['rsi_period'])
+                if data['rsi_period'] < 5 or data['rsi_period'] > 50:
+                    return jsonify({'success': False, 'message': 'RSI Period must be between 5 and 50'})
+
             if 'rsi_long_entry' in data:
                 data['rsi_long_entry'] = int(data['rsi_long_entry'])
                 if data['rsi_long_entry'] < 10 or data['rsi_long_entry'] > 50:
                     return jsonify({'success': False, 'message': 'RSI Long Entry must be between 10 and 50'})
+
+            if 'rsi_long_exit' in data:
+                data['rsi_long_exit'] = int(data['rsi_long_exit'])
+                if data['rsi_long_exit'] < 50 or data['rsi_long_exit'] > 90:
+                    return jsonify({'success': False, 'message': 'RSI Long Exit must be between 50 and 90'})
 
             if 'rsi_short_entry' in data:
                 data['rsi_short_entry'] = int(data['rsi_short_entry'])
                 if data['rsi_short_entry'] < 50 or data['rsi_short_entry'] > 90:
                     return jsonify({'success': False, 'message': 'RSI Short Entry must be between 50 and 90'})
 
-            # Validate MACD parameters
+            if 'rsi_short_exit' in data:
+                data['rsi_short_exit'] = int(data['rsi_short_exit'])
+                if data['rsi_short_exit'] < 10 or data['rsi_short_exit'] > 50:
+                    return jsonify({'success': False, 'message': 'RSI Short Exit must be between 10 and 50'})
+
+            # MACD strategy parameters
             if 'macd_fast' in data:
                 data['macd_fast'] = int(data['macd_fast'])
                 if data['macd_fast'] < 5 or data['macd_fast'] > 20:
                     return jsonify({'success': False, 'message': 'MACD Fast must be between 5 and 20'})
+
+            if 'macd_slow' in data:
+                data['macd_slow'] = int(data['macd_slow'])
+                if data['macd_slow'] < 20 or data['macd_slow'] > 50:
+                    return jsonify({'success': False, 'message': 'MACD Slow must be between 20 and 50'})
+
+            if 'macd_signal' in data:
+                data['macd_signal'] = int(data['macd_signal'])
+                if data['macd_signal'] < 5 or data['macd_signal'] > 15:
+                    return jsonify({'success': False, 'message': 'MACD Signal must be between 5 and 15'})
+
+            if 'min_histogram_threshold' in data:
+                data['min_histogram_threshold'] = float(data['min_histogram_threshold'])
+                if data['min_histogram_threshold'] < 0.0001 or data['min_histogram_threshold'] > 0.01:
+                    return jsonify({'success': False, 'message': 'Min Histogram Threshold must be between 0.0001 and 0.01'})
+
+            if 'min_distance_threshold' in data:
+                data['min_distance_threshold'] = float(data['min_distance_threshold'])
+                if data['min_distance_threshold'] < 0.001 or data['min_distance_threshold'] > 5.0:
+                    return jsonify({'success': False, 'message': 'Min Distance Threshold must be between 0.001 and 5.0'})
+
+            if 'confirmation_candles' in data:
+                data['confirmation_candles'] = int(data['confirmation_candles'])
+                if data['confirmation_candles'] < 1 or data['confirmation_candles'] > 5:
+                    return jsonify({'success': False, 'message': 'Confirmation Candles must be between 1 and 5'})
 
         except ValueError as ve:
             return jsonify({'success': False, 'message': f'Invalid parameter value: {ve}'})
