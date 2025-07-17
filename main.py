@@ -49,50 +49,84 @@ def run_web_dashboard():
         logger.info("🚀 RUNNING IN REPLIT DEPLOYMENT MODE")
 
     try:
-        # Simple port check and cleanup
+        # SINGLE SOURCE CHECK - Ensure no duplicate web dashboard instances
         if not check_port_available(5000):
-            logger.warning("🔄 Port 5000 in use, attempting cleanup...")
+            logger.error("🚨 PORT 5000 UNAVAILABLE: Another web dashboard instance detected")
+            logger.error("🚫 MAIN.PY: Cleaning up duplicate instances...")
+
+            # Try to kill any processes using port 5000
             try:
-                import subprocess
-                # Try to kill processes using port 5000
-                subprocess.run(['pkill', '-f', ':5000'], capture_output=True)
+                # Kill Python processes that might be using port 5000
+                killed_count = 0
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    try:
+                        if proc.info['cmdline']:
+                            cmdline_str = ' '.join(proc.info['cmdline'])
+                            if ('python' in proc.info['name'].lower() and 
+                                ('web_dashboard' in cmdline_str or 'flask' in cmdline_str or 'main.py' in cmdline_str)):
+                                if proc.pid != os.getpid():  # Don't kill ourselves
+                                    proc.terminate()
+                                    logger.info(f"🔄 Terminated process {proc.pid}: {proc.info['name']}")
+                                    killed_count += 1
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                        continue
+
+                if killed_count > 0:
+                    logger.info(f"🔄 Terminated {killed_count} processes")
+                else:
+                    logger.info("🔍 No conflicting processes found")
+
+                # Wait a moment for cleanup
                 time.sleep(2)
-            except:
-                pass
+
+                # Check again
+                if not check_port_available(5000):
+                    logger.error("🚨 CRITICAL: Port 5000 still unavailable after cleanup")
+                    logger.error("💡 Please restart the entire Repl to clear port conflicts")
+                    return
+                else:
+                    logger.info("✅ Port 5000 cleared successfully")
+
+            except Exception as cleanup_error:
+                logger.error(f"Error during port cleanup: {cleanup_error}")
+                return
 
         web_server_running = True
-        logger.info("🌐 WEB DASHBOARD: Starting Flask server on http://0.0.0.0:5000")
+        logger.info("🌐 WEB DASHBOARD: Starting persistent web interface on http://0.0.0.0:5000")
+        logger.info("🌐 WEB DASHBOARD: Dashboard will remain active even when bot stops")
 
-        # Configure Flask for proper error handling
+        # Run Flask with minimal logging to reduce console noise
+        import logging as flask_logging
+        flask_log = flask_logging.getLogger('werkzeug')
+        flask_log.setLevel(flask_logging.WARNING)
+
+        # Set Flask app configuration for better error handling
         app.config['TESTING'] = False
-        app.config['DEBUG'] = True  # Enable debug for better error messages
-        app.config['PROPAGATE_EXCEPTIONS'] = True
+        app.config['DEBUG'] = False
 
-        # Run Flask with proper configuration
+        # Get port from environment for deployment compatibility
         port = int(os.environ.get('PORT', 5000))
         logger.info(f"🌐 Starting web dashboard on 0.0.0.0:{port}")
-
-        # Start Flask server
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
 
     except Exception as e:
-        logger.error(f"🚨 WEB DASHBOARD ERROR: {str(e)}")
-        import traceback
-        logger.error(f"🚨 Traceback: {traceback.format_exc()}")
-
+        logger.error(f"Web dashboard error: {e}")
         if "Address already in use" in str(e):
-            logger.error("🚨 CRITICAL: Port 5000 is still in use")
-            logger.info("💡 Try using a different port or restart the Repl")
-
-        # Try alternative port
-        try:
-            for alt_port in [5001, 5002, 5003]:
-                if check_port_available(alt_port):
-                    logger.info(f"🔄 Trying alternative port {alt_port}")
-                    app.run(host='0.0.0.0', port=alt_port, debug=False, use_reloader=False, threaded=True)
-                    break
-        except Exception as alt_e:
-            logger.error(f"🚨 Alternative port failed: {alt_e}")
+            logger.error("🚨 CRITICAL: Port conflict persists")
+            logger.info("💡 Please restart the Repl to resolve port conflicts")
+        else:
+            logger.error(f"🚨 WEB DASHBOARD ERROR: {str(e)}")
+            logger.info("🌐 Attempting to restart web dashboard...")
+            # Try to restart after a delay
+            time.sleep(5)
+            if web_server_running:
+                try:
+                    # Get port from environment for deployment compatibility
+                    port = int(os.environ.get('PORT', 5000))
+                    logger.info(f"🌐 Restarting web dashboard on 0.0.0.0:{port}")
+                    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
+                except:
+                    logger.error("🚨 Web dashboard restart failed")
     finally:
         web_server_running = False
         logger.info("🔴 Web dashboard stopped")
@@ -117,67 +151,44 @@ async def main_bot_only():
 
     try:
         # Initialize the bot manager
-        try:
-            # Initialize the bot manager
-            bot_manager = BotManager()
+        bot_manager = BotManager()
 
-            # CRITICAL: Make bot manager accessible to web interface IMMEDIATELY
-            set_bot_manager(bot_manager)
+        # Make bot manager accessible to web interface
+        sys.modules['__main__'].bot_manager = bot_manager
+        web_dashboard.bot_manager = bot_manager
+        web_dashboard.shared_bot_manager = bot_manager
 
-            # Additional safety - ensure web dashboard can access the bot manager
-            import web_dashboard
-            web_dashboard.bot_manager = bot_manager
-            web_dashboard.shared_bot_manager = bot_manager
-            web_dashboard.current_bot = bot_manager
+        # Start the bot in a task so we can handle shutdown signals
+        logger.info("🚀 Starting trading bot main loop...")
+        bot_task = asyncio.create_task(bot_manager.start())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
 
-            logger.info("✅ Bot manager connected to web dashboard successfully")
+        # Wait for either the bot to complete or shutdown signal
+        done, pending = await asyncio.wait(
+            [bot_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
 
-            # Start the bot in a task so we can handle shutdown signals
-            logger.info("🚀 Starting trading bot main loop...")
-            bot_task = asyncio.create_task(bot_manager.start())
-            shutdown_task = asyncio.create_task(shutdown_event.wait())
+        # Check if shutdown was triggered
+        if shutdown_task in done:
+            logger.info("🛑 Shutdown signal received, stopping bot...")
+            await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
 
-            # Wait for either the bot to complete or shutdown signal
-            done, pending = await asyncio.wait(
-                [bot_task, shutdown_task],
-                return_when=asyncio.FIRST_COMPLETED
-            )
+        # Cancel any pending tasks
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
-            # Check if shutdown was triggered
-            if shutdown_task in done:
-                logger.info("🛑 Shutdown signal received, stopping bot...")
-                await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
+        # Keep web server running after bot stops
+        logger.info("🔴 Bot stopped but web interface remains active for control")
+        logger.info("💡 You can restart the bot using the web interface")
 
-            # Cancel any pending tasks
-            for task in pending:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-
-            # Keep web server running after bot stops
-            logger.info("🔴 Bot stopped but web interface remains active for control")
-            logger.info("💡 You can restart the bot using the web interface")
-
-        except ValueError as e:
-            if "Failed to connect to Binance API" in str(e):
-                is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
-                if is_deployment:
-                    logger.error("🚨 DEPLOYMENT MODE: Bot cannot start due to API restrictions")
-                    logger.error("🌐 Web dashboard will remain active for manual monitoring")
-                    logger.error("💡 Your existing mainnet positions can be monitored via web interface")
-                    # Don't set bot_manager to None - keep it for web dashboard
-                    # bot_manager = None
-                    # sys.modules['__main__'].bot_manager = None
-                else:
-                    raise e
-            else:
-                raise e
-
-            # Keep the main process alive to maintain web interface
-            while web_server_running:
-                await asyncio.sleep(5)
+        # Keep the main process alive to maintain web interface
+        while web_server_running:
+            await asyncio.sleep(5)
 
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt")
@@ -188,7 +199,7 @@ async def main_bot_only():
         logger.error(f"Unexpected error: {e}")
         if bot_manager:
             await bot_manager.stop(f"Unexpected error: {e}")
-        logger.info("🌐 Web interface remains active")
+        logger.info("🌐 Web interface remains active despite bot error")
 
 async def main():
     """Main function for web dashboard bot restart"""
@@ -216,67 +227,44 @@ async def main():
 
     try:
         # Initialize the bot manager
-        try:
-            # Initialize the bot manager
-            bot_manager = BotManager()
+        bot_manager = BotManager()
 
-            # CRITICAL: Make bot manager accessible to web interface IMMEDIATELY
-            set_bot_manager(bot_manager)
+        # Make bot manager accessible to web interface
+        sys.modules['__main__'].bot_manager = bot_manager
+        web_dashboard.bot_manager = bot_manager
+        web_dashboard.shared_bot_manager = bot_manager
 
-            # Additional safety - ensure web dashboard can access the bot manager
-            import web_dashboard
-            web_dashboard.bot_manager = bot_manager
-            web_dashboard.shared_bot_manager = bot_manager
-            web_dashboard.current_bot = bot_manager
+        # Start the bot in a task so we can handle shutdown signals
+        logger.info("🚀 Starting trading bot main loop...")
+        bot_task = asyncio.create_task(bot_manager.start())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
 
-            logger.info("✅ Bot manager connected to web dashboard successfully")
+        # Wait for either the bot to complete or shutdown signal
+        done, pending = await asyncio.wait(
+            [bot_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
 
-            # Start the bot in a task so we can handle shutdown signals
-            logger.info("🚀 Starting trading bot main loop...")
-            bot_task = asyncio.create_task(bot_manager.start())
-            shutdown_task = asyncio.create_task(shutdown_event.wait())
+        # Check if shutdown was triggered
+        if shutdown_task in done:
+            logger.info("🛑 Shutdown signal received, stopping bot...")
+            await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
 
-            # Wait for either the bot to complete or shutdown signal
-            done, pending = await asyncio.wait(
-                [bot_task, shutdown_task],
-                return_when=asyncio.FIRST_COMPLETED
-            )
+        # Cancel any pending tasks
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
-            # Check if shutdown was triggered
-            if shutdown_task in done:
-                logger.info("🛑 Shutdown signal received, stopping bot...")
-                await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
+        # Keep web server running after bot stops
+        logger.info("🔴 Bot stopped but web interface remains active for control")
+        logger.info("💡 You can restart the bot using the web interface")
 
-            # Cancel any pending tasks
-            for task in pending:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-
-            # Keep web server running after bot stops
-            logger.info("🔴 Bot stopped but web interface remains active for control")
-            logger.info("💡 You can restart the bot using the web interface")
-
-        except ValueError as e:
-            if "Failed to connect to Binance API" in str(e):
-                is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
-                if is_deployment:
-                    logger.error("🚨 DEPLOYMENT MODE: Bot cannot start due to API restrictions")
-                    logger.error("🌐 Web dashboard will remain active for manual monitoring")
-                    logger.error("💡 Your existing mainnet positions can be monitored via web interface")
-                    # Don't set bot_manager to None - keep it for web dashboard
-                    # bot_manager = None
-                    # sys.modules['__main__'].bot_manager = None
-                else:
-                    raise e
-            else:
-                raise e
-
-            # Keep the main process alive to maintain web interface
-            while web_server_running:
-                await asyncio.sleep(5)
+        # Keep the main process alive to maintain web interface
+        while web_server_running:
+            await asyncio.sleep(5)
 
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt")
@@ -294,82 +282,33 @@ if __name__ == "__main__":
     setup_logger()
     logger = logging.getLogger(__name__)
 
-    # Define set_bot_manager here to avoid circular import issues
-    def set_bot_manager(bm):
-        """Centralized function to set bot_manager in all necessary modules."""
-        global bot_manager
-        bot_manager = bm
-        sys.modules['__main__'].bot_manager = bm
-        try:
-            import web_dashboard
-            web_dashboard.bot_manager = bm
-            web_dashboard.shared_bot_manager = bm
-        except ImportError:
-            pass
-        except Exception as e:
-            pass
-
-    # Define set_bot_manager here to avoid circular import issues
-    def set_bot_manager(bm):
-        """Centralized function to set bot_manager in all necessary modules."""
-        global bot_manager
-        bot_manager = bm
-        sys.modules['__main__'].bot_manager = bm
-        try:
-            import web_dashboard
-            web_dashboard.bot_manager = bm
-            web_dashboard.shared_bot_manager = bm
-            web_dashboard.current_bot = bm
-        except ImportError:
-            pass
-        except Exception as e:
-            pass
-
     # Check if running in deployment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
 
     if is_deployment:
         logger.info("🚀 STARTING IN REPLIT DEPLOYMENT MODE")
-        logger.info("🌐 ALWAYS-ON DEPLOYMENT: Web interface will remain accessible 24/7")
-        logger.info("💰 MAINNET BOT: Both development and deployment use mainnet")
-        logger.info("🌍 GEOGRAPHIC RESTRICTIONS: Will be handled via proxy solution")
 
-        # In deployment, run enhanced always-on version
+        # In deployment, run simplified version
         bot_manager = None
         sys.modules[__name__].bot_manager = None
 
-        # DEPLOYMENT: Single source web dashboard launch - ONLY from main.py
-        logger.info("🚀 DEPLOYMENT: Starting always-on trading system (SINGLE SOURCE)")
-        logger.info("🌐 WEB DASHBOARD: Launching ONLY from main.py")
+        # DEPLOYMENT: Single source web dashboard launch
+        logger.info("🚀 DEPLOYMENT: Starting web dashboard from main.py only")
         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
 
         # Wait for web dashboard and keep alive
-        time.sleep(3)
-        logger.info("🌐 ALWAYS-ON DEPLOYMENT: Web interface active 24/7")
-        logger.info("💡 Access your bot at your deployment URL from anywhere")
-        logger.info("🔄 Bot control via web dashboard - start/stop anytime")
-        logger.info("✅ PERSISTENT DEPLOYMENT: Stays active even when you're offline")
-        logger.info("💰 MAINNET TRADING: Live trading in deployment (no geographic issues)")
-        logger.info("🌍 REPLIT ADVANTAGE: No proxy needed - direct mainnet access")
-        logger.info("🛡️ ACCOUNT SAFETY: Fully compliant with Binance ToS")
+        time.sleep(2)
+        logger.info("🌐 Deployment web dashboard active")
+        logger.info("💡 Access your bot via the web interface at your deployment URL")
+        logger.info("🔄 Bot can be started/stopped through the web dashboard")
 
         try:
-            # Create fresh bot manager instance
-            bot_manager = BotManager()
-
-            # Update the global reference using centralized function
-            set_bot_manager(bot_manager)
-            # Enhanced keep-alive loop for deployment persistence
-            heartbeat_counter = 0
+            # Keep the process alive for web interface
             while True:
-                heartbeat_counter += 1
-                if heartbeat_counter % 20 == 0:  # Every 10 minutes
-                    logger.info(f"💓 DEPLOYMENT HEARTBEAT: System active and healthy")
-                    logger.info(f"🌐 Web interface accessible at deployment URL")
-                time.sleep(30)  # Check every 30 seconds to ensure deployment stays alive
+                time.sleep(10)
         except KeyboardInterrupt:
-            logger.info("🔴 Deployment shutdown requested")
+            logger.info("🔴 Deployment shutdown")
     else:
         # Development mode - check if bot is already running
         try:
@@ -414,25 +353,13 @@ if __name__ == "__main__":
         bot_manager = None
         sys.modules[__name__].bot_manager = None
 
-        # DEVELOPMENT: Single source web dashboard launch from main.py ONLY
-        logger.info("🛠️ DEVELOPMENT: Starting web dashboard from main.py ONLY")
-        logger.info("🚫 BLOCKING: All other dashboard launch attempts disabled")
+        # DEVELOPMENT: Single source web dashboard launch from main.py
+        logger.info("🛠️ DEVELOPMENT: Starting web dashboard from main.py only")
         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
 
-        time.sleep(5)  # Give more time for Flask server to start
+        time.sleep(3)
         logger.info("🌐 Development Web Dashboard started")
-
-        # Test if web server is actually running
-        try:
-            import requests
-            response = requests.get('http://localhost:5000/api/health', timeout=5)
-            if response.status_code == 200:
-                logger.info("✅ Web dashboard API is accessible")
-            else:
-                logger.warning(f"⚠️ Web dashboard returned status {response.status_code}")
-        except Exception as e:
-            logger.error(f"❌ Web dashboard API test failed: {e}")
 
         try:
             asyncio.run(main_bot_only())
