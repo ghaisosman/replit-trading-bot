@@ -699,21 +699,6 @@ def get_strategies():
     except Exception as e:
         logger.error(f"Error in get_strategies endpoint: {e}")
         return jsonify({'error': str(e), 'strategies': {}}), 500
-                'rsi_oversold': {
-                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
-                    'max_loss_pct': 10, 'rsi_long_entry': 40, 'rsi_long_exit': 70,
-                    'rsi_short_entry': 60, 'rsi_short_exit': 30, 'assessment_interval': 60
-                },
-                'macd_divergence': {
-                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
-                    'max_loss_pct': 10, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
-                    'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2,
-                    'assessment_interval': 60
-                }
-            })
-    except Exception as e:
-        logger.error(f"Error in get_strategies endpoint: {e}")
-        return jsonify({'error': str(e), 'strategies': {}}), 500
 
 @app.route('/api/strategies', methods=['POST'])
 def create_strategy():
