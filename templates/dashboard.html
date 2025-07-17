@@ -1003,8 +1003,9 @@
                     document.querySelector('#strategyModal .modal-title').textContent = 
                         `Edit ${strategyName.replace('_', ' ').toUpperCase()} Configuration`;
 
-                    // Show modal
-                    $('#strategyModal').modal('show');
+                    // Show modal using Bootstrap 5
+                    const modal = new bootstrap.Modal(document.getElementById('strategyModal'));
+                    modal.show();
                 })
                 .catch(error => {
                     console.error('Error loading strategy config:', error);
@@ -1057,8 +1058,11 @@
                 if (result.success) {
                     alert('✅ Strategy updated successfully!\n\n' + result.message);
                     
-                    // Close modal
-                    $('#strategyModal').modal('hide');
+                    // Close modal using Bootstrap 5 method
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('strategyModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
                     
                     // Refresh page to show updated values
                     location.reload();
@@ -1137,7 +1141,9 @@
                             document.getElementById('dynamicProfitMax').value = config.dynamic_profit_max || 4.0;
                         }
 
-                        $('#strategyModal').modal('show');
+                        // Show modal using Bootstrap 5
+                        const modal = new bootstrap.Modal(document.getElementById('strategyModal'));
+                        modal.show();
                     } else {
                         alert('Strategy configuration not found.');
                     }
@@ -1158,13 +1164,11 @@ function saveStrategyConfig() {
                 timeframe: document.getElementById('strategyTimeframe').value,
                 max_loss_pct: parseFloat(document.getElementById('strategyMaxLoss').value),
                 assessment_interval: parseInt(document.getElementById('assessmentInterval').value),
-                cooldown_period: parseInt(document.getElementById('cooldownPeriod').value),
-                min_volume: parseFloat(document.getElementById('minVolume').value)
+                cooldown_period: parseInt(document.getElementById('cooldownPeriod').value)
             };
 
             // Add strategy-specific parameters
             if (strategyName.toLowerCase().includes('rsi')) {
-                updates.rsi_period = parseInt(document.getElementById('rsiPeriod').value);
                 updates.rsi_long_entry = parseInt(document.getElementById('rsiLongEntry').value);
                 updates.rsi_long_exit = parseInt(document.getElementById('rsiLongExit').value);
                 updates.rsi_short_entry = parseInt(document.getElementById('rsiShortEntry').value);
@@ -1206,7 +1210,11 @@ function saveStrategyConfig() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    $('#strategyModal').modal('hide');
+                    // Close modal using Bootstrap 5 method
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('strategyModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
                     updateDashboard();
                     alert('Strategy updated successfully.');
                 } else {
