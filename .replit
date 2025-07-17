@@ -54,6 +54,15 @@ mode = "parallel"
 task = "shell.exec"
 args = "python main.py"
 
+[[workflows.workflow]]
+name = "Stop Trading Bot"
+author = 43555514
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pkill -f \"python main.py\""
+
 [[ports]]
 localPort = 5000
 externalPort = 80
