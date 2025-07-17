@@ -1,4 +1,4 @@
 {
-  "BINANCE_TESTNET": "false",
+  "BINANCE_TESTNET": "true",
   "BINANCE_FUTURES": "true"
 }
