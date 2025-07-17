@@ -1117,4 +1117,12 @@ if __name__ == '__main__':
     # Verify critical routes
     verify_routes()
     
+    # Ensure RSI routes are properly registered
+    logger.info("🔍 Checking RSI route registration...")
+    rsi_routes = [rule for rule in app.url_map.iter_rules() if '/api/rsi/' in rule.rule]
+    if rsi_routes:
+        logger.info(f"✅ RSI routes found: {[rule.rule for rule in rsi_routes]}")
+    else:
+        logger.warning("⚠️ No RSI routes found - will be available after restart")
+    
     app.run(debug=True, host='0.0.0.0', port=5000)
