@@ -1178,6 +1178,37 @@ def train_models():
         logger.error(f"Error training ML models: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/proxy/status')
+def get_proxy_status():
+    """Get current proxy status and configuration"""
+    try:
+        import os
+        is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
+        proxy_enabled = os.getenv('PROXY_ENABLED', 'false').lower() == 'true'
+        proxy_urls = os.getenv('PROXY_URLS', '').split(',')
+        proxy_urls = [url.strip() for url in proxy_urls if url.strip()]
+        
+        status = {
+            'is_deployment': is_deployment,
+            'proxy_enabled': proxy_enabled,
+            'proxy_count': len(proxy_urls),
+            'geographic_restrictions': is_deployment and not proxy_enabled,
+            'recommendation': ''
+        }
+        
+        if is_deployment and not proxy_enabled:
+            status['recommendation'] = 'Enable proxy to bypass geographic restrictions'
+        elif is_deployment and proxy_enabled and len(proxy_urls) == 0:
+            status['recommendation'] = 'Configure PROXY_URLS in Secrets'
+        elif is_deployment and proxy_enabled and len(proxy_urls) > 0:
+            status['recommendation'] = 'Proxy configured and active'
+        else:
+            status['recommendation'] = 'Development mode - no proxy needed'
+            
+        return jsonify(status)
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
 @app.route('/api/trading/environment', methods=['POST'])
 def update_trading_environment():
     """Update trading environment (testnet/mainnet)"""
