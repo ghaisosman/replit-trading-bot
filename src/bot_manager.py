@@ -329,13 +329,48 @@ For MAINNET:
         self.is_running = False
 
         try:
+            # Stop daily reporter scheduler
+            if hasattr(self, 'daily_reporter'):
+                try:
+                    import schedule
+                    schedule.clear()  # Clear all scheduled jobs
+                    self.logger.info("🔄 Stopped daily reporter scheduler")
+                except Exception as e:
+                    self.logger.warning(f"Could not stop daily reporter: {e}")
+            
+            # Close any open positions gracefully (if required)
+            if hasattr(self, 'order_manager') and self.order_manager.active_positions:
+                self.logger.info("🔄 Bot has active positions - they will continue running")
+            
             # Send shutdown notification to Telegram
             self.telegram_reporter.report_bot_stopped(reason)
 
-            # Small delay to ensure message is sent before process terminates
+            # Close database connections
+            if hasattr(self, 'anomaly_detector') and hasattr(self.anomaly_detector, 'db'):
+                try:
+                    if hasattr(self.anomaly_detector.db, 'close'):
+                        self.anomaly_detector.db.close()
+                    self.logger.info("🔄 Closed anomaly detector database")
+                except Exception as e:
+                    self.logger.warning(f"Could not close anomaly detector database: {e}")
+            
+            # Remove web log handler to prevent memory leaks
+            if hasattr(self, 'log_handler'):
+                try:
+                    root_logger = logging.getLogger()
+                    root_logger.removeHandler(self.log_handler)
+                    self.logger.removeHandler(self.log_handler)
+                    self.logger.info("🔄 Removed web log handler")
+                except Exception as e:
+                    self.logger.warning(f"Could not remove web log handler: {e}")
+            
+            # Small delay to ensure cleanup completes
             await asyncio.sleep(1)
+            
         except Exception as e:
             self.logger.error(f"Error during shutdown: {e}")
+        finally:
+            self.logger.info("🔴 Bot manager shutdown complete")
 
     async def _main_trading_loop(self):
         """Main trading loop with proper error handling and throttling"""

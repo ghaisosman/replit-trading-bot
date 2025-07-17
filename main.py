@@ -17,6 +17,8 @@ app = web_dashboard.app
 bot_manager = None
 shutdown_event = asyncio.Event()
 web_server_running = False
+web_thread = None
+flask_server = None
 
 # Make bot manager accessible to web interface
 sys.modules['__main__'].bot_manager = None
@@ -24,9 +26,23 @@ sys.modules['__main__'].bot_manager = None
 def signal_handler(signum, frame):
     """Handle termination signals"""
     print("\n🛑 Shutdown signal received...")
+    global web_server_running, flask_server
+    
     # Set the shutdown event to trigger graceful shutdown
     if shutdown_event:
         shutdown_event.set()
+    
+    # Stop web server gracefully
+    web_server_running = False
+    
+    # Force Flask server shutdown if running
+    if flask_server:
+        try:
+            flask_server.shutdown()
+        except:
+            pass
+    
+    print("🔄 Cleanup initiated...")
 
 def check_port_available(port):
     """Check if a port is available"""
@@ -175,8 +191,32 @@ def run_web_dashboard():
         # Get port from environment for deployment compatibility
         port = int(os.environ.get('PORT', 5000))
         
-        # Run Flask app
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
+        # Store Flask server reference for shutdown
+        global flask_server
+        from werkzeug.serving import make_server
+        
+        flask_server = make_server('0.0.0.0', port, app, threaded=True)
+        logger.info(f"🌐 Flask server created on port {port}")
+        
+        # Set up signal handlers for this thread
+        import signal
+        def cleanup_handler(signum, frame):
+            global web_server_running
+            logger.info("🔄 Web dashboard cleanup signal received")
+            web_server_running = False
+            if flask_server:
+                flask_server.shutdown()
+        
+        signal.signal(signal.SIGTERM, cleanup_handler)
+        signal.signal(signal.SIGINT, cleanup_handler)
+        
+        # Start Flask server
+        try:
+            flask_server.serve_forever()
+        except KeyboardInterrupt:
+            logger.info("🔄 Web dashboard interrupted")
+        finally:
+            web_server_running = False
 
     except Exception as e:
         logger.error(f"Web dashboard error: {e}")
@@ -280,21 +320,64 @@ def run_web_dashboard():
                     logger.error("🚨 Web dashboard restart failed")
     finally:
         web_server_running = False
-        # Clean up lock file
+        
+        # Comprehensive cleanup
+        logger.info("🧹 Starting comprehensive cleanup...")
+        
+        # 1. Clean up Flask server
+        global flask_server
+        if flask_server:
+            try:
+                flask_server.shutdown()
+                logger.info("✅ Flask server shut down")
+            except Exception as e:
+                logger.warning(f"Error shutting down Flask server: {e}")
+            finally:
+                flask_server = None
+        
+        # 2. Clean up lock file with enhanced verification
         lock_file = "/tmp/web_dashboard.lock"
         try:
             if os.path.exists(lock_file):
                 # Verify it's our lock file before removing
                 with open(lock_file, 'r') as f:
                     lock_pid = int(f.read().strip())
-                if lock_pid == os.getpid():
+                
+                current_pid = os.getpid()
+                if lock_pid == current_pid:
                     os.remove(lock_file)
                     logger.info("🔓 Removed web dashboard lock file")
                 else:
-                    logger.warning(f"Lock file belongs to different process ({lock_pid}), not removing")
+                    # Check if the lock PID still exists
+                    try:
+                        os.kill(lock_pid, 0)  # Check if process exists
+                        logger.warning(f"Lock file belongs to active process ({lock_pid}), not removing")
+                    except OSError:
+                        # Process doesn't exist, safe to remove stale lock
+                        os.remove(lock_file)
+                        logger.info(f"🔓 Removed stale lock file (PID {lock_pid} no longer exists)")
+            else:
+                logger.info("🔍 No lock file to clean up")
+                
         except Exception as e:
             logger.warning(f"Could not remove lock file: {e}")
-        logger.info("🔴 Web dashboard stopped")
+            # Force removal as last resort
+            try:
+                if os.path.exists(lock_file):
+                    os.remove(lock_file)
+                    logger.info("🔓 Force removed lock file")
+            except:
+                pass
+        
+        # 3. Close any remaining network connections
+        try:
+            import socket
+            # Give time for connections to close naturally
+            time.sleep(1)
+        except:
+            pass
+        
+        logger.info("🔴 Web dashboard stopped and cleaned up")
 
 async def main_bot_only():
     """Main bot function WITHOUT web dashboard launch"""
@@ -378,25 +461,81 @@ async def main_bot_only():
             await bot_manager.stop(f"Unexpected error: {e}")
         logger.info("🌐 Web interface remains active despite bot error")
 
+def cleanup_process_resources():
+    """Clean up process resources before shutdown"""
+    logger = logging.getLogger(__name__)
+    current_pid = os.getpid()
+    
+    try:
+        # Close all open file descriptors except stdin, stdout, stderr
+        import resource
+        max_fd = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
+        for fd in range(3, min(max_fd, 1024)):  # Skip stdin(0), stdout(1), stderr(2)
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        
+        logger.info("🧹 Closed excess file descriptors")
+    except Exception as e:
+        logger.warning(f"Could not close file descriptors: {e}")
+    
+    try:
+        # Release any remaining network resources
+        import socket
+        import gc
+        gc.collect()  # Force garbage collection
+        logger.info("🧹 Released network resources")
+    except Exception as e:
+        logger.warning(f"Could not release network resources: {e}")
+
 async def main():
     """Main function for web dashboard bot restart"""
-    global bot_manager, web_server_running
+    global bot_manager, web_server_running, web_thread
 
     # Setup logging
     setup_logger()
     logger = logging.getLogger(__name__)
 
-    # Setup signal handlers for graceful shutdown
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    # Enhanced signal handlers for graceful shutdown
+    def enhanced_signal_handler(signum, frame):
+        logger.info(f"🛑 Received signal {signum}, starting graceful shutdown...")
+        signal_handler(signum, frame)
+        
+        # Additional cleanup
+        global web_thread
+        if web_thread and web_thread.is_alive():
+            logger.info("🔄 Waiting for web thread to finish...")
+            web_thread.join(timeout=5)  # Wait up to 5 seconds
+            if web_thread.is_alive():
+                logger.warning("⚠️ Web thread did not finish gracefully")
+        
+        cleanup_process_resources()
+        
+        # Exit cleanly
+        os._exit(0)
+    
+    signal.signal(signal.SIGINT, enhanced_signal_handler)
+    signal.signal(signal.SIGTERM, enhanced_signal_handler)
 
     logger.info("Starting Multi-Strategy Trading Bot with Persistent Web Interface")
 
     # SINGLE SOURCE WEB DASHBOARD LAUNCH - Only from main.py
     logger.info("🌐 MAIN.PY: Starting web dashboard (single source control)")
     logger.info("🚫 MAIN.PY: Direct web_dashboard.py launches are disabled")
+    
+    global web_thread
     web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
+    web_thread.daemon = False  # Explicitly set to non-daemon for proper cleanup
     web_thread.start()
+    
+    # Ensure thread started successfully
+    time.sleep(1)
+    if not web_thread.is_alive():
+        logger.error("❌ Web dashboard thread failed to start")
+        return
+    else:
+        logger.info("✅ Web dashboard thread started successfully")
 
     # Give web dashboard time to start
     await asyncio.sleep(3)
