@@ -127,7 +127,7 @@ class BinanceClientWrapper:
                 self.logger.error("⚠️  Unable to connect to Binance mainnet from deployment environment")
                 self.logger.error("🌍 This is due to geographical restrictions on Replit's servers")
                 self.logger.error("🔄 NEXT STEP: Implement proxy solution from Instructions.md")
-                self.logger.error("🌐 Web dashboard will remain active for monitoring")oring")
+                self.logger.error("🌐 Web dashboard will remain active for monitoring")
                 
             return False
 
