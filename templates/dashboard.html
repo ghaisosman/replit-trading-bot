@@ -1357,23 +1357,20 @@
                 leverage: parseInt(document.getElementById('newStrategyLeverage').value),
                 timeframe: document.getElementById('newStrategyTimeframe').value,
                 max_loss_pct: parseFloat(document.getElementById('newStrategyMaxLoss').value),
-                assessment_interval: parseInt(document.getElementById('newAssessmentInterval').value),
-                cooldown_period: parseInt(document.getElementById('newCooldownPeriod').value)
+                assessment_interval: parseInt(document.getElementById('newStrategyInterval').value),
+                cooldown_period: parseInt(document.getElementById('newStrategyCooldown').value)
             };
 
             // Add strategy-specific parameters
             if (name.toLowerCase().includes('rsi')) {
-                newStrategy.rsi_long_entry = parseInt(document.getElementById('newRsiLongEntry').value);
-                newStrategy.rsi_long_exit = parseInt(document.getElementById('newRsiLongExit').value);
-                newStrategy.rsi_short_entry = parseInt(document.getElementById('newRsiShortEntry').value);
-                newStrategy.rsi_short_exit = parseInt(document.getElementById('newRsiShortExit').value);
+                newStrategy.rsi_long_entry = 30;
+                newStrategy.rsi_long_exit = 70;
+                newStrategy.rsi_short_entry = 70;
+                newStrategy.rsi_short_exit = 30;
             } else if (name.toLowerCase().includes('macd')) {
-                newStrategy.macd_fast = parseInt(document.getElementById('newMacdFast').value);
-                newStrategy.macd_slow = parseInt(document.getElementById('newMacdSlow').value);
-                newStrategy.macd_signal = parseInt(document.getElementById('newMacdSignal').value);
-                newStrategy.min_histogram_threshold = parseFloat(document.getElementById('newMinHistogramThreshold').value);
-                newStrategy.min_distance_threshold = parseFloat(document.getElementById('newMinDistanceThreshold').value);
-                newStrategy.confirmation_candles = parseInt(document.getElementById('newConfirmationCandles').value);
+                newStrategy.macd_fast = 12;
+                newStrategy.macd_slow = 26;
+                newStrategy.macd_signal = 9;
             }
 
             fetch('/api/strategies', {
@@ -1492,7 +1489,8 @@
                                 <tr>
                                     <td>${position.strategy}</td>
                                     <td>${position.symbol}</td>
-                                    <td>${position.side}                                    <td>${formatNumber(position.entry_price)}</td>
+                                    <td>${position.side}</td>
+                                    <td>${formatNumber(position.entry_price)}</td>
                                     <td>${formatNumber(position.position_value_usdt)}</td>
                                     <td>${formatNumber(position.current_price)}</td>
                                     <td class="${position.pnl >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl)}</td>
@@ -1547,82 +1545,10 @@
         setInterval(updateDashboard, 30000);
     }
 
-    function showAlert(message, type) {
-        const alertPlaceholder = document.getElementById('alertPlaceholder');
-        const wrapper = document.createElement('div');
-        wrapper.innerHTML = `
-            <div class="alert alert-${type} alert-dismissible" role="alert">
-                <div>${message}</div>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        `;
-        alertPlaceholder.append(wrapper);
-    }
-
-    function saveNewStrategy() {
-        const name = document.getElementById('newStrategyName').value.trim();
-        const symbol = document.getElementById('newStrategySymbol').value.trim();
-        const margin = parseFloat(document.getElementById('newStrategyMargin').value);
-        const leverage = parseInt(document.getElementById('newStrategyLeverage').value);
-        const timeframe = document.getElementById('newStrategyTimeframe').value;
-        const maxLoss = parseFloat(document.getElementById('newStrategyMaxLoss').value);
-        const interval = parseInt(document.getElementById('newStrategyInterval').value);
-        const cooldown = parseInt(document.getElementById('newStrategyCooldown').value);
-
-        if (!name || !symbol) {
-            showAlert('Please fill in all required fields', 'warning');
-            return;
-        }
-
-        const strategyData = {
-            name: name,
-            symbol: symbol,
-            margin: margin,
-            leverage: leverage,
-            timeframe: timeframe,
-            max_loss_pct: maxLoss,
-            assessment_interval: interval,
-            cooldown_period: cooldown
-        };
-
-        // Add strategy-specific defaults based on name
-        if (name.toLowerCase().includes('rsi')) {
-            strategyData.rsi_long_entry = 30;
-            strategyData.rsi_long_exit = 70;
-            strategyData.rsi_short_entry = 70;
-            strategyData.rsi_short_exit = 30;
-        } else if (name.toLowerCase().includes('macd')) {
-            strategyData.macd_fast = 12;
-            strategyData.macd_slow = 26;
-            strategyData.macd_signal = 9;
-        } else if (name.toLowerCase().includes('liquidity') || name.toLowerCase().includes('reversal')) {
-            strategyData.lookback_candles = 100;
-            strategyData.liquidity_threshold = 0.02;
-            strategyData.min_volume_spike = 1.5;
-            strategyData.max_risk_per_trade = 0.5;
-        }
-
-        fetch('/api/strategies', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(strategyData)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showAlert(data.message + ' All strategies are now configurable via dashboard!', 'success');
-                bootstrap.Modal.getInstance(document.getElementById('addStrategyModal')).hide();
-                document.getElementById('addStrategyForm').reset();
-                setTimeout(() => location.reload(), 2000);
-            } else {
-                showAlert(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error creating strategy:', error);
-            showAlert('Failed to create strategy', 'danger');
-        });
-    }
+    // Set up periodic updates
+        setInterval(updateBotStatus, 5000);
+        setInterval(updateBalance, 30000);
+        setInterval(updateConsoleLog, 2000);
     </script>
 </body>
 </html>
