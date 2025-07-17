@@ -35,3 +35,33 @@
     "max_hold_duration": 240
   }
 }
+{
+    "strategy_name": "liquidity_reversal",
+    "description": "Smart Money Liquidity Reversal Strategy",
+    "parameters": {
+        "lookback_candles": 100,
+        "liquidity_threshold": 0.02,
+        "reclaim_timeout": 5,
+        "min_volume_spike": 1.5,
+        "max_risk_per_trade": 0.5,
+        "stop_loss_buffer": 0.1,
+        "profit_target_multiplier": 2.0,
+        "swing_strength": 3,
+        "min_wick_ratio": 0.6,
+        "volume_confirmation": true,
+        "funding_filter": true,
+        "oi_filter": true
+    },
+    "risk_management": {
+        "max_positions": 3,
+        "cooldown_after_loss": 1800,
+        "max_daily_trades": 10,
+        "max_consecutive_losses": 3
+    },
+    "market_conditions": {
+        "min_volume": 1000000,
+        "max_spread": 0.05,
+        "avoid_news_events": true,
+        "trading_hours": "24/7"
+    }
+}

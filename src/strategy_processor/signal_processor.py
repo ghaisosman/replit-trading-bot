@@ -46,6 +46,8 @@ class SignalProcessor:
                 return self._evaluate_rsi_oversold(df, current_price, strategy_config)
             elif 'macd' in strategy_name.lower():
                 return self._evaluate_macd_divergence(df, current_price, strategy_config)
+            elif 'liquidity' in strategy_name.lower() or 'reversal' in strategy_name.lower():
+                return self._evaluate_liquidity_reversal(df, current_price, strategy_config)
             else:
                 self.logger.warning(f"Unknown strategy type: {strategy_name}")
                 return None
@@ -249,6 +251,54 @@ class SignalProcessor:
 
         except Exception as e:
             self.logger.error(f"Error in MACD divergence evaluation: {e}")
+            return None
+
+    def _evaluate_liquidity_reversal(self, df: pd.DataFrame, current_price: float, config: Dict) -> Optional[TradingSignal]:
+        """Smart Money Liquidity Reversal strategy evaluation"""
+        try:
+            # Import strategy config
+            from src.execution_engine.strategies.liquidity_reversal_config import liquidity_reversal_config
+            
+            # Identify liquidity levels
+            levels = liquidity_reversal_config.identify_liquidity_levels(df)
+            
+            # Detect liquidity sweep
+            sweep_data = liquidity_reversal_config.detect_liquidity_sweep(df, levels)
+            
+            if not sweep_data:
+                return None
+            
+            # Check if price has reclaimed the level
+            if not liquidity_reversal_config.check_reclaim_confirmation(df, sweep_data):
+                return None
+            
+            # Calculate position parameters
+            margin = config.get('margin', 50.0)
+            leverage = config.get('leverage', 5)
+            
+            # Calculate entry/exit levels
+            trade_params = liquidity_reversal_config.calculate_entry_exit_levels(
+                df, sweep_data, margin, leverage
+            )
+            
+            if not trade_params or trade_params.get('risk_reward_ratio', 0) < 1.5:
+                return None
+            
+            # Create trading signal
+            signal_type = SignalType.BUY if trade_params['side'] == 'BUY' else SignalType.SELL
+            
+            return TradingSignal(
+                signal_type=signal_type,
+                confidence=0.85,
+                entry_price=trade_params['entry_price'],
+                stop_loss=trade_params['stop_loss'],
+                take_profit=trade_params['take_profit'],
+                symbol=config.get('symbol', 'BTCUSDT'),
+                reason=f"LIQUIDITY REVERSAL: {sweep_data['type']} at {sweep_data['level']:.2f} | R/R: {trade_params['risk_reward_ratio']:.2f}"
+            )
+
+        except Exception as e:
+            self.logger.error(f"Error in liquidity reversal evaluation: {e}")
             return None
 
     def evaluate_exit_conditions(self, df: pd.DataFrame, position: Dict, strategy_config: Dict) -> bool:
