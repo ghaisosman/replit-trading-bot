@@ -725,7 +725,7 @@ Interval: every {assessment_interval} seconds
                         continue  # Position was closed by stop loss, skip other checks
 
                     # Get current market data
-                    df = self.price_fetcher.get_ohlcv_data(```python
+                    df = self.price_fetcher.get_ohlcv_data(
                         strategy_config['symbol'],
                         strategy_config['timeframe']
                     )
