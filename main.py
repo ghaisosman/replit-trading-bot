@@ -173,44 +173,59 @@ async def main_bot_only():
 
     try:
         # Initialize the bot manager
-        bot_manager = BotManager()
+        try:
+            bot_manager = BotManager()
 
-        # Make bot manager accessible to web interface
-        sys.modules['__main__'].bot_manager = bot_manager
-        web_dashboard.bot_manager = bot_manager
-        web_dashboard.shared_bot_manager = bot_manager
+            # Make bot manager accessible to web interface
+            sys.modules['__main__'].bot_manager = bot_manager
+            web_dashboard.bot_manager = bot_manager
+            web_dashboard.shared_bot_manager = bot_manager
 
-        # Start the bot in a task so we can handle shutdown signals
-        logger.info("🚀 Starting trading bot main loop...")
-        bot_task = asyncio.create_task(bot_manager.start())
-        shutdown_task = asyncio.create_task(shutdown_event.wait())
+            # Start the bot in a task so we can handle shutdown signals
+            logger.info("🚀 Starting trading bot main loop...")
+            bot_task = asyncio.create_task(bot_manager.start())
+            shutdown_task = asyncio.create_task(shutdown_event.wait())
 
-        # Wait for either the bot to complete or shutdown signal
-        done, pending = await asyncio.wait(
-            [bot_task, shutdown_task],
-            return_when=asyncio.FIRST_COMPLETED
-        )
+            # Wait for either the bot to complete or shutdown signal
+            done, pending = await asyncio.wait(
+                [bot_task, shutdown_task],
+                return_when=asyncio.FIRST_COMPLETED
+            )
 
-        # Check if shutdown was triggered
-        if shutdown_task in done:
-            logger.info("🛑 Shutdown signal received, stopping bot...")
-            await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
+            # Check if shutdown was triggered
+            if shutdown_task in done:
+                logger.info("🛑 Shutdown signal received, stopping bot...")
+                await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
 
-        # Cancel any pending tasks
-        for task in pending:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+            # Cancel any pending tasks
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
-        # Keep web server running after bot stops
-        logger.info("🔴 Bot stopped but web interface remains active for control")
-        logger.info("💡 You can restart the bot using the web interface")
+            # Keep web server running after bot stops
+            logger.info("🔴 Bot stopped but web interface remains active for control")
+            logger.info("💡 You can restart the bot using the web interface")
 
-        # Keep the main process alive to maintain web interface
-        while web_server_running:
-            await asyncio.sleep(5)
+        except ValueError as e:
+            if "Failed to connect to Binance API" in str(e):
+                is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
+                if is_deployment:
+                    logger.error("🚨 DEPLOYMENT MODE: Bot cannot start due to API restrictions")
+                    logger.error("🌐 Web dashboard will remain active for manual monitoring")
+                    logger.error("💡 Your existing mainnet positions can be monitored via web interface")
+                    bot_manager = None
+                    sys.modules['__main__'].bot_manager = None
+                else:
+                    raise e
+            else:
+                raise e
+
+            # Keep the main process alive to maintain web interface
+            while web_server_running:
+                await asyncio.sleep(5)
 
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt")
@@ -249,44 +264,59 @@ async def main():
 
     try:
         # Initialize the bot manager
-        bot_manager = BotManager()
+        try:
+            bot_manager = BotManager()
 
-        # Make bot manager accessible to web interface
-        sys.modules['__main__'].bot_manager = bot_manager
-        web_dashboard.bot_manager = bot_manager
-        web_dashboard.shared_bot_manager = bot_manager
+            # Make bot manager accessible to web interface
+            sys.modules['__main__'].bot_manager = bot_manager
+            web_dashboard.bot_manager = bot_manager
+            web_dashboard.shared_bot_manager = bot_manager
 
-        # Start the bot in a task so we can handle shutdown signals
-        logger.info("🚀 Starting trading bot main loop...")
-        bot_task = asyncio.create_task(bot_manager.start())
-        shutdown_task = asyncio.create_task(shutdown_event.wait())
+            # Start the bot in a task so we can handle shutdown signals
+            logger.info("🚀 Starting trading bot main loop...")
+            bot_task = asyncio.create_task(bot_manager.start())
+            shutdown_task = asyncio.create_task(shutdown_event.wait())
 
-        # Wait for either the bot to complete or shutdown signal
-        done, pending = await asyncio.wait(
-            [bot_task, shutdown_task],
-            return_when=asyncio.FIRST_COMPLETED
-        )
+            # Wait for either the bot to complete or shutdown signal
+            done, pending = await asyncio.wait(
+                [bot_task, shutdown_task],
+                return_when=asyncio.FIRST_COMPLETED
+            )
 
-        # Check if shutdown was triggered
-        if shutdown_task in done:
-            logger.info("🛑 Shutdown signal received, stopping bot...")
-            await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
+            # Check if shutdown was triggered
+            if shutdown_task in done:
+                logger.info("🛑 Shutdown signal received, stopping bot...")
+                await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
 
-        # Cancel any pending tasks
-        for task in pending:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+            # Cancel any pending tasks
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
-        # Keep web server running after bot stops
-        logger.info("🔴 Bot stopped but web interface remains active for control")
-        logger.info("💡 You can restart the bot using the web interface")
+            # Keep web server running after bot stops
+            logger.info("🔴 Bot stopped but web interface remains active for control")
+            logger.info("💡 You can restart the bot using the web interface")
 
-        # Keep the main process alive to maintain web interface
-        while web_server_running:
-            await asyncio.sleep(5)
+        except ValueError as e:
+            if "Failed to connect to Binance API" in str(e):
+                is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
+                if is_deployment:
+                    logger.error("🚨 DEPLOYMENT MODE: Bot cannot start due to API restrictions")
+                    logger.error("🌐 Web dashboard will remain active for manual monitoring")
+                    logger.error("💡 Your existing mainnet positions can be monitored via web interface")
+                    bot_manager = None
+                    sys.modules['__main__'].bot_manager = None
+                else:
+                    raise e
+            else:
+                raise e
+
+            # Keep the main process alive to maintain web interface
+            while web_server_running:
+                await asyncio.sleep(5)
 
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt")
@@ -310,6 +340,8 @@ if __name__ == "__main__":
     if is_deployment:
         logger.info("🚀 STARTING IN REPLIT DEPLOYMENT MODE")
         logger.info("🌐 ALWAYS-ON DEPLOYMENT: Web interface will remain accessible 24/7")
+        logger.info("💡 MAINNET BOT: Continue running in development for live trading")
+        logger.info("🧪 DEPLOYMENT BOT: Uses testnet to avoid geographical restrictions")
 
         # In deployment, run simplified version
         bot_manager = None
@@ -326,6 +358,8 @@ if __name__ == "__main__":
         logger.info("💡 Access your bot via the web interface at your deployment URL")
         logger.info("🔄 Bot can be started/stopped through the web dashboard")
         logger.info("✅ DEPLOYMENT ACTIVE: Web interface accessible even when you close browser/computer")
+        logger.info("📊 DEPLOYMENT STATUS: Testnet bot for dashboard access only")
+        logger.info("💰 LIVE TRADING: Your mainnet bot with 3 active positions continues in development")
 
         try:
             # Keep the process alive for web interface - this is what makes it persistent

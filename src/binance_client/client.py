@@ -84,6 +84,18 @@ class BinanceClientWrapper:
 
         except BinanceAPIException as e:
             self.logger.error(f"❌ Binance API connection test failed: {e}")
+            
+            # Check if this is a deployment environment with geo-restrictions
+            import os
+            is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
+            
+            if is_deployment and not global_config.BINANCE_TESTNET:
+                self.logger.error("🚨 DEPLOYMENT GEOGRAPHICAL RESTRICTION DETECTED")
+                self.logger.error("⚠️  Binance mainnet is likely blocked from Replit's deployment servers")
+                self.logger.error("💡 SOLUTION: Web dashboard will remain active for manual control")
+                self.logger.error("🌐 You can manage trades through the web interface")
+                return False
+            
             if e.code == -2015:
                 if global_config.BINANCE_TESTNET:
                     if self.is_futures:
@@ -104,6 +116,17 @@ class BinanceClientWrapper:
             return False
         except Exception as e:
             self.logger.error(f"❌ Connection test failed: {e}")
+            
+            # Check if this is a deployment environment
+            import os
+            is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
+            
+            if is_deployment and not global_config.BINANCE_TESTNET:
+                self.logger.error("🚨 DEPLOYMENT CONNECTION ISSUE")
+                self.logger.error("⚠️  Unable to connect to Binance mainnet from deployment environment")
+                self.logger.error("💡 This is likely due to geographical restrictions")
+                self.logger.error("🌐 Web dashboard will remain active for monitoring")
+                
             return False
 
     def validate_api_permissions(self) -> Dict[str, bool]:

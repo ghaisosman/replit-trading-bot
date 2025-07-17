@@ -76,10 +76,21 @@ class GlobalConfig:
             return True
     
     def _load_environment_config(self):
-        """Load environment configuration from file or environment variables"""
+        """Load environment configuration with smart deployment detection"""
         config_file = "trading_data/environment_config.json"
         
-        # Try to load from config file first (web dashboard overrides)
+        # Check if running in Replit deployment
+        is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
+        
+        if is_deployment:
+            # FORCE TESTNET in deployment to avoid geographical restrictions
+            self.BINANCE_TESTNET = True
+            self.BINANCE_FUTURES = True
+            print("🚀 DEPLOYMENT MODE: Auto-switching to TESTNET to bypass geographical restrictions")
+            print("💡 Your mainnet bot continues running in development - deployment is for web dashboard access")
+            return
+        
+        # Try to load from config file first (web dashboard overrides) - DEVELOPMENT ONLY
         if os.path.exists(config_file):
             try:
                 with open(config_file, 'r') as f:
@@ -88,17 +99,17 @@ class GlobalConfig:
                 self.BINANCE_TESTNET = env_config.get('BINANCE_TESTNET', 'true').lower() == 'true'
                 self.BINANCE_FUTURES = env_config.get('BINANCE_FUTURES', 'true').lower() == 'true'
                 
-                print(f"🔧 Environment loaded from config file: {'TESTNET' if self.BINANCE_TESTNET else 'MAINNET'}")
+                print(f"🔧 DEVELOPMENT Environment loaded from config file: {'TESTNET' if self.BINANCE_TESTNET else 'MAINNET'}")
                 return
                 
             except Exception as e:
                 print(f"Warning: Could not load environment config file: {e}")
         
-        # Fallback to environment variables
+        # Fallback to environment variables - DEVELOPMENT ONLY
         self.BINANCE_TESTNET = os.getenv('BINANCE_TESTNET', 'true').lower() == 'true'  # Default to testnet
         self.BINANCE_FUTURES = os.getenv('BINANCE_FUTURES', 'true').lower() == 'true'  # Enable futures trading
         
-        print(f"🔧 Environment loaded from secrets: {'TESTNET' if self.BINANCE_TESTNET else 'MAINNET'}")
+        print(f"🔧 DEVELOPMENT Environment loaded from secrets: {'TESTNET' if self.BINANCE_TESTNET else 'MAINNET'}")
 
 # Global config instance
 global_config = GlobalConfig()
