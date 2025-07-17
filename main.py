@@ -304,6 +304,21 @@ if __name__ == "__main__":
             import web_dashboard
             web_dashboard.bot_manager = bm
             web_dashboard.shared_bot_manager = bm
+        except ImportError:
+            pass
+        except Exception as e:
+            pass
+
+    # Define set_bot_manager here to avoid circular import issues
+    def set_bot_manager(bm):
+        """Centralized function to set bot_manager in all necessary modules."""
+        global bot_manager
+        bot_manager = bm
+        sys.modules['__main__'].bot_manager = bm
+        try:
+            import web_dashboard
+            web_dashboard.bot_manager = bm
+            web_dashboard.shared_bot_manager = bm
             web_dashboard.current_bot = bm
         except ImportError:
             pass

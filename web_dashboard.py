@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 Trading Bot Web Dashboard
@@ -78,10 +77,10 @@ except ImportError as e:
             'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
             'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m'}
         }
-        
+
         def get_all_strategies(self):
             return self.strategy_overrides
-        
+
         def update_strategy_params(self, strategy_name, updates):
             if strategy_name not in self.strategy_overrides:
                 self.strategy_overrides[strategy_name] = {}
@@ -96,15 +95,15 @@ except ImportError as e:
 
 def get_current_bot_manager():
     """Get the current bot manager instance from main module"""
-    global bot_manager, shared_bot_manager, current_bot
-    
+    global bot_manager, shared_bot_manager
+
     # Try multiple sources for bot manager
     if shared_bot_manager:
         return shared_bot_manager
-    
+
     if bot_manager:
         return bot_manager
-    
+
     # Try to get from main module
     try:
         import sys
@@ -113,7 +112,7 @@ def get_current_bot_manager():
             return main_module.bot_manager
     except Exception as e:
         logger.debug(f"Could not get bot manager from main module: {e}")
-    
+
     return None
 
 @app.route('/')
@@ -157,7 +156,7 @@ def get_balance():
         else:
             return jsonify({'balance': 0})
     except Exception as e:
-        print(f"❌ API ERROR: /api/balance - {e}")
+        logger.error(f"❌ API ERROR: /api/balance - {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/positions', methods=['GET'])
@@ -165,50 +164,38 @@ def get_positions():
     """Get active positions"""
     try:
         positions = []
-
-        # Try shared bot manager first
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        current_bot = get_current_bot_manager()
 
         if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
-            # Create a safe copy to prevent "dictionary changed size during iteration" error
             active_positions = dict(current_bot.order_manager.active_positions)
 
             for strategy_name, position in active_positions.items():
-                # Check if this position has an anomaly (orphan/ghost trade)
                 anomaly_status = None
                 if hasattr(current_bot, 'anomaly_detector'):
                     anomaly_status = current_bot.anomaly_detector.get_anomaly_status(strategy_name)
 
-                # Get current price
                 current_price = None
                 if IMPORTS_AVAILABLE and price_fetcher:
                     current_price = price_fetcher.get_current_price(position.symbol)
 
-                # Calculate PnL
                 if current_price:
                     entry_price = position.entry_price
                     quantity = position.quantity
                     side = position.side
 
-                    # For futures trading, PnL calculation (matches console calculation)
-                    if side == 'BUY':  # Long position
+                    if side == 'BUY':
                         pnl = (current_price - entry_price) * quantity
-                    elif side == 'SELL':  # Short position
+                    elif side == 'SELL':
                         pnl = (entry_price - current_price) * quantity
                     else:
-                        pnl = 0  # Unknown side
+                        pnl = 0
                 else:
-                    pnl = 0  # If current price is not available
+                    pnl = 0
 
-                # Calculate position value in USDT
                 position_value_usdt = position.entry_price * position.quantity
-
-                # Get leverage and margin from strategy config (if available)
                 strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
-                leverage = strategy_config.get('leverage', 5)  # Default 5x leverage
-                margin_invested = strategy_config.get('margin', 50.0)  # Use configured margin
-
-                # Calculate PnL percentage against margin invested (correct for futures)
+                leverage = strategy_config.get('leverage', 5)
+                margin_invested = strategy_config.get('margin', 50.0)
                 pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
 
                 positions.append({
@@ -217,8 +204,8 @@ def get_positions():
                     'side': position.side,
                     'entry_price': position.entry_price,
                     'quantity': position.quantity,
-                    'position_value_usdt': position_value_usdt,  # Include position value
-                    'margin_invested': margin_invested,  # Include margin invested
+                    'position_value_usdt': position_value_usdt,
+                    'margin_invested': margin_invested,
                     'current_price': current_price,
                     'pnl': pnl,
                     'pnl_percent': pnl_percent,
@@ -227,7 +214,7 @@ def get_positions():
 
         return jsonify({'success': True, 'positions': positions})
     except Exception as e:
-        print(f"❌ API ERROR: /api/positions - {e}")
+        logger.error(f"❌ API ERROR: /api/positions - {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/trades', methods=['GET'])
@@ -245,7 +232,7 @@ def get_trades():
                         trades.append(trade_data)
         return jsonify(trades)
     except Exception as e:
-        print(f"❌ API ERROR: /api/trades - {e}")
+        logger.error(f"❌ API ERROR: /api/trades - {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/console/log', methods=['GET'])
@@ -255,11 +242,9 @@ def get_console_log():
         current_bot = get_current_bot_manager()
 
         if current_bot and hasattr(current_bot, 'log_handler'):
-            # Get logs from the web log handler
             logs = list(current_bot.log_handler.logs)
             return jsonify({'logs': logs})
         else:
-            # Return sample logs if no bot is running
             sample_logs = [
                 {'timestamp': '15:44:53', 'message': '🌐 Web dashboard active - Bot can be started via Start Bot button'},
                 {'timestamp': '15:44:53', 'message': '📊 Ready for trading operations'},
@@ -267,12 +252,12 @@ def get_console_log():
             ]
             return jsonify({'logs': sample_logs})
     except Exception as e:
-        print(f"❌ API ERROR: /api/console/log - {e}")
+        logger.error(f"❌ API ERROR: /api/console/log - {e}")
         return jsonify({'logs': [], 'error': str(e)}), 500
 
 @app.route('/api/console-log', methods=['GET'])
 def get_console_log_alt():
-    """Alternative console log endpoint that frontend might be calling"""
+    """Alternative console log endpoint"""
     return get_console_log()
 
 @app.route('/api/console/logs', methods=['GET'])
@@ -290,44 +275,18 @@ def get_status_alt():
     """Alternative status endpoint"""
     return get_bot_status()
 
-@app.route('/api/rsi/<symbol>', methods=['GET'])
-def get_rsi_for_symbol(symbol):
-    """Get RSI data for a specific symbol from bot manager"""
-    try:
-        current_bot = get_current_bot_manager()
-
-        if current_bot:
-            strategies = getattr(current_bot, 'strategies', {})
-
-            # Get RSI data from any RSI-based strategy
-            for strategy_name, strategy in strategies.items():
-                if hasattr(strategy, 'get_rsi_data'):
-                    try:
-                        rsi_data = strategy.get_rsi_data(symbol)
-                        if rsi_data:
-                            return jsonify(rsi_data)
-                    except Exception as e:
-                        continue
-
-        return jsonify({'error': 'No RSI data found for symbol'}), 404
-
-    except Exception as e:
-        print(f"❌ API ERROR: /api/rsi/{symbol} - {e}")
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/trading/environment', methods=['GET'])
 def get_trading_environment():
     """Get trading environment configuration"""
     try:
-        # Get current bot manager
         current_bot = get_current_bot_manager()
 
         if current_bot and hasattr(current_bot, 'is_running'):
             environment_info = {
                 'bot_running': current_bot.is_running,
-                'environment': 'MAINNET',  # Based on Instructions.md - now using mainnet
+                'environment': 'MAINNET',
                 'web_dashboard_active': True,
-                'config_source': 'web_dashboard'  # Web dashboard is single source of truth
+                'config_source': 'web_dashboard'
             }
         else:
             environment_info = {
@@ -340,50 +299,19 @@ def get_trading_environment():
         return jsonify(environment_info)
 
     except Exception as e:
-        print(f"❌ API ERROR: /api/trading/environment - {e}")
+        logger.error(f"❌ API ERROR: /api/trading/environment - {e}")
         return jsonify({'error': str(e), 'environment': 'UNKNOWN'}), 500
-
-def get_current_price(symbol):
-    """Helper function to get the current price of a symbol"""
-    try:
-        if IMPORTS_AVAILABLE and price_fetcher:
-            current_price = price_fetcher.get_current_price(symbol)
-            return current_price
-        return None
-    except Exception as e:
-        print(f"❌ PRICE API ERROR: {e}")
-        return None
-
-def calculate_pnl(position, current_price):
-    """Helper function to calculate P&L for a position"""
-    try:
-        entry_price = position.entry_price
-        quantity = position.quantity
-        side = position.side
-
-        # For futures trading, PnL calculation
-        if side == 'BUY':  # Long position
-            pnl = (current_price - entry_price) * quantity
-        elif side == 'SELL':  # Short position
-            pnl = (entry_price - current_price) * quantity
-        else:
-            return 0  # Unknown side
-
-        return pnl
-    except Exception as e:
-        print(f"❌ PNL CALC ERROR: {e}")
-        return 0
 
 # Add a catch-all route for debugging 404s
 @app.route('/<path:path>')
 def catch_all(path):
     """Catch-all route to debug 404 errors"""
-    print(f"❌ 404 ERROR: Requested path not found: /{path}")
-    print(f"📍 Available routes:")
+    logger.error(f"❌ 404 ERROR: Requested path not found: /{path}")
+    logger.error(f"📍 Available routes:")
     for rule in app.url_map.iter_rules():
-        if rule.rule != '/<path:path>':  # Don't show the catch-all
+        if rule.rule != '/<path:path>':
             methods = ', '.join(sorted(rule.methods - {'OPTIONS', 'HEAD'}))
-            print(f"    {rule.rule} ({methods})")
+            logger.error(f"    {rule.rule} ({methods})")
 
     return jsonify({
         'error': 'Not Found',
@@ -399,4 +327,4 @@ if __name__ == '__main__':
     logger.warning("💡 Run 'python main.py' instead")
     print("❌ Direct execution of web_dashboard.py is disabled")
     print("🔄 Please run 'python main.py' to start the bot with web dashboard")
-    exit(1)  # Prevent execution
+    exit(1)
