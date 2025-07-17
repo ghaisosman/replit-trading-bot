@@ -1,0 +1,29 @@
+
+{
+  "strategy_name": "LIQUIDITY_REVERSAL",
+  "description": "Smart Money Liquidity Reversal Strategy - Exploit retail crowd behavior by trading against stop hunts and fakeouts at high-liquidity inflection points.",
+  "default_config": {
+    "symbol": "BTCUSDT",
+    "margin": 50.0,
+    "leverage": 5,
+    "timeframe": "15m",
+    "max_loss_pct": 8.0,
+    "assessment_interval": 30,
+    "cooldown_period": 300,
+    "decimals": 3,
+    "swing_lookback_periods": 20,
+    "round_number_proximity": 0.002,
+    "sweep_wick_threshold": 0.005,
+    "volume_surge_multiplier": 2.0,
+    "reclaim_candles": 3,
+    "reclaim_threshold": 0.001,
+    "funding_bullish_threshold": -0.001,
+    "funding_bearish_threshold": 0.001,
+    "confirmation_timeout": 5,
+    "position_sizing_method": "fixed_margin",
+    "max_daily_trades": 3,
+    "profit_target_method": "mean_reversion",
+    "mean_reversion_periods": 50,
+    "max_hold_duration": 240
+  }
+}

@@ -46,6 +46,8 @@ class SignalProcessor:
                 return self._evaluate_rsi_oversold(df, current_price, strategy_config)
             elif 'macd' in strategy_name.lower():
                 return self._evaluate_macd_divergence(df, current_price, strategy_config)
+            elif 'liquidity' in strategy_name.lower() or 'reversal' in strategy_name.lower():
+                return self._evaluate_liquidity_reversal(df, current_price, strategy_config)
             else:
                 self.logger.warning(f"Unknown strategy type: {strategy_name}")
                 return None
@@ -303,6 +305,29 @@ class SignalProcessor:
                         self.logger.info(f"SHORT TAKE PROFIT: MACD histogram increasing {histogram_current:.6f} (bullish divergence detected)")
                         return "Take Profit (MACD Bullish Divergence)"
 
+            # Liquidity Reversal exit conditions
+            elif ('liquidity' in strategy_name.lower() or 'reversal' in strategy_name.lower()):
+                # Check if we should exit based on mean reversion or time
+                mean_reversion_periods = strategy_config.get('mean_reversion_periods', 50)
+                max_hold_duration = strategy_config.get('max_hold_duration', 240)  # minutes
+                
+                # Calculate simple moving average for mean reversion target
+                if len(df) >= mean_reversion_periods:
+                    sma = df['close'].tail(mean_reversion_periods).mean()
+                    
+                    # Long position: Take profit when approaching mean reversion level
+                    if position_side == 'BUY' and current_price >= sma * 0.995:  # Within 0.5% of SMA
+                        self.logger.info(f"LONG TAKE PROFIT: Mean reversion target reached at {current_price:.4f} (SMA: {sma:.4f})")
+                        return "Take Profit (Mean Reversion)"
+                    
+                    # Short position: Take profit when approaching mean reversion level
+                    elif position_side == 'SELL' and current_price <= sma * 1.005:  # Within 0.5% of SMA
+                        self.logger.info(f"SHORT TAKE PROFIT: Mean reversion target reached at {current_price:.4f} (SMA: {sma:.4f})")
+                        return "Take Profit (Mean Reversion)"
+                
+                # Time-based exit (would need actual position entry time)
+                # This is a placeholder - actual implementation would check hold duration
+                
             # Fallback to traditional TP/SL for non-RSI strategies
             elif 'rsi' not in strategy_name.lower():
                 if current_price >= take_profit:
@@ -313,3 +338,275 @@ class SignalProcessor:
         except Exception as e:
             self.logger.error(f"Error evaluating exit conditions: {e}")
             return False
+
+    def _evaluate_liquidity_reversal(self, df: pd.DataFrame, current_price: float, config: Dict) -> Optional[TradingSignal]:
+        """Smart Money Liquidity Reversal strategy evaluation"""
+        try:
+            # Get configuration parameters
+            margin = config.get('margin', 50.0)
+            leverage = config.get('leverage', 5)
+            max_loss_pct = config.get('max_loss_pct', 8.0)
+            swing_lookback = config.get('swing_lookback_periods', 20)
+            round_number_proximity = config.get('round_number_proximity', 0.002)
+            sweep_wick_threshold = config.get('sweep_wick_threshold', 0.005)
+            volume_surge_multiplier = config.get('volume_surge_multiplier', 2.0)
+            reclaim_candles = config.get('reclaim_candles', 3)
+            reclaim_threshold = config.get('reclaim_threshold', 0.001)
+            confirmation_timeout = config.get('confirmation_timeout', 5)
+
+            # Calculate stop loss based on margin
+            max_loss_amount = margin * (max_loss_pct / 100)
+            notional_value = margin * leverage
+            stop_loss_pct = (max_loss_amount / notional_value) * 100
+
+            # Ensure we have enough data
+            if len(df) < swing_lookback + reclaim_candles:
+                return None
+
+            # Step 1: Identify liquidity levels (swing highs/lows + round numbers)
+            liquidity_levels = self._identify_liquidity_levels(df, swing_lookback, round_number_proximity)
+            
+            if not liquidity_levels:
+                return None
+
+            # Step 2: Detect liquidity sweeps
+            sweep_data = self._detect_liquidity_sweep(df, liquidity_levels, sweep_wick_threshold, volume_surge_multiplier)
+            
+            if not sweep_data:
+                return None
+
+            # Step 3: Check for reversal confirmation
+            reversal_confirmed = self._check_reversal_confirmation(df, sweep_data, reclaim_candles, reclaim_threshold, confirmation_timeout)
+            
+            if not reversal_confirmed:
+                return None
+
+            # Step 4: Apply sentiment filtering (simplified - would need funding rate data)
+            sentiment_signal = self._apply_sentiment_filter(config, sweep_data['direction'])
+            
+            if not sentiment_signal:
+                return None
+
+            # Generate trading signal
+            signal_type = SignalType.BUY if sentiment_signal == 'LONG' else SignalType.SELL
+            
+            # Calculate stop loss and take profit
+            if signal_type == SignalType.BUY:
+                stop_loss = current_price * (1 - stop_loss_pct / 100)
+                # Target mean reversion (simplified - could use actual MA)
+                take_profit = current_price * 1.02  # 2% target
+            else:
+                stop_loss = current_price * (1 + stop_loss_pct / 100)
+                take_profit = current_price * 0.98  # 2% target
+
+            return TradingSignal(
+                signal_type=signal_type,
+                confidence=0.85,
+                entry_price=current_price,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
+                reason=f"LIQUIDITY REVERSAL: {sweep_data['level_type']} sweep at {sweep_data['level']:.4f}, reclaimed with {sentiment_signal} sentiment"
+            )
+
+        except Exception as e:
+            self.logger.error(f"Error in liquidity reversal evaluation: {e}")
+            return None
+
+    def _identify_liquidity_levels(self, df: pd.DataFrame, lookback: int, round_proximity: float) -> List[Dict]:
+        """Identify key liquidity levels"""
+        try:
+            levels = []
+            
+            # Get recent price data
+            recent_df = df.tail(lookback + 10)
+            
+            # Find swing highs and lows
+            for i in range(lookback//2, len(recent_df) - lookback//2):
+                current_high = recent_df['high'].iloc[i]
+                current_low = recent_df['low'].iloc[i]
+                
+                # Check if it's a swing high
+                left_highs = recent_df['high'].iloc[i-lookback//2:i]
+                right_highs = recent_df['high'].iloc[i+1:i+lookback//2+1]
+                
+                if len(left_highs) > 0 and len(right_highs) > 0:
+                    if current_high > left_highs.max() and current_high > right_highs.max():
+                        levels.append({
+                            'level': current_high,
+                            'type': 'swing_high',
+                            'strength': 1.0
+                        })
+                
+                # Check if it's a swing low
+                left_lows = recent_df['low'].iloc[i-lookback//2:i]
+                right_lows = recent_df['low'].iloc[i+1:i+lookback//2+1]
+                
+                if len(left_lows) > 0 and len(right_lows) > 0:
+                    if current_low < left_lows.min() and current_low < right_lows.min():
+                        levels.append({
+                            'level': current_low,
+                            'type': 'swing_low',
+                            'strength': 1.0
+                        })
+            
+            # Add round number levels
+            current_price = df['close'].iloc[-1]
+            round_levels = self._get_round_number_levels(current_price, round_proximity)
+            levels.extend(round_levels)
+            
+            return levels[-10:]  # Return most recent 10 levels
+            
+        except Exception as e:
+            self.logger.error(f"Error identifying liquidity levels: {e}")
+            return []
+
+    def _get_round_number_levels(self, current_price: float, proximity: float) -> List[Dict]:
+        """Get nearby round number levels"""
+        try:
+            levels = []
+            
+            # Define round number intervals based on price level
+            if current_price > 100000:
+                intervals = [1000, 5000, 10000]
+            elif current_price > 10000:
+                intervals = [100, 500, 1000]
+            elif current_price > 1000:
+                intervals = [10, 50, 100]
+            else:
+                intervals = [1, 5, 10]
+            
+            for interval in intervals:
+                # Find nearest round numbers
+                lower_round = (current_price // interval) * interval
+                upper_round = lower_round + interval
+                
+                # Check if they're within proximity
+                if abs(current_price - lower_round) / current_price <= proximity:
+                    levels.append({
+                        'level': lower_round,
+                        'type': 'round_number',
+                        'strength': 0.8
+                    })
+                
+                if abs(current_price - upper_round) / current_price <= proximity:
+                    levels.append({
+                        'level': upper_round,
+                        'type': 'round_number',
+                        'strength': 0.8
+                    })
+            
+            return levels
+            
+        except Exception as e:
+            self.logger.error(f"Error getting round number levels: {e}")
+            return []
+
+    def _detect_liquidity_sweep(self, df: pd.DataFrame, levels: List[Dict], wick_threshold: float, volume_multiplier: float) -> Optional[Dict]:
+        """Detect liquidity sweeps through key levels"""
+        try:
+            recent_candles = df.tail(5)  # Check last 5 candles
+            avg_volume = df['volume'].tail(20).mean()
+            
+            for _, candle in recent_candles.iterrows():
+                candle_high = candle['high']
+                candle_low = candle['low']
+                candle_close = candle['close']
+                candle_volume = candle['volume']
+                
+                # Check volume surge
+                if candle_volume < avg_volume * volume_multiplier:
+                    continue
+                
+                # Check each liquidity level
+                for level_data in levels:
+                    level = level_data['level']
+                    level_type = level_data['type']
+                    
+                    # Check for upward sweep (through resistance)
+                    if candle_high > level * (1 + wick_threshold):
+                        # Check if price closed back below the level
+                        if candle_close < level * (1 + wick_threshold/2):
+                            return {
+                                'level': level,
+                                'level_type': level_type,
+                                'direction': 'sweep_up',
+                                'wick_extent': (candle_high - level) / level,
+                                'volume_surge': candle_volume / avg_volume,
+                                'reclaim_price': level,
+                                'swept_candle': candle
+                            }
+                    
+                    # Check for downward sweep (through support)
+                    elif candle_low < level * (1 - wick_threshold):
+                        # Check if price closed back above the level
+                        if candle_close > level * (1 - wick_threshold/2):
+                            return {
+                                'level': level,
+                                'level_type': level_type,
+                                'direction': 'sweep_down',
+                                'wick_extent': (level - candle_low) / level,
+                                'volume_surge': candle_volume / avg_volume,
+                                'reclaim_price': level,
+                                'swept_candle': candle
+                            }
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error detecting liquidity sweep: {e}")
+            return None
+
+    def _check_reversal_confirmation(self, df: pd.DataFrame, sweep_data: Dict, reclaim_candles: int, reclaim_threshold: float, timeout: int) -> bool:
+        """Check for reversal confirmation after liquidity sweep"""
+        try:
+            level = sweep_data['level']
+            direction = sweep_data['direction']
+            
+            # Get candles after the sweep
+            recent_candles = df.tail(min(timeout, len(df)))
+            
+            confirmed_candles = 0
+            
+            for _, candle in recent_candles.iterrows():
+                if direction == 'sweep_up':
+                    # For upward sweep, look for price staying below level (bearish reversal)
+                    if candle['close'] < level * (1 - reclaim_threshold):
+                        confirmed_candles += 1
+                    else:
+                        confirmed_candles = 0  # Reset if broken
+                        
+                elif direction == 'sweep_down':
+                    # For downward sweep, look for price staying above level (bullish reversal)
+                    if candle['close'] > level * (1 + reclaim_threshold):
+                        confirmed_candles += 1
+                    else:
+                        confirmed_candles = 0  # Reset if broken
+                
+                # If we have enough confirmation candles
+                if confirmed_candles >= reclaim_candles:
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Error checking reversal confirmation: {e}")
+            return False
+
+    def _apply_sentiment_filter(self, config: Dict, sweep_direction: str) -> Optional[str]:
+        """Apply sentiment filtering (simplified without funding rate data)"""
+        try:
+            # Simplified sentiment filter - in full implementation would use funding rates
+            # For now, we'll use a basic counter-trend approach
+            
+            if sweep_direction == 'sweep_up':
+                # Upward sweep suggests selling pressure, favor shorts
+                return 'SHORT'
+            elif sweep_direction == 'sweep_down':
+                # Downward sweep suggests buying pressure, favor longs
+                return 'LONG'
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error applying sentiment filter: {e}")
+            return None
