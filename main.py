@@ -322,44 +322,8 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             logger.info("🔴 Deployment shutdown")
     else:
-        # Development mode - check if bot is already running
-        try:
-            import psutil
-            current_pid = os.getpid()
-            bot_processes = []
-
-            for proc in psutil.process_iter(['pid', 'cmdline']):
-                try:
-                    if proc.info['cmdline'] and len(proc.info['cmdline']) > 1:
-                        cmdline = ' '.join(proc.info['cmdline'])
-                        if 'python' in cmdline and 'main.py' in cmdline and proc.info['pid'] != current_pid:
-                            bot_processes.append(proc)
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-
-            if bot_processes:
-                logger.warning("⚠️  EXISTING BOT PROCESS DETECTED")
-                logger.warning("🔍 Another instance of the bot appears to be running")
-                logger.warning("💡 Use the web dashboard to control the bot instead of console")
-                logger.warning("🌐 Web dashboard should be accessible at http://localhost:5000")
-
-                # Still start web dashboard if not running
-                if not check_port_available(5000):
-                    logger.info("🌐 Web dashboard already running")
-                else:
-                    logger.info("🌐 Starting web dashboard...")
-                    web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
-                    web_thread.start()
-
-                # Keep process alive for web interface
-                try:
-                    while True:
-                        time.sleep(10)
-                except KeyboardInterrupt:
-                    logger.info("🔴 Console interface shutdown")
-                    sys.exit(0)
-        except ImportError:
-            pass  # psutil not available, continue normally
+        # Skip the aggressive bot detection that causes false positives
+        logger.info("🛠️ Development mode: Starting bot normally")
 
         # Original development mode
         bot_manager = None
