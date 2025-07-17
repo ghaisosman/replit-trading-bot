@@ -540,7 +540,7 @@ def get_current_bot_manager():
     print("⚠️ No real bot manager found - using dummy")
     return None
 
-@app.route('/api/health')
+@app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint to verify API is working"""
     return jsonify({
@@ -549,7 +549,7 @@ def health_check():
         'message': 'Web dashboard API is running'
     })
 
-@app.route('/api/bot/status')
+@app.route('/api/bot/status', methods=['GET'])
 def get_bot_status():
     """Get current bot status via API"""
     try:
@@ -573,7 +573,7 @@ def get_bot_status():
         print(f"❌ API ERROR: /api/bot/status - {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/strategies')
+@app.route('/api/strategies', methods=['GET'])
 def get_strategies():
     """Get all strategy configurations - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
     try:
@@ -843,7 +843,7 @@ def update_strategy(strategy_name):
         logger.error(f"Error updating strategy {strategy_name}: {e}")
         return jsonify({'success': False, 'message': f'Failed to update strategy: {e}'})
 
-@app.route('/api/balance')
+@app.route('/api/balance', methods=['GET'])
 def get_balance():
     """Get current balance via API"""
     try:
@@ -860,7 +860,7 @@ def get_balance():
         print(f"❌ API ERROR: /api/balance - {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/positions')
+@app.route('/api/positions', methods=['GET'])
 def get_positions():
     """Get active positions"""
     try:
@@ -880,7 +880,9 @@ def get_positions():
                     anomaly_status = current_bot.anomaly_detector.get_anomaly_status(strategy_name)
 
                 # Get current price
-                current_price = price_fetcher.get_current_price(position.symbol)
+                current_price = None
+                if IMPORTS_AVAILABLE and 'price_fetcher' in globals():
+                    current_price = price_fetcher.get_current_price(position.symbol)
 
                 # Calculate PnL
                 if current_price:
@@ -899,7 +901,7 @@ def get_positions():
                     pnl = 0  # If current price is not available
 
                 # Calculate position value in USDT
-                position_value_usdt = entry_price * quantity
+                position_value_usdt = position.entry_price * position.quantity
 
                 # Get leverage and margin from strategy config (if available)
                 strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
@@ -913,8 +915,8 @@ def get_positions():
                     'strategy': strategy_name,
                     'symbol': position.symbol,
                     'side': position.side,
-                    'entry_price': entry_price,
-                    'quantity': quantity,
+                    'entry_price': position.entry_price,
+                    'quantity': position.quantity,
                     'position_value_usdt': position_value_usdt,  # Include position value
                     'margin_invested': margin_invested,  # Include margin invested
                     'current_price': current_price,
@@ -922,12 +924,13 @@ def get_positions():
                     'pnl_percent': pnl_percent,
                     'anomaly_status': anomaly_status
                 })
-        return jsonify(positions)
+        
+        return jsonify({'success': True, 'positions': positions})
     except Exception as e:
         print(f"❌ API ERROR: /api/positions - {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/trades')
+@app.route('/api/trades', methods=['GET'])
 def get_trades():
     """Get recent trades"""
     try:
@@ -943,7 +946,7 @@ def get_trades():
         print(f"❌ API ERROR: /api/trades - {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/console/log')
+@app.route('/api/console/log', methods=['GET'])
 def get_console_log():
     """Get console logs for web dashboard"""
     try:
@@ -964,6 +967,11 @@ def get_console_log():
     except Exception as e:
         print(f"❌ API ERROR: /api/console/log - {e}")
         return jsonify({'logs': [], 'error': str(e)}), 500
+
+@app.route('/api/console-log', methods=['GET'])
+def get_console_log_alt():
+    """Alternative console log endpoint that frontend might be calling"""
+    return get_console_log()
 
 def get_current_price(symbol):
     """Helper function to get the current price of a symbol"""
