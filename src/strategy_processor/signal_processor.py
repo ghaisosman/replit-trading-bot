@@ -41,13 +41,13 @@ class SignalProcessor:
             current_price = df['close'].iloc[-1]
             strategy_name = strategy_config.get('name', 'unknown')
 
-            # Route to specific strategy evaluation
-            if strategy_name == 'rsi_oversold':
+            # Route to specific strategy evaluation based on strategy type (not exact name)
+            if 'rsi' in strategy_name.lower():
                 return self._evaluate_rsi_oversold(df, current_price, strategy_config)
-            elif strategy_name == 'macd_divergence':
+            elif 'macd' in strategy_name.lower():
                 return self._evaluate_macd_divergence(df, current_price, strategy_config)
             else:
-                self.logger.warning(f"Unknown strategy: {strategy_name}")
+                self.logger.warning(f"Unknown strategy type: {strategy_name}")
                 return None
 
         except Exception as e:
@@ -267,8 +267,8 @@ class SignalProcessor:
             # Strategy-specific exit conditions
             strategy_name = strategy_config.get('name', '')
 
-            # RSI-based exit conditions for RSI strategy
-            if strategy_name == 'rsi_oversold' and 'rsi' in df.columns:
+            # RSI-based exit conditions for any RSI strategy
+            if 'rsi' in strategy_name.lower() and 'rsi' in df.columns:
                 rsi_current = df['rsi'].iloc[-1]
 
                 # Get configurable RSI exit levels
@@ -285,8 +285,8 @@ class SignalProcessor:
                     self.logger.info(f"SHORT TAKE PROFIT: RSI {rsi_current:.2f} <= {rsi_short_exit}")
                     return f"Take Profit (RSI {rsi_short_exit}-)"
 
-            # MACD-based exit conditions for MACD strategy
-            elif strategy_name == 'macd_divergence' and 'macd_histogram' in df.columns:
+            # MACD-based exit conditions for any MACD strategy
+            elif 'macd' in strategy_name.lower() and 'macd_histogram' in df.columns:
                 histogram = df['macd_histogram'].iloc[-2:]  # Get last 2 values
 
                 if len(histogram) >= 2:
@@ -303,8 +303,8 @@ class SignalProcessor:
                         self.logger.info(f"SHORT TAKE PROFIT: MACD histogram increasing {histogram_current:.6f} (bullish divergence detected)")
                         return "Take Profit (MACD Bullish Divergence)"
 
-            # Fallback to traditional TP/SL for other strategies
-            elif strategy_name != 'rsi_oversold':
+            # Fallback to traditional TP/SL for non-RSI strategies
+            elif 'rsi' not in strategy_name.lower():
                 if current_price >= take_profit:
                     return "Take Profit"
 
