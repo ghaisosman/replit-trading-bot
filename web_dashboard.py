@@ -1060,6 +1060,10 @@ def trades_database():
 
             # FIX: Pre-calculate absolute values for template (abs() not available in Jinja2)
             trade['abs_pnl_usdt'] = abs(trade.get('pnl_usdt', 0))
+            
+            # Ensure duration is displayed with 2 decimals
+            if isinstance(trade.get('duration_minutes'), (int, float)):
+                trade['duration_minutes'] = round(float(trade['duration_minutes']), 2)
 
         # Now sort safely - all None values have been eliminated
         try:
