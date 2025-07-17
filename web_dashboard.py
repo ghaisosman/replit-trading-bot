@@ -415,7 +415,7 @@ def get_strategies():
                         else:
                             config.setdefault('decimals', 2)
 
-                # MACD strategy defaults
+                # Show and populate MACD parameters if it's a MACD strategy
                 elif 'macd' in name.lower():
                     config.setdefault('macd_fast', 12)
                     config.setdefault('macd_slow', 26)
@@ -432,6 +432,38 @@ def get_strategies():
                         else:
                             config.setdefault('decimals', 2)
                     config.setdefault('confirmation_candles', 2)
+
+                # Liquidity Reversal strategy defaults
+                elif 'liquidity' in name.lower():
+                    # Core detection parameters
+                    config.setdefault('swing_lookback', 20)
+                    config.setdefault('sweep_threshold', 0.5)
+                    config.setdefault('volume_surge_multiplier', 2.0)
+                    config.setdefault('confirmation_candles', 2)
+
+                    # Profit targeting parameters
+                    config.setdefault('profit_target_method', 'mean_reversion')
+                    config.setdefault('fixed_profit_percent', 2.0)
+                    config.setdefault('mean_reversion_periods', 50)
+                    config.setdefault('mean_reversion_buffer', 0.5)
+
+                    # RSI-based exit parameters
+                    config.setdefault('rsi_exit_overbought', 70)
+                    config.setdefault('rsi_exit_oversold', 30)
+
+                    # Dynamic profit parameters
+                    config.setdefault('dynamic_profit_min', 1.0)
+                    config.setdefault('dynamic_profit_max', 4.0)
+
+                    # Set default decimals based on symbol
+                    if not config.get('decimals'):
+                        symbol = config.get('symbol', '').upper()
+                        if 'ETH' in symbol or 'SOL' in symbol:
+                            config.setdefault('decimals', 2)
+                        elif 'BTC' in symbol:
+                            config.setdefault('decimals', 3)
+                        else:
+                            config.setdefault('decimals', 3)
 
             logger.info(f"🌐 WEB DASHBOARD: Serving configurations for {len(strategies)} strategies")
             return jsonify(strategies)
@@ -987,11 +1019,11 @@ def trades_database():
     try:
         if not IMPORTS_AVAILABLE:
             return render_template('trades_database.html', trades=[], error="Database not available in demo mode")
-        
+
         # Get all trades from the database
         from src.execution_engine.trade_database import TradeDatabase
         trade_db = TradeDatabase()
-        
+
         # Convert trades to list format for template
         trades_list = []
         for trade_id, trade_data in trade_db.trades.items():
@@ -1013,7 +1045,7 @@ def trades_database():
                 'duration_minutes': trade_data.get('duration_minutes', 0)
             }
             trades_list.append(trade_info)
-        
+
         # BULLETPROOF FIX: Convert all None values to safe strings before ANY processing
         for trade in trades_list:
             # Fix ALL None values in the trade object to prevent any comparison errors
@@ -1025,21 +1057,21 @@ def trades_database():
                         trade[key] = 0
                     else:
                         trade[key] = 'N/A'
-            
+
             # FIX: Pre-calculate absolute values for template (abs() not available in Jinja2)
             trade['abs_pnl_usdt'] = abs(trade.get('pnl_usdt', 0))
-        
+
         # Now sort safely - all None values have been eliminated
         try:
             trades_list.sort(key=lambda x: str(x.get('timestamp', '1900-01-01T00:00:00')), reverse=True)
         except Exception as sort_error:
             # If sorting still fails for any reason, don't sort
             logger.error(f"Sort failed despite None handling: {sort_error}")
-        
+
         final_trades_list = trades_list
-        
+
         return render_template('trades_database.html', trades=final_trades_list, total_trades=len(final_trades_list))
-        
+
     except Exception as e:
         logger.error(f"Error loading trades database page: {e}")
         return render_template('trades_database.html', trades=[], error=str(e))
@@ -1053,15 +1085,15 @@ def get_ml_insights():
 
         # Import ML analyzer
         from src.analytics.ml_analyzer import ml_analyzer
-        
+
         # Generate insights
         insights = ml_analyzer.generate_insights()
-        
+
         if "error" in insights:
             return jsonify({'success': False, 'error': insights['error']})
-        
+
         return jsonify({'success': True, 'insights': insights})
-        
+
     except Exception as e:
         logger.error(f"Error getting ML insights: {e}")
         return jsonify({'success': False, 'error': str(e)})
@@ -1075,11 +1107,11 @@ def get_ml_predictions():
 
         # Import ML analyzer
         from src.analytics.ml_analyzer import ml_analyzer
-        
+
         # Sample predictions for current strategies
         predictions = []
         strategies = trading_config_manager.get_all_strategies()
-        
+
         for strategy_name, config in strategies.items():
             # Create sample trade features
             sample_features = {
@@ -1094,15 +1126,15 @@ def get_ml_predictions():
                 'volatility_score': 0.3,
                 'signal_strength': 0.7
             }
-            
+
             # Add strategy-specific features
             if 'rsi' in strategy_name.lower():
                 sample_features['rsi_entry'] = 30  # Oversold
             elif 'macd' in strategy_name.lower():
                 sample_features['macd_entry'] = 0.1
-            
+
             prediction = ml_analyzer.predict_trade_outcome(sample_features)
-            
+
             if "error" not in prediction:
                 predictions.append({
                     'strategy': strategy_name,
@@ -1112,9 +1144,9 @@ def get_ml_predictions():
                     'confidence': prediction.get('confidence', 0),
                     'recommendation': prediction.get('recommendation', 'HOLD')
                 })
-        
+
         return jsonify({'success': True, 'predictions': predictions})
-        
+
     except Exception as e:
         logger.error(f"Error getting ML predictions: {e}")
         return jsonify({'success': False, 'error': str(e)})
@@ -1128,15 +1160,15 @@ def train_models():
 
         # Import ML analyzer
         from src.analytics.ml_analyzer import ml_analyzer
-        
+
         # Train models
         results = ml_analyzer.train_models()
-        
+
         if "error" in results:
             return jsonify({'success': False, 'error': results['error']})
-        
+
         return jsonify({'success': True, 'results': results})
-        
+
     except Exception as e:
         logger.error(f"Error training ML models: {e}")
         return jsonify({'success': False, 'error': str(e)})
