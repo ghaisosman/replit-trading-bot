@@ -223,12 +223,11 @@ async def main_bot_only():
     try:
         # Initialize the bot manager
         try:
+            # Initialize the bot manager
             bot_manager = BotManager()
 
-            # Make bot manager accessible to web interface
-            sys.modules['__main__'].bot_manager = bot_manager
-            web_dashboard.bot_manager = bot_manager
-            web_dashboard.shared_bot_manager = bot_manager
+            # Make bot manager accessible to web interface using centralized function
+            set_bot_manager(bot_manager)
 
             # Start the bot in a task so we can handle shutdown signals
             logger.info("🚀 Starting trading bot main loop...")
@@ -285,7 +284,7 @@ async def main_bot_only():
         logger.error(f"Unexpected error: {e}")
         if bot_manager:
             await bot_manager.stop(f"Unexpected error: {e}")
-        logger.info("🌐 Web interface remains active despite bot error")
+        logger.info("🌐 Web interface remains active")
 
 async def main():
     """Main function for web dashboard bot restart"""
@@ -314,12 +313,11 @@ async def main():
     try:
         # Initialize the bot manager
         try:
+            # Initialize the bot manager
             bot_manager = BotManager()
 
-            # Make bot manager accessible to web interface
-            sys.modules['__main__'].bot_manager = bot_manager
-            web_dashboard.bot_manager = bot_manager
-            web_dashboard.shared_bot_manager = bot_manager
+            # Make bot manager accessible to web interface using centralized function
+            set_bot_manager(bot_manager)
 
             # Start the bot in a task so we can handle shutdown signals
             logger.info("🚀 Starting trading bot main loop...")
@@ -383,6 +381,19 @@ if __name__ == "__main__":
     setup_logger()
     logger = logging.getLogger(__name__)
 
+    # Define set_bot_manager here to avoid circular import issues
+    def set_bot_manager(bm):
+        """Centralized function to set bot_manager in all necessary modules."""
+        global bot_manager
+        bot_manager = bm
+        sys.modules['__main__'].bot_manager = bm
+        try:
+            import web_dashboard
+            web_dashboard.bot_manager = bm
+            web_dashboard.shared_bot_manager = bm
+        except ImportError:
+            logger.warning("web_dashboard module not found, cannot set bot_manager")
+
     # Check if running in deployment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
 
@@ -412,6 +423,11 @@ if __name__ == "__main__":
         logger.info("🛡️ ACCOUNT SAFETY: Fully compliant with Binance ToS")
 
         try:
+            # Create fresh bot manager instance
+            bot_manager = BotManager()
+
+            # Update the global reference using centralized function
+            set_bot_manager(bot_manager)
             # Enhanced keep-alive loop for deployment persistence
             heartbeat_counter = 0
             while True:

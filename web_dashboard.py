@@ -114,18 +114,33 @@ bot_manager = None
 shared_bot_manager = None
 current_bot = None
 
+def get_bot_manager_from_main():
+    """Try to get bot manager from main module with better error handling"""
+    try:
+        import sys
+        main_module = sys.modules.get('__main__')
+        if main_module and hasattr(main_module, 'bot_manager'):
+            manager = getattr(main_module, 'bot_manager')
+            if manager is not None:
+                print(f"✅ Bot manager loaded from main module: {type(manager).__name__}")
+                return manager
+        
+        # Also try to get from global scope
+        if 'bot_manager' in globals() and globals()['bot_manager'] is not None:
+            manager = globals()['bot_manager']
+            print(f"✅ Bot manager loaded from globals: {type(manager).__name__}")
+            return manager
+            
+        print("⚠️ Bot manager not found in main module or globals")
+        return None
+    except Exception as e:
+        print(f"❌ Error loading bot manager: {e}")
+        return None
+
 # Try to get bot manager from main module
-try:
-    import sys
-    if '__main__' in sys.modules and hasattr(sys.modules['__main__'], 'bot_manager'):
-        bot_manager = sys.modules['__main__'].bot_manager
-        shared_bot_manager = bot_manager
-        current_bot = bot_manager
-        print(f"✅ Bot manager loaded from main module: {bot_manager is not None}")
-    else:
-        print("⚠️ Bot manager not found in main module")
-except Exception as e:
-    print(f"❌ Error loading bot manager: {e}")
+bot_manager = get_bot_manager_from_main()
+shared_bot_manager = bot_manager
+current_bot = bot_manager
 
 # Dummy classes for when bot manager is not available
 class DummyBotManager:
@@ -442,29 +457,45 @@ def stop_bot():
 
 def get_current_bot_manager():
     """Helper function to get the current bot manager instance"""
-    # Safely get bot manager (shared or standalone)
-    if shared_bot_manager:
+    global bot_manager, shared_bot_manager, current_bot
+    
+    # Try to refresh the bot manager reference from main module
+    fresh_manager = get_bot_manager_from_main()
+    if fresh_manager is not None:
+        bot_manager = fresh_manager
+        shared_bot_manager = fresh_manager
+        current_bot = fresh_manager
+        return fresh_manager
+    
+    # Fallback to existing references
+    if shared_bot_manager and not isinstance(shared_bot_manager, DummyBotManager):
         return shared_bot_manager
-    elif bot_manager:
+    elif bot_manager and not isinstance(bot_manager, DummyBotManager):
         return bot_manager
+    elif current_bot and not isinstance(current_bot, DummyBotManager):
+        return current_bot
+    
     return None
 
 @app.route('/api/bot/status')
 def get_bot_status():
     """Get current bot status via API"""
     try:
-        # Get the current bot manager
+        # Get the current bot manager with fresh check
         current_bot = get_current_bot_manager()
 
-        if current_bot and hasattr(current_bot, 'get_bot_status'):
+        if current_bot and hasattr(current_bot, 'get_bot_status') and not isinstance(current_bot, DummyBotManager):
             status = current_bot.get_bot_status()
+            print(f"✅ Real bot status: {status}")
             return jsonify(status)
         else:
+            print("⚠️ Using dummy bot status - no real bot manager found")
             return jsonify({
                 'is_running': False,
                 'active_positions': 0,
                 'strategies': [],
-                'balance': 0
+                'balance': 0,
+                'status': 'dummy'
             })
     except Exception as e:
         print(f"❌ API ERROR: /api/bot/status - {e}")
