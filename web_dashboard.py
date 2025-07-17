@@ -694,7 +694,7 @@ def get_strategies():
                         config.setdefault('decimals', 3)
 
         logger.info(f"🌐 WEB DASHBOARD: Serving configurations for {len(strategies)} strategies")
-            return jsonify(strategies)
+        return jsonify(strategies)
 
     except Exception as e:
         logger.error(f"Error in get_strategies endpoint: {e}")
