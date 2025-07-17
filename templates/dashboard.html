@@ -419,8 +419,6 @@
                                                 RSI-Based Strategy
                                             {% elif 'macd' in strategy_name.lower() %}
                                                 MACD Divergence Strategy
-                                            {% elif 'liquidity' in strategy_name.lower() %}
-                                                Liquidity Reversal Strategy
                                             {% else %}
                                                 Custom Strategy
                                             {% endif %}
@@ -484,15 +482,6 @@
                                         Min Histogram: {{ config.get('min_histogram_threshold', 0.0001) }}
                                     </small>
                                 </div>
-                                {% elif 'liquidity' in strategy_name.lower() %}
-                                <div class="mt-2 p-2 bg-light rounded">
-                                    <small class="text-muted">
-                                        <strong>Liquidity Settings:</strong> 
-                                        Lookback: {{ config.get('swing_lookback', 20) }} | 
-                                        Sweep Threshold: {{ config.get('sweep_threshold', 0.5) }}% |
-                                        Volume Multiplier: {{ config.get('volume_surge_multiplier', 2.0) }}x
-                                    </small>
-                                </div>
                                 {% endif %}
                             </div>
                             <div class="card-footer text-center">
@@ -524,7 +513,7 @@
                     <div class="modal-body">
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle"></i>
-                            Create a new trading strategy. All strategy types are supported: RSI, MACD, Liquidity Reversal, and any custom strategy.
+                            Create a new trading strategy. All strategy types are supported: RSI, MACD, and any custom strategy.
                         </div>
 
                         <form id="addStrategyForm">
@@ -533,8 +522,8 @@
                                     <div class="mb-3">
                                         <label for="newStrategyName" class="form-label">Strategy Name</label>
                                         <input type="text" class="form-control" id="newStrategyName" 
-                                               placeholder="e.g., RSI_CRYPTO, MACD_FUTURES, LIQUIDITY_BTC" required>
-                                        <div class="form-text">Include "rsi", "macd", "liquidity", or any custom name</div>
+                                               placeholder="e.g., RSI_CRYPTO, MACD_FUTURES" required>
+                                        <div class="form-text">Include "rsi", "macd", or any custom name</div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -544,7 +533,6 @@
                                             <option value="auto">Auto-detect from name</option>
                                             <option value="rsi">RSI Strategy</option>
                                             <option value="macd">MACD Strategy</option>
-                                            <option value="liquidity_reversal">Liquidity Reversal</option>
                                             <option value="universal">Custom/Universal</option>
                                         </select>
                                     </div>
@@ -685,88 +673,6 @@
                                 <label for="cooldownPeriod" class="form-label">Cooldown Period (seconds)</label>
                                 <input type="number" class="form-control" id="cooldownPeriod" step="1" min="30" max="3600" placeholder="e.g., 300">
                                 <div class="form-text">Time to wait before allowing another trade on the same symbol/strategy (30-3600 seconds)</div>
-                            </div>
-
-                            <!-- Liquidity Reversal Strategy Parameters -->
-                            <div id="liquidityParameters" style="display: none;">
-                                <h6 class="text-primary mt-3">Liquidity Reversal Strategy Parameters</h6>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="swingLookback" class="form-label">Swing Lookback Periods</label>
-                                            <input type="number" class="form-control" id="swingLookback" min="5" max="50" value="20">
-                                            <div class="form-text">Candles to look back for swing highs/lows</div>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="sweepThreshold" class="form-label">Sweep Threshold %</label>
-                                            <input type="number" class="form-control" id="sweepThreshold" step="0.1" min="0.1" max="2.0" value="0.5">
-                                            <div class="form-text">% beyond level required for liquidity sweep</div>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="volumeSurgeMultiplier" class="form-label">Volume Surge Multiplier</label>
-                                            <input type="number" class="form-control" id="volumeSurgeMultiplier" step="0.1" min="1.5" max="5.0" value="2.0">
-                                            <div class="form-text">Volume must be X times average</div>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="confirmationCandles" class="form-label">Confirmation Candles</label>
-                                            <input type="number" class="form-control" id="confirmationCandles" min="1" max="5" value="2">
-                                            <div class="form-text">Candles needed to confirm reversal</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="profitTargetMethod" class="form-label">Profit Target Method</label>
-                                            <select class="form-control" id="profitTargetMethod">
-                                                <option value="mean_reversion">Mean Reversion</option>
-                                                <option value="fixed_percent">Fixed Percentage</option>
-                                                <option value="rsi_based">RSI Based</option>
-                                                <option value="dynamic">Dynamic (Volatility)</option>
-                                            </select>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="fixedProfitPercent" class="form-label">Fixed Profit %</label>
-                                            <input type="number" class="form-control" id="fixedProfitPercent" step="0.1" min="0.5" max="10.0" value="2.0">
-                                            <div class="form-text">Used when method is "Fixed Percentage"</div>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="meanReversionPeriods" class="form-label">Mean Reversion Periods</label>
-                                            <input type="number" class="form-control" id="meanReversionPeriods" min="20" max="100" value="50">
-                                            <div class="form-text">MA periods for mean reversion target</div>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="meanReversionBuffer" class="form-label">Mean Reversion Buffer %</label>
-                                            <input type="number" class="form-control" id="meanReversionBuffer" step="0.1"```text
- min="0.1" max="2.0" value="0.5">
-                                            <div class="form-text">% buffer around MA for exit trigger</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="rsiExitOverbought" class="form-label">RSI Exit Overbought</label>
-                                            <input type="number" class="form-control" id="rsiExitOverbought" min="60" max="90" value="70">
-                                            <div class="form-text">RSI level for long profit taking</div>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="rsiExitOversold" class="form-label">RSI Exit Oversold</label>
-                                            <input type="number" class="form-control" id="rsiExitOversold" min="10" max="40" value="30">
-                                            <div class="form-text">RSI level for short profit taking</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label for="dynamicProfitMin" class="form-label">Dynamic Profit Min %</label>
-                                            <input type="number" class="form-control" id="dynamicProfitMin" step="0.1" min="0.5" max="5.0" value="1.0">
-                                            <div class="form-text">Minimum profit for dynamic targeting</div>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="dynamicProfitMax" class="form-label">Dynamic Profit Max %</label>
-                                            <input type="number" class="form-control" id="dynamicProfitMax" step="0.1" min="2.0" max="10.0" value="4.0">
-                                            <div class="form-text">Maximum profit for dynamic targeting</div>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
 
                             <!-- RSI Strategy Parameters (shown only for RSI strategies) -->
@@ -1164,7 +1070,6 @@
                         // Hide all strategy-specific sections first
                         document.getElementById('rsiParameters').style.display = 'none';
                         document.getElementById('macdParameters').style.display = 'none';
-                        document.getElementById('liquidityParameters').style.display = 'none';
 
                         // Show and populate RSI parameters if it's an RSI strategy
                         if (strategyName.toLowerCase().includes('rsi')) {
@@ -1186,29 +1091,6 @@
                             document.getElementById('macdExitThreshold').value = config.macd_exit_threshold || 0.02;
                             document.getElementById('histogramDivergenceLookback').value = config.histogram_divergence_lookback || 10;
                             document.getElementById('priceDivergenceLookback').value = config.price_divergence_lookback || 10;
-                        }
-
-                        // Show and populate Liquidity Reversal parameters if it's a liquidity strategy
-                        if (strategyName.toLowerCase().includes('liquidity') || strategyName.toLowerCase() === 'liquidity_reversal') {
-                            document.getElementById('liquidityParameters').style.display = 'block';
-
-                            // Core detection parameters
-                            document.getElementById('swingLookback').value = config.swing_lookback || 20;
-                            document.getElementById('sweepThreshold').value = config.sweep_threshold || 0.5;
-                            document.getElementById('volumeSurgeMultiplier').value = config.volume_surge_multiplier || 2.0;
-                            document.getElementById('confirmationCandles').value = config.confirmation_candles || 2;
-
-                            // Profit target parameters
-                            document.getElementById('profitTargetMethod').value = config.profit_target_method || 'mean_reversion';
-                            document.getElementById('fixedProfitPercent').value = config.fixed_profit_percent || 2.0;
-                            document.getElementById('meanReversionPeriods').value = config.mean_reversion_periods || 50;
-                            document.getElementById('meanReversionBuffer').value = config.mean_reversion_buffer || 0.5;
-
-                            // Advanced profit targeting
-                            document.getElementById('rsiExitOverbought').value = config.rsi_exit_overbought || 70;
-                            document.getElementById('rsiExitOversold').value = config.rsi_exit_oversold || 30;
-                            document.getElementById('dynamicProfitMin').value = config.dynamic_profit_min || 1.0;
-                            document.getElementById('dynamicProfitMax').value = config.dynamic_profit_max || 4.0;
                         }
 
                         // Show modal using Bootstrap 5
@@ -1253,22 +1135,6 @@
                 updates.macd_exit_threshold = parseFloat(document.getElementById('macdExitThreshold').value);
                 updates.histogram_divergence_lookback = parseInt(document.getElementById('histogramDivergenceLookback').value);
                 updates.price_divergence_lookback = parseInt(document.getElementById('priceDivergenceLookback').value);
-            }
-
-            // Liquidity reversal parameters
-            if (strategyName.toLowerCase().includes('liquidity')) {
-                updates.swing_lookback = parseInt(document.getElementById('swingLookback').value);
-                updates.sweep_threshold = parseFloat(document.getElementById('sweepThreshold').value);
-                updates.volume_surge_multiplier = parseFloat(document.getElementById('volumeSurgeMultiplier').value);
-                updates.confirmation_candles = parseInt(document.getElementById('confirmationCandles').value);
-                updates.profit_target_method = document.getElementById('profitTargetMethod').value;
-                updates.fixed_profit_percent = parseFloat(document.getElementById('fixedProfitPercent').value);
-                updates.mean_reversion_periods = parseInt(document.getElementById('meanReversionPeriods').value);
-                updates.mean_reversion_buffer = parseFloat(document.getElementById('meanReversionBuffer').value);
-                updates.rsi_exit_overbought = parseInt(document.getElementById('rsiExitOverbought').value);
-                updates.rsi_exit_oversold = parseInt(document.getElementById('rsiExitOversold').value);
-                updates.dynamic_profit_min = parseFloat(document.getElementById('dynamicProfitMin').value);
-                updates.dynamic_profit_max = parseFloat(document.getElementById('dynamicProfitMax').value);
             }
 
             fetch('/api/strategies/' + strategyName, {

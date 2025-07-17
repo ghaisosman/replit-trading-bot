@@ -213,51 +213,7 @@ class TradingConfigManager:
             if validated_updates['confirmation_candles'] < 1 or validated_updates['confirmation_candles'] > 5:
                 validated_updates['confirmation_candles'] = 2
 
-        # Liquidity Reversal Strategy Parameters (Complete Set)
-        if 'lookback_candles' in updates:
-            validated_updates['lookback_candles'] = int(updates['lookback_candles'])
-            if validated_updates['lookback_candles'] < 50 or validated_updates['lookback_candles'] > 200:
-                validated_updates['lookback_candles'] = 100
-
-        if 'liquidity_threshold' in updates:
-            validated_updates['liquidity_threshold'] = float(updates['liquidity_threshold'])
-            if validated_updates['liquidity_threshold'] < 0.01 or validated_updates['liquidity_threshold'] > 0.05:
-                validated_updates['liquidity_threshold'] = 0.02
-
-        if 'reclaim_timeout' in updates:
-            validated_updates['reclaim_timeout'] = int(updates['reclaim_timeout'])
-            if validated_updates['reclaim_timeout'] < 2 or validated_updates['reclaim_timeout'] > 10:
-                validated_updates['reclaim_timeout'] = 5
-
-        if 'min_volume_spike' in updates:
-            validated_updates['min_volume_spike'] = float(updates['min_volume_spike'])
-            if validated_updates['min_volume_spike'] < 1.2 or validated_updates['min_volume_spike'] > 3.0:
-                validated_updates['min_volume_spike'] = 1.5
-
-        if 'max_risk_per_trade' in updates:
-            validated_updates['max_risk_per_trade'] = float(updates['max_risk_per_trade'])
-            if validated_updates['max_risk_per_trade'] < 0.1 or validated_updates['max_risk_per_trade'] > 2.0:
-                validated_updates['max_risk_per_trade'] = 0.5
-
-        if 'stop_loss_buffer' in updates:
-            validated_updates['stop_loss_buffer'] = float(updates['stop_loss_buffer'])
-            if validated_updates['stop_loss_buffer'] < 0.05 or validated_updates['stop_loss_buffer'] > 0.5:
-                validated_updates['stop_loss_buffer'] = 0.1
-
-        if 'profit_target_multiplier' in updates:
-            validated_updates['profit_target_multiplier'] = float(updates['profit_target_multiplier'])
-            if validated_updates['profit_target_multiplier'] < 1.0 or validated_updates['profit_target_multiplier'] > 5.0:
-                validated_updates['profit_target_multiplier'] = 2.0
-
-        if 'min_wick_ratio' in updates:
-            validated_updates['min_wick_ratio'] = float(updates['min_wick_ratio'])
-            if validated_updates['min_wick_ratio'] < 0.3 or validated_updates['min_wick_ratio'] > 1.0:
-                validated_updates['min_wick_ratio'] = 0.6
-
-        if 'swing_strength' in updates:
-            validated_updates['swing_strength'] = int(updates['swing_strength'])
-            if validated_updates['swing_strength'] < 2 or validated_updates['swing_strength'] > 5:
-                validated_updates['swing_strength'] = 3
+        
 
         # Universal Strategy Parameters (for any future strategy)
         # This makes the system future-proof for any new strategy type
@@ -362,27 +318,7 @@ class TradingConfigManager:
                     'confirmation_candles': 2,
                     'min_volume': 1000000,
                 },
-                'liquidity_reversal': {
-                    **self.default_params.to_dict(),
-                    'symbol': 'ETHUSDT',
-                    'margin': 30.0,
-                    'leverage': 10,
-                    'timeframe': '5m',
-                    'assessment_interval': 20,
-                    'decimals': 2,
-                    'cooldown_period': 600,
-                    # Liquidity Reversal Strategy Parameters
-                    'lookback_candles': 100,
-                    'liquidity_threshold': 0.02,
-                    'reclaim_timeout': 5,
-                    'min_volume_spike': 1.5,
-                    'max_risk_per_trade': 0.5,
-                    'stop_loss_buffer': 0.1,
-                    'profit_target_multiplier': 2.0,
-                    'swing_strength': 3,
-                    'min_wick_ratio': 0.6,
-                    'min_volume': 5000000,
-                }
+                
             }
         else:
             # Use web dashboard configurations
@@ -411,20 +347,7 @@ class TradingConfigManager:
                     full_config.setdefault('min_volume', 1000000)
                     full_config.setdefault('decimals', 2)
                     full_config.setdefault('cooldown_period', 300)
-                elif 'liquidity' in strategy_name.lower() or 'reversal' in strategy_name.lower():
-                    # Liquidity Reversal strategy comprehensive defaults
-                    full_config.setdefault('lookback_candles', 100)
-                    full_config.setdefault('liquidity_threshold', 0.02)
-                    full_config.setdefault('reclaim_timeout', 5)
-                    full_config.setdefault('min_volume_spike', 1.5)
-                    full_config.setdefault('max_risk_per_trade', 0.5)
-                    full_config.setdefault('stop_loss_buffer', 0.1)
-                    full_config.setdefault('profit_target_multiplier', 2.0)
-                    full_config.setdefault('swing_strength', 3)
-                    full_config.setdefault('min_wick_ratio', 0.6)
-                    full_config.setdefault('min_volume', 5000000)
-                    full_config.setdefault('decimals', 2)
-                    full_config.setdefault('cooldown_period', 600)
+                
                 else:
                     # Universal defaults for ANY future strategy type
                     # This ensures the system is future-proof
