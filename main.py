@@ -61,7 +61,7 @@ def check_port_available(port):
 
 def run_web_dashboard():
     """Run web dashboard in separate thread - keeps running even if bot stops"""
-    global web_server_running
+    global web_server_running, flask_server
     logger = logging.getLogger(__name__)
 
     # Singleton check - prevent multiple instances
@@ -192,7 +192,6 @@ def run_web_dashboard():
         port = int(os.environ.get('PORT', 5000))
         
         # Store Flask server reference for shutdown
-        global flask_server
         from werkzeug.serving import make_server
         
         flask_server = make_server('0.0.0.0', port, app, threaded=True)
