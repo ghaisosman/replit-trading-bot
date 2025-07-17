@@ -1,0 +1,16 @@
+{
+  "rsi_oversold": {
+    "symbol": "SOLUSDT",
+    "margin": 12.5,
+    "leverage": 25,
+    "timeframe": "15m",
+    "max_loss_pct": 10.0,
+    "assessment_interval": 60,
+    "decimals": 2,
+    "cooldown_period": 300,
+    "rsi_long_entry": 30,
+    "rsi_long_exit": 60,
+    "rsi_short_entry": 70,
+    "rsi_short_exit": 40
+  }
+}
