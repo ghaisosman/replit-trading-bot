@@ -91,9 +91,10 @@ class BinanceClientWrapper:
             
             if is_deployment and not global_config.BINANCE_TESTNET:
                 self.logger.error("🚨 DEPLOYMENT GEOGRAPHICAL RESTRICTION DETECTED")
-                self.logger.error("⚠️  Binance mainnet is likely blocked from Replit's deployment servers")
-                self.logger.error("💡 SOLUTION: Web dashboard will remain active for manual control")
-                self.logger.error("🌐 You can manage trades through the web interface")
+                self.logger.error("⚠️  Binance mainnet is blocked from Replit's deployment servers")
+                self.logger.error("🔄 SOLUTION: Proxy implementation needed for mainnet deployment")
+                self.logger.error("🌐 Web dashboard will remain active, but trading is blocked")
+                self.logger.error("📋 See Instructions.md for proxy implementation plan")
                 return False
             
             if e.code == -2015:
@@ -124,8 +125,9 @@ class BinanceClientWrapper:
             if is_deployment and not global_config.BINANCE_TESTNET:
                 self.logger.error("🚨 DEPLOYMENT CONNECTION ISSUE")
                 self.logger.error("⚠️  Unable to connect to Binance mainnet from deployment environment")
-                self.logger.error("💡 This is likely due to geographical restrictions")
-                self.logger.error("🌐 Web dashboard will remain active for monitoring")
+                self.logger.error("🌍 This is due to geographical restrictions on Replit's servers")
+                self.logger.error("🔄 NEXT STEP: Implement proxy solution from Instructions.md")
+                self.logger.error("🌐 Web dashboard will remain active for monitoring")oring")
                 
             return False
 

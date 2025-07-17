@@ -76,19 +76,15 @@ class GlobalConfig:
             return True
     
     def _load_environment_config(self):
-        """Load environment configuration with smart deployment detection"""
+        """Load environment configuration - ALWAYS USE MAINNET"""
         config_file = "trading_data/environment_config.json"
         
         # Check if running in Replit deployment
         is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
         
         if is_deployment:
-            # FORCE TESTNET in deployment to avoid geographical restrictions
-            self.BINANCE_TESTNET = True
-            self.BINANCE_FUTURES = True
-            print("🚀 DEPLOYMENT MODE: Auto-switching to TESTNET to bypass geographical restrictions")
-            print("💡 Your mainnet bot continues running in development - deployment is for web dashboard access")
-            return
+            print("🚀 DEPLOYMENT MODE: Using MAINNET (geographic restrictions will be handled separately)")
+            print("💰 LIVE TRADING: Both development and deployment will use mainnet")
         
         # Try to load from config file first (web dashboard overrides) - DEVELOPMENT ONLY
         if os.path.exists(config_file):

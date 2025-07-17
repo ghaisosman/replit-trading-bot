@@ -340,8 +340,8 @@ if __name__ == "__main__":
     if is_deployment:
         logger.info("🚀 STARTING IN REPLIT DEPLOYMENT MODE")
         logger.info("🌐 ALWAYS-ON DEPLOYMENT: Web interface will remain accessible 24/7")
-        logger.info("💡 MAINNET BOT: Continue running in development for live trading")
-        logger.info("🧪 DEPLOYMENT BOT: Uses testnet to avoid geographical restrictions")
+        logger.info("💰 MAINNET BOT: Both development and deployment use mainnet")
+        logger.info("🌍 GEOGRAPHIC RESTRICTIONS: Will be handled via proxy solution")
 
         # In deployment, run simplified version
         bot_manager = None
@@ -358,8 +358,8 @@ if __name__ == "__main__":
         logger.info("💡 Access your bot via the web interface at your deployment URL")
         logger.info("🔄 Bot can be started/stopped through the web dashboard")
         logger.info("✅ DEPLOYMENT ACTIVE: Web interface accessible even when you close browser/computer")
-        logger.info("📊 DEPLOYMENT STATUS: Testnet bot for dashboard access only")
-        logger.info("💰 LIVE TRADING: Your mainnet bot with 3 active positions continues in development")
+        logger.info("💰 DEPLOYMENT STATUS: Mainnet trading bot (geographic restrictions to be addressed)")
+        logger.info("🌍 TRADING MODE: Live mainnet trading in both development and deployment")
 
         try:
             # Keep the process alive for web interface - this is what makes it persistent
