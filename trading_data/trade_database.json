@@ -2008,7 +2008,7 @@
       "symbol": "ETHUSDT",
       "side": "SELL",
       "entry_price": 3449.99,
-      "exit_price": null,
+      "exit_price": 3417.24,
       "quantity": 0.01,
       "margin_used": 6.899979999999999,
       "leverage": 5,
@@ -2018,17 +2018,17 @@
       "sma_20_at_entry": null,
       "sma_50_at_entry": null,
       "volume_at_entry": null,
-      "pnl_usdt": null,
-      "pnl_percentage": null,
-      "exit_reason": null,
-      "duration_minutes": null,
+      "pnl_usdt": 0.3275,
+      "pnl_percentage": 3.2750000000000004,
+      "exit_reason": "Take Profit (MACD Bullish Divergence)",
+      "duration_minutes": 0.04545856666666667,
       "market_trend": null,
       "volatility_score": null,
       "risk_reward_ratio": null,
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "trade_status": "OPEN"
+      "trade_status": "CLOSED"
     },
     "rsi_oversold_SOLUSDT_20250717_100044": {
       "trade_id": "rsi_oversold_SOLUSDT_20250717_100044",
@@ -2089,5 +2089,5 @@
       "trade_status": "OPEN"
     }
   },
-  "last_updated": "2025-07-17T10:01:47.308904"
+  "last_updated": "2025-07-17T13:17:17.639524"
 }
