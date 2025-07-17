@@ -43,5 +43,21 @@
     "rsi_short_entry": 70,
     "rsi_short_exit": 40,
     "decimals": 3
+  },
+  "liquidity_reversal": {
+    "symbol": "BTCUSDT",
+    "margin": 25.0,
+    "leverage": 3,
+    "timeframe": "15m",
+    "max_loss_pct": 8,
+    "assessment_interval": 30,
+    "cooldown_period": 180,
+    "decimals": 4,
+    "swing_lookback": 20,
+    "sweep_threshold": 0.5,
+    "volume_surge_multiplier": 2.0,
+    "funding_rate_threshold": 0.1,
+    "confirmation_candles": 2,
+    "min_liquidity_distance": 0.002
   }
 }
