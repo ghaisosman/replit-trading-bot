@@ -1039,6 +1039,22 @@ def log_routes():
 with app.app_context():
     log_routes()
 
+# Test route registration
+@app.before_first_request
+def verify_routes():
+    """Verify all routes are properly registered"""
+    logger.info("🔍 ROUTE VERIFICATION:")
+    critical_routes = ['/api/health', '/api/bot/status', '/api/balance', '/api/console/log']
+    for route in critical_routes:
+        found = False
+        for rule in app.url_map.iter_rules():
+            if rule.rule == route:
+                found = True
+                break
+        status = "✅ FOUND" if found else "❌ MISSING"
+        logger.info(f"  {route}: {status}")
+    logger.info("🔍 Route verification complete")
+
 # Add a catch-all route for debugging 404s
 @app.route('/<path:path>')
 def catch_all(path):

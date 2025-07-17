@@ -49,155 +49,50 @@ def run_web_dashboard():
         logger.info("🚀 RUNNING IN REPLIT DEPLOYMENT MODE")
 
     try:
-        # ENHANCED PORT CLEANUP - More robust approach
-        max_retries = 3
-        for attempt in range(max_retries):
-            if check_port_available(5000):
-                logger.info("✅ Port 5000 is available")
-                break
-
-            logger.warning(f"🔄 PORT CLEANUP ATTEMPT {attempt + 1}/{max_retries}")
-
+        # Simple port check and cleanup
+        if not check_port_available(5000):
+            logger.warning("🔄 Port 5000 in use, attempting cleanup...")
             try:
                 import subprocess
-                killed_count = 0
-
-                # AGGRESSIVE PORT CLEANUP - Force kill any processes using port 5000
-                try:
-                    import subprocess
-                    killed_count = 0
-
-                    # Kill all processes using port 5000
-                    try:
-                        # Use fuser to kill processes on port 5000
-                        subprocess.run(['fuser', '-k', '5000/tcp'], capture_output=True, text=True)
-                        killed_count += 1
-                        logger.info("🔄 Force killed all processes using port 5000 via fuser")
-                    except:
-                        pass
-
-                    # Try lsof method as backup
-                    try:
-                        result = subprocess.run(['lsof', '-ti:5000'], capture_output=True, text=True)
-                        if result.stdout:
-                            pids = result.stdout.strip().split('\n')
-                            for pid in pids:
-                                if pid and pid.isdigit():
-                                    try:
-                                        subprocess.run(['kill', '-9', pid], check=False)
-                                        logger.info(f"🔄 Force killed process using port 5000: {pid}")
-                                        killed_count += 1
-                                    except:
-                                        pass
-                    except:
-                        pass
-
-                    # Kill Python processes that might be web dashboard instances
-                    try:
-                        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                            try:
-                                if proc.info['cmdline']:
-                                    cmdline_str = ' '.join(proc.info['cmdline'])
-                                    if ('python' in proc.info['name'].lower() and 
-                                        ('web_dashboard' in cmdline_str or 'flask' in cmdline_str or ':5000' in cmdline_str)):
-                                        if proc.pid != os.getpid():  # Don't kill ourselves
-                                            proc.kill()
-                                            logger.info(f"🔄 Force killed conflicting Python process {proc.pid}: {proc.info['name']}")
-                                            killed_count += 1
-                            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                                continue
-                    except Exception:
-                        pass
-
-                    if killed_count > 0:
-                        logger.info(f"🔄 AGGRESSIVE CLEANUP: Terminated {killed_count} processes")
-                    else:
-                        logger.info("🔍 No conflicting processes found")
-
-                    # Wait longer for cleanup to complete
-                    time.sleep(8)
-
-                except Exception as cleanup_error:
-                    logger.error(f"Cleanup error: {cleanup_error}")
-
-                # Also clean up Python processes
-                try:
-                    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                        try:
-                            if proc.info['cmdline']:
-                                cmdline_str = ' '.join(proc.info['cmdline'])
-                                if (proc.pid != os.getpid() and 
-                                    'python' in proc.info['name'].lower() and 
-                                    ('web_dashboard' in cmdline_str or 'flask' in cmdline_str or ':5000' in cmdline_str)):
-                                    proc.kill()
-                                    logger.info(f"🔄 Killed Python process {proc.pid}")
-                                    killed_count += 1
-                        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                            continue
-                except Exception:
-                    pass
-
-                logger.info(f"🔄 Cleanup attempt {attempt + 1}: {killed_count} processes terminated")
-
-                # Wait for cleanup to complete
-                time.sleep(3)
-
-            except Exception as cleanup_error:
-                logger.error(f"Cleanup error: {cleanup_error}")
-
-        # Final check
-        if not check_port_available(5000):
-            logger.error("🚨 CRITICAL: Port 5000 still unavailable after all cleanup attempts")
-            # Try alternative port
-            for alt_port in [5001, 5002, 5003]:
-                if check_port_available(alt_port):
-                    logger.info(f"🔄 Using alternative port {alt_port}")
-                    os.environ['PORT'] = str(alt_port)
-                    break
-            else:
-                logger.error("🚫 No available ports found - Dashboard startup failed")
-                return
-        else:
-            logger.info("✅ Port 5000 CLEARED - Single source control established")
+                # Try to kill processes using port 5000
+                subprocess.run(['pkill', '-f', ':5000'], capture_output=True)
+                time.sleep(2)
+            except:
+                pass
 
         web_server_running = True
-        logger.info("🌐 WEB DASHBOARD: SINGLE SOURCE CONTROL - Starting from main.py ONLY")
-        logger.info("🌐 WEB DASHBOARD: Starting persistent web interface on http://0.0.0.0:5000")
-        logger.info("🌐 WEB DASHBOARD: Dashboard will remain active even when bot stops")
-        logger.info("🚫 WEB DASHBOARD: Direct launches from web_dashboard.py are BLOCKED")
-
-        # Run Flask with minimal logging to reduce console noise
-        import logging as flask_logging
-        flask_log = flask_logging.getLogger('werkzeug')
-        flask_log.setLevel(flask_logging.WARNING)
-
-        # Set Flask app configuration for better error handling
+        logger.info("🌐 WEB DASHBOARD: Starting Flask server on http://0.0.0.0:5000")
+        
+        # Configure Flask for proper error handling
         app.config['TESTING'] = False
-        app.config['DEBUG'] = False
+        app.config['DEBUG'] = True  # Enable debug for better error messages
+        app.config['PROPAGATE_EXCEPTIONS'] = True
 
-        # Get port from environment for deployment compatibility
+        # Run Flask with proper configuration
         port = int(os.environ.get('PORT', 5000))
         logger.info(f"🌐 Starting web dashboard on 0.0.0.0:{port}")
+        
+        # Start Flask server
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
 
     except Exception as e:
-        logger.error(f"Web dashboard error: {e}")
+        logger.error(f"🚨 WEB DASHBOARD ERROR: {str(e)}")
+        import traceback
+        logger.error(f"🚨 Traceback: {traceback.format_exc()}")
+        
         if "Address already in use" in str(e):
-            logger.error("🚨 CRITICAL: Port conflict persists")
-            logger.info("💡 Please restart the Repl to resolve port conflicts")
-        else:
-            logger.error(f"🚨 WEB DASHBOARD ERROR: {str(e)}")
-            logger.info("🌐 Attempting to restart web dashboard...")
-            # Try to restart after a delay
-            time.sleep(5)
-            if web_server_running:
-                try:
-                    # Get port from environment for deployment compatibility
-                    port = int(os.environ.get('PORT', 5000))
-                    logger.info(f"🌐 Restarting web dashboard on 0.0.0.0:{port}")
-                    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
-                except:
-                    logger.error("🚨 Web dashboard restart failed")
+            logger.error("🚨 CRITICAL: Port 5000 is still in use")
+            logger.info("💡 Try using a different port or restart the Repl")
+        
+        # Try alternative port
+        try:
+            for alt_port in [5001, 5002, 5003]:
+                if check_port_available(alt_port):
+                    logger.info(f"🔄 Trying alternative port {alt_port}")
+                    app.run(host='0.0.0.0', port=alt_port, debug=False, use_reloader=False, threaded=True)
+                    break
+        except Exception as alt_e:
+            logger.error(f"🚨 Alternative port failed: {alt_e}")
     finally:
         web_server_running = False
         logger.info("🔴 Web dashboard stopped")
@@ -491,8 +386,19 @@ if __name__ == "__main__":
         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
 
-        time.sleep(3)
+        time.sleep(5)  # Give more time for Flask server to start
         logger.info("🌐 Development Web Dashboard started")
+
+        # Test if web server is actually running
+        try:
+            import requests
+            response = requests.get('http://localhost:5000/api/health', timeout=5)
+            if response.status_code == 200:
+                logger.info("✅ Web dashboard API is accessible")
+            else:
+                logger.warning(f"⚠️ Web dashboard returned status {response.status_code}")
+        except Exception as e:
+            logger.error(f"❌ Web dashboard API test failed: {e}")
 
         try:
             asyncio.run(main_bot_only())
