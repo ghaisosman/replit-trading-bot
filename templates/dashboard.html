@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1126,11 +1125,9 @@
                             document.getElementById('macdFast').value = config.macd_fast || 12;
                             document.getElementById('macdSlow').value = config.macd_slow || 26;
                             document.getElementById('macdSignal').value = config.macd_signal || 9;
-                             document.getElementById('minHistogramThreshold').value = config.min_histogram_threshold || 0.0001;
-                            document.getElementById('macdEntryThreshold').value = config.macd_entry_threshold || 0.05;
-                            document.getElementById('macdExitThreshold').value = config.macd_exit_threshold || 0.02;
-                            document.getElementById('histogramDivergenceLookback').value = config.histogram_divergence_lookback || 10;
-                            document.getElementById('priceDivergenceLookback').value = config.price_divergence_lookback || 10;
+                            document.getElementById('minHistogramThreshold').value = config.min_histogram_threshold || 0.0001;
+                            document.getElementById('minDistanceThreshold').value = config.min_distance_threshold || 0.005;
+                            document.getElementById('confirmationCandles').value = config.confirmation_candles || 2;
                         }
 
                         // Show modal using Bootstrap 5
@@ -1171,10 +1168,8 @@
                 updates.macd_slow = parseInt(document.getElementById('macdSlow').value);
                 updates.macd_signal = parseInt(document.getElementById('macdSignal').value);
                 updates.min_histogram_threshold = parseFloat(document.getElementById('minHistogramThreshold').value);
-                updates.macd_entry_threshold = parseFloat(document.getElementById('macdEntryThreshold').value);
-                updates.macd_exit_threshold = parseFloat(document.getElementById('macdExitThreshold').value);
-                updates.histogram_divergence_lookback = parseInt(document.getElementById('histogramDivergenceLookback').value);
-                updates.price_divergence_lookback = parseInt(document.getElementById('priceDivergenceLookback').value);
+                updates.min_distance_threshold = parseFloat(document.getElementById('minDistanceThreshold').value);
+                updates.confirmation_candles = parseInt(document.getElementById('confirmationCandles').value);
             }
 
             fetch('/api/strategies/' + strategyName, {
