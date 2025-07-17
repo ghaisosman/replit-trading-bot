@@ -278,94 +278,95 @@ class TradingConfigManager:
 
     def get_all_strategies(self) -> Dict[str, Dict[str, Any]]:
         """Get all strategy configurations from web dashboard"""
-        strategies = {}
+        # ALWAYS start with comprehensive default strategies to ensure all strategies are available
+        strategies = {
+            'rsi_oversold': {
+                **self.default_params.to_dict(),
+                'symbol': 'SOLUSDT',
+                'margin': 12.5,
+                'leverage': 25,
+                'timeframe': '15m',
+                'assessment_interval': 60,
+                'decimals': 2,
+                'cooldown_period': 300,
+                # RSI Strategy Parameters
+                'rsi_period': 14,
+                'rsi_long_entry': 40,
+                'rsi_long_exit': 70,
+                'rsi_short_entry': 60,
+                'rsi_short_exit': 30,
+                'min_volume': 1000000,
+            },
+            'macd_divergence': {
+                **self.default_params.to_dict(),
+                'symbol': 'BTCUSDT',
+                'margin': 23.0,
+                'leverage': 5,
+                'timeframe': '5m',
+                'assessment_interval': 30,
+                'decimals': 2,
+                'cooldown_period': 300,
+                # MACD Strategy Parameters
+                'macd_fast': 12,
+                'macd_slow': 26,
+                'macd_signal': 9,
+                'min_histogram_threshold': 0.0001,
+                'min_distance_threshold': 0.005,
+                'confirmation_candles': 2,
+                'min_volume': 1000000,
+            },
+        }
 
-        # If no web dashboard configs exist, provide comprehensive defaults for setup
-        if not self.strategy_overrides:
-            strategies = {
-                'rsi_oversold': {
-                    **self.default_params.to_dict(),
-                    'symbol': 'SOLUSDT',
-                    'margin': 12.5,
-                    'leverage': 25,
-                    'timeframe': '15m',
-                    'assessment_interval': 60,
-                    'decimals': 2,
-                    'cooldown_period': 300,
-                    # RSI Strategy Parameters
-                    'rsi_period': 14,
-                    'rsi_long_entry': 40,
-                    'rsi_long_exit': 70,
-                    'rsi_short_entry': 60,
-                    'rsi_short_exit': 30,
-                    'min_volume': 1000000,
-                },
-                'macd_divergence': {
-                    **self.default_params.to_dict(),
-                    'symbol': 'BTCUSDT',
-                    'margin': 23.0,
-                    'leverage': 5,
-                    'timeframe': '5m',
-                    'assessment_interval': 30,
-                    'decimals': 2,
-                    'cooldown_period': 300,
-                    # MACD Strategy Parameters
-                    'macd_fast': 12,
-                    'macd_slow': 26,
-                    'macd_signal': 9,
-                    'min_histogram_threshold': 0.0001,
-                    'min_distance_threshold': 0.005,
-                    'confirmation_candles': 2,
-                    'min_volume': 1000000,
-                },
-                
-            }
-        else:
-            # Use web dashboard configurations
+        # Apply web dashboard overrides on top of defaults
+        if self.strategy_overrides:
             for strategy_name, config in self.strategy_overrides.items():
-                full_config = {**self.default_params.to_dict(), **config}
-
-                # Add comprehensive strategy-specific defaults based on strategy name/type
-                if 'rsi' in strategy_name.lower():
-                    # RSI strategy comprehensive defaults
-                    full_config.setdefault('rsi_period', 14)
-                    full_config.setdefault('rsi_long_entry', 40)
-                    full_config.setdefault('rsi_long_exit', 70)
-                    full_config.setdefault('rsi_short_entry', 60)
-                    full_config.setdefault('rsi_short_exit', 30)
-                    full_config.setdefault('min_volume', 1000000)
-                    full_config.setdefault('decimals', 2)
-                    full_config.setdefault('cooldown_period', 300)
-                elif 'macd' in strategy_name.lower():
-                    # MACD strategy comprehensive defaults
-                    full_config.setdefault('macd_fast', 12)
-                    full_config.setdefault('macd_slow', 26)
-                    full_config.setdefault('macd_signal', 9)
-                    full_config.setdefault('min_histogram_threshold', 0.0001)
-                    full_config.setdefault('min_distance_threshold', 0.005)
-                    full_config.setdefault('confirmation_candles', 2)
-                    full_config.setdefault('min_volume', 1000000)
-                    full_config.setdefault('decimals', 2)
-                    full_config.setdefault('cooldown_period', 300)
-                
+                # If strategy exists in defaults, merge web dashboard config
+                if strategy_name in strategies:
+                    strategies[strategy_name].update(config)
                 else:
-                    # Universal defaults for ANY future strategy type
-                    # This ensures the system is future-proof
-                    full_config.setdefault('decimals', 2)
-                    full_config.setdefault('cooldown_period', 300)
-                    full_config.setdefault('min_volume', 1000000)
-                    
-                    # Add universal strategy parameters with safe defaults
-                    full_config.setdefault('entry_threshold', 0.1)
-                    full_config.setdefault('exit_threshold', 0.05)
-                    full_config.setdefault('signal_period', 14)
-                    full_config.setdefault('confirmation_period', 2)
+                    # New strategy from web dashboard - create with defaults + overrides
+                    full_config = {**self.default_params.to_dict(), **config}
 
-                # Ensure all configs have required base parameters
-                full_config.setdefault('assessment_interval', 60)
-                full_config.setdefault('max_loss_pct', 10)
+                    # Add comprehensive strategy-specific defaults based on strategy name/type
+                    if 'rsi' in strategy_name.lower():
+                        # RSI strategy comprehensive defaults
+                        full_config.setdefault('rsi_period', 14)
+                        full_config.setdefault('rsi_long_entry', 40)
+                        full_config.setdefault('rsi_long_exit', 70)
+                        full_config.setdefault('rsi_short_entry', 60)
+                        full_config.setdefault('rsi_short_exit', 30)
+                        full_config.setdefault('min_volume', 1000000)
+                        full_config.setdefault('decimals', 2)
+                        full_config.setdefault('cooldown_period', 300)
+                    elif 'macd' in strategy_name.lower():
+                        # MACD strategy comprehensive defaults
+                        full_config.setdefault('macd_fast', 12)
+                        full_config.setdefault('macd_slow', 26)
+                        full_config.setdefault('macd_signal', 9)
+                        full_config.setdefault('min_histogram_threshold', 0.0001)
+                        full_config.setdefault('min_distance_threshold', 0.005)
+                        full_config.setdefault('confirmation_candles', 2)
+                        full_config.setdefault('min_volume', 1000000)
+                        full_config.setdefault('decimals', 2)
+                        full_config.setdefault('cooldown_period', 300)
+                    else:
+                        # Universal defaults for ANY future strategy type
+                        # This ensures the system is future-proof
+                        full_config.setdefault('decimals', 2)
+                        full_config.setdefault('cooldown_period', 300)
+                        full_config.setdefault('min_volume', 1000000)
+                        
+                        # Add universal strategy parameters with safe defaults
+                        full_config.setdefault('entry_threshold', 0.1)
+                        full_config.setdefault('exit_threshold', 0.05)
+                        full_config.setdefault('signal_period', 14)
+                        full_config.setdefault('confirmation_period', 2)
 
-                strategies[strategy_name] = full_config
+                    # Ensure all configs have required base parameters
+                    full_config.setdefault('assessment_interval', 60)
+                    full_config.setdefault('max_loss_pct', 10)
+
+                    strategies[strategy_name] = full_config
 
         return strategies
 
