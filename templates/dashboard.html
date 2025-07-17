@@ -89,6 +89,32 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
+        /* Strategy Card Styles */
+        .border-left-primary {
+            border-left: 4px solid #4e73df !important;
+        }
+
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+        }
+
+        .strategy-card {
+            transition: transform 0.2s ease-in-out;
+        }
+
+        .strategy-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .strategy-params-preview {
+            background: #f8f9fc;
+            border: 1px solid #e3e6f0;
+            border-radius: 5px;
+            padding: 8px;
+            margin-top: 10px;
+        }
+
         .environment-controls {
             display: flex;
             flex-direction: column;
@@ -378,75 +404,122 @@
             </div>
         </div>
 
-        <!-- Strategy Configuration -->
+        <!-- Strategy Configuration Section -->
         <div class="row mt-4">
             <div class="col-12">
-                <div class="card">
-                    <div class="card-header bg-dark text-white">
-                        <h5><i class="fas fa-cogs"></i> Strategy Configuration</h5>
-                        <div class="float-end">
-                            <button class="btn btn-sm btn-outline-light" onclick="addNewStrategy()">
-                                <i class="fas fa-plus"></i> Add Strategy
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3><i class="fas fa-cogs"></i> Strategy Configuration</h3>
+                    <button class="btn btn-primary" onclick="addNewStrategy()">
+                        <i class="fas fa-plus"></i> Add New Strategy
+                    </button>
+                </div>
+                
+                <!-- Individual Strategy Cards -->
+                {% for strategy_name, config in strategies.items() %}
+                <div class="col-md-6 mb-3">
+                    <div class="card border-left-primary">
+                        <div class="card-header bg-gradient-primary text-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-chart-line"></i> 
+                                        {{ strategy_name.replace('_', ' ').title() }}
+                                    </h5>
+                                    <small class="text-light">
+                                        {% if 'rsi' in strategy_name.lower() %}
+                                            RSI-Based Strategy
+                                        {% elif 'macd' in strategy_name.lower() %}
+                                            MACD Divergence Strategy
+                                        {% elif 'liquidity' in strategy_name.lower() %}
+                                            Liquidity Reversal Strategy
+                                        {% else %}
+                                            Custom Strategy
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                <span class="badge bg-success">
+                                    <i class="fas fa-play"></i> Active
+                                </span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-2">
+                                        <strong>Symbol:</strong>
+                                        <span class="badge bg-primary ms-1">{{ config.symbol }}</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>Margin:</strong>
+                                        <span class="text-success">${{ "%.2f"|format(config.margin) }} USDT</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>Leverage:</strong>
+                                        <span class="badge bg-info">{{ config.leverage }}x</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-2">
+                                        <strong>Timeframe:</strong>
+                                        <span class="badge bg-secondary">{{ config.timeframe }}</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>Max Loss:</strong>
+                                        <span class="text-warning">{{ config.get('max_loss_pct', 10) }}%</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>Assessment:</strong>
+                                        <span class="text-info">{{ config.get('assessment_interval', 60) }}s</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Strategy-Specific Parameters Preview -->
+                            {% if 'rsi' in strategy_name.lower() %}
+                            <div class="mt-2 p-2 bg-light rounded">
+                                <small class="text-muted">
+                                    <strong>RSI Levels:</strong> 
+                                    Long Entry: {{ config.get('rsi_long_entry', 30) }} | 
+                                    Long Exit: {{ config.get('rsi_long_exit', 70) }} |
+                                    Short Entry: {{ config.get('rsi_short_entry', 70) }} | 
+                                    Short Exit: {{ config.get('rsi_short_exit', 30) }}
+                                </small>
+                            </div>
+                            {% elif 'macd' in strategy_name.lower() %}
+                            <div class="mt-2 p-2 bg-light rounded">
+                                <small class="text-muted">
+                                    <strong>MACD Settings:</strong> 
+                                    Fast: {{ config.get('macd_fast', 12) }} | 
+                                    Slow: {{ config.get('macd_slow', 26) }} | 
+                                    Signal: {{ config.get('macd_signal', 9) }} |
+                                    Min Histogram: {{ config.get('min_histogram_threshold', 0.0001) }}
+                                </small>
+                            </div>
+                            {% elif 'liquidity' in strategy_name.lower() %}
+                            <div class="mt-2 p-2 bg-light rounded">
+                                <small class="text-muted">
+                                    <strong>Liquidity Settings:</strong> 
+                                    Lookback: {{ config.get('swing_lookback', 20) }} | 
+                                    Sweep Threshold: {{ config.get('sweep_threshold', 0.5) }}% |
+                                    Volume Multiplier: {{ config.get('volume_surge_multiplier', 2.0) }}x
+                                </small>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="card-footer text-center">
+                            <button class="btn btn-primary btn-sm me-2" onclick="editStrategyConfig('{{ strategy_name }}')">
+                                <i class="fas fa-edit"></i> Configure Strategy
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm me-2" onclick="viewStrategyStats('{{ strategy_name }}')">
+                                <i class="fas fa-chart-bar"></i> View Stats
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="disableStrategy('{{ strategy_name }}')">
+                                <i class="fas fa-pause"></i> Disable
                             </button>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>Strategy</th>
-                                        <th>Symbol</th>
-                                        <th>Margin (USDT)</th>
-                                        <th>Leverage</th>
-                                        <th>Timeframe</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for strategy_name, config in strategies.items() %}
-                                    <tr>
-                                        <td>
-                                            <strong>{{ strategy_name.replace('_', ' ').title() }}</strong>
-                                            <br>
-                                            <small class="text-muted">
-                                                {% if 'rsi' in strategy_name.lower() %}
-                                                    RSI Strategy
-                                                {% elif 'macd' in strategy_name.lower() %}
-                                                    MACD Strategy
-                                                {% else %}
-                                                    Custom Strategy
-                                                {% endif %}
-                                            </small>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-primary">{{ config.symbol }}</span>
-                                        </td>
-                                        <td>
-                                            <strong>${{ "%.2f"|format(config.margin) }}</strong>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-info">{{ config.leverage }}x</span>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-secondary">{{ config.timeframe }}</span>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-success">Active</span>
-                                        </td>
-                                        <td>
-                                            <button class="btn btn-sm btn-outline-primary" onclick="editStrategyConfig('{{ strategy_name }}')">
-                                                <i class="fas fa-edit"></i> Edit
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
                 </div>
+                {% endfor %}
             </div>
         </div>
     </div>
@@ -836,6 +909,43 @@
         function showAnomalies() {
             alert('Anomaly detection monitors for orphan trades and ghost positions.\n\n' +
                   'Check the console log for anomaly notifications.');
+        }
+
+        // View strategy statistics function
+        function viewStrategyStats(strategyName) {
+            alert(`📊 Strategy Statistics for ${strategyName.replace('_', ' ').toUpperCase()}\n\n` +
+                  'Feature coming soon!\n\n' +
+                  '• Trade success rate\n' +
+                  '• Average profit/loss\n' +
+                  '• Performance over time\n' +
+                  '• Risk metrics');
+        }
+
+        // Disable strategy function
+        function disableStrategy(strategyName) {
+            if (confirm(`Are you sure you want to disable ${strategyName.replace('_', ' ').toUpperCase()}?\n\n` +
+                       'This will stop the bot from executing trades for this strategy.')) {
+                
+                fetch(`/api/strategies/${strategyName}/disable`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        alert('✅ Strategy disabled successfully!');
+                        location.reload();
+                    } else {
+                        alert('❌ Error disabling strategy:\n\n' + result.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error disabling strategy:', error);
+                    alert('Error disabling strategy: ' + error);
+                });
+            }
         }
 
         // Strategy management functions
