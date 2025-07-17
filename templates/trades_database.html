@@ -61,7 +61,7 @@
             overflow: hidden;
         }
         .stats-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
             color: white;
             border-radius: 8px;
             padding: 20px;
@@ -505,7 +505,7 @@
                 event.target.classList.add('btn-light', 'active');
             }
 
-            // Calculate summary statistics with improved date parsing
+            // Calculate summary statistics with improved date parsing and filtering
             const cutoffDate = new Date();
             cutoffDate.setDate(cutoffDate.getDate() - days);
 
@@ -526,19 +526,18 @@
                 const tradeStatus = item.data[9]; // Status column
 
                 try {
-                    // Improved date parsing - handle various timestamp formats
+                    // Parse timestamp - handle various formats
                     let tradeDate;
                     if (timestampStr && timestampStr !== 'N/A' && timestampStr.trim() !== '') {
-                        // Handle ISO format timestamps
+                        // Extract just the date part for comparison
+                        let dateOnly = timestampStr;
                         if (timestampStr.includes('T')) {
-                            tradeDate = new Date(timestampStr.split('T')[0]);
-                        } else if (timestampStr.includes('-')) {
-                            // Handle YYYY-MM-DD format
-                            tradeDate = new Date(timestampStr.split(' ')[0]);
-                        } else {
-                            // Try direct parsing
-                            tradeDate = new Date(timestampStr);
+                            dateOnly = timestampStr.split('T')[0];
+                        } else if (timestampStr.includes(' ')) {
+                            dateOnly = timestampStr.split(' ')[0];
                         }
+                        
+                        tradeDate = new Date(dateOnly + 'T00:00:00');
 
                         // Validate date
                         if (isNaN(tradeDate.getTime())) {
@@ -546,47 +545,54 @@
                             return;
                         }
 
-                        // Check if within date range
+                        // Check if within date range (include trades on cutoff date)
                         if (tradeDate >= cutoffDate) {
+                            // Only count CLOSED trades in summary
+                            const statusLower = (tradeStatus || '').toLowerCase();
+                            if (statusLower !== 'closed') {
+                                console.log(`📝 Skipping OPEN trade: ${item.data[0]} - Status: ${tradeStatus}`);
+                                return;
+                            }
+
                             totalTrades++;
 
-                            // Improved PnL percentage extraction
+                            // Extract PnL percentage more accurately
                             let pnlPercent = 0;
                             if (pnlPercentStr && pnlPercentStr !== 'N/A' && pnlPercentStr.trim() !== '') {
-                                // Remove all non-numeric characters except minus and decimal
-                                const cleanedPnl = pnlPercentStr.replace(/[^\d.-]/g, '');
-                                pnlPercent = parseFloat(cleanedPnl) || 0;
+                                // Handle both positive and negative percentages
+                                let cleanPnl = pnlPercentStr.replace(/[^\d.-]/g, '');
+                                // Handle case where negative sign might be at the end or middle
+                                if (pnlPercentStr.includes('-') && !cleanPnl.startsWith('-')) {
+                                    cleanPnl = '-' + cleanPnl.replace('-', '');
+                                }
+                                pnlPercent = parseFloat(cleanPnl) || 0;
                             }
 
-                            // Improved exit reason classification
+                            // Enhanced exit reason and PnL-based classification
                             const exitReasonLower = (exitReason || '').toLowerCase();
-                            const statusLower = (tradeStatus || '').toLowerCase();
 
-                            // Count take profit trades (more comprehensive matching)
-                            if (exitReasonLower.includes('take profit') || 
-                                exitReasonLower.includes('profit') ||
-                                exitReasonLower.includes('tp hit') ||
-                                exitReasonLower.includes('target reached') ||
-                                (pnlPercent > 0 && statusLower === 'closed')) {
-                                takeProfitTrades++;
-                            }
-                            // Count stop loss trades  
-                            else if (exitReasonLower.includes('stop loss') || 
-                                     exitReasonLower.includes('stop-loss') ||
-                                     exitReasonLower.includes('sl hit') ||
-                                     exitReasonLower.includes('max loss') ||
-                                     (pnlPercent < 0 && statusLower === 'closed')) {
-                                stopLossTrades++;
-                            }
-
-                            // Accumulate profits and losses
+                            // Classify trades by PnL first, then by exit reason
                             if (pnlPercent > 0) {
+                                takeProfitTrades++;
                                 totalProfitPercent += pnlPercent;
                             } else if (pnlPercent < 0) {
+                                stopLossTrades++;
                                 totalLossPercent += Math.abs(pnlPercent);
                             }
+                            // Handle zero PnL trades based on exit reason
+                            else {
+                                if (exitReasonLower.includes('take profit') || 
+                                    exitReasonLower.includes('profit') ||
+                                    exitReasonLower.includes('tp hit')) {
+                                    takeProfitTrades++;
+                                } else if (exitReasonLower.includes('stop loss') || 
+                                           exitReasonLower.includes('stop-loss') ||
+                                           exitReasonLower.includes('sl hit')) {
+                                    stopLossTrades++;
+                                }
+                            }
 
-                            console.log(`📝 Trade processed: Date=${tradeDate.toISOString().split('T')[0]}, PnL=${pnlPercent}%, Exit=${exitReason}`);
+                            console.log(`📝 Trade processed: Date=${tradeDate.toISOString().split('T')[0]}, PnL=${pnlPercent}%, Exit=${exitReason}, Status=${tradeStatus}`);
                         }
                     }
                 } catch (e) {
@@ -596,7 +602,7 @@
 
             const netPnl = totalProfitPercent - totalLossPercent;
 
-            console.log(`📊 Summary Results: Total=${totalTrades}, TP=${takeProfitTrades}, SL=${stopLossTrades}, Profit=${totalProfitPercent.toFixed(2)}%, Loss=${totalLossPercent.toFixed(2)}%`);
+            console.log(`📊 Final Summary Results: Total=${totalTrades}, TP=${takeProfitTrades}, SL=${stopLossTrades}, Profit=${totalProfitPercent.toFixed(2)}%, Loss=${totalLossPercent.toFixed(2)}%`);
 
             // Update display
             document.getElementById('totalTrades').textContent = totalTrades;
