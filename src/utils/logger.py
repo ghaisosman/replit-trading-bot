@@ -200,7 +200,7 @@ class ColoredFormatter(logging.Formatter):
 
         # Create Telegram-style vertical message
         if is_active_position:
-            # Active position display with clean formatting to prevent nesting
+            # Active position display with simplified formatting to prevent nesting
             formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
 │ 📊 ACTIVE POSITION                                │
 │ ⏰ {timestamp}                                        │
@@ -210,7 +210,7 @@ class ColoredFormatter(logging.Formatter):
 └─────────────────────────────────────────────────┘{reset}
 """
         elif "TRADE IN PROGRESS" in message:
-            # Trade in progress - clean formatting without nesting
+            # Trade in progress - simplified formatting without nesting
             formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
 │ 📊 TRADE IN PROGRESS                             │
 │ ⏰ {timestamp}                                        │
