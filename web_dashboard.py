@@ -1027,7 +1027,7 @@ def calculate_pnl(position, current_price):
         print(f"❌ PNL CALC ERROR: {e}")
         return 0
 
-# Route debugging function (called manually since before_first_request is deprecated)
+# Route debugging function
 def log_routes():
     """Log all registered routes for debugging"""
     print("🔍 FLASK ROUTES REGISTERED:")
@@ -1035,12 +1035,7 @@ def log_routes():
         methods = ', '.join(sorted(rule.methods - {'OPTIONS', 'HEAD'}))
         print(f"  {rule.rule} -> {rule.endpoint} ({methods})")
 
-# Call route logging after all routes are registered
-with app.app_context():
-    log_routes()
-
-# Test route registration
-@app.before_first_request
+# Route verification function (will be called in main block)
 def verify_routes():
     """Verify all routes are properly registered"""
     logger.info("🔍 ROUTE VERIFICATION:")
@@ -1074,8 +1069,9 @@ def catch_all(path):
 
 if __name__ == '__main__':
     # Debug: Print all registered routes
-    print("🔍 REGISTERED ROUTES:")
-    for rule in app.url_map.iter_rules():
-        print(f"  {rule.rule} -> {rule.endpoint} ({', '.join(rule.methods)})")
+    log_routes()
+    
+    # Verify critical routes
+    verify_routes()
     
     app.run(debug=True, host='0.0.0.0', port=5000)
