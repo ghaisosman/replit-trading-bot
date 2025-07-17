@@ -49,51 +49,73 @@ def run_web_dashboard():
         logger.info("🚀 RUNNING IN REPLIT DEPLOYMENT MODE")
 
     try:
-        # SINGLE SOURCE CHECK - Ensure no duplicate web dashboard instances
+        # ENHANCED SINGLE SOURCE CHECK - Ensure no duplicate web dashboard instances
         if not check_port_available(5000):
             logger.error("🚨 PORT 5000 UNAVAILABLE: Another web dashboard instance detected")
-            logger.error("🚫 MAIN.PY: Cleaning up duplicate instances...")
+            logger.error("🚫 MAIN.PY: SINGLE SOURCE CONTROL - Cleaning up ALL duplicate instances...")
 
-            # Try to kill any processes using port 5000
+            # Force kill any processes using port 5000 - more aggressive cleanup
             try:
-                # Kill Python processes that might be using port 5000
+                import subprocess
                 killed_count = 0
+                
+                # First try to find processes using port 5000
+                try:
+                    result = subprocess.run(['lsof', '-ti:5000'], capture_output=True, text=True)
+                    if result.stdout:
+                        pids = result.stdout.strip().split('\n')
+                        for pid in pids:
+                            if pid and pid.isdigit():
+                                try:
+                                    subprocess.run(['kill', '-9', pid], check=False)
+                                    logger.info(f"🔄 Force killed process using port 5000: {pid}")
+                                    killed_count += 1
+                                except:
+                                    pass
+                except:
+                    pass
+
+                # Also check Python processes that might be using port 5000
                 for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
                     try:
                         if proc.info['cmdline']:
                             cmdline_str = ' '.join(proc.info['cmdline'])
                             if ('python' in proc.info['name'].lower() and 
-                                ('web_dashboard' in cmdline_str or 'flask' in cmdline_str or 'main.py' in cmdline_str)):
+                                ('web_dashboard' in cmdline_str or 'flask' in cmdline_str)):
                                 if proc.pid != os.getpid():  # Don't kill ourselves
-                                    proc.terminate()
-                                    logger.info(f"🔄 Terminated process {proc.pid}: {proc.info['name']}")
+                                    proc.kill()  # Use kill() instead of terminate() for immediate cleanup
+                                    logger.info(f"🔄 Force killed Python process {proc.pid}: {proc.info['name']}")
                                     killed_count += 1
                     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                         continue
 
                 if killed_count > 0:
-                    logger.info(f"🔄 Terminated {killed_count} processes")
+                    logger.info(f"🔄 FORCE CLEANUP: Terminated {killed_count} processes")
                 else:
                     logger.info("🔍 No conflicting processes found")
 
-                # Wait a moment for cleanup
-                time.sleep(2)
+                # Wait longer for cleanup
+                time.sleep(5)
 
                 # Check again
                 if not check_port_available(5000):
-                    logger.error("🚨 CRITICAL: Port 5000 still unavailable after cleanup")
-                    logger.error("💡 Please restart the entire Repl to clear port conflicts")
+                    logger.error("🚨 CRITICAL: Port 5000 still unavailable after aggressive cleanup")
+                    logger.error("💡 SOLUTION: Restart the entire Repl to clear all port conflicts")
+                    logger.error("🚫 Dashboard cannot load due to port conflicts")
                     return
                 else:
-                    logger.info("✅ Port 5000 cleared successfully")
+                    logger.info("✅ Port 5000 CLEARED - Single source control established")
 
             except Exception as cleanup_error:
                 logger.error(f"Error during port cleanup: {cleanup_error}")
+                logger.error("💡 Try restarting the Repl to clear port conflicts")
                 return
 
         web_server_running = True
+        logger.info("🌐 WEB DASHBOARD: SINGLE SOURCE CONTROL - Starting from main.py ONLY")
         logger.info("🌐 WEB DASHBOARD: Starting persistent web interface on http://0.0.0.0:5000")
         logger.info("🌐 WEB DASHBOARD: Dashboard will remain active even when bot stops")
+        logger.info("🚫 WEB DASHBOARD: Direct launches from web_dashboard.py are BLOCKED")
 
         # Run Flask with minimal logging to reduce console noise
         import logging as flask_logging

@@ -1238,9 +1238,11 @@ def update_trading_environment():
         return jsonify({'success': False, 'message': f'Failed to update environment: {e}'})
 
 if __name__ == '__main__':
-    logger.error("🚫 DIRECT LAUNCH NOT ALLOWED")
-    logger.error("💡 Web dashboard must be launched from main.py only")
+    logger.error("🚫 DIRECT LAUNCH NOT ALLOWED - SINGLE SOURCE CONTROL ENFORCED")
+    logger.error("💡 Web dashboard must ONLY be launched from main.py")
     logger.error("🔧 Run 'python main.py' instead to start the complete system")
-    print("🚫 ERROR: Direct web dashboard launch is disabled")
+    logger.error("🚨 MULTIPLE LAUNCH SOURCES CAUSE PORT CONFLICTS")
+    print("🚫 ERROR: Direct web dashboard launch is STRICTLY DISABLED")
     print("💡 Please run 'python main.py' to start the trading bot with web interface")
+    print("🚨 This prevents port conflicts and ensures proper initialization")
     sys.exit(1)
