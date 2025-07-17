@@ -93,18 +93,21 @@ def run_web_dashboard():
                         pass
 
                     # Kill Python processes that might be web dashboard instances
-                    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                        try:
-                            if proc.info['cmdline']:
-                                cmdline_str = ' '.join(proc.info['cmdline'])
-                                if ('python' in proc.info['name'].lower() and 
-                                    ('web_dashboard' in cmdline_str or 'flask' in cmdline_str or ':5000' in cmdline_str)):
-                                    if proc.pid != os.getpid():  # Don't kill ourselves
-                                        proc.kill()
-                                        logger.info(f"🔄 Force killed conflicting Python process {proc.pid}: {proc.info['name']}")
-                                        killed_count += 1
-                        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                            continue
+                    try:
+                        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                            try:
+                                if proc.info['cmdline']:
+                                    cmdline_str = ' '.join(proc.info['cmdline'])
+                                    if ('python' in proc.info['name'].lower() and 
+                                        ('web_dashboard' in cmdline_str or 'flask' in cmdline_str or ':5000' in cmdline_str)):
+                                        if proc.pid != os.getpid():  # Don't kill ourselves
+                                            proc.kill()
+                                            logger.info(f"🔄 Force killed conflicting Python process {proc.pid}: {proc.info['name']}")
+                                            killed_count += 1
+                            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                                continue
+                    except Exception:
+                        pass
 
                     if killed_count > 0:
                         logger.info(f"🔄 AGGRESSIVE CLEANUP: Terminated {killed_count} processes")
@@ -129,8 +132,8 @@ def run_web_dashboard():
                                     proc.kill()
                                     logger.info(f"🔄 Killed Python process {proc.pid}")
                                     killed_count += 1
-                            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                                continue
+                        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                            continue
                     except Exception:
                         pass
 
