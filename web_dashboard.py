@@ -200,7 +200,7 @@ def dashboard():
             balance = 100.0  # Default for demo
             strategies = {
                 'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
-                'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m'}
+                'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '5m'}
             }
 
         # Get active positions from both shared and standalone bot
@@ -771,4 +771,87 @@ def get_positions():
 
                     # For futures trading, PnL calculation (matches console calculation)
                     if side == 'BUY':  # Long position
-                        p
+                        pnl = (current_price - entry_price) * quantity
+                    elif side == 'SELL':  # Short position
+                        pnl = (entry_price - current_price) * quantity
+                    else:
+                        pnl = 0  # Unknown side
+                else:
+                    pnl = 0  # If current price is not available
+
+                # Calculate position value in USDT
+                position_value_usdt = entry_price * quantity
+
+                # Get leverage and margin from strategy config (if available)
+                strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
+                leverage = strategy_config.get('leverage', 5)  # Default 5x leverage
+                margin_invested = strategy_config.get('margin', 50.0)  # Use configured margin
+
+                # Calculate PnL percentage against margin invested (correct for futures)
+                pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
+
+                positions.append({
+                    'strategy': strategy_name,
+                    'symbol': position.symbol,
+                    'side': position.side,
+                    'entry_price': entry_price,
+                    'quantity': quantity,
+                    'position_value_usdt': position_value_usdt,  # Include position value
+                    'margin_invested': margin_invested,  # Include margin invested
+                    'current_price': current_price,
+                    'pnl': pnl,
+                    'pnl_percent': pnl_percent,
+                    'anomaly_status': anomaly_status
+                })
+        return jsonify(positions)
+    except Exception as e:
+        print(f"❌ API ERROR: /api/positions - {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/trades')
+def get_trades():
+    """Get recent trades"""
+    try:
+        trades = []
+        for filename in sorted(os.listdir(trades_dir), reverse=True)[:10]:
+            if filename.endswith(".json"):
+                filepath = os.path.join(trades_dir, filename)
+                with open(filepath, 'r') as f:
+                    trade_data = json.load(f)
+                    trades.append(trade_data)
+        return jsonify(trades)
+    except Exception as e:
+        print(f"❌ API ERROR: /api/trades - {e}")
+        return jsonify({'error': str(e)}), 500
+
+def get_current_price(symbol):
+    """Helper function to get the current price of a symbol"""
+    try:
+        current_price = price_fetcher.get_current_price(symbol)
+        return current_price
+    except Exception as e:
+        print(f"❌ PRICE API ERROR: {e}")
+        return None
+
+def calculate_pnl(position, current_price):
+    """Helper function to calculate P&L for a position"""
+    try:
+        entry_price = position.entry_price
+        quantity = position.quantity
+        side = position.side
+
+        # For futures trading, PnL calculation
+        if side == 'BUY':  # Long position
+            pnl = (current_price - entry_price) * quantity
+        elif side == 'SELL':  # Short position
+            pnl = (entry_price - current_price) * quantity
+        else:
+            return 0  # Unknown side
+
+        return pnl
+    except Exception as e:
+        print(f"❌ PNL CALC ERROR: {e}")
+        return 0
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
