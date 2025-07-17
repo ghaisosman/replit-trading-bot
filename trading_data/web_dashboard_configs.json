@@ -30,7 +30,7 @@
     "cooldown_period": 30,
     "decimals": 2
   },
-  "RSI_BTC": {
+  "RSI_OVERSOLD1": {
     "symbol": "XRPUSDT",
     "margin": 5.0,
     "leverage": 5,
