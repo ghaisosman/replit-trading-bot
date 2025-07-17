@@ -4,10 +4,6 @@ import logging
 from typing import Dict, Any, Optional, List
 from src.config.global_config import global_config
 import time
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-import random
 
 class BinanceClientWrapper:
     """Wrapper for Binance client with error handling (supports both Spot and Futures)"""
@@ -59,8 +55,6 @@ class BinanceClientWrapper:
             self.logger.error(f"Failed to initialize Binance client: {e}")
             raise
 
-    
-
     def _rate_limit(self):
         """Simple rate limiting to prevent API spam"""
         current_time = time.time()
@@ -90,8 +84,6 @@ class BinanceClientWrapper:
 
         except BinanceAPIException as e:
             self.logger.error(f"❌ Binance API connection test failed: {e}")
-            return False
-            
             if e.code == -2015:
                 if global_config.BINANCE_TESTNET:
                     if self.is_futures:

@@ -15,25 +15,25 @@ def check_database_status():
     """Check current trade database status"""
     print("🔍 CHECKING TRADE DATABASE STATUS")
     print("=" * 40)
-    
+
     trade_db = TradeDatabase()
-    
+
     total_trades = len(trade_db.trades)
     open_trades = []
     closed_trades = []
-    
+
     for trade_id, trade_data in trade_db.trades.items():
         status = trade_data.get('trade_status', 'UNKNOWN')
         if status == 'OPEN':
             open_trades.append((trade_id, trade_data))
         elif status == 'CLOSED':
             closed_trades.append((trade_id, trade_data))
-    
+
     print(f"📊 TRADE DATABASE SUMMARY:")
     print(f"   📈 Total trades: {total_trades}")
     print(f"   🔓 Open trades: {len(open_trades)}")
     print(f"   ✅ Closed trades: {len(closed_trades)}")
-    
+
     if open_trades:
         print(f"\n🔓 OPEN TRADES DETAILS:")
         print("-" * 30)
@@ -49,7 +49,7 @@ def check_database_status():
             print(f"     💰 Entry: ${entry_price}")
             print(f"     ⏰ Time: {timestamp}")
             print()
-    
+
     return {
         'total': total_trades,
         'open': len(open_trades),
@@ -59,6 +59,6 @@ def check_database_status():
 
 if __name__ == "__main__":
     result = check_database_status()
-    
+
     print(f"\n🎯 QUICK SUMMARY:")
     print(f"   Total: {result['total']} | Open: {result['open']} | Closed: {result['closed']}")

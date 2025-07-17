@@ -1,7 +1,3 @@
-` tags. I will ensure that the indentation and formatting are preserved, and that no parts are skipped or omitted.
-
-```python
-<replit_final_file>
 import logging
 from typing import Dict, List, Optional, Set
 from datetime import datetime, timedelta
@@ -9,8 +5,6 @@ from dataclasses import dataclass
 from src.binance_client.client import BinanceClientWrapper
 from src.execution_engine.order_manager import OrderManager, Position
 from src.reporting.telegram_reporter import TelegramReporter
-import json
-from pathlib import Path
 
 @dataclass
 class OrphanTrade:
@@ -78,9 +72,6 @@ class TradeMonitor:
         self.max_notified_positions = 50
         self.max_fingerprints = 200
         self.max_recent_bot_trades = 20
-
-        # Persistent ghost symbols tracking
-        self.persistent_ghost_symbols: Dict[str, datetime] = {}
 
         # Load persistent ghost fingerprints to survive bot restarts
         self._load_persistent_ghost_fingerprints()
@@ -659,9 +650,182 @@ class TradeMonitor:
         except Exception as e:
             self.logger.error(f"Error in memory cleanup: {e}")
 
+    def _clear_expired_anomalies(self):
+        """Clear expired anomalies (after countdown reaches 0)"""
+        try:
+            self.logger.debug(f"🔍 CLEAR EXPIRED: Checking for expired anomalies")
+            self.logger.debug(f"🔍 CLEAR EXPIRED: Current orphan trades: {len(self.orphan_trades)}")
+            self.logger.debug(f"🔍 CLEAR EXPIRED: Current ghost trades: {len(self.ghost_trades)}")
+
+            # Clear expired orphan trades
+            expired_orphan_ids = []
+            for orphan_id, orphan_trade in self.orphan_trades.items():
+                orphan_trade.cycles_remaining -= 1
+                self.logger.debug(f"🔍 CLEAR EXPIRED: Orphan {orphan_id} cycles remaining: {orphan_trade.cycles_remaining}")
+                if orphan_trade.cycles_remaining <= 0:
+                    expired_orphan_ids.append(orphan_id)
+
+            for orphan_id in expired_orphan_ids:
+                orphan_trade = self.orphan_trades[orphan_id]
+                if not orphan_trade.clearing_notified:
+                    self.logger.info(f"🧹 ORPHAN TRADE CLEARED | {orphan_trade.position.strategy_name} | {orphan_trade.position.symbol} | Cleared after timeout")
+                    self.telegram_reporter.report_orphan_trade_cleared(orphan_trade.position.strategy_name, orphan_trade.position.symbol)
+                    orphan_trade.clearing_notified = True
+
+                del self.orphan_trades[orphan_id]
+                self.logger.debug(f"🔍 CLEAR EXPIRED: Removed expired orphan trade {orphan_id}")
+
+            # Clear expired ghost trades
+            expired_ghost_ids = []
+            for ghost_id, ghost_trade in self.ghost_trades.items():
+                ghost_trade.cycles_remaining -= 1
+                self.logger.debug(f"🔍 CLEAR EXPIRED: Ghost {ghost_id} cycles remaining: {ghost_trade.cycles_remaining}")
+                if ghost_trade.cycles_remaining <= 0:
+                    expired_ghost_ids.append(ghost_id)
+
+            for ghost_id in expired_ghost_ids:
+                ghost_trade = self.ghost_trades[ghost_id]
+                if not ghost_trade.clearing_notified:
+                    strategy_name = ghost_id.split('_')[0]  # Extract strategy name from ghost_id
+                    self.logger.info(f"🧹 GHOST TRADE CLEARED | {strategy_name} | {ghost_trade.symbol} | Cleared after timeout")
+                    self.telegram_reporter.report_ghost_trade_cleared(strategy_name, ghost_trade.symbol)
+                    ghost_trade.clearing_notified = True
+
+                del self.ghost_trades[ghost_id]
+                self.logger.debug(f"🔍 CLEAR EXPIRED: Removed expired ghost trade {ghost_id}")
+
+        except Exception as e:
+            self.logger.error(f"Error clearing expired anomalies: {e}")
+
+    def _handle_ghost_trade(self, monitoring_strategy: str, symbol: str, position_amt: float, suppress_notifications: bool = False):
+        """Handle detected ghost trade"""
+        try:
+            self.logger.debug(f"🔍 GHOST TRADE: _handle_ghost_trade called for {monitoring_strategy} {symbol} amt={position_amt} suppress={suppress_notifications}")
+
+            current_price = self._get_current_price(symbol)
+            side = 'BUY' if position_amt > 0 else 'SELL'
+            ghost_id = f"{monitoring_strategy}_{symbol}"
+
+            self.logger.debug(f"🔍 GHOST TRADE: Generated ghost_id={ghost_id}")
+            self.logger.debug(f"🔍 GHOST TRADE: Current ghost trades: {list(self.ghost_trades.keys())}")
+
+            # Check if ghost trade already exists
+            existing_ghost_found = False
+            existing_ghost_id = None
+            for gid, ghost in self.ghost_trades.items():
+                if ghost.symbol == symbol and gid.startswith(monitoring_strategy):
+                    existing_ghost_found = True
+                    existing_ghost_id = gid
+                    self.logger.debug(f"🔍 GHOST TRADE: Found existing ghost trade: {gid}")
+                    break
+
+            if not existing_ghost_found:
+                self.logger.debug(f"🔍 GHOST TRADE: No existing ghost trade found, creating new one")
+
+                # New ghost trade
+                ghost_trade = GhostTrade(
+                    symbol=symbol,
+                    side=side,
+                    quantity=abs(position_amt),
+                    detected_at=datetime.now(),
+                    cycles_remaining=20,  # Extended cycles for new trades
+                    detection_notified=False,
+                    clearing_notified=False,
+                    last_notification_time=None,
+                    notification_cooldown_minutes=60
+                )
+
+                self.ghost_trades[ghost_id] = ghost_trade
+                self.logger.debug(f"🔍 GHOST TRADE: Created new ghost trade {ghost_id}")
+
+                # Log detection
+                usdt_value = current_price * abs(position_amt) if current_price else 0
+
+                # Check notification conditions in detail
+                self.logger.debug(f"🔍 GHOST TRADE: Notification check:")
+                self.logger.debug(f"  - suppress_notifications: {suppress_notifications}")
+                self.logger.debug(f"  - startup_scan_complete: {self.startup_scan_complete}")
+                self.logger.debug(f"  - detection_notified: {ghost_trade.detection_notified}")
+
+                should_notify = (not suppress_notifications and 
+                               self.startup_scan_complete and 
+                               not ghost_trade.detection_notified)
+
+                self.logger.debug(f"🔍 GHOST TRADE: should_notify = {should_notify}")
+
+                if should_notify:
+                    # This is a normal anomaly check - send notification ONLY ONCE
+                    self.logger.warning(f"👻 NEW GHOST TRADE DETECTED | {monitoring_strategy} | {symbol} | Manual position found | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
+
+                    # Send Telegram notification
+                    self.telegram_reporter.report_ghost_trade_detected(
+                        strategy_name=monitoring_strategy,
+                        symbol=symbol,
+                        side=side,
+                        quantity=abs(position_amt),
+                        current_price=current_price
+                    )
+
+                    ghost_trade.detection_notified = True
+                    ghost_trade.last_notification_time = datetime.now()
+                    self.logger.debug(f"🔍 GHOST TRADE: Notification sent and marked as notified")
+                else:
+                    # This is a suppressed startup scan or already notified - just log
+                    if not self.startup_scan_complete:
+                        scan_type = "STARTUP SCAN"
+                    elif ghost_trade.detection_notified:
+                        scan_type = "ALREADY NOTIFIED"
+                    else:
+                        scan_type = "SUPPRESSED CHECK"
+                    self.logger.debug(f"👻 POSITION NOTED ({scan_type}) | {monitoring_strategy} | {symbol} | Manual position tracked | Qty: {abs(position_amt):.6f} | Value: ${usdt_value:.2f} USDT")
+            else:
+                self.logger.debug(f"🔍 GHOST TRADE: Existing ghost trade found: {existing_ghost_id}")
+                existing_ghost = self.ghost_trades[existing_ghost_id]
+
+                # Update the existing ghost trade but don't re-notify
+                if existing_ghost_id:
+                    if existing_ghost and abs(existing_ghost.quantity - abs(position_amt)) > 0.000001:
+                        self.logger.debug(f"🔍 GHOST TRADE: Updating ghost trade quantity for {symbol} from {existing_ghost.quantity:.6f} to {abs(position_amt):.6f}")
+                        existing_ghost.quantity = abs(position_amt)
+                        existing_ghost.side = 'LONG' if position_amt > 0 else 'SHORT'
+
+                    # Check if this ghost trade was already notified
+                    self.logger.debug(f"🔍 GHOST TRADE: Existing ghost notification status: detection_notified={existing_ghost.detection_notified}")
+
+                    # Ensure we don't re-notify for existing ghost trades
+                    if not existing_ghost.detection_notified and not suppress_notifications and self.startup_scan_complete:
+                        # This should not happen, but just in case, mark as notified without sending
+                        self.logger.debug(f"🔍 GHOST TRADE: Marking existing ghost trade {ghost_id} as notified to prevent notifications")
+                        existing_ghost.detection_notified = True
+                        existing_ghost.last_notification_time = datetime.now()
+                    else:
+                        self.logger.debug(f"🔍 GHOST TRADE: Skipping notification - already notified or suppressed")
+
+                self.logger.debug(f"🔍 GHOST TRADE: Ghost trade already exists for {symbol}, skipping duplicate detection")
+
+        except Exception as e:
+            self.logger.error(f"Error handling ghost trade: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+
+    def _get_current_price(self, symbol: str) -> Optional[float]:
+        """Helper method to fetch current price for a symbol"""
+        try:
+            ticker = self.binance_client.get_symbol_ticker(symbol)
+            current_price = float(ticker['price']) if ticker else None
+            return current_price
+        except Exception as e:
+            self.logger.error(f"Error getting ticker price for {symbol}: {e}")
+            return None
+
     def _generate_ghost_trade_fingerprint(self, symbol: str, position_amt: float) -> str:
-        """Generate unique fingerprint for ghost trade to prevent re-detection"""
-        return f"{symbol}_{position_amt:.6f}_{datetime.now().strftime('%Y%m%d')}"
+        """Generate a unique fingerprint for a ghost trade to prevent re-detection"""
+        # Create fingerprint based on symbol, direction, and rounded quantity
+        side = 'LONG' if position_amt > 0 else 'SHORT'
+        # Round quantity to 6 decimal places to handle minor differences
+        rounded_qty = round(abs(position_amt), 6)
+        fingerprint = f"{symbol}_{side}_{rounded_qty}"
+        return fingerprint
 
     def _is_ghost_trade_recently_cleared(self, symbol: str, position_amt: float) -> bool:
         """Check if a ghost trade with same characteristics was recently cleared"""
@@ -670,47 +834,68 @@ class TradeMonitor:
         if fingerprint in self.ghost_trade_fingerprints:
             clear_time = self.ghost_trade_fingerprints[fingerprint]
             time_since_clear = datetime.now() - clear_time
-            # Consider recently cleared if within 1 hour
-            return time_since_clear.total_seconds() < 3600
+            cooldown_hours = 2  # 2 hours cooldown as requested
+
+            if time_since_clear.total_seconds() < (cooldown_hours * 3600):
+                self.logger.debug(f"🔍 GHOST FINGERPRINT: Trade {fingerprint} was cleared {time_since_clear.total_seconds():.0f}s ago, within {cooldown_hours}h cooldown")
+                return True
 
         return False
 
     def _load_persistent_ghost_fingerprints(self):
-        """Load persistent ghost fingerprints from file"""
+        """Load persistent ghost fingerprints from file to survive bot restarts"""
         try:
-            fingerprint_file = Path("trading_data/ghost_fingerprints.json")
-            if fingerprint_file.exists():
+            import os
+            import json
+
+            fingerprint_file = "trading_data/ghost_fingerprints.json"
+
+            if os.path.exists(fingerprint_file):
                 with open(fingerprint_file, 'r') as f:
                     data = json.load(f)
 
                 # Convert string timestamps back to datetime objects
+                current_time = datetime.now()
                 for fingerprint, timestamp_str in data.items():
                     try:
-                        self.ghost_trade_fingerprints[fingerprint] = datetime.fromisoformat(timestamp_str)
-                    except:
-                        # Skip invalid timestamps
+                        clear_time = datetime.fromisoformat(timestamp_str)
+                        # Only load fingerprints that are still within the 2-hour cooldown
+                        if (current_time - clear_time).total_seconds() < (2 * 3600):
+                            self.ghost_trade_fingerprints[fingerprint] = clear_time
+                            self.logger.debug(f"🔍 FINGERPRINT LOADED: {fingerprint} from {timestamp_str}")
+                    except ValueError:
                         continue
 
-                self.logger.debug(f"🔍 PERSISTENT GHOSTS: Loaded {len(self.ghost_trade_fingerprints)} fingerprints")
+                self.logger.info(f"🔍 FINGERPRINT TRACKING: Loaded {len(self.ghost_trade_fingerprints)} persistent ghost fingerprints")
+            else:
+                self.logger.debug(f"🔍 FINGERPRINT TRACKING: No persistent fingerprint file found")
+
         except Exception as e:
-            self.logger.debug(f"Could not load persistent ghost fingerprints: {e}")
+            self.logger.error(f"Error loading persistent ghost fingerprints: {e}")
 
     def _save_persistent_ghost_fingerprints(self):
-        """Save persistent ghost fingerprints to file"""
+        """Save ghost fingerprints to file to persist across bot restarts"""
         try:
-            fingerprint_file = Path("trading_data/ghost_fingerprints.json")
+            import os
+            import json
+
+            # Ensure directory exists
+            os.makedirs("trading_data", exist_ok=True)
+
+            fingerprint_file = "trading_data/ghost_fingerprints.json"
 
             # Convert datetime objects to strings for JSON serialization
             data = {}
-            for fingerprint, timestamp in self.ghost_trade_fingerprints.items():
-                data[fingerprint] = timestamp.isoformat()
+            for fingerprint, clear_time in self.ghost_trade_fingerprints.items():
+                data[fingerprint] = clear_time.isoformat()
 
             with open(fingerprint_file, 'w') as f:
                 json.dump(data, f, indent=2)
 
-        except Exception as e:
-            self.logger.debug(f"Could not save persistent ghost fingerprints: {e}")
+            self.logger.debug(f"🔍 FINGERPRINT TRACKING: Saved {len(data)} ghost fingerprints to {fingerprint_file}")
 
+        except Exception as e:
+            self.logger.error(f"Error saving persistent ghost fingerprints: {e}")
     def has_blocking_anomaly(self, strategy_name: str) -> bool:
         """Check if strategy has a blocking anomaly"""
         return strategy_name in self.ghost_trades

@@ -198,25 +198,102 @@ class ColoredFormatter(logging.Formatter):
 
             return lines
 
-        # Create simple console message without complex formatting to prevent HTTP 502 errors
+        # Create Telegram-style vertical message
         if is_active_position:
-            # Active position display - simplified to prevent web server crashes
-            formatted_message = f"{separator}{text_color}[{timestamp}] 📊 ACTIVE POSITION: {message}{reset}\n"
-        elif "TRADE IN PROGRESS" in message:
-            # Trade in progress - simplified to prevent web server crashes
-            formatted_message = f"{separator}{text_color}[{timestamp}] 📊 TRADE IN PROGRESS: {message}{reset}\n"
+            # Active position - special formatting
+            msg_lines = format_structured_message(message)
+            formatted_lines = "║\n".join([f"║ {line}" for line in msg_lines])
+            formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
+║ 📊 ACTIVE POSITION                                ║
+║ ⏰ {timestamp}                                        ║
+║                                                   ║
+{formatted_lines}
+║                                                   ║
+╚═══════════════════════════════════════════════════╝{reset}
+"""
         elif "MARKET ASSESSMENT" in message:
-            formatted_message = f"{separator}{text_color}[{timestamp}] 📈 MARKET ASSESSMENT: {message}{reset}\n"
+            # Check if this is the start of a consolidated market assessment
+            if message.strip() == "📈 MARKET ASSESSMENT":
+                # This is the start of a market assessment block - start collecting
+                formatted_message = f"{separator}{text_color}┌─────────────────────────────────────────────────┐\n│ 📈 MARKET ASSESSMENT                           │\n│ ⏰ {timestamp}                                      │\n│                                                 │\n│ {message}                                       │{reset}\n"
+            elif any(keyword in message for keyword in ["Interval", "Symbol:", "🎯", "💵 Price:", "📈 MACD:", "📈 RSI:", "🔍 SCANNING"]):
+                # This is part of a market assessment - continue the block
+                formatted_message = f"{text_color}│ {message}                                       │{reset}\n"
+                # If this is the last line (SCANNING FOR ENTRY), close the block
+                if "🔍 SCANNING FOR ENTRY" in message:
+                    formatted_message += f"{text_color}│                                                 │\n└─────────────────────────────────────────────────┘{reset}\n"
+            else:
+                # Fallback for other market assessment formats
+                msg_lines = format_structured_message(message)
+                formatted_lines = "│\n".join([f"│ {line}" for line in msg_lines])
+                formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
+│ 📈 MARKET ASSESSMENT                           │
+│ ⏰ {timestamp}                                      │
+│                                                 │
+{formatted_lines}
+│                                                 │
+└─────────────────────────────────────────────────┘{reset}
+"""
         elif "TRADE ENTRY" in message or "POSITION OPENED" in message:
-            formatted_message = f"{separator}{text_color}[{timestamp}] 🟢 TRADE ENTRY: {message}{reset}\n"
+            # Trade entry - highlighted
+            msg_lines = format_structured_message(message)
+            formatted_lines = "║\n".join([f"║ {line}" for line in msg_lines])
+            formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
+║ 🟢 TRADE ENTRY                                   ║
+║ ⏰ {timestamp}                                        ║
+║                                                   ║
+{formatted_lines}
+║                                                   ║
+╚═══════════════════════════════════════════════════╝{reset}
+"""
         elif "TRADE CLOSED" in message or "POSITION CLOSED" in message:
-            formatted_message = f"{separator}{text_color}[{timestamp}] 🔴 TRADE CLOSED: {message}{reset}\n"
+            # Trade closed - highlighted
+            msg_lines = format_structured_message(message)
+            formatted_lines = "║\n".join([f"║ {line}" for line in msg_lines])
+            formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
+║ 🔴 TRADE CLOSED                                  ║
+║ ⏰ {timestamp}                                        ║
+║                                                   ║
+{formatted_lines}
+║                                                   ║
+╚═══════════════════════════════════════════════════╝{reset}
+"""
         elif record.levelname == 'ERROR':
-            formatted_message = f"{separator}{text_color}[{timestamp}] ❌ ERROR: {message}{reset}\n"
+            # Error - double border
+            msg_lines = [message]
+            formatted_lines = "║\n".join([f"║ {line}" for line in msg_lines])
+            formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
+║ ❌ ERROR                                         ║
+║ ⏰ {timestamp}                                        ║
+║                                                   ║
+{formatted_lines}
+║                                                   ║
+╚═══════════════════════════════════════════════════╝{reset}
+"""
         elif record.levelname == 'WARNING':
-            formatted_message = f"{separator}{text_color}[{timestamp}] ⚠️ WARNING: {message}{reset}\n"
+            # Warning - rounded border
+            msg_lines = [message]
+            formatted_lines = "│\n".join([f"│ {line}" for line in msg_lines])
+            formatted_message = f"""{separator}{text_color}╭─────────────────────────────────────────────────╮
+│ ⚠️  WARNING                                       │
+│ ⏰ {timestamp}                                      │
+│                                                 │
+{formatted_lines}
+│                                                 │
+╰─────────────────────────────────────────────────╯{reset}
+"""
         else:
-            formatted_message = f"{separator}{text_color}[{timestamp}] ℹ️ INFO: {message}{reset}\n"
+            # Regular info - simple border
+            msg_lines = [message]
+            formatted_lines = "│\n".join([f"│ {line}" for line in msg_lines])
+            formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
+│ ℹ️  INFO                                          │
+│ ⏰ {timestamp}                                      │
+│                                                 │
+{formatted_lines}
+│                                                 │
+└─────────────────────────────────────────────────┘{reset}
+"""
 
         return formatted_message
 

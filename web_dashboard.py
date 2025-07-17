@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 Trading Bot Web Dashboard
@@ -897,6 +896,15 @@ def get_bot_status():
             'balance': 0,
             'error': f'Critical status error: {str(e)}'
         }
+    except Exception as e:
+        logger.error(f"Error in get_bot_status: {e}")
+        return {
+            'is_running': False,
+            'active_positions': 0,
+            'strategies': [],
+            'balance': 0,
+            'error': f'Critical status error: {str(e)}'
+        }
 
 def get_current_price(symbol):
     """Get current price for a symbol"""
@@ -979,11 +987,11 @@ def trades_database():
     try:
         if not IMPORTS_AVAILABLE:
             return render_template('trades_database.html', trades=[], error="Database not available in demo mode")
-        
+
         # Get all trades from the database
         from src.execution_engine.trade_database import TradeDatabase
         trade_db = TradeDatabase()
-        
+
         # Convert trades to list format for template
         trades_list = []
         for trade_id, trade_data in trade_db.trades.items():
@@ -1005,36 +1013,198 @@ def trades_database():
                 'duration_minutes': trade_data.get('duration_minutes', 0)
             }
             trades_list.append(trade_info)
-        
+
         # BULLETPROOF FIX: Convert all None values to safe strings before ANY processing
         for trade in trades_list:
             # Fix ALL None values in the trade object to prevent any comparison errors
             for key, value in trade.items():
                 if value is None:
                     if key == 'timestamp':
-                        trade[key] = 'N/A'
-                    elif key in ['entry_price', 'exit_price', 'quantity', 'leverage', 'margin_usdt', 'pnl_usdt', 'pnl_percentage', 'duration_minutes']:
+                        trade[key] = '1900-01-01T00:00:00'
+                    elif key in ['pnl_usdt', 'pnl_percentage', 'entry_price', 'exit_price', 'quantity', 'duration_minutes']:
                         trade[key] = 0
                     else:
                         trade[key] = 'N/A'
-        
-        # Sort trades by timestamp (newest first) - now safe since no None values
-        def safe_sort_key(trade):
-            timestamp = trade.get('timestamp', 'N/A')
-            if timestamp == 'N/A' or timestamp is None:
-                return datetime.min.isoformat()
-            return str(timestamp)
-        
+
+            # FIX: Pre-calculate absolute values for template (abs() not available in Jinja2)
+            trade['abs_pnl_usdt'] = abs(trade.get('pnl_usdt', 0))
+
+        # Now sort safely - all None values have been eliminated
         try:
-            trades_list.sort(key=safe_sort_key, reverse=True)
+            trades_list.sort(key=lambda x: str(x.get('timestamp', '1900-01-01T00:00:00')), reverse=True)
         except Exception as sort_error:
-            logger.warning(f"Could not sort trades, using original order: {sort_error}")
-        
-        return render_template('trades_database.html', trades=trades_list)
+            # If sorting still fails for any reason, don't sort
+            logger.error(f"Sort failed despite None handling: {sort_error}")
+
+        final_trades_list = trades_list
+
+        return render_template('trades_database.html', trades=final_trades_list, total_trades=len(final_trades_list))
+
     except Exception as e:
-        logger.error(f"Error in trades_database endpoint: {e}")
-        return render_template('trades_database.html', trades=[], error=f"Error loading trades: {str(e)}")
+        logger.error(f"Error loading trades database page: {e}")
+        return render_template('trades_database.html', trades=[], error=str(e))
+
+@app.route('/api/ml_insights')
+def get_ml_insights():
+    """Get ML insights for the dashboard"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        # Import ML analyzer
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Generate insights
+        insights = ml_analyzer.generate_insights()
+
+        if "error" in insights:
+            return jsonify({'success': False, 'error': insights['error']})
+
+        return jsonify({'success': True, 'insights': insights})
+
+    except Exception as e:
+        logger.error(f"Error getting ML insights: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/ml_predictions')
+def get_ml_predictions():
+    """Get ML predictions for current market conditions"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        # Import ML analyzer
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Sample predictions for current strategies
+        predictions = []
+        strategies = trading_config_manager.get_all_strategies()
+
+        for strategy_name, config in strategies.items():
+            # Create sample trade features
+            sample_features = {
+                'strategy': strategy_name,
+                'symbol': config.get('symbol', 'BTCUSDT'),
+                'side': 'BUY',
+                'leverage': config.get('leverage', 5),
+                'position_size_usdt': config.get('margin', 50),
+                'hour_of_day': datetime.now().hour,
+                'day_of_week': datetime.now().weekday(),
+                'market_trend': 'BULLISH',
+                'volatility_score': 0.3,
+                'signal_strength': 0.7
+            }
+
+            # Add strategy-specific features
+            if 'rsi' in strategy_name.lower():
+                sample_features['rsi_entry'] = 30  # Oversold
+            elif 'macd' in strategy_name.lower():
+                sample_features['macd_entry'] = 0.1
+
+            prediction = ml_analyzer.predict_trade_outcome(sample_features)
+
+            if "error" not in prediction:
+                predictions.append({
+                    'strategy': strategy_name,
+                    'symbol': config.get('symbol', 'BTCUSDT'),
+                    'predicted_profitable': prediction.get('profit_probability', 0.5) > 0.5,
+                    'predicted_pnl': prediction.get('predicted_pnl_percentage', 0),
+                    'confidence': prediction.get('confidence', 0),
+                    'recommendation': prediction.get('recommendation', 'HOLD')
+                })
+
+        return jsonify({'success': True, 'predictions': predictions})
+
+    except Exception as e:
+        logger.error(f"Error getting ML predictions: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/train_models', methods=['POST'])
+def train_models():
+    """Train ML models"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        # Import ML analyzer
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Train models
+        results = ml_analyzer.train_models()
+
+        if "error" in results:
+            return jsonify({'success': False, 'error': results['error']})
+
+        return jsonify({'success': True, 'results': results})
+
+    except Exception as e:
+        logger.error(f"Error training ML models: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/trading/environment', methods=['POST'])
+def update_trading_environment():
+    """Update trading environment (testnet/mainnet)"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'message': 'Configuration update not available in demo mode'})
+
+        data = request.get_json()
+
+        if not data or 'is_testnet' not in data:
+            return jsonify({'success': False, 'message': 'Missing is_testnet parameter'})
+
+        is_testnet = bool(data['is_testnet'])
+
+        # Update the global config in memory
+        global_config.BINANCE_TESTNET = is_testnet
+
+        # Save to environment configuration file for persistence
+        env_config = {
+            'BINANCE_TESTNET': str(is_testnet).lower(),
+            'BINANCE_FUTURES': str(global_config.BINANCE_FUTURES).lower()
+        }
+
+        # Write to a config file for persistence across restarts
+        config_file = "trading_data/environment_config.json"
+        os.makedirs(os.path.dirname(config_file), exist_ok=True)
+
+        with open(config_file, 'w') as f:
+            json.dump(env_config, f, indent=2)
+
+        mode = 'FUTURES TESTNET' if is_testnet else 'FUTURES MAINNET'
+
+        # Log the environment change
+        logger.info(f"🔄 ENVIRONMENT CHANGED: {mode}")
+        logger.info(f"🌐 WEB DASHBOARD: Trading environment updated via web interface")
+
+        # Check if bot is running and warn about restart requirement
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        bot_running = current_bot and getattr(current_bot, 'is_running', False)
+
+        message = f'Trading environment updated to {mode}'
+        if bot_running:
+            message += ' (Bot restart required to apply changes)'
+            logger.warning("⚠️ Bot restart required for environment change to take effect")
+
+        return jsonify({
+            'success': True, 
+            'message': message,
+            'environment': {
+                'is_testnet': is_testnet,
+                'is_futures': global_config.BINANCE_FUTURES,
+                'mode': mode,
+                'restart_required': bot_running
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Error updating trading environment: {e}")
+        return jsonify({'success': False, 'message': f'Failed to update environment: {e}'})
 
 if __name__ == '__main__':
-    logger.info("🌐 Starting Trading Bot Web Dashboard on port 5000")
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+    logger.error("🚫 DIRECT LAUNCH NOT ALLOWED")
+    logger.error("💡 Web dashboard must be launched from main.py only")
+    logger.error("🔧 Run 'python main.py' instead to start the complete system")
+    print("🚫 ERROR: Direct web dashboard launch is disabled")
+    print("💡 Please run 'python main.py' to start the trading bot with web interface")
+    sys.exit(1)

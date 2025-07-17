@@ -58,5 +58,35 @@
     "notified": false,
     "cleared_at": "2025-07-16T11:43:29.379745",
     "binance_position_amt": -2.0
+  },
+  "orphan_macd_divergence_ETHUSDT": {
+    "id": "orphan_macd_divergence_ETHUSDT",
+    "type": "orphan",
+    "symbol": "ETHUSDT",
+    "strategy_name": "macd_divergence",
+    "quantity": 0.01,
+    "side": "BUY",
+    "entry_price": 3422.76,
+    "detected_at": "2025-07-17T17:27:13.527751",
+    "status": "active",
+    "cycles_remaining": 1,
+    "notified": false,
+    "cleared_at": null,
+    "binance_position_amt": 0.0
+  },
+  "orphan_RSI_OVERSOLD1_XRPUSDT": {
+    "id": "orphan_RSI_OVERSOLD1_XRPUSDT",
+    "type": "orphan",
+    "symbol": "XRPUSDT",
+    "strategy_name": "RSI_OVERSOLD1",
+    "quantity": 7.6,
+    "side": "SELL",
+    "entry_price": 3.2777,
+    "detected_at": "2025-07-17T17:27:13.551615",
+    "status": "active",
+    "cycles_remaining": 1,
+    "notified": false,
+    "cleared_at": null,
+    "binance_position_amt": 0.0
   }
 }

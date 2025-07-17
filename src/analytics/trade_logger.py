@@ -1,4 +1,3 @@
-
 import json
 import csv
 import logging
@@ -183,7 +182,7 @@ class TradeLogger:
             else:
                 # For SELL: profit when exit price < entry price
                 pnl_usdt = (trade_record.entry_price - exit_price) * trade_record.quantity
-        
+
         # Calculate accurate percentage if not provided
         if pnl_percentage is None:
             pnl_percentage = (pnl_usdt / trade_record.position_value_usdt) * 100

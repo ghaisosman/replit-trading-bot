@@ -137,23 +137,23 @@ For MAINNET:
         self.price_fetcher = PriceFetcher(self.binance_client)
         self.balance_fetcher = BalanceFetcher(self.binance_client)
         self.signal_processor = SignalProcessor()
-        
+
         # Import trade_logger
         from src.analytics.trade_logger import trade_logger
-        
+
         # Initialize telegram reporter first
         self.telegram_reporter = TelegramReporter()
-        
+
         # Initialize order manager with required parameters
         self.order_manager = OrderManager(self.binance_client, trade_logger, self.telegram_reporter)
 
         # Load ALL strategies from web dashboard configurations
         self.strategies = trading_config_manager.get_all_strategies()
-        
+
         # Log loaded strategies
         strategy_names = list(self.strategies.keys())
         self.logger.info(f"🎯 LOADED STRATEGIES: {', '.join(strategy_names)}")
-        
+
         for strategy_name, config in self.strategies.items():
             symbol = config.get('symbol', 'UNKNOWN')
             margin = config.get('margin', 0)
@@ -1428,7 +1428,8 @@ Interval: every {assessment_interval} seconds
                         if 'rsi' in df.columns:
                             current_rsi = df['rsi'].iloc[-1]
 
-                        # Log active position with current market data and RSIrsi_text = f"{current_rsi:.1f}" if current_rsi is not None else "N/A"
+                        # Log active position with current market data and RSI
+                        rsi_text = f"{current_rsi:.1f}" if current_rsi is not None else "N/A"
                         self.logger.info(f"TRADE IN PROGRESS | {strategy_name.upper()} | {strategy_config['symbol']} | Side: {position.side} | Entry: ${position.entry_price:.4f} | Current: ${current_price:.1f} | RSI: {rsi_text} | Config: ${margin:.1f} USDT @ {leverage}x | PnL: ${pnl:.1f} USDT ({pnl:.1f}%)")
 
                 except Exception as e:

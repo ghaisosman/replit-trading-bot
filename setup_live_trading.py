@@ -11,7 +11,7 @@ from src.config.global_config import global_config
 def main():
     print("🚀 BINANCE TRADING BOT - LIVE TRADING SETUP")
     print("=" * 50)
-    
+
     # Check current configuration
     print("\n📋 CURRENT CONFIGURATION:")
     print(f"Mode: {'TESTNET' if global_config.BINANCE_TESTNET else 'MAINNET'}")
@@ -19,15 +19,15 @@ def main():
     print(f"Secret Key: {'✅ Set' if global_config.BINANCE_SECRET_KEY else '❌ Missing'}")
     print(f"Telegram Token: {'✅ Set' if global_config.TELEGRAM_BOT_TOKEN else '❌ Missing'}")
     print(f"Telegram Chat ID: {'✅ Set' if global_config.TELEGRAM_CHAT_ID else '❌ Missing'}")
-    
+
     print("\n🔧 SETUP OPTIONS:")
     print("1. Configure for TESTNET (Recommended for testing)")
     print("2. Configure for MAINNET (REAL MONEY - Use with caution!)")
     print("3. Test current configuration")
     print("4. Exit")
-    
+
     choice = input("\nSelect option (1-4): ")
-    
+
     if choice == "1":
         setup_testnet()
     elif choice == "2":
@@ -57,12 +57,12 @@ def setup_mainnet():
     print("2. ✅ Understand the risks")
     print("3. ✅ Have proper risk management")
     print("4. ✅ Start with small amounts")
-    
+
     confirm = input("\nType 'I UNDERSTAND THE RISKS' to continue: ")
     if confirm != "I UNDERSTAND THE RISKS":
         print("❌ Setup cancelled for safety")
         return
-    
+
     print("\n📝 MAINNET CONFIGURATION:")
     print("Add these to your Replit Secrets:")
     print("   - BINANCE_API_KEY (from your real Binance account)")
@@ -76,12 +76,12 @@ def setup_mainnet():
 def test_configuration():
     print("\n🧪 TESTING CONFIGURATION...")
     from src.binance_client.client import BinanceClientWrapper
-    
+
     try:
         client = BinanceClientWrapper()
         if client.test_connection():
             print("✅ API Connection: SUCCESS")
-            
+
             account = client.get_account_info()
             if account:
                 print("✅ Account Access: SUCCESS")
@@ -92,7 +92,7 @@ def test_configuration():
         else:
             print("❌ API Connection: FAILED")
             print("🔧 Check API keys and internet connection")
-            
+
     except Exception as e:
         print(f"❌ Configuration Error: {e}")
 

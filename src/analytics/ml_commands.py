@@ -22,7 +22,7 @@ def train_ml_models():
     """Train ML models on historical data"""
     print("🤖 Training ML models...")
     results = ml_analyzer.train_models()
-    
+
     if "error" in results:
         print(f"❌ Error: {results['error']}")
     else:
@@ -30,7 +30,7 @@ def train_ml_models():
         print(f"📊 Profitability accuracy: {results.get('profitability_accuracy', 'N/A'):.2%}")
         print(f"📈 PnL R² score: {results.get('pnl_r2_score', 'N/A'):.2f}")
         print(f"⏱️ Duration R² score: {results.get('duration_r2_score', 'N/A'):.2f}")
-        
+
         if 'profitability_features' in results:
             print("\n🔍 Top features for profitability:")
             for feature, importance in results['profitability_features'][:5]:
@@ -40,18 +40,18 @@ def generate_insights():
     """Generate trading insights"""
     print("📊 Generating trading insights...")
     insights = ml_analyzer.generate_insights()
-    
+
     if "error" in insights:
         print(f"❌ Error: {insights['error']}")
     else:
         print("✅ Insights generated successfully!")
-        
+
         # Strategy performance
         if 'strategy_performance' in insights:
             print("\n🎯 Strategy Performance:")
             for strategy, stats in insights['strategy_performance'].items():
                 print(f"  {strategy}: Win Rate {stats['was_profitable']['mean']:.2%}")
-                
+
         # Time analysis
         if 'time_analysis' in insights:
             print("\n⏰ Best Trading Hours:")
@@ -61,7 +61,7 @@ def generate_insights():
 def test_prediction():
     """Test ML prediction with sample data"""
     print("🔮 Testing ML prediction...")
-    
+
     # Sample trade features
     sample_features = {
         'strategy': 'rsi_oversold',
@@ -78,9 +78,9 @@ def test_prediction():
         'volatility_score': 0.3,
         'signal_strength': 0.8
     }
-    
+
     prediction = ml_analyzer.predict_trade_outcome(sample_features)
-    
+
     if "error" in prediction:
         print(f"❌ Error: {prediction['error']}")
     else:
@@ -94,16 +94,16 @@ def test_prediction():
 def send_manual_report():
     """Send manual daily report"""
     print("📊 Sending manual daily report...")
-    
+
     # Initialize telegram reporter
     from src.config.global_config import global_config
     telegram_reporter = TelegramReporter()
     daily_reporter = DailyReporter(telegram_reporter)
-    
+
     # Send report for yesterday
     yesterday = datetime.now() - timedelta(days=1)
     success = daily_reporter.send_manual_report(yesterday)
-    
+
     if success:
         print("✅ Daily report sent successfully!")
     else:
@@ -112,7 +112,7 @@ def send_manual_report():
 def export_data():
     """Export trade data for external analysis"""
     print("📤 Exporting trade data...")
-    
+
     filename = trade_logger.export_for_ml()
     if filename:
         print(f"✅ Data exported to: {filename}")
@@ -123,7 +123,7 @@ def main():
     """Main menu for ML commands"""
     print("🤖 TRADING BOT ML ANALYTICS")
     print("=" * 40)
-    
+
     while True:
         print("\nOptions:")
         print("1. Train ML models")
@@ -132,9 +132,9 @@ def main():
         print("4. Send manual daily report")
         print("5. Export trade data")
         print("6. Exit")
-        
+
         choice = input("\nSelect option (1-6): ")
-        
+
         if choice == "1":
             train_ml_models()
         elif choice == "2":
