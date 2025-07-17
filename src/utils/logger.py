@@ -200,7 +200,7 @@ class ColoredFormatter(logging.Formatter):
 
         # Create Telegram-style vertical message
         if is_active_position:
-            # Active position display with clean formatting to prevent nesting
+            # Active position display with simplified formatting to prevent nesting
             formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
 │ 📊 ACTIVE POSITION                                │
 │ ⏰ {timestamp}                                        │
