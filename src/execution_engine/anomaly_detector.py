@@ -87,9 +87,24 @@ class AnomalyDatabase:
                 with open(self.db_file, 'r') as f:
                     data = json.load(f)
 
-                for anomaly_id, anomaly_data in data.items():
+                # Handle both old and new JSON formats
+                if isinstance(data, dict):
+                    # Check if this is the new format with 'anomalies' key
+                    if 'anomalies' in data:
+                        anomaly_data = data['anomalies']
+                        # Handle case where anomalies is a list (empty) vs dict
+                        if isinstance(anomaly_data, list):
+                            anomaly_data = {}
+                    else:
+                        # Old format - data is directly the anomalies dict
+                        anomaly_data = data
+                else:
+                    # Invalid format
+                    anomaly_data = {}
+
+                for anomaly_id, anomaly_info in anomaly_data.items():
                     try:
-                        self.anomalies[anomaly_id] = TradeAnomaly.from_dict(anomaly_data)
+                        self.anomalies[anomaly_id] = TradeAnomaly.from_dict(anomaly_info)
                     except Exception as e:
                         self.logger.error(f"Error loading anomaly {anomaly_id}: {e}")
                         continue
@@ -103,7 +118,11 @@ class AnomalyDatabase:
     def _save_anomalies(self):
         """Save anomalies to persistent storage"""
         try:
-            data = {anomaly_id: anomaly.to_dict() for anomaly_id, anomaly in self.anomalies.items()}
+            # Use new format with metadata
+            data = {
+                'anomalies': {anomaly_id: anomaly.to_dict() for anomaly_id, anomaly in self.anomalies.items()},
+                'last_updated': datetime.now().isoformat()
+            }
 
             with open(self.db_file, 'w') as f:
                 json.dump(data, f, indent=2)
