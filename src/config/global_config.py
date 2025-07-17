@@ -34,11 +34,7 @@ class GlobalConfig:
         self.USE_LOCAL_TIMEZONE = os.getenv('USE_LOCAL_TIMEZONE', 'false').lower() == 'true'
         self.TIMEZONE_OFFSET_HOURS = float(os.getenv('TIMEZONE_OFFSET_HOURS', '0'))  # Manual offset if needed
         
-        # Proxy settings for geographic restriction bypass
-        self.PROXY_ENABLED = os.getenv('PROXY_ENABLED', 'false').lower() == 'true'
-        self.PROXY_URLS = os.getenv('PROXY_URLS', '')  # Comma-separated list
-        self.PROXY_USERNAME = os.getenv('PROXY_USERNAME', '')
-        self.PROXY_PASSWORD = os.getenv('PROXY_PASSWORD', '')
+        
         
     def validate_config(self) -> bool:
         """Validate that all required config is present"""

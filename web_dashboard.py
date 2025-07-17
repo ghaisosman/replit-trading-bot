@@ -540,7 +540,7 @@ def get_current_bot_manager():
     print("⚠️ No real bot manager found - using dummy")
     return None
 
-@app.route('/api/health', methods=['GET'])
+@app.route('/api/health')
 def health_check():
     """Health check endpoint to verify API is working"""
     return jsonify({
@@ -549,7 +549,7 @@ def health_check():
         'message': 'Web dashboard API is running'
     })
 
-@app.route('/api/bot/status', methods=['GET'])
+@app.route('/api/bot/status')
 def get_bot_status():
     """Get current bot status via API"""
     try:
@@ -843,7 +843,7 @@ def update_strategy(strategy_name):
         logger.error(f"Error updating strategy {strategy_name}: {e}")
         return jsonify({'success': False, 'message': f'Failed to update strategy: {e}'})
 
-@app.route('/api/balance', methods=['GET'])
+@app.route('/api/balance')
 def get_balance():
     """Get current balance via API"""
     try:
@@ -943,7 +943,7 @@ def get_trades():
         print(f"❌ API ERROR: /api/trades - {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/console/log', methods=['GET'])
+@app.route('/api/console/log')
 def get_console_log():
     """Get console logs for web dashboard"""
     try:

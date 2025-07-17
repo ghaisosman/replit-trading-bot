@@ -18,9 +18,6 @@ class BinanceClientWrapper:
         self.is_futures = global_config.BINANCE_FUTURES
         self._last_request_time = 0
         self._min_request_interval = 0.1  # Minimum 100ms between requests
-        self.proxy_session = None
-        self.active_proxy = None
-        self._setup_proxy_session()
         self._initialize_client()
 
     def _initialize_client(self):
@@ -62,94 +59,7 @@ class BinanceClientWrapper:
             self.logger.error(f"Failed to initialize Binance client: {e}")
             raise
 
-    def _setup_proxy_session(self):
-        """Setup proxy session for geographic restriction bypass"""
-        try:
-            # Check if proxy is enabled in deployment
-            import os
-            is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
-            proxy_enabled = os.getenv('PROXY_ENABLED', 'false').lower() == 'true'
-            
-            if is_deployment and proxy_enabled:
-                proxy_urls = os.getenv('PROXY_URLS', '').split(',')
-                proxy_urls = [url.strip() for url in proxy_urls if url.strip()]
-                
-                if proxy_urls:
-                    self.active_proxy = random.choice(proxy_urls)
-                    self.proxy_session = requests.Session()
-                    
-                    # Setup retry strategy
-                    retry_strategy = Retry(
-                        total=3,
-                        backoff_factor=1,
-                        status_forcelist=[429, 500, 502, 503, 504],
-                    )
-                    adapter = HTTPAdapter(max_retries=retry_strategy)
-                    self.proxy_session.mount("http://", adapter)
-                    self.proxy_session.mount("https://", adapter)
-                    
-                    # Configure proxy
-                    proxies = {
-                        'http': self.active_proxy,
-                        'https': self.active_proxy
-                    }
-                    self.proxy_session.proxies.update(proxies)
-                    
-                    self.logger.info(f"🌍 PROXY ENABLED: Using {self.active_proxy} for geographic bypass")
-                    
-                    # Test proxy connection
-                    if self._test_proxy_connection():
-                        self.logger.info("✅ PROXY CONNECTION: Verified and active")
-                    else:
-                        self.logger.warning("⚠️ PROXY WARNING: Connection test failed, but continuing")
-                else:
-                    self.logger.warning("⚠️ PROXY_ENABLED=true but no PROXY_URLS configured")
-            else:
-                self.logger.info("🏠 DEVELOPMENT MODE: Direct connection (no proxy needed)")
-                
-        except Exception as e:
-            self.logger.error(f"Error setting up proxy: {e}")
-            self.proxy_session = None
-
-    def _test_proxy_connection(self) -> bool:
-        """Test if proxy is working"""
-        try:
-            if not self.proxy_session:
-                return False
-                
-            # Test with a simple HTTP request
-            response = self.proxy_session.get('https://httpbin.org/ip', timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                self.logger.info(f"🌍 PROXY IP: {data.get('origin', 'Unknown')}")
-                return True
-            return False
-        except Exception as e:
-            self.logger.error(f"Proxy test failed: {e}")
-            return False
-
-    def _rotate_proxy(self):
-        """Rotate to next available proxy"""
-        try:
-            proxy_urls = os.getenv('PROXY_URLS', '').split(',')
-            proxy_urls = [url.strip() for url in proxy_urls if url.strip()]
-            
-            if len(proxy_urls) > 1:
-                # Remove current proxy and pick a new one
-                available_proxies = [p for p in proxy_urls if p != self.active_proxy]
-                if available_proxies:
-                    self.active_proxy = random.choice(available_proxies)
-                    proxies = {
-                        'http': self.active_proxy,
-                        'https': self.active_proxy
-                    }
-                    self.proxy_session.proxies.update(proxies)
-                    self.logger.info(f"🔄 PROXY ROTATED: Now using {self.active_proxy}")
-                    return True
-            return False
-        except Exception as e:
-            self.logger.error(f"Error rotating proxy: {e}")
-            return False
+    
 
     def _rate_limit(self):
         """Simple rate limiting to prevent API spam"""
@@ -180,27 +90,7 @@ class BinanceClientWrapper:
 
         except BinanceAPIException as e:
             self.logger.error(f"❌ Binance API connection test failed: {e}")
-            
-            # Check if this is a deployment environment with geo-restrictions
-            import os
-            is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
-            
-            if is_deployment and not global_config.BINANCE_TESTNET:
-                proxy_enabled = os.getenv('PROXY_ENABLED', 'false').lower() == 'true'
-                if proxy_enabled and self.proxy_session:
-                    self.logger.info("🔄 PROXY RETRY: Attempting connection through proxy...")
-                    # Try rotating proxy and retry
-                    if self._rotate_proxy():
-                        return self.test_connection()  # Recursive retry with new proxy
-                    else:
-                        self.logger.error("🚨 ALL PROXIES FAILED: No working proxies available")
-                else:
-                    self.logger.error("🚨 DEPLOYMENT GEOGRAPHICAL RESTRICTION DETECTED")
-                    self.logger.error("⚠️  Binance mainnet is blocked from Replit's deployment servers")
-                    self.logger.error("🔧 SOLUTION: Set PROXY_ENABLED=true and PROXY_URLS in Secrets")
-                    self.logger.error("💡 Example: PROXY_URLS=http://proxy1:8080,socks5://proxy2:1080")
-                    self.logger.error("🌐 Web dashboard will remain active for monitoring")
-                return False
+            return False
             
             if e.code == -2015:
                 if global_config.BINANCE_TESTNET:
@@ -222,18 +112,6 @@ class BinanceClientWrapper:
             return False
         except Exception as e:
             self.logger.error(f"❌ Connection test failed: {e}")
-            
-            # Check if this is a deployment environment
-            import os
-            is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
-            
-            if is_deployment and not global_config.BINANCE_TESTNET:
-                self.logger.error("🚨 DEPLOYMENT CONNECTION ISSUE")
-                self.logger.error("⚠️  Unable to connect to Binance mainnet from deployment environment")
-                self.logger.error("🌍 This is due to geographical restrictions on Replit's servers")
-                self.logger.error("🔄 NEXT STEP: Implement proxy solution from Instructions.md")
-                self.logger.error("🌐 Web dashboard will remain active for monitoring")
-                
             return False
 
     def validate_api_permissions(self) -> Dict[str, bool]:
