@@ -1,3 +1,4 @@
+
 import logging
 from typing import Dict, Optional
 from src.binance_client.client import BinanceClientWrapper
@@ -67,12 +68,6 @@ class BalanceFetcher:
         else:
             self.logger.error("No USDT balance found in mainnet account!")
             return 0.0
-        from src.config.global_config import global_config
-        if global_config.BINANCE_TESTNET and (not balances or 'USDT' not in balances):
-            self.logger.warning("No USDT balance found in testnet. Using mock balance for testing.")
-            return 1000.0  # Mock balance for testing
-        
-        return None
     
     def check_sufficient_balance(self, required_margin: float, balance_multiplier: float = 2.0) -> bool:
         """Check if there's sufficient balance for trading"""
