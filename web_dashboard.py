@@ -422,6 +422,7 @@ def get_strategies():
                     config.setdefault('macd_signal', 9)
                     config.setdefault('min_histogram_threshold', 0.0001)
                     config.setdefault('min_distance_threshold', 0.005)
+                    config.setdefault('confirmation_candles', 2)
                     # Set default decimals based on symbol
                     if not config.get('decimals'):
                         symbol = config.get('symbol', '').upper()
@@ -1060,7 +1061,7 @@ def trades_database():
 
             # FIX: Pre-calculate absolute values for template (abs() not available in Jinja2)
             trade['abs_pnl_usdt'] = abs(trade.get('pnl_usdt', 0))
-            
+
             # Ensure duration is displayed with 2 decimals
             if isinstance(trade.get('duration_minutes'), (int, float)):
                 trade['duration_minutes'] = round(float(trade['duration_minutes']), 2)
@@ -1236,6 +1237,17 @@ def update_trading_environment():
     except Exception as e:
         logger.error(f"Error updating trading environment: {e}")
         return jsonify({'success': False, 'message': f'Failed to update environment: {e}'})
+
+def run_dashboard(bot_manager_instance=None):
+    global bot_manager
+    if bot_manager_instance:
+        bot_manager = bot_manager_instance
+
+    import os
+    host = '0.0.0.0' if os.getenv('REPL_DEPLOYMENT') == '1' else 'localhost'
+    port = int(os.environ.get('PORT', 5000))
+
+    app.run(debug=False, host=host, port=port, use_reloader=False)
 
 if __name__ == '__main__':
     logger.error("🚫 DIRECT LAUNCH NOT ALLOWED - SINGLE SOURCE CONTROL ENFORCED")

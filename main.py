@@ -58,7 +58,7 @@ def run_web_dashboard():
             try:
                 import subprocess
                 killed_count = 0
-                
+
                 # First try to find processes using port 5000
                 try:
                     result = subprocess.run(['lsof', '-ti:5000'], capture_output=True, text=True)
