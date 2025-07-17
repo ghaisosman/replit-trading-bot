@@ -322,7 +322,7 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             logger.info("🔴 Deployment shutdown")
     else:
-        # Skip the aggressive bot detection that causes false positives
+        # Development mode - start normally without instance detection
         logger.info("🛠️ Development mode: Starting bot normally")
 
         # Original development mode
