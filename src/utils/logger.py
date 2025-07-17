@@ -212,16 +212,14 @@ class ColoredFormatter(logging.Formatter):
 ╚═══════════════════════════════════════════════════╝{reset}
 """
         elif "TRADE IN PROGRESS" in message:
-            # Trade in progress - prevent nested formatting
-            msg_lines = format_structured_message(message)
-            formatted_lines = "║\n".join([f"║ {line}" for line in msg_lines])
-            formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
-║ 📊 TRADE IN PROGRESS                             ║
-║ ⏰ {timestamp}                                        ║
-║                                                   ║
-{formatted_lines}
-║                                                   ║
-╚═══════════════════════════════════════════════════╝{reset}
+            # Trade in progress - simplified formatting to prevent nesting
+            formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
+│ 📊 TRADE IN PROGRESS                             │
+│ ⏰ {timestamp}                                        │
+│                                                   │
+│ {message}                                         │
+│                                                   │
+└─────────────────────────────────────────────────┘{reset}
 """
         elif "MARKET ASSESSMENT" in message:
             # Check if this is the start of a consolidated market assessment
