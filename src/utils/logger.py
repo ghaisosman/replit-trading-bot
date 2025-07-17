@@ -198,100 +198,25 @@ class ColoredFormatter(logging.Formatter):
 
             return lines
 
-        # Create Telegram-style vertical message
+        # Create simple console message without complex formatting to prevent HTTP 502 errors
         if is_active_position:
-            # Active position display with simplified formatting to prevent nesting
-            formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
-│ 📊 ACTIVE POSITION                                │
-│ ⏰ {timestamp}                                        │
-│                                                   │
-│ {message}                                         │
-│                                                   │
-└─────────────────────────────────────────────────┘{reset}
-"""
+            # Active position display - simplified to prevent web server crashes
+            formatted_message = f"{separator}{text_color}[{timestamp}] 📊 ACTIVE POSITION: {message}{reset}\n"
         elif "TRADE IN PROGRESS" in message:
-            # Trade in progress - simplified formatting without nesting
-            formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
-│ 📊 TRADE IN PROGRESS                             │
-│ ⏰ {timestamp}                                        │
-│                                                   │
-│ {message}                                         │
-│                                                   │
-└─────────────────────────────────────────────────┘{reset}
-"""
+            # Trade in progress - simplified to prevent web server crashes
+            formatted_message = f"{separator}{text_color}[{timestamp}] 📊 TRADE IN PROGRESS: {message}{reset}\n"
         elif "MARKET ASSESSMENT" in message:
-            # Check if this is the start of a consolidated market assessment
-            if message.strip() == "📈 MARKET ASSESSMENT":
-                # This is the start of a market assessment block - start collecting
-                formatted_message = f"{separator}{text_color}┌─────────────────────────────────────────────────┐\n│ 📈 MARKET ASSESSMENT                           │\n│ ⏰ {timestamp}                                      │\n│                                                 │\n│ {message}                                       │{reset}\n"
-            elif any(keyword in message for keyword in ["Interval", "Symbol:", "🎯", "💵 Price:", "📈 MACD:", "📈 RSI:", "🔍 SCANNING"]):
-                # This is part of a market assessment - continue the block
-                formatted_message = f"{text_color}│ {message}                                       │{reset}\n"
-                # If this is the last line (SCANNING FOR ENTRY), close the block
-                if "🔍 SCANNING FOR ENTRY" in message:
-                    formatted_message += f"{text_color}│                                                 │\n└─────────────────────────────────────────────────┘{reset}\n"
-            else:
-                # Fallback for other market assessment formats
-                msg_lines = format_structured_message(message)
-                formatted_lines = "│\n".join([f"│ {line}" for line in msg_lines])
-                formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
-│ 📈 MARKET ASSESSMENT                           │
-│ ⏰ {timestamp}                                      │
-│                                                 │
-{formatted_lines}
-│                                                 │
-└─────────────────────────────────────────────────┘{reset}
-"""
+            formatted_message = f"{separator}{text_color}[{timestamp}] 📈 MARKET ASSESSMENT: {message}{reset}\n"
         elif "TRADE ENTRY" in message or "POSITION OPENED" in message:
-            # Trade entry - clean formatting without nesting
-            formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
-║ 🟢 TRADE ENTRY                                   ║
-║ ⏰ {timestamp}                                        ║
-║                                                   ║
-║ {message}                                         ║
-║                                                   ║
-╚═══════════════════════════════════════════════════╝{reset}
-"""
+            formatted_message = f"{separator}{text_color}[{timestamp}] 🟢 TRADE ENTRY: {message}{reset}\n"
         elif "TRADE CLOSED" in message or "POSITION CLOSED" in message:
-            # Trade closed - clean formatting without nesting
-            formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
-║ 🔴 TRADE CLOSED                                  ║
-║ ⏰ {timestamp}                                        ║
-║                                                   ║
-║ {message}                                         ║
-║                                                   ║
-╚═══════════════════════════════════════════════════╝{reset}
-"""
+            formatted_message = f"{separator}{text_color}[{timestamp}] 🔴 TRADE CLOSED: {message}{reset}\n"
         elif record.levelname == 'ERROR':
-            # Error - clean formatting without nesting
-            formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
-║ ❌ ERROR                                         ║
-║ ⏰ {timestamp}                                        ║
-║                                                   ║
-║ {message}                                         ║
-║                                                   ║
-╚═══════════════════════════════════════════════════╝{reset}
-"""
+            formatted_message = f"{separator}{text_color}[{timestamp}] ❌ ERROR: {message}{reset}\n"
         elif record.levelname == 'WARNING':
-            # Warning - clean formatting without nesting
-            formatted_message = f"""{separator}{text_color}╭─────────────────────────────────────────────────╮
-│ ⚠️  WARNING                                       │
-│ ⏰ {timestamp}                                      │
-│                                                 │
-│ {message}                                         │
-│                                                 │
-╰─────────────────────────────────────────────────╯{reset}
-"""
+            formatted_message = f"{separator}{text_color}[{timestamp}] ⚠️ WARNING: {message}{reset}\n"
         else:
-            # Regular info - clean formatting without nesting
-            formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
-│ ℹ️  INFO                                          │
-│ ⏰ {timestamp}                                      │
-│                                                 │
-│ {message}                                         │
-│                                                 │
-└─────────────────────────────────────────────────┘{reset}
-"""
+            formatted_message = f"{separator}{text_color}[{timestamp}] ℹ️ INFO: {message}{reset}\n"
 
         return formatted_message
 
