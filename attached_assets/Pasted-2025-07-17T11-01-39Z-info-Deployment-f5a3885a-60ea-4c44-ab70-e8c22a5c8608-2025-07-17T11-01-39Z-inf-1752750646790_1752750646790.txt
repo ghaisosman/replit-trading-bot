@@ -1,0 +1,48 @@
+2025-07-17T11:01:39Z info: Deployment: f5a3885a-60ea-4c44-ab70-e8c22a5c8608
+2025-07-17T11:01:39Z info: Connecting to builder
+2025-07-17T11:01:41Z info: Builder connected
+2025-07-17T11:01:43Z info: Installing packages
+2025-07-17T11:01:44Z info: Skipping Build as no Build command set
+2025-07-17T11:01:44Z info: Pushing pid1 binary layer...
+2025-07-17T11:01:52Z info: Pushing Repl layer...
+2025-07-17T11:01:52Z info: Pushing hosting layer...
+2025-07-17T11:01:53Z info: Retrieved cached nix layer
+2025-07-17T11:01:55Z info: Created hosting layer
+2025-07-17T11:01:58Z info: Created pid1 binary layer
+2025-07-17T11:08:11Z info: Created Repl layer
+2025-07-17T11:08:11Z info: Pushing Repl (cache) layer...
+2025-07-17T11:08:13Z info: Created Repl (cache) layer
+2025-07-17T11:08:14Z info: Pushed image manifest
+2025-07-17T11:08:15Z info: Pushed soci index manifest
+2025-07-17T11:08:20Z info: Creating Autoscale service
+starting up user application
+forwarding local port 5000 to external port 80 (mapped as 1104)
+│ ℹ️  INFO                                          │
+────────────────────────────────────────────────────────────
+║ ⏰ 11:10:04                                        ║
+Traceback (most recent call last):
+binance.exceptions.BinanceAPIException: APIError(code=0): Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error.
+🔧 Environment loaded from config file: MAINNET
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/binance/client.py", line 89, in _request
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+╚═══════════════════════════════════════════════════╝
+                     ^^^^^^^^^^^^^^^^^^^^^^
+│ ℹ️  INFO                                          │
+│                                                 │
+    self._initialize_client()
+command finished with error [sh -c python main.py]: exit status 1
+┌─────────────────────────────────────────────────┐
+└─────────────────────────────────────────────────┘
+║ ❌ ERROR                                         ║
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Traceback (most recent call last):
+║ ❌ ERROR                                         ║
+    self.ping()
+
+command finished with error [sh -c python main.py]: exit status 1
+│                                                 │
+║ ❌ ERROR                                         ║
+┌─────────────────────────────────────────────────┐
+  File "/home/runner/workspace/src/binance_client/client.py", line 46, in _initialize_client
+crash loop detected
