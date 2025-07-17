@@ -37,8 +37,16 @@ class LiquidityReversalConfig:
             "max_daily_trades": 3,
             
             # Exit conditions
-            "profit_target_method": "mean_reversion",
+            "profit_target_method": "mean_reversion",  # Options: "fixed_percent", "mean_reversion", "rsi_based", "dynamic"
+            "fixed_profit_percent": 2.0,      # Fixed % profit target (when method is "fixed_percent")
             "mean_reversion_periods": 50,     # MA period for mean reversion target
+            "mean_reversion_buffer": 0.5,     # % buffer around MA (0.5% = within 0.5% of MA triggers exit)
+            "rsi_exit_overbought": 70,        # RSI level for profit taking on longs
+            "rsi_exit_oversold": 30,          # RSI level for profit taking on shorts
+            "dynamic_profit_min": 1.0,        # Minimum profit % for dynamic targeting
+            "dynamic_profit_max": 4.0,        # Maximum profit % for dynamic targeting
+            "trailing_stop_enabled": False,   # Enable trailing stop loss
+            "trailing_stop_percent": 1.5,     # Trailing stop distance %
             "max_hold_duration": 240,        # Max hold time in minutes
         }
     

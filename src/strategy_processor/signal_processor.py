@@ -307,26 +307,68 @@ class SignalProcessor:
 
             # Liquidity Reversal exit conditions
             elif ('liquidity' in strategy_name.lower() or 'reversal' in strategy_name.lower()):
-                # Check if we should exit based on mean reversion or time
-                mean_reversion_periods = strategy_config.get('mean_reversion_periods', 50)
-                max_hold_duration = strategy_config.get('max_hold_duration', 240)  # minutes
+                # Get configurable take profit parameters
+                profit_method = strategy_config.get('profit_target_method', 'mean_reversion')
                 
-                # Calculate simple moving average for mean reversion target
-                if len(df) >= mean_reversion_periods:
-                    sma = df['close'].tail(mean_reversion_periods).mean()
+                # Method 1: Fixed Percentage Target
+                if profit_method == 'fixed_percent':
+                    fixed_profit_pct = strategy_config.get('fixed_profit_percent', 2.0)
                     
-                    # Long position: Take profit when approaching mean reversion level
-                    if position_side == 'BUY' and current_price >= sma * 0.995:  # Within 0.5% of SMA
-                        self.logger.info(f"LONG TAKE PROFIT: Mean reversion target reached at {current_price:.4f} (SMA: {sma:.4f})")
-                        return "Take Profit (Mean Reversion)"
-                    
-                    # Short position: Take profit when approaching mean reversion level
-                    elif position_side == 'SELL' and current_price <= sma * 1.005:  # Within 0.5% of SMA
-                        self.logger.info(f"SHORT TAKE PROFIT: Mean reversion target reached at {current_price:.4f} (SMA: {sma:.4f})")
-                        return "Take Profit (Mean Reversion)"
+                    if position_side == 'BUY' and current_price >= entry_price * (1 + fixed_profit_pct/100):
+                        self.logger.info(f"LONG TAKE PROFIT: Fixed target {fixed_profit_pct}% reached at {current_price:.4f}")
+                        return f"Take Profit (Fixed {fixed_profit_pct}%)"
+                    elif position_side == 'SELL' and current_price <= entry_price * (1 - fixed_profit_pct/100):
+                        self.logger.info(f"SHORT TAKE PROFIT: Fixed target {fixed_profit_pct}% reached at {current_price:.4f}")
+                        return f"Take Profit (Fixed {fixed_profit_pct}%)"
                 
-                # Time-based exit (would need actual position entry time)
-                # This is a placeholder - actual implementation would check hold duration
+                # Method 2: Mean Reversion Target (default)
+                elif profit_method == 'mean_reversion':
+                    mean_reversion_periods = strategy_config.get('mean_reversion_periods', 50)
+                    buffer_pct = strategy_config.get('mean_reversion_buffer', 0.5)
+                    
+                    if len(df) >= mean_reversion_periods:
+                        sma = df['close'].tail(mean_reversion_periods).mean()
+                        buffer_multiplier = buffer_pct / 100
+                        
+                        # Long: profit when within buffer of SMA
+                        if position_side == 'BUY' and current_price >= sma * (1 - buffer_multiplier):
+                            self.logger.info(f"LONG TAKE PROFIT: Mean reversion target reached at {current_price:.4f} (SMA: {sma:.4f})")
+                            return "Take Profit (Mean Reversion)"
+                        # Short: profit when within buffer of SMA
+                        elif position_side == 'SELL' and current_price <= sma * (1 + buffer_multiplier):
+                            self.logger.info(f"SHORT TAKE PROFIT: Mean reversion target reached at {current_price:.4f} (SMA: {sma:.4f})")
+                            return "Take Profit (Mean Reversion)"
+                
+                # Method 3: RSI-Based Exit
+                elif profit_method == 'rsi_based' and 'rsi' in df.columns:
+                    rsi_current = df['rsi'].iloc[-1]
+                    rsi_overbought = strategy_config.get('rsi_exit_overbought', 70)
+                    rsi_oversold = strategy_config.get('rsi_exit_oversold', 30)
+                    
+                    if position_side == 'BUY' and rsi_current >= rsi_overbought:
+                        self.logger.info(f"LONG TAKE PROFIT: RSI overbought at {rsi_current:.2f}")
+                        return f"Take Profit (RSI {rsi_overbought}+)"
+                    elif position_side == 'SELL' and rsi_current <= rsi_oversold:
+                        self.logger.info(f"SHORT TAKE PROFIT: RSI oversold at {rsi_current:.2f}")
+                        return f"Take Profit (RSI {rsi_oversold}-)"
+                
+                # Method 4: Dynamic Target (based on volatility)
+                elif profit_method == 'dynamic':
+                    min_profit = strategy_config.get('dynamic_profit_min', 1.0)
+                    max_profit = strategy_config.get('dynamic_profit_max', 4.0)
+                    
+                    # Calculate recent volatility (simplified)
+                    if len(df) >= 20:
+                        volatility = df['close'].tail(20).std() / df['close'].iloc[-1] * 100
+                        # Higher volatility = higher profit target
+                        dynamic_target = min(max_profit, max(min_profit, volatility * 2))
+                        
+                        if position_side == 'BUY' and current_price >= entry_price * (1 + dynamic_target/100):
+                            self.logger.info(f"LONG TAKE PROFIT: Dynamic target {dynamic_target:.1f}% reached")
+                            return f"Take Profit (Dynamic {dynamic_target:.1f}%)"
+                        elif position_side == 'SELL' and current_price <= entry_price * (1 - dynamic_target/100):
+                            self.logger.info(f"SHORT TAKE PROFIT: Dynamic target {dynamic_target:.1f}% reached")
+                            return f"Take Profit (Dynamic {dynamic_target:.1f}%)"
                 
             # Fallback to traditional TP/SL for non-RSI strategies
             elif 'rsi' not in strategy_name.lower():

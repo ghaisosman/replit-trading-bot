@@ -486,6 +486,87 @@
                             <div class="form-text">Time to wait before allowing another trade on the same symbol/strategy (30-3600 seconds)</div>
                         </div>
 
+                        <!-- Liquidity Reversal Strategy Parameters -->
+                        <div id="liquidityParameters" style="display: none;">
+                            <h6 class="text-primary mt-3">Liquidity Reversal Strategy Parameters</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="swingLookback" class="form-label">Swing Lookback Periods</label>
+                                        <input type="number" class="form-control" id="swingLookback" min="5" max="50" value="20">
+                                        <div class="form-text">Candles to look back for swing highs/lows</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="sweepThreshold" class="form-label">Sweep Threshold %</label>
+                                        <input type="number" class="form-control" id="sweepThreshold" step="0.1" min="0.1" max="2.0" value="0.5">
+                                        <div class="form-text">% beyond level required for liquidity sweep</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="volumeSurgeMultiplier" class="form-label">Volume Surge Multiplier</label>
+                                        <input type="number" class="form-control" id="volumeSurgeMultiplier" step="0.1" min="1.5" max="5.0" value="2.0">
+                                        <div class="form-text">Volume must be X times average</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="confirmationCandles" class="form-label">Confirmation Candles</label>
+                                        <input type="number" class="form-control" id="confirmationCandles" min="1" max="5" value="2">
+                                        <div class="form-text">Candles needed to confirm reversal</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="profitTargetMethod" class="form-label">Profit Target Method</label>
+                                        <select class="form-control" id="profitTargetMethod">
+                                            <option value="mean_reversion">Mean Reversion</option>
+                                            <option value="fixed_percent">Fixed Percentage</option>
+                                            <option value="rsi_based">RSI Based</option>
+                                            <option value="dynamic">Dynamic (Volatility)</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="fixedProfitPercent" class="form-label">Fixed Profit %</label>
+                                        <input type="number" class="form-control" id="fixedProfitPercent" step="0.1" min="0.5" max="10.0" value="2.0">
+                                        <div class="form-text">Used when method is "Fixed Percentage"</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="meanReversionPeriods" class="form-label">Mean Reversion Periods</label>
+                                        <input type="number" class="form-control" id="meanReversionPeriods" min="20" max="100" value="50">
+                                        <div class="form-text">MA periods for mean reversion target</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="meanReversionBuffer" class="form-label">Mean Reversion Buffer %</label>
+                                        <input type="number" class="form-control" id="meanReversionBuffer" step="0.1" min="0.1" max="2.0" value="0.5">
+                                        <div class="form-text">% buffer around MA for exit trigger</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="rsiExitOverbought" class="form-label">RSI Exit Overbought</label>
+                                        <input type="number" class="form-control" id="rsiExitOverbought" min="60" max="90" value="70">
+                                        <div class="form-text">RSI level for long profit taking</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="rsiExitOversold" class="form-label">RSI Exit Oversold</label>
+                                        <input type="number" class="form-control" id="rsiExitOversold" min="10" max="40" value="30">
+                                        <div class="form-text">RSI level for short profit taking</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="dynamicProfitMin" class="form-label">Dynamic Profit Min %</label>
+                                        <input type="number" class="form-control" id="dynamicProfitMin" step="0.1" min="0.5" max="5.0" value="1.0">
+                                        <div class="form-text">Minimum profit for dynamic targeting</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="dynamicProfitMax" class="form-label">Dynamic Profit Max %</label>
+                                        <input type="number" class="form-control" id="dynamicProfitMax" step="0.1" min="2.0" max="10.0" value="4.0">
+                                        <div class="form-text">Maximum profit for dynamic targeting</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- RSI Strategy Parameters (shown only for RSI strategies) -->
                         <div id="rsiParameters" style="display: none;">
                             <h6 class="text-primary mt-3">RSI Strategy Parameters</h6>

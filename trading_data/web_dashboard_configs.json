@@ -58,6 +58,17 @@
     "volume_surge_multiplier": 2.0,
     "funding_rate_threshold": 0.1,
     "confirmation_candles": 2,
-    "min_liquidity_distance": 0.002
+    "min_liquidity_distance": 0.002,
+    "profit_target_method": "mean_reversion",
+    "fixed_profit_percent": 2.0,
+    "mean_reversion_periods": 50,
+    "mean_reversion_buffer": 0.5,
+    "rsi_exit_overbought": 70,
+    "rsi_exit_oversold": 30,
+    "dynamic_profit_min": 1.0,
+    "dynamic_profit_max": 4.0,
+    "trailing_stop_enabled": false,
+    "trailing_stop_percent": 1.5,
+    "max_hold_duration": 240
   }
 }
