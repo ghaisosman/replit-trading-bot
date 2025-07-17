@@ -18,6 +18,8 @@ from typing import Dict, Any
 # Define trades directory path
 trades_dir = Path("trading_data/trades")
 
+# SINGLE SOURCE CONTROL: Web dashboard should only be launched from main.py
+# This prevents conflicts and ensures proper startup sequence
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
 
@@ -29,6 +31,13 @@ CORS(app, resources={
         "allow_headers": ["Content-Type", "Authorization"]
     }
 })
+
+# Ensure this Flask app is only started from main.py
+if __name__ == '__main__':
+    import sys
+    print("🚫 BLOCKED: Direct web_dashboard.py execution")
+    print("🔄 Use: python main.py")
+    sys.exit(1)
 
 # Global error handler to prevent 502 errors
 @app.errorhandler(Exception)
@@ -1133,18 +1142,10 @@ def catch_all(path):
     }), 404
 
 if __name__ == '__main__':
-    # Debug: Print all registered routes
-    log_routes()
-    
-    # Verify critical routes
-    verify_routes()
-    
-    # Ensure RSI routes are properly registered
-    logger.info("🔍 Checking RSI route registration...")
-    rsi_routes = [rule for rule in app.url_map.iter_rules() if '/api/rsi/' in rule.rule]
-    if rsi_routes:
-        logger.info(f"✅ RSI routes found: {[rule.rule for rule in rsi_routes]}")
-    else:
-        logger.warning("⚠️ No RSI routes found - will be available after restart")
-    
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # This block should never execute in production
+    # Web dashboard should ONLY be launched from main.py
+    logger.warning("🚫 DIRECT WEB_DASHBOARD.PY LAUNCH BLOCKED")
+    logger.warning("🔄 Web dashboard should only be started from main.py")
+    logger.warning("💡 Run 'python main.py' instead")
+    print("❌ Direct execution of web_dashboard.py is disabled")
+    print("🔄 Please run 'python main.py' to start the bot with web dashboard")
