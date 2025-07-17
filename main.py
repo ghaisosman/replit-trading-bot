@@ -31,17 +31,27 @@ def signal_handler(signum, frame):
 def check_port_available(port):
     """Check if a port is available"""
     import socket
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind(('0.0.0.0', port))
             return True
-        except OSError:
-            return False
+    except OSError as e:
+        # Port is in use or other socket error
+        return False
+    except Exception as e:
+        # Unexpected error
+        return False
 
 def run_web_dashboard():
     """Run web dashboard in separate thread - keeps running even if bot stops"""
     global web_server_running
     logger = logging.getLogger(__name__)
+
+    # Singleton check - prevent multiple instances
+    if web_server_running:
+        logger.info("🌐 Web dashboard already running - skipping duplicate start")
+        return
 
     # Check if running in deployment environment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
@@ -52,24 +62,64 @@ def run_web_dashboard():
         # Import and run web dashboard
         from web_dashboard import app
         
+        # Create process lock file to prevent conflicts
+        lock_file = "/tmp/web_dashboard.lock"
+        if os.path.exists(lock_file):
+            try:
+                with open(lock_file, 'r') as f:
+                    existing_pid = int(f.read().strip())
+                # Check if process is still running
+                try:
+                    os.kill(existing_pid, 0)  # Check if process exists
+                    logger.error(f"🚨 Another web dashboard is running (PID: {existing_pid})")
+                    logger.error("🚫 MAIN.PY: Preventing duplicate instance")
+                    return
+                except OSError:
+                    # Process doesn't exist, remove stale lock file
+                    os.remove(lock_file)
+                    logger.info("🔄 Removed stale lock file")
+            except (ValueError, FileNotFoundError):
+                # Invalid or missing lock file, remove it
+                try:
+                    os.remove(lock_file)
+                except:
+                    pass
+
+        # Create lock file with current PID
+        try:
+            with open(lock_file, 'w') as f:
+                f.write(str(os.getpid()))
+            logger.info(f"🔒 Created web dashboard lock file (PID: {os.getpid()})")
+        except Exception as e:
+            logger.warning(f"Could not create lock file: {e}")
+
         # SINGLE SOURCE CHECK - Ensure no duplicate web dashboard instances
         if not check_port_available(5000):
             logger.error("🚨 PORT 5000 UNAVAILABLE: Another web dashboard instance detected")
             logger.error("🚫 MAIN.PY: Cleaning up duplicate instances")
             
-            # Kill existing processes using port 5000
+            # Kill existing processes using port 5000 - Replit compatible method
             try:
-                import subprocess
-                result = subprocess.run(['lsof', '-t', '-i:5000'], capture_output=True, text=True)
-                if result.returncode == 0 and result.stdout.strip():
-                    pids = result.stdout.strip().split('\n')
-                    for pid in pids:
-                        try:
-                            subprocess.run(['kill', '-9', pid], check=True)
-                            logger.info(f"🔄 Killed process {pid} using port 5000")
-                        except subprocess.CalledProcessError:
-                            pass
-                    
+                # Use psutil instead of lsof for Replit compatibility
+                import psutil
+                killed_count = 0
+                
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'connections']):
+                    try:
+                        # Check if process is using port 5000
+                        if proc.info['connections']:
+                            for conn in proc.info['connections']:
+                                if hasattr(conn, 'laddr') and conn.laddr and conn.laddr.port == 5000:
+                                    if proc.pid != os.getpid():  # Don't kill ourselves
+                                        proc.terminate()
+                                        logger.info(f"🔄 Killed process {proc.pid} using port 5000")
+                                        killed_count += 1
+                                        break
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                        continue
+                
+                if killed_count > 0:
+                    logger.info(f"🔄 Terminated {killed_count} processes using port 5000")
                     # Wait for port to be freed
                     time.sleep(3)
                     
@@ -82,8 +132,23 @@ def run_web_dashboard():
                 else:
                     logger.info("🔍 No processes found using port 5000")
             except Exception as e:
-                logger.error(f"Error during port cleanup: {e}")
-                return
+                logger.error(f"Error during psutil port cleanup: {e}")
+                # Fallback to simple process termination
+                try:
+                    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                        try:
+                            if proc.info['cmdline']:
+                                cmdline_str = ' '.join(proc.info['cmdline'])
+                                if ('flask' in cmdline_str.lower() or 'web_dashboard' in cmdline_str.lower()):
+                                    if proc.pid != os.getpid():
+                                        proc.terminate()
+                                        logger.info(f"🔄 Terminated Flask process {proc.pid}")
+                        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                            continue
+                    time.sleep(2)
+                except:
+                    logger.error("Fallback cleanup also failed")
+                    return
 
         web_server_running = True
         logger.info("🌐 Starting web dashboard on 0.0.0.0:5000")
@@ -135,15 +200,17 @@ def run_web_dashboard():
                     logger.error("🚨 CRITICAL: Port 5000 still unavailable after cleanup")
                     logger.error("💡 Trying alternative port cleanup method...")
                     
-                    # Alternative cleanup using netstat
+                    # Alternative cleanup using psutil connection check
                     try:
-                        import subprocess
-                        result = subprocess.run(['netstat', '-tlnp'], capture_output=True, text=True)
-                        if result.returncode == 0:
-                            lines = result.stdout.split('\n')
-                            for line in lines:
-                                if ':5000' in line and 'LISTEN' in line:
-                                    logger.info(f"🔍 Found port 5000 in use: {line.strip()}")
+                        import psutil
+                        for proc in psutil.process_iter(['pid', 'name', 'connections']):
+                            try:
+                                if proc.info['connections']:
+                                    for conn in proc.info['connections']:
+                                        if hasattr(conn, 'laddr') and conn.laddr and conn.laddr.port == 5000:
+                                            logger.info(f"🔍 Found process {proc.pid} ({proc.info['name']}) using port 5000")
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                continue
                     except:
                         pass
                     
@@ -194,6 +261,14 @@ def run_web_dashboard():
                     logger.error("🚨 Web dashboard restart failed")
     finally:
         web_server_running = False
+        # Clean up lock file
+        lock_file = "/tmp/web_dashboard.lock"
+        try:
+            if os.path.exists(lock_file):
+                os.remove(lock_file)
+                logger.info("🔓 Removed web dashboard lock file")
+        except Exception as e:
+            logger.warning(f"Could not remove lock file: {e}")
         logger.info("🔴 Web dashboard stopped")
 
 async def main_bot_only():
