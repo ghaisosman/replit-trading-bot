@@ -391,8 +391,12 @@ if __name__ == "__main__":
             import web_dashboard
             web_dashboard.bot_manager = bm
             web_dashboard.shared_bot_manager = bm
+            web_dashboard.current_bot = bm
+            logger.info(f"✅ Bot manager shared with web dashboard: {type(bm).__name__}")
         except ImportError:
             logger.warning("web_dashboard module not found, cannot set bot_manager")
+        except Exception as e:
+            logger.error(f"Error sharing bot manager with web dashboard: {e}")
 
     # Check if running in deployment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'

@@ -162,8 +162,10 @@ class DummyBotManager:
 class DummyConfigManagerFull:
     def __init__(self):
         self.strategy_overrides = {
-            'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
-            'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 23.0, 'leverage': 5, 'timeframe': '5m'}
+            'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 5.0, 'leverage': 5, 'timeframe': '15m'},
+            'macd_divergence': {'symbol': 'ETHUSDT', 'margin': 10.0, 'leverage': 5, 'timeframe': '15m'},
+            'RSI_OVERSOLD1': {'symbol': 'XRPUSDT', 'margin': 5.0, 'leverage': 5, 'timeframe': '15m'},
+            'liquidity_reversal': {'symbol': 'BTCUSDT', 'margin': 15.0, 'leverage': 5, 'timeframe': '15m'}
         }
 
     def get_all_strategies(self):
@@ -211,32 +213,59 @@ def dashboard():
         # Get current bot status
         status = get_bot_status()
 
-        # Get balance and strategies
-        if IMPORTS_AVAILABLE:
-            balance = balance_fetcher.get_usdt_balance() or 0
-            strategies = trading_config_manager.get_all_strategies()
+        # Get current bot manager
+        current_bot = get_current_bot_manager()
 
-            # Ensure we always have both strategies available for display
-            if 'rsi_oversold' not in strategies:
-                strategies['rsi_oversold'] = {
-                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
-                    'max_loss_pct': 5, 'assessment_interval': 20
+        # Get balance and strategies with improved error handling
+        if IMPORTS_AVAILABLE:
+            try:
+                balance = balance_fetcher.get_usdt_balance() or 0
+            except:
+                balance = 0
+            
+            # Try to get strategies from bot manager first, then fallback to config manager
+            strategies = {}
+            if current_bot and hasattr(current_bot, 'strategies'):
+                strategies = current_bot.strategies
+                print(f"✅ Got strategies from bot manager: {list(strategies.keys())}")
+            elif hasattr(trading_config_manager, 'get_all_strategies'):
+                try:
+                    strategies = trading_config_manager.get_all_strategies()
+                    print(f"✅ Got strategies from config manager: {list(strategies.keys())}")
+                except Exception as e:
+                    print(f"Error getting strategies from config manager: {e}")
+                    strategies = {}
+            
+            # Ensure we always have strategies available for display
+            if not strategies:
+                strategies = {
+                    'rsi_oversold': {
+                        'symbol': 'SOLUSDT', 'margin': 5.0, 'leverage': 5, 'timeframe': '15m',
+                        'max_loss_pct': 10, 'assessment_interval': 60
+                    },
+                    'macd_divergence': {
+                        'symbol': 'ETHUSDT', 'margin': 10.0, 'leverage': 5, 'timeframe': '15m',
+                        'max_loss_pct': 10, 'assessment_interval': 60
+                    },
+                    'RSI_OVERSOLD1': {
+                        'symbol': 'XRPUSDT', 'margin': 5.0, 'leverage': 5, 'timeframe': '15m',
+                        'max_loss_pct': 10, 'assessment_interval': 60
+                    },
+                    'liquidity_reversal': {
+                        'symbol': 'BTCUSDT', 'margin': 15.0, 'leverage': 5, 'timeframe': '15m',
+                        'max_loss_pct': 10, 'assessment_interval': 60
+                    }
                 }
-            if 'macd_divergence' not in strategies:
-                strategies['macd_divergence'] = {
-                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
-                    'max_loss_pct': 10, 'assessment_interval': 60
-                }
+                print("✅ Using default strategies for display")
         else:
             balance = 100.0  # Default for demo
             strategies = {
-                'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
-                'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '5m'}
+                'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 5.0, 'leverage': 5, 'timeframe': '15m'},
+                'macd_divergence': {'symbol': 'ETHUSDT', 'margin': 10.0, 'leverage': 5, 'timeframe': '15m'}
             }
 
-        # Get active positions from both shared and standalone bot
+        # Get active positions from bot manager
         active_positions = []
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
 
         if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
             for strategy_name, position in current_bot.order_manager.active_positions.items():
@@ -459,22 +488,56 @@ def get_current_bot_manager():
     """Helper function to get the current bot manager instance"""
     global bot_manager, shared_bot_manager, current_bot
     
-    # Try to refresh the bot manager reference from main module
-    fresh_manager = get_bot_manager_from_main()
-    if fresh_manager is not None:
-        bot_manager = fresh_manager
-        shared_bot_manager = fresh_manager
-        current_bot = fresh_manager
-        return fresh_manager
+    # Try multiple methods to get the real bot manager
+    
+    # Method 1: Check main module
+    try:
+        import sys
+        main_module = sys.modules.get('__main__')
+        if main_module and hasattr(main_module, 'bot_manager'):
+            manager = getattr(main_module, 'bot_manager')
+            if manager is not None and not isinstance(manager, DummyBotManager):
+                print(f"✅ Found real bot manager from main module: {type(manager).__name__}")
+                bot_manager = manager
+                shared_bot_manager = manager
+                current_bot = manager
+                return manager
+    except Exception as e:
+        print(f"Error checking main module: {e}")
+    
+    # Method 2: Check if we can import and get the bot manager directly
+    try:
+        from main import bot_manager as main_bot_manager
+        if main_bot_manager is not None and not isinstance(main_bot_manager, DummyBotManager):
+            print(f"✅ Found real bot manager from main import: {type(main_bot_manager).__name__}")
+            bot_manager = main_bot_manager
+            shared_bot_manager = main_bot_manager
+            current_bot = main_bot_manager
+            return main_bot_manager
+    except Exception as e:
+        print(f"Could not import bot manager from main: {e}")
+    
+    # Method 3: Try to access via globals
+    try:
+        if IMPORTS_AVAILABLE:
+            # Try to create a temporary bot manager instance to check if the real one exists
+            from src.bot_manager import BotManager
+            print("✅ BotManager class available - checking for running instance")
+    except Exception as e:
+        print(f"Could not access BotManager class: {e}")
     
     # Fallback to existing references
     if shared_bot_manager and not isinstance(shared_bot_manager, DummyBotManager):
+        print(f"✅ Using existing shared bot manager: {type(shared_bot_manager).__name__}")
         return shared_bot_manager
     elif bot_manager and not isinstance(bot_manager, DummyBotManager):
+        print(f"✅ Using existing bot manager: {type(bot_manager).__name__}")
         return bot_manager
     elif current_bot and not isinstance(current_bot, DummyBotManager):
+        print(f"✅ Using existing current bot: {type(current_bot).__name__}")
         return current_bot
     
+    print("⚠️ No real bot manager found - using dummy")
     return None
 
 @app.route('/api/bot/status')
