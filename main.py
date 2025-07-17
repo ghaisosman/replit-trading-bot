@@ -62,7 +62,7 @@ def run_web_dashboard():
 
         web_server_running = True
         logger.info("🌐 WEB DASHBOARD: Starting Flask server on http://0.0.0.0:5000")
-        
+
         # Configure Flask for proper error handling
         app.config['TESTING'] = False
         app.config['DEBUG'] = True  # Enable debug for better error messages
@@ -71,7 +71,7 @@ def run_web_dashboard():
         # Run Flask with proper configuration
         port = int(os.environ.get('PORT', 5000))
         logger.info(f"🌐 Starting web dashboard on 0.0.0.0:{port}")
-        
+
         # Start Flask server
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
 
@@ -79,11 +79,11 @@ def run_web_dashboard():
         logger.error(f"🚨 WEB DASHBOARD ERROR: {str(e)}")
         import traceback
         logger.error(f"🚨 Traceback: {traceback.format_exc()}")
-        
+
         if "Address already in use" in str(e):
             logger.error("🚨 CRITICAL: Port 5000 is still in use")
             logger.info("💡 Try using a different port or restart the Repl")
-        
+
         # Try alternative port
         try:
             for alt_port in [5001, 5002, 5003]:
@@ -121,8 +121,16 @@ async def main_bot_only():
             # Initialize the bot manager
             bot_manager = BotManager()
 
-            # Make bot manager accessible to web interface using centralized function
+            # CRITICAL: Make bot manager accessible to web interface IMMEDIATELY
             set_bot_manager(bot_manager)
+
+            # Additional safety - ensure web dashboard can access the bot manager
+            import web_dashboard
+            web_dashboard.bot_manager = bot_manager
+            web_dashboard.shared_bot_manager = bot_manager
+            web_dashboard.current_bot = bot_manager
+
+            logger.info("✅ Bot manager connected to web dashboard successfully")
 
             # Start the bot in a task so we can handle shutdown signals
             logger.info("🚀 Starting trading bot main loop...")
@@ -159,8 +167,9 @@ async def main_bot_only():
                     logger.error("🚨 DEPLOYMENT MODE: Bot cannot start due to API restrictions")
                     logger.error("🌐 Web dashboard will remain active for manual monitoring")
                     logger.error("💡 Your existing mainnet positions can be monitored via web interface")
-                    bot_manager = None
-                    sys.modules['__main__'].bot_manager = None
+                    # Don't set bot_manager to None - keep it for web dashboard
+                    # bot_manager = None
+                    # sys.modules['__main__'].bot_manager = None
                 else:
                     raise e
             else:
@@ -211,8 +220,16 @@ async def main():
             # Initialize the bot manager
             bot_manager = BotManager()
 
-            # Make bot manager accessible to web interface using centralized function
+            # CRITICAL: Make bot manager accessible to web interface IMMEDIATELY
             set_bot_manager(bot_manager)
+
+            # Additional safety - ensure web dashboard can access the bot manager
+            import web_dashboard
+            web_dashboard.bot_manager = bot_manager
+            web_dashboard.shared_bot_manager = bot_manager
+            web_dashboard.current_bot = bot_manager
+
+            logger.info("✅ Bot manager connected to web dashboard successfully")
 
             # Start the bot in a task so we can handle shutdown signals
             logger.info("🚀 Starting trading bot main loop...")
@@ -249,8 +266,9 @@ async def main():
                     logger.error("🚨 DEPLOYMENT MODE: Bot cannot start due to API restrictions")
                     logger.error("🌐 Web dashboard will remain active for manual monitoring")
                     logger.error("💡 Your existing mainnet positions can be monitored via web interface")
-                    bot_manager = None
-                    sys.modules['__main__'].bot_manager = None
+                    # Don't set bot_manager to None - keep it for web dashboard
+                    # bot_manager = None
+                    # sys.modules['__main__'].bot_manager = None
                 else:
                     raise e
             else:
