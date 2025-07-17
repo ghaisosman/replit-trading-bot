@@ -200,7 +200,7 @@ class ColoredFormatter(logging.Formatter):
 
         # Create Telegram-style vertical message
         if is_active_position:
-            # Active position display with simplified formatting to prevent nesting
+            # Active position display with clean formatting to prevent nesting
             formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
 │ 📊 ACTIVE POSITION                                │
 │ ⏰ {timestamp}                                        │
@@ -210,7 +210,7 @@ class ColoredFormatter(logging.Formatter):
 └─────────────────────────────────────────────────┘{reset}
 """
         elif "TRADE IN PROGRESS" in message:
-            # Trade in progress - simplified formatting to prevent nesting
+            # Trade in progress - clean formatting without nesting
             formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
 │ 📊 TRADE IN PROGRESS                             │
 │ ⏰ {timestamp}                                        │
@@ -243,62 +243,52 @@ class ColoredFormatter(logging.Formatter):
 └─────────────────────────────────────────────────┘{reset}
 """
         elif "TRADE ENTRY" in message or "POSITION OPENED" in message:
-            # Trade entry - highlighted
-            msg_lines = format_structured_message(message)
-            formatted_lines = "║\n".join([f"║ {line}" for line in msg_lines])
+            # Trade entry - clean formatting without nesting
             formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
 ║ 🟢 TRADE ENTRY                                   ║
 ║ ⏰ {timestamp}                                        ║
 ║                                                   ║
-{formatted_lines}
+║ {message}                                         ║
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝{reset}
 """
         elif "TRADE CLOSED" in message or "POSITION CLOSED" in message:
-            # Trade closed - highlighted
-            msg_lines = format_structured_message(message)
-            formatted_lines = "║\n".join([f"║ {line}" for line in msg_lines])
+            # Trade closed - clean formatting without nesting
             formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
 ║ 🔴 TRADE CLOSED                                  ║
 ║ ⏰ {timestamp}                                        ║
 ║                                                   ║
-{formatted_lines}
+║ {message}                                         ║
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝{reset}
 """
         elif record.levelname == 'ERROR':
-            # Error - double border
-            msg_lines = [message]
-            formatted_lines = "║\n".join([f"║ {line}" for line in msg_lines])
+            # Error - clean formatting without nesting
             formatted_message = f"""{separator}{text_color}╔═══════════════════════════════════════════════════╗
 ║ ❌ ERROR                                         ║
 ║ ⏰ {timestamp}                                        ║
 ║                                                   ║
-{formatted_lines}
+║ {message}                                         ║
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝{reset}
 """
         elif record.levelname == 'WARNING':
-            # Warning - rounded border
-            msg_lines = [message]
-            formatted_lines = "│\n".join([f"│ {line}" for line in msg_lines])
+            # Warning - clean formatting without nesting
             formatted_message = f"""{separator}{text_color}╭─────────────────────────────────────────────────╮
 │ ⚠️  WARNING                                       │
 │ ⏰ {timestamp}                                      │
 │                                                 │
-{formatted_lines}
+│ {message}                                         │
 │                                                 │
 ╰─────────────────────────────────────────────────╯{reset}
 """
         else:
-            # Regular info - simple border
-            msg_lines = [message]
-            formatted_lines = "│\n".join([f"│ {line}" for line in msg_lines])
+            # Regular info - clean formatting without nesting
             formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
 │ ℹ️  INFO                                          │
 │ ⏰ {timestamp}                                      │
 │                                                 │
-{formatted_lines}
+│ {message}                                         │
 │                                                 │
 └─────────────────────────────────────────────────┘{reset}
 """
