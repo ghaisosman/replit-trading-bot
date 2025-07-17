@@ -766,7 +766,12 @@
         // Update bot status
         function updateBotStatus() {
             fetch('/api/bot/status')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     const statusBadge = document.getElementById('statusBadge');
                     const botToggle = document.getElementById('botToggle');
@@ -795,13 +800,30 @@
                 })
                 .catch(error => {
                     console.error('Error updating bot status:', error);
+                    // Show offline status
+                    const statusBadge = document.getElementById('statusBadge');
+                    const botToggle = document.getElementById('botToggle');
+                    if (statusBadge) {
+                        statusBadge.textContent = 'OFFLINE';
+                        statusBadge.className = 'badge bg-warning me-2';
+                    }
+                    if (botToggle) {
+                        botToggle.textContent = 'Reconnecting...';
+                        botToggle.className = 'btn btn-warning btn-sm';
+                        botToggle.disabled = true;
+                    }
                 });
         }
 
         // Update balance
         function updateBalance() {
             fetch('/api/balance')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     const balance = document.getElementById('balance');
                     if (balance) {
@@ -810,13 +832,22 @@
                 })
                 .catch(error => {
                     console.error('Error updating balance:', error);
+                    const balance = document.getElementById('balance');
+                    if (balance) {
+                        balance.textContent = 'N/A';
+                    }
                 });
         }
 
         // Update console log
         function updateConsoleLog() {
             fetch('/api/console-log')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     const consoleLog = document.getElementById('consoleLog');
                     if (consoleLog && data.success && data.logs) {
@@ -828,6 +859,10 @@
                 })
                 .catch(error => {
                     console.error('Error fetching console log:', error);
+                    const consoleLog = document.getElementById('consoleLog');
+                    if (consoleLog) {
+                        consoleLog.innerHTML = '<div class="text-warning">⚠️ Connection lost - Reconnecting...</div>';
+                    }
                 });
         }
 
@@ -1035,7 +1070,7 @@
             }
 
             fetch('/api/strategies/' + strategyName, {
-                method: 'PUT',
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },

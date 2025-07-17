@@ -1276,6 +1276,34 @@ def train_models():
         logger.error(f"Error training ML models: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/strategies/<strategy_name>', methods=['PUT'])
+def update_strategy_config(strategy_name):
+    """Update strategy configuration using PUT method"""
+    return update_strategy(strategy_name)
+
+@app.route('/api/environment', methods=['POST'])
+def update_environment():
+    """Update environment configuration"""
+    try:
+        data = request.get_json()
+        if not data or 'environment' not in data:
+            return jsonify({'success': False, 'message': 'Missing environment parameter'})
+        
+        environment = data['environment']
+        is_testnet = environment == 'TESTNET'
+        
+        # Update global config
+        if IMPORTS_AVAILABLE:
+            global_config.BINANCE_TESTNET = is_testnet
+            
+        return jsonify({
+            'success': True,
+            'message': f'Environment updated to {environment}',
+            'environment': environment
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Failed to update environment: {e}'})
+
 @app.route('/api/trading/environment', methods=['POST'])
 def update_trading_environment():
     """Update trading environment (testnet/mainnet)"""
@@ -1339,8 +1367,16 @@ def update_trading_environment():
 def run_web_dashboard():
     """Run the web dashboard"""
     try:
-        logger.info("🌐 Starting web dashboard on port 5000")
-        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
+        # Get port from environment for deployment compatibility
+        port = int(os.environ.get('PORT', 5000))
+        logger.info(f"🌐 Starting web dashboard on 0.0.0.0:{port}")
+        
+        # Disable Flask's default request logging
+        import logging as flask_logging
+        werkzeug_logger = flask_logging.getLogger('werkzeug')
+        werkzeug_logger.setLevel(flask_logging.WARNING)
+        
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
     except Exception as e:
         logger.error(f"Web dashboard error: {e}")
         if "Address already in use" in str(e):

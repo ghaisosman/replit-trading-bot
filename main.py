@@ -65,9 +65,13 @@ def run_web_dashboard():
         port = int(os.environ.get('PORT', 5000))
         
         # Run Flask app
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)stances...")
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
 
-            # Try to kill any processes using port 5000
+    except Exception as e:
+        logger.error(f"Web dashboard error: {e}")
+        if "Address already in use" in str(e):
+            logger.error("🚨 PORT 5000 UNAVAILABLE: Another web dashboard instance detected")
+            logger.error("🚫 MAIN.PY: Cleaning up duplicate in
             try:
                 # Kill Python processes that might be using port 5000
                 killed_count = 0
