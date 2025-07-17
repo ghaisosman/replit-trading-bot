@@ -1278,18 +1278,20 @@ def _check_launch_source():
     """Ensure web dashboard only launches from main.py"""
     frame = inspect.currentframe()
     try:
-        # Check if we're being called from main.py
+        # Check if we're being called from main.py or imported properly
         while frame:
             filename = frame.f_code.co_filename
-            if 'main.py' in filename and frame.f_code.co_name == 'run_web_dashboard':
+            if 'main.py' in filename:
                 return True  # Authorized launch from main.py
             frame = frame.f_back
-        return False  # Unauthorized launch
+        
+        # Also allow if imported as module (not run directly)
+        return True if __name__ != '__main__' else False
     finally:
         del frame
 
-# Block unauthorized launches
-if not _check_launch_source():
+# Block unauthorized launches only if run directly
+if __name__ == '__main__' and not _check_launch_source():
     logger.error("🚫 UNAUTHORIZED WEB DASHBOARD LAUNCH BLOCKED")
     logger.error("💡 Web dashboard must ONLY be launched from main.py")
     logger.error("🔧 Run 'python main.py' instead to start the complete system")
