@@ -150,115 +150,20 @@ bot_manager = get_bot_manager_from_main()
 shared_bot_manager = bot_manager
 current_bot = bot_manager
 
-# Dummy classes for when bot manager is not available
-class DummyBotManager:
-    def __init__(self):
-        self.is_running = False
-        self.strategies = {
-            'rsi_oversold': {
-                'symbol': 'SOLUSDT', 'margin': 5.0, 'leverage': 5, 'timeframe': '15m',
-                'max_loss_pct': 10, 'assessment_interval': 60,
-                'rsi_long_entry': 40, 'rsi_long_exit': 70,
-                'rsi_short_entry': 60, 'rsi_short_exit': 30,
-                'decimals': 2
-            },
-            'macd_divergence': {
-                'symbol': 'ETHUSDT', 'margin': 10.0, 'leverage': 5, 'timeframe': '15m',
-                'max_loss_pct': 10, 'assessment_interval': 60,
-                'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
-                'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005,
-                'confirmation_candles': 2, 'decimals': 2
-            },
-            'RSI_OVERSOLD1': {
-                'symbol': 'XRPUSDT', 'margin': 5.0, 'leverage': 5, 'timeframe': '15m',
-                'max_loss_pct': 10, 'assessment_interval': 60,
-                'rsi_long_entry': 40, 'rsi_long_exit': 70,
-                'rsi_short_entry': 60, 'rsi_short_exit': 30,
-                'decimals': 3
-            },
-            'liquidity_reversal': {
-                'symbol': 'BTCUSDT', 'margin': 15.0, 'leverage': 5, 'timeframe': '15m',
-                'max_loss_pct': 8, 'assessment_interval': 30,
-                'swing_lookback': 20, 'sweep_threshold': 0.5,
-                'volume_surge_multiplier': 2.0, 'confirmation_candles': 2,
-                'profit_target_method': 'mean_reversion', 'fixed_profit_percent': 2.0,
-                'mean_reversion_periods': 50, 'mean_reversion_buffer': 0.5,
-                'rsi_exit_overbought': 70, 'rsi_exit_oversold': 30,
-                'dynamic_profit_min': 1.0, 'dynamic_profit_max': 4.0,
-                'decimals': 3
-            }
-        }
+# No dummy classes needed - always use real bot manager
 
-    def get_bot_status(self):
-        return {
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': [],
-            'balance': 0
-        }
+# Always use real components - Web dashboard is single source of truth
+from src.config.trading_config import trading_config_manager
+print("✅ Trading config manager loaded - Web dashboard is single source of truth")
 
-    def get_all_strategies(self):
-        """Return default strategies for web dashboard configuration"""
-        return self.strategies
-
-    def update_strategy_config(self, strategy_name, updates):
-        if strategy_name in self.strategies:
-            self.strategies[strategy_name].update(updates)
-
-class DummyConfigManagerFull:
-    def __init__(self):
-        self.strategy_overrides = {
-            'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 5.0, 'leverage': 5, 'timeframe': '15m'},
-            'macd_divergence': {'symbol': 'ETHUSDT', 'margin': 10.0, 'leverage': 5, 'timeframe': '15m'},
-            'RSI_OVERSOLD1': {'symbol': 'XRPUSDT', 'margin': 5.0, 'leverage': 5, 'timeframe': '15m'},
-            'liquidity_reversal': {'symbol': 'BTCUSDT', 'margin': 15.0, 'leverage': 5, 'timeframe': '15m'}
-        }
-
-    def get_all_strategies(self):
-        return self.strategy_overrides
-
-    def update_strategy_params(self, strategy_name, updates):
-        if strategy_name not in self.strategy_overrides:
-            self.strategy_overrides[strategy_name] = {}
-        self.strategy_overrides[strategy_name].update(updates)
-
-class DummyBalanceFetcher:
-    def get_usdt_balance(self):
-        return 0.0
-
-# Initialize fallback instances only if no real bot manager exists
-if not bot_manager and not IMPORTS_AVAILABLE:
-    bot_manager = DummyBotManager()
-    shared_bot_manager = bot_manager
-    current_bot = bot_manager
-    print("🔄 Using dummy bot manager for API endpoints")
-elif not bot_manager:
-    print("⚠️ No bot manager available but imports are working")
-
-# Create instances for dashboard - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH
-try:
-    # Always use the trading_config_manager for configuration management
-    from src.config.trading_config import trading_config_manager
-    print("✅ Trading config manager loaded - Web dashboard is single source of truth")
-
-    # Set up balance fetcher only if not already available
-    if not globals().get('balance_fetcher'):
-        try:
-            if current_bot and hasattr(current_bot, 'balance_fetcher'):
-                balance_fetcher = current_bot.balance_fetcher
-            else:
-                from src.data_fetcher.balance_fetcher import BalanceFetcher
-                from src.binance_client.client import BinanceClientWrapper
-                binance_client = BinanceClientWrapper()
-                balance_fetcher = BalanceFetcher(binance_client)
-        except:
-            balance_fetcher = DummyBalanceFetcher()
-
-except ImportError:
-    # Fallback to dummy config manager only if imports fail
-    trading_config_manager = DummyConfigManagerFull()
-    balance_fetcher = DummyBalanceFetcher()
-    print("⚠️ Using dummy config manager - Limited functionality")
+# Set up balance fetcher 
+if current_bot and hasattr(current_bot, 'balance_fetcher'):
+    balance_fetcher = current_bot.balance_fetcher
+else:
+    from src.data_fetcher.balance_fetcher import BalanceFetcher
+    from src.binance_client.client import BinanceClientWrapper
+    binance_client = BinanceClientWrapper()
+    balance_fetcher = BalanceFetcher(binance_client)
 
 @app.route('/')
 def dashboard():
@@ -267,7 +172,7 @@ def dashboard():
         # Get current bot status directly from bot manager
         current_bot = get_current_bot_manager()
 
-        if current_bot and hasattr(current_bot, 'get_bot_status') and not isinstance(current_bot, DummyBotManager):
+        if current_bot and hasattr(current_bot, 'get_bot_status'):
             bot_status_data = current_bot.get_bot_status()
             status = {
                 'is_running': bot_status_data.get('is_running', False),
@@ -565,11 +470,11 @@ def get_current_bot_manager():
 
     # Fallback to global bot_manager
     global bot_manager
-    if bot_manager and not isinstance(bot_manager, DummyBotManager):
+    if bot_manager:
         return bot_manager
 
-    # Last resort - return dummy
-    return DummyBotManager()
+    # Return None if no bot manager available
+    return None
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -586,7 +491,7 @@ def get_bot_status():
     try:
         current_bot = get_current_bot_manager()
 
-        if current_bot and hasattr(current_bot, 'get_bot_status') and not isinstance(current_bot, DummyBotManager):
+        if current_bot and hasattr(current_bot, 'get_bot_status'):
             bot_status = current_bot.get_bot_status()
             return jsonify(bot_status)
         else:
@@ -595,7 +500,7 @@ def get_bot_status():
                 'active_positions': 0,
                 'strategies': [],
                 'balance': 0.0,
-                'status': 'dummy'
+                'status': 'waiting_for_bot'
             })
     except Exception as e:
         print(f"❌ API ERROR: /api/bot/status - {e}")
@@ -1016,7 +921,7 @@ def get_rsi_for_symbol(symbol):
     try:
         current_bot = get_current_bot_manager()
 
-        if current_bot and not isinstance(current_bot, DummyBotManager):
+        if current_bot:
             strategies = getattr(current_bot, 'strategies', {})
 
             # Get RSI data from any RSI-based strategy
