@@ -786,7 +786,7 @@
             updateConsoleLog();
         }
 
-        // Update bot status
+        // Update bot status with enhanced error handling and strategy count display
         function updateBotStatus() {
             fetch('/api/bot/status')
                 .then(response => {
@@ -801,39 +801,85 @@
                     const botStatus = document.getElementById('botStatus');
                     const activePositions = document.getElementById('activePositions');
 
-                    if (data.running) {
-                        statusBadge.textContent = 'RUNNING';
-                        statusBadge.className = 'badge bg-success me-2';
-                        botToggle.textContent = 'Stop Bot';
-                        botToggle.className = 'btn btn-danger btn-sm';
-                        if (botStatus) botStatus.textContent = 'RUNNING';
-                        if (botStatus) botStatus.className = 'badge bg-success';
-                    } else {
-                        statusBadge.textContent = 'STOPPED';
-                        statusBadge.className = 'badge bg-danger me-2';
-                        botToggle.textContent = 'Start Bot';
-                        botToggle.className = 'btn btn-success btn-sm';
-                        if (botStatus) botStatus.textContent = 'STOPPED';
-                        if (botStatus) botStatus.className = 'badge bg-danger';
+                    // Always update button state first
+                    if (botToggle) {
+                        botToggle.disabled = false; // Re-enable button
                     }
 
+                    if (data.running) {
+                        if (statusBadge) {
+                            statusBadge.textContent = `RUNNING (${data.strategies || 0} strategies)`;
+                            statusBadge.className = 'badge bg-success me-2';
+                        }
+                        if (botToggle) {
+                            botToggle.textContent = 'Stop Bot';
+                            botToggle.className = 'btn btn-danger btn-sm';
+                        }
+                        if (botStatus) {
+                            botStatus.textContent = 'RUNNING';
+                            botStatus.className = 'badge bg-success';
+                        }
+                    } else {
+                        if (statusBadge) {
+                            statusBadge.textContent = `STOPPED (${data.strategies || 0} strategies)`;
+                            statusBadge.className = 'badge bg-danger me-2';
+                        }
+                        if (botToggle) {
+                            botToggle.textContent = 'Start Bot';
+                            botToggle.className = 'btn btn-success btn-sm';
+                        }
+                        if (botStatus) {
+                            botStatus.textContent = 'STOPPED';
+                            botStatus.className = 'badge bg-danger';
+                        }
+                    }
+
+                    // Update active positions count
                     if (activePositions) {
                         activePositions.textContent = data.active_positions || 0;
                     }
+
+                    // Log successful status update for debugging
+                    console.debug('Bot status updated:', {
+                        running: data.running,
+                        strategies: data.strategies,
+                        positions: data.active_positions
+                    });
                 })
                 .catch(error => {
                     console.error('Error updating bot status:', error);
-                    // Show offline status
+                    
+                    // Enhanced offline status handling
                     const statusBadge = document.getElementById('statusBadge');
                     const botToggle = document.getElementById('botToggle');
+                    const botStatus = document.getElementById('botStatus');
+                    const activePositions = document.getElementById('activePositions');
+                    
                     if (statusBadge) {
-                        statusBadge.textContent = 'OFFLINE';
+                        statusBadge.textContent = 'OFFLINE - Reconnecting...';
                         statusBadge.className = 'badge bg-warning me-2';
                     }
+                    
                     if (botToggle) {
                         botToggle.textContent = 'Reconnecting...';
                         botToggle.className = 'btn btn-warning btn-sm';
                         botToggle.disabled = true;
+                        
+                        // Auto-retry after 3 seconds
+                        setTimeout(() => {
+                            if (botToggle.disabled && botToggle.textContent === 'Reconnecting...') {
+                                updateBotStatus(); // Retry
+                            }
+                        }, 3000);
+                    }
+                    
+                    if (botStatus) {
+                        botStatus.textContent = 'OFFLINE';
+                        botStatus.className = 'badge bg-warning';
+                    }
+                    
+                    if (activePositions) {
+                        activePositions.textContent = '?';
                     }
                 });
         }

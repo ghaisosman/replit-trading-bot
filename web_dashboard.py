@@ -351,48 +351,112 @@ def stop_bot():
 
 @app.route('/api/bot/status')
 def get_bot_status():
-    """Get bot status"""
+    """Get bot status with comprehensive error handling and fallback data"""
     try:
-        # Get bot manager from main module
+        # Always try to get the latest shared bot manager first
         import sys
-        main_module = sys.modules.get('__main__')
-        bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
-
-        if not bot_manager:
-            return jsonify({
-                'status': 'stopped',
-                'message': 'Bot manager not initialized',
-                'strategies': 0,
-                'active_positions': 0,
-                'running': False
-            })
-
-        is_running = getattr(bot_manager, 'is_running', False)
-        strategies_count = len(getattr(bot_manager, 'strategies', {}))
-
-        # Safe access to order manager
-        active_positions = 0
-        if hasattr(bot_manager, 'order_manager') and bot_manager.order_manager:
-            try:
-                active_positions = len(bot_manager.order_manager.get_active_positions())
-            except:
-                active_positions = 0
-
-        return jsonify({
-            'status': 'running' if is_running else 'stopped',
-            'strategies': strategies_count,
-            'active_positions': active_positions,
-            'running': is_running
-        })
-    except Exception as e:
-        logger.error(f"Error in get_bot_status: {e}")
-        return jsonify({
+        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+        
+        # Initialize default response structure
+        response_data = {
             'status': 'stopped',
-            'message': 'Bot manager not available',
+            'message': 'Checking bot status...',
             'strategies': 0,
             'active_positions': 0,
             'running': False
-        }), 200
+        }
+
+        # Try shared bot manager first (from main.py)
+        if shared_bot_manager:
+            try:
+                is_running = getattr(shared_bot_manager, 'is_running', False)
+                strategies = getattr(shared_bot_manager, 'strategies', {})
+                strategies_count = len(strategies) if strategies else 0
+
+                # Safe access to active positions
+                active_positions_count = 0
+                if hasattr(shared_bot_manager, 'order_manager') and shared_bot_manager.order_manager:
+                    try:
+                        active_positions = getattr(shared_bot_manager.order_manager, 'active_positions', {})
+                        active_positions_count = len(active_positions) if active_positions else 0
+                    except Exception as pos_error:
+                        logger.debug(f"Could not get active positions count: {pos_error}")
+                        active_positions_count = 0
+
+                response_data.update({
+                    'status': 'running' if is_running else 'stopped',
+                    'strategies': strategies_count,
+                    'active_positions': active_positions_count,
+                    'running': is_running,
+                    'message': f'Bot {("running" if is_running else "stopped")} with {strategies_count} strategies'
+                })
+
+                return jsonify(response_data)
+            except Exception as shared_error:
+                logger.debug(f"Error accessing shared bot manager: {shared_error}")
+                # Continue to fallback logic
+
+        # Fallback to standalone bot manager
+        current_bot = globals().get('bot_manager', None)
+        if current_bot:
+            try:
+                is_running = getattr(current_bot, 'is_running', False)
+                strategies = getattr(current_bot, 'strategies', {})
+                strategies_count = len(strategies) if strategies else 0
+
+                # Safe access to active positions
+                active_positions_count = 0
+                if hasattr(current_bot, 'order_manager') and current_bot.order_manager:
+                    try:
+                        active_positions = getattr(current_bot.order_manager, 'active_positions', {})
+                        active_positions_count = len(active_positions) if active_positions else 0
+                    except Exception as pos_error:
+                        logger.debug(f"Could not get active positions count: {pos_error}")
+                        active_positions_count = 0
+
+                response_data.update({
+                    'status': 'running' if is_running else 'stopped',
+                    'strategies': strategies_count,
+                    'active_positions': active_positions_count,
+                    'running': is_running,
+                    'message': f'Standalone bot {("running" if is_running else "stopped")} with {strategies_count} strategies'
+                })
+
+                return jsonify(response_data)
+            except Exception as standalone_error:
+                logger.debug(f"Error accessing standalone bot manager: {standalone_error}")
+
+        # Final fallback - use configuration data if available
+        if IMPORTS_AVAILABLE:
+            try:
+                strategies = trading_config_manager.get_all_strategies()
+                strategies_count = len(strategies) if strategies else 0
+                
+                response_data.update({
+                    'status': 'stopped',
+                    'strategies': strategies_count,
+                    'active_positions': 0,
+                    'running': False,
+                    'message': f'Bot stopped - {strategies_count} strategies configured'
+                })
+            except Exception as config_error:
+                logger.debug(f"Error getting strategies from config: {config_error}")
+                response_data.update({
+                    'message': 'Bot manager not available - using defaults'
+                })
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        logger.warning(f"Error in get_bot_status endpoint: {e}")
+        # Even in case of complete failure, return valid JSON structure
+        return jsonify({
+            'status': 'error',
+            'message': 'Status check failed',
+            'strategies': 0,
+            'active_positions': 0,
+            'running': False
+        }), 200  # Return 200 to prevent frontend errors
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -1019,58 +1083,66 @@ def get_console_log():
         }), 200
 
 def get_bot_status():
-    """Get current bot status with enhanced error handling"""
-    global bot_running, bot_manager,shared_bot_manager
+    """Get current bot status with enhanced error handling - LEGACY FUNCTION"""
+    global bot_running, bot_manager, shared_bot_manager
 
     try:
         # Always get fresh reference to shared bot manager
         shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
 
+        # Default safe response
+        default_status = {
+            'is_running': False,
+            'active_positions': 0,
+            'strategies': [],
+            'balance': 0
+        }
+
         # Check shared bot manager first
         if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
             try:
+                strategies_list = []
+                if hasattr(shared_bot_manager, 'strategies'):
+                    strategies_dict = getattr(shared_bot_manager, 'strategies', {})
+                    strategies_list = list(strategies_dict.keys()) if strategies_dict else []
+
+                active_positions_count = 0
+                if hasattr(shared_bot_manager, 'order_manager') and shared_bot_manager.order_manager:
+                    try:
+                        active_positions = getattr(shared_bot_manager.order_manager, 'active_positions', {})
+                        active_positions_count = len(active_positions) if active_positions else 0
+                    except:
+                        active_positions_count = 0
+
                 status = {
                     'is_running': getattr(shared_bot_manager, 'is_running', False),
-                    'active_positions': len(getattr(shared_bot_manager.order_manager, 'active_positions', {})) if hasattr(shared_bot_manager, 'order_manager') else 0,
-                    'strategies': list(getattr(shared_bot_manager, 'strategies', {}).keys()) if hasattr(shared_bot_manager, 'strategies') else [],
+                    'active_positions': active_positions_count,
+                    'strategies': strategies_list,
                     'balance': 0  # Will be updated separately
                 }
                 return status
             except Exception as e:
-                logger.error(f"Error getting shared bot status: {e}")
-                return {
-                    'is_running': False,
-                    'active_positions': 0,
-                    'strategies': [],
-                    'balance': 0,
-                    'error': f'Status error: {str(e)}'
-                }
+                logger.debug(f"Error getting shared bot status: {e}")
+                return default_status
 
-        # Fallback status
-        return {
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': [],
-            'balance': 0,
-            'error': 'Bot manager not available'
-        }
+        # Fallback to global bot_running flag
+        try:
+            if IMPORTS_AVAILABLE:
+                strategies = trading_config_manager.get_all_strategies()
+                default_status['strategies'] = list(strategies.keys()) if strategies else []
+        except Exception as config_error:
+            logger.debug(f"Could not get strategies from config: {config_error}")
+
+        return default_status
+
     except Exception as e:
-        logger.error(f"Error in get_bot_status: {e}")
+        logger.warning(f"Error in legacy get_bot_status: {e}")
         return {
             'is_running': False,
             'active_positions': 0,
             'strategies': [],
             'balance': 0,
-            'error': f'Critical status error: {str(e)}'
-        }
-    except Exception as e:
-        logger.error(f"Error in get_bot_status: {e}")
-        return {
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': [],
-            'balance': 0,
-            'error': f'Critical status error: {str(e)}'
+            'error': f'Status check failed: {str(e)}'
         }
 
 def get_current_price(symbol):
