@@ -1004,8 +1004,7 @@
                         `Edit ${strategyName.replace('_', ' ').toUpperCase()} Configuration`;
 
                     // Show modal
-                    const modal = new bootstrap.Modal(document.getElementById('strategyModal'));
-                    modal.show();
+                    $('#strategyModal').modal('show');
                 })
                 .catch(error => {
                     console.error('Error loading strategy config:', error);
@@ -1059,8 +1058,7 @@
                     alert('✅ Strategy updated successfully!\n\n' + result.message);
                     
                     // Close modal
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('strategyModal'));
-                    modal.hide();
+                    $('#strategyModal').modal('hide');
                     
                     // Refresh page to show updated values
                     location.reload();
