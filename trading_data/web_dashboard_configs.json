@@ -14,13 +14,13 @@
     "rsi_short_exit": 40
   },
   "macd_divergence": {
-    "margin": 50.0,
-    "leverage": 5,
-    "symbol": "BTCUSDT",
+    "margin": 33.0,
+    "leverage": 7,
+    "symbol": "ETHUSDT",
     "timeframe": "15m",
     "max_loss_pct": 10.0,
     "assessment_interval": 30,
-    "decimals": 3,
+    "decimals": 2,
     "cooldown_period": 300,
     "macd_fast": 12,
     "macd_slow": 26,
