@@ -305,8 +305,9 @@ if __name__ == "__main__":
         bot_manager = None
         sys.modules[__name__].bot_manager = None
 
-        # DEPLOYMENT: Single source web dashboard launch
-        logger.info("🚀 DEPLOYMENT: Starting always-on trading system")
+        # DEPLOYMENT: Single source web dashboard launch - ONLY from main.py
+        logger.info("🚀 DEPLOYMENT: Starting always-on trading system (SINGLE SOURCE)")
+        logger.info("🌐 WEB DASHBOARD: Launching ONLY from main.py")
         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
 
@@ -380,8 +381,9 @@ if __name__ == "__main__":
         bot_manager = None
         sys.modules[__name__].bot_manager = None
 
-        # DEVELOPMENT: Single source web dashboard launch from main.py
-        logger.info("🛠️ DEVELOPMENT: Starting web dashboard from main.py only")
+        # DEVELOPMENT: Single source web dashboard launch from main.py ONLY
+        logger.info("🛠️ DEVELOPMENT: Starting web dashboard from main.py ONLY")
+        logger.info("🚫 BLOCKING: All other dashboard launch attempts disabled")
         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
 
