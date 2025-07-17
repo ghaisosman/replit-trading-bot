@@ -998,6 +998,49 @@ def get_status_alt():
     """Alternative status endpoint"""
     return get_bot_status()
 
+@app.route('/api/rsi/<symbol>', methods=['GET'])
+def get_rsi_for_symbol(symbol):
+    """Get RSI data for a specific symbol"""
+    try:
+        print(f"🔍 API CALL: /api/rsi/{symbol} - Getting RSI data...")
+        
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'rsi': 50.0, 'symbol': symbol, 'status': 'demo'})
+        
+        # Get RSI data using price fetcher
+        try:
+            # Find the timeframe for this symbol from strategies
+            timeframe = '15m'  # Default
+            for strategy_config in trading_config_manager.get_all_strategies().values():
+                if strategy_config.get('symbol') == symbol:
+                    timeframe = strategy_config.get('timeframe', '15m')
+                    break
+            
+            # Get market data
+            df = price_fetcher.get_ohlcv_data(symbol, timeframe)
+            if df is not None and not df.empty:
+                # Calculate indicators including RSI
+                df = price_fetcher.calculate_indicators(df)
+                if 'rsi' in df.columns and len(df) > 0:
+                    current_rsi = df['rsi'].iloc[-1]
+                    return jsonify({
+                        'rsi': round(current_rsi, 2),
+                        'symbol': symbol,
+                        'timeframe': timeframe,
+                        'timestamp': datetime.now().isoformat()
+                    })
+            
+            # Fallback to neutral RSI if no data
+            return jsonify({'rsi': 50.0, 'symbol': symbol, 'status': 'no_data'})
+            
+        except Exception as e:
+            print(f"❌ RSI API ERROR: /api/rsi/{symbol} - {e}")
+            return jsonify({'rsi': 50.0, 'symbol': symbol, 'error': str(e)})
+            
+    except Exception as e:
+        print(f"❌ API ERROR: /api/rsi/{symbol} - {e}")
+        return jsonify({'error': str(e)}), 500
+
 def get_current_price(symbol):
     """Helper function to get the current price of a symbol"""
     try:
