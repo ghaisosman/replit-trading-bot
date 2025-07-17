@@ -216,8 +216,13 @@ except:
 def dashboard():
     """Main dashboard page"""
     try:
-        # Get current bot status
-        status = get_bot_status()
+        # Get current bot status  
+        bot_status_data = get_bot_status()
+        status = {
+            'is_running': bot_status_data.get('is_running', False),
+            'active_positions': bot_status_data.get('active_positions', 0),
+            'strategies': bot_status_data.get('strategies', [])
+        }
 
         # Get current bot manager
         current_bot = get_current_bot_manager()

@@ -212,11 +212,11 @@
                 <i class="fas fa-robot"></i> Trading Bot Dashboard
             </span>
             <div class="d-flex">
-                <span class="badge bg-{{ 'success' if status.running else 'danger' }} me-2">
-                    {{ 'RUNNING' if status.running else 'STOPPED' }}
+                <span class="badge bg-{{ 'success' if status.is_running else 'danger' }} me-2">
+                    {{ 'RUNNING' if status.is_running else 'STOPPED' }}
                 </span>
-                <button id="botToggle" class="btn btn-{{ 'danger' if status.running else 'success' }} btn-sm">
-                    {{ 'Stop Bot' if status.running else 'Start Bot' }}
+                <button id="botToggle" class="btn btn-{{ 'danger' if status.is_running else 'success' }} btn-sm">
+                    {{ 'Stop Bot' if status.is_running else 'Start Bot' }}
                 </button>
             </div>
         </div>
@@ -759,23 +759,23 @@
                         // Show and populate Liquidity Reversal parameters if it's a liquidity strategy
                         if (strategyName.toLowerCase().includes('liquidity') || strategyName.toLowerCase() === 'liquidity_reversal') {
                             document.getElementById('liquidityParameters').style.display = 'block';
-                            
+
                             // Core detection parameters
                             document.getElementById('swingLookback').value = config.swing_lookback || 20;
                             document.getElementById('sweepThreshold').value = config.sweep_threshold || 0.5;
                             document.getElementById('volumeSurgeMultiplier').value = config.volume_surge_multiplier || 2.0;
                             document.getElementById('confirmationCandles').value = config.confirmation_candles || 2;
-                            
+
                             // Profit targeting parameters
                             document.getElementById('profitTargetMethod').value = config.profit_target_method || 'mean_reversion';
                             document.getElementById('fixedProfitPercent').value = config.fixed_profit_percent || 2.0;
                             document.getElementById('meanReversionPeriods').value = config.mean_reversion_periods || 50;
                             document.getElementById('meanReversionBuffer').value = config.mean_reversion_buffer || 0.5;
-                            
+
                             // RSI-based exit parameters
                             document.getElementById('rsiExitOverbought').value = config.rsi_exit_overbought || 70;
                             document.getElementById('rsiExitOversold').value = config.rsi_exit_oversold || 30;
-                            
+
                             // Dynamic profit parameters
                             document.getElementById('dynamicProfitMin').value = config.dynamic_profit_min || 1.0;
                             document.getElementById('dynamicProfitMax').value = config.dynamic_profit_max || 4.0;
@@ -828,17 +828,17 @@
                 config.sweep_threshold = parseFloat(document.getElementById('sweepThreshold').value) || 0.5;
                 config.volume_surge_multiplier = parseFloat(document.getElementById('volumeSurgeMultiplier').value) || 2.0;
                 config.confirmation_candles = parseInt(document.getElementById('confirmationCandles').value) || 2;
-                
+
                 // Profit targeting parameters
                 config.profit_target_method = document.getElementById('profitTargetMethod').value || 'mean_reversion';
                 config.fixed_profit_percent = parseFloat(document.getElementById('fixedProfitPercent').value) || 2.0;
                 config.mean_reversion_periods = parseInt(document.getElementById('meanReversionPeriods').value) || 50;
                 config.mean_reversion_buffer = parseFloat(document.getElementById('meanReversionBuffer').value) || 0.5;
-                
+
                 // RSI-based exit parameters
                 config.rsi_exit_overbought = parseInt(document.getElementById('rsiExitOverbought').value) || 70;
                 config.rsi_exit_oversold = parseInt(document.getElementById('rsiExitOversold').value) || 30;
-                
+
                 // Dynamic profit parameters
                 config.dynamic_profit_min = parseFloat(document.getElementById('dynamicProfitMin').value) || 1.0;
                 config.dynamic_profit_max = parseFloat(document.getElementById('dynamicProfitMax').value) || 4.0;
@@ -1239,7 +1239,7 @@
                     const activePositionsElement = document.getElementById('activePositions');
 
                     if (statusElement && data) {
-                        const isRunning = data.running || data.status === 'running';
+                        const isRunning = data.is_running || data.status === 'running';
                         statusElement.textContent = isRunning ? 'RUNNING' : 'STOPPED';
                         statusElement.className = 'badge bg-' + (isRunning ? 'success' : 'danger');
                     }
