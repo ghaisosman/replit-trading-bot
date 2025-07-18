@@ -78,7 +78,7 @@ def run_web_dashboard():
             with open(restart_lock_file, 'r') as f:
                 data = f.read().strip()
 
-            # Robust parsing that handles any format corruption
+            # BULLETPROOF PARSING - handles any format corruption
             lock_valid = False
             last_start = 0
             last_pid = 0
@@ -87,23 +87,41 @@ def run_web_dashboard():
                 if ',' in data:
                     parts = data.split(',')
                     if len(parts) >= 2:
-                        # Handle timestamp (remove any decimals or invalid chars)
-                        time_part = parts[0].strip()
-                        # Extract only digits and decimal point
-                        clean_time = ''.join(c for c in time_part if c.isdigit() or c == '.')
-                        if clean_time and clean_time.replace('.', '').isdigit():
-                            last_start = float(clean_time.split('.')[0])  # Take integer part only
+                        # ROBUST PARSING: Try both timestamp,pid and pid,timestamp formats
+                        part1 = parts[0].strip()
+                        part2 = parts[1].strip()
                         
-                        # Handle PID (extract only digits)
-                        pid_part = parts[1].strip()
-                        clean_pid = ''.join(c for c in pid_part if c.isdigit())
-                        if clean_pid:
-                            last_pid = int(clean_pid)
-                            lock_valid = True
+                        # Extract only digits from both parts
+                        clean_part1 = ''.join(c for c in part1 if c.isdigit())
+                        clean_part2 = ''.join(c for c in part2 if c.isdigit())
+                        
+                        if clean_part1 and clean_part2:
+                            # Convert to integers for comparison
+                            val1 = int(clean_part1)
+                            val2 = int(clean_part2)
+                            
+                            # Determine which is timestamp vs PID based on realistic ranges
+                            # PIDs are typically < 100000, timestamps are > 1600000000
+                            if val1 > 1600000000 and val2 < 100000:
+                                # Format: timestamp,pid
+                                last_start = val1
+                                last_pid = val2
+                                lock_valid = True
+                            elif val2 > 1600000000 and val1 < 100000:
+                                # Format: pid,timestamp
+                                last_start = val2
+                                last_pid = val1
+                                lock_valid = True
+                            else:
+                                # Invalid format - use current time to expire it
+                                logger.warning(f"Ambiguous lock format: {data} - treating as expired")
+                                last_start = 0
+                                last_pid = 0
 
                 if lock_valid and last_start > 0 and last_pid > 0:
                     # Check if it's too recent AND from a different process
-                    if time.time() - last_start < 15 and last_pid != current_pid:
+                    time_diff = time.time() - last_start
+                    if time_diff < 15 and last_pid != current_pid:
                         try:
                             # Check if the other process is still running
                             os.kill(last_pid, 0)
@@ -113,12 +131,14 @@ def run_web_dashboard():
                             # Process doesn't exist anymore, continue
                             logger.info(f"🔄 Stale lock detected - previous process {last_pid} no longer exists")
                 else:
-                    logger.warning(f"Invalid lock file format detected: '{data}' - cleaning up")
+                    # Either invalid format or expired lock
+                    if data:
+                        logger.warning(f"Invalid/expired lock file format: '{data}' - cleaning up")
                     
             except (ValueError, IndexError, TypeError) as e:
-                logger.warning(f"Lock file parsing error: {e} - data: '{data}'")
+                logger.warning(f"Lock file parsing error: {e} - data: '{data}' - treating as corrupted")
             
-            # Always remove invalid or stale locks
+            # Always remove invalid, stale, or corrupted locks
             try:
                 os.remove(restart_lock_file)
                 logger.info(f"🔄 Removed problematic restart lock file")
@@ -134,10 +154,10 @@ def run_web_dashboard():
             except:
                 pass
 
-    # Create restart lock with proper format
+    # Create restart lock with CONSISTENT format (timestamp,pid)
     try:
         with open(restart_lock_file, 'w') as f:
-            # Use integer timestamp to prevent parsing issues
+            # Always use format: timestamp,pid (no decimals, no ambiguity)
             timestamp = int(time.time())
             f.write(f"{timestamp},{current_pid}")
         logger.debug(f"🔒 Created restart lock: {timestamp},{current_pid}")
@@ -163,7 +183,7 @@ def run_web_dashboard():
                 with open(lock_file, 'r') as f:
                     data = f.read().strip()
 
-                # Robust lock file parsing
+                # BULLETPROOF PARSING - identical to restart lock logic
                 lock_valid = False
                 existing_pid = 0
                 lock_time = 0
@@ -172,22 +192,41 @@ def run_web_dashboard():
                     if ',' in data:
                         parts = data.split(',')
                         if len(parts) >= 2:
-                            # Extract PID (digits only)
-                            pid_part = parts[0].strip()
-                            clean_pid = ''.join(c for c in pid_part if c.isdigit())
-                            if clean_pid:
-                                existing_pid = int(clean_pid)
+                            # ROBUST PARSING: Try both pid,timestamp and timestamp,pid formats
+                            part1 = parts[0].strip()
+                            part2 = parts[1].strip()
                             
-                            # Extract timestamp (digits only, no decimals)
-                            time_part = parts[1].strip()
-                            clean_time = ''.join(c for c in time_part if c.isdigit() or c == '.')
-                            if clean_time and clean_time.replace('.', '').isdigit():
-                                lock_time = float(clean_time.split('.')[0])  # Integer part only
-                                lock_valid = True
+                            # Extract only digits from both parts
+                            clean_part1 = ''.join(c for c in part1 if c.isdigit())
+                            clean_part2 = ''.join(c for c in part2 if c.isdigit())
+                            
+                            if clean_part1 and clean_part2:
+                                # Convert to integers for comparison
+                                val1 = int(clean_part1)
+                                val2 = int(clean_part2)
+                                
+                                # Determine which is timestamp vs PID based on realistic ranges
+                                # PIDs are typically < 100000, timestamps are > 1600000000
+                                if val1 < 100000 and val2 > 1600000000:
+                                    # Format: pid,timestamp
+                                    existing_pid = val1
+                                    lock_time = val2
+                                    lock_valid = True
+                                elif val2 < 100000 and val1 > 1600000000:
+                                    # Format: timestamp,pid
+                                    existing_pid = val2
+                                    lock_time = val1
+                                    lock_valid = True
+                                else:
+                                    # Invalid format - treat as expired
+                                    logger.warning(f"Ambiguous web dashboard lock format: {data} - treating as expired")
+                                    existing_pid = 0
+                                    lock_time = 0
 
                     if lock_valid and existing_pid > 0 and lock_time > 0:
                         # Check if lock is recent and process still exists
-                        if time.time() - lock_time < 30:  # 30 second timeout
+                        time_diff = time.time() - lock_time
+                        if time_diff < 30:  # 30 second timeout
                             try:
                                 os.kill(existing_pid, 0)
                                 logger.info(f"🔄 Web dashboard already running (PID: {existing_pid})")
@@ -196,12 +235,14 @@ def run_web_dashboard():
                                 # Process doesn't exist, continue
                                 logger.info(f"🔄 Stale web dashboard lock - process {existing_pid} no longer exists")
                     else:
-                        logger.warning(f"Invalid web dashboard lock format: '{data}' - cleaning up")
+                        # Either invalid format or expired lock
+                        if data:
+                            logger.warning(f"Invalid/expired web dashboard lock format: '{data}' - cleaning up")
                         
                 except (ValueError, IndexError, TypeError) as parse_error:
-                    logger.warning(f"Web dashboard lock parsing error: {parse_error} - data: '{data}'")
+                    logger.warning(f"Web dashboard lock parsing error: {parse_error} - data: '{data}' - treating as corrupted")
 
-                # Always remove invalid or stale locks
+                # Always remove invalid, stale, or corrupted locks
                 try:
                     os.remove(lock_file)
                     logger.info("🔄 Removed web dashboard lock file")
@@ -217,27 +258,10 @@ def run_web_dashboard():
                 except:
                     pass
 
-            except Exception as e:
-                logger.warning(f"Error reading lock file: {e}")
-                # Force remove problematic lock
-                try:
-                    os.remove(lock_file)
-                    logger.info("🔄 Force removed problematic web dashboard lock")
-                except:
-                    pass
-
-            # Remove stale lock if still exists
-            if os.path.exists(lock_file):
-                try:
-                    os.remove(lock_file)
-                    logger.info("🔄 Removed stale web dashboard lock")
-                except:
-                    pass
-
-        # Create lock file with proper format
+        # Create lock file with CONSISTENT format (pid,timestamp)
         try:
             with open(lock_file, 'w') as f:
-                # Use integer timestamp to prevent parsing issues
+                # Always use format: pid,timestamp (no decimals, no ambiguity)
                 timestamp = int(time.time())
                 f.write(f"{current_pid},{timestamp}")
             logger.info(f"🔒 Created web dashboard lock (PID: {current_pid})")
@@ -757,7 +781,7 @@ if __name__ == "__main__":
     setup_logger()
     logger = logging.getLogger(__name__)
 
-    # Restart loop detection and prevention
+    # ENHANCED RESTART LOOP DETECTION with bulletproof validation
     restart_count_file = "/tmp/bot_restart_count"
     max_restarts = 5
     restart_window = 300  # 5 minutes
@@ -770,15 +794,36 @@ if __name__ == "__main__":
         if os.path.exists(restart_count_file):
             try:
                 with open(restart_count_file, 'r') as f:
-                    data = f.read().strip().split(',')
-                    if len(data) >= 2:
-                        restart_count = int(data[0])
-                        last_restart_time = float(data[1])
+                    data = f.read().strip()
+                    
+                # BULLETPROOF PARSING for restart count file
+                if ',' in data:
+                    parts = data.split(',')
+                    if len(parts) >= 2:
+                        # Extract only digits from both parts
+                        clean_count = ''.join(c for c in parts[0] if c.isdigit())
+                        clean_time = ''.join(c for c in parts[1] if c.isdigit())
                         
-                        # Reset counter if outside window
-                        if current_time - last_restart_time > restart_window:
+                        if clean_count and clean_time:
+                            restart_count = int(clean_count)
+                            last_restart_time = float(clean_time)
+                            
+                            # Reset counter if outside window
+                            if current_time - last_restart_time > restart_window:
+                                restart_count = 0
+                                logger.info(f"🔄 Restart counter reset - outside {restart_window}s window")
+                        else:
+                            logger.warning(f"Invalid restart count format: {data} - resetting")
                             restart_count = 0
-            except:
+                    else:
+                        logger.warning(f"Malformed restart count data: {data} - resetting")
+                        restart_count = 0
+                else:
+                    logger.warning(f"No comma in restart count data: {data} - resetting")
+                    restart_count = 0
+                    
+            except Exception as parse_error:
+                logger.warning(f"Restart count parsing error: {parse_error} - resetting to 0")
                 restart_count = 0
         
         # Check for restart loop
@@ -799,16 +844,16 @@ if __name__ == "__main__":
             # Exit gracefully
             exit(1)
         
-        # Update restart counter
+        # Update restart counter with consistent format
         restart_count += 1
         with open(restart_count_file, 'w') as f:
-            f.write(f"{restart_count},{current_time}")
+            f.write(f"{restart_count},{int(current_time)}")
         
         logger.info(f"🔄 Bot start #{restart_count} (window: {restart_window}s)")
         
     except Exception as e:
         logger.warning(f"Restart detection error: {e}")
-        # Continue anyway
+        # Continue anyway - don't let restart detection break the bot
 
     # Check if running in deployment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
