@@ -207,7 +207,7 @@ def dashboard():
             # Ensure we always have both strategies available for display
             if 'rsi_oversold' not in strategies:
                 strategies['rsi_oversold'] = {
-                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
+                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
                     'max_loss_pct': 5, 'assessment_interval': 20, 'decimals': 2,
                     'cooldown_period': 300, 'rsi_long_entry': 30, 'rsi_long_exit': 70,
                     'rsi_short_entry': 70, 'rsi_short_exit': 30
