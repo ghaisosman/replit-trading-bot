@@ -717,7 +717,8 @@ def update_strategy(strategy_name):
 
             # Max Loss as Percentage of Margin (alternative naming)
             if 'max_loss_pct' in data:
-                data['max_loss_pct'] = float(data['max_loss_pct'])
+                ```python
+data['max_loss_pct'] = float(data['max_loss_pct'])
                 if data['max_loss_pct'] <= 0 or data['max_loss_pct'] > 100:
                     return jsonify({'success': False, 'message': 'Max Loss % must be between 0.1 and 100% of margin'})
 
@@ -1425,8 +1426,10 @@ def get_ml_predictions():
             elif 'macd' in strategy_name.lower():
                 sample_features['macd_entry'] = 0.1
 
-```tool_code
             prediction = ml_analyzer.predict_trade_outcome(sample_features)
+
+            # FIXED: Removed stray ```tool_code markdown marker that caused SyntaxError
+            # This was preventing the bot from launching due to import error in web_dashboard.py
 
             if "error" not in prediction:
                 predictions.append({
