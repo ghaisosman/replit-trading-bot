@@ -27,21 +27,21 @@ def signal_handler(signum, frame):
     """Handle termination signals"""
     global web_server_running, flask_server
     print("\n🛑 Shutdown signal received...")
-    
+
     # Set the shutdown event to trigger graceful shutdown
     if shutdown_event:
         shutdown_event.set()
-    
+
     # Stop web server gracefully
     web_server_running = False
-    
+
     # Force Flask server shutdown if running
     if flask_server:
         try:
             flask_server.shutdown()
         except:
             pass
-    
+
     print("🔄 Cleanup initiated...")
 
 def check_port_available(port):
@@ -72,7 +72,7 @@ def run_web_dashboard():
     # Enhanced restart prevention with process-specific locks
     restart_lock_file = "/tmp/bot_restart_lock"
     current_pid = os.getpid()
-    
+
     if os.path.exists(restart_lock_file):
         try:
             with open(restart_lock_file, 'r') as f:
@@ -80,7 +80,7 @@ def run_web_dashboard():
                 if len(data) >= 2:
                     last_start = float(data[0])
                     last_pid = int(data[1])
-                    
+
                     # Check if it's too recent AND from a different process
                     if time.time() - last_start < 15 and last_pid != current_pid:
                         try:
@@ -93,7 +93,7 @@ def run_web_dashboard():
                             pass
         except:
             pass
-    
+
     # Create restart lock with PID
     try:
         with open(restart_lock_file, 'w') as f:
@@ -109,18 +109,18 @@ def run_web_dashboard():
     try:
         # Import and run web dashboard
         from web_dashboard import app
-        
+
         # Enhanced web dashboard lock with timeout
         lock_file = "/tmp/web_dashboard.lock"
         current_pid = os.getpid()
-        
+
         if os.path.exists(lock_file):
             try:
                 with open(lock_file, 'r') as f:
                     data = f.read().strip().split(',')
                     existing_pid = int(data[0])
                     lock_time = float(data[1]) if len(data) > 1 else 0
-                    
+
                     # Check if lock is recent and process still exists
                     if time.time() - lock_time < 30:  # 30 second timeout
                         try:
@@ -132,7 +132,7 @@ def run_web_dashboard():
                             pass
             except:
                 pass
-            
+
             # Remove stale lock
             try:
                 os.remove(lock_file)
@@ -152,13 +152,13 @@ def run_web_dashboard():
         if not check_port_available(5000):
             logger.error("🚨 PORT 5000 UNAVAILABLE: Another web dashboard instance detected")
             logger.error("🚫 MAIN.PY: Cleaning up duplicate instances")
-            
+
             # Kill existing processes using port 5000 - Replit compatible method
             try:
                 # Use psutil instead of lsof for Replit compatibility
                 import psutil
                 killed_count = 0
-                
+
                 for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'connections']):
                     try:
                         # Check if process is using port 5000
@@ -172,12 +172,12 @@ def run_web_dashboard():
                                         break
                     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                         continue
-                
+
                 if killed_count > 0:
                     logger.info(f"🔄 Terminated {killed_count} processes using port 5000")
                     # Wait for port to be freed
                     time.sleep(3)
-                    
+
                     # Check if port is now available
                     if check_port_available(5000):
                         logger.info("✅ Port 5000 successfully freed")
@@ -207,19 +207,19 @@ def run_web_dashboard():
 
         web_server_running = True
         logger.info("🌐 Starting web dashboard on 0.0.0.0:5000")
-        
+
         # Get port from environment for deployment compatibility
         port = int(os.environ.get('PORT', 5000))
-        
+
         # Store Flask server reference for shutdown
         from werkzeug.serving import make_server
-        
+
         flask_server = make_server('0.0.0.0', port, app, threaded=True)
         logger.info(f"🌐 Flask server created on port {port}")
-        
+
         # Signal handling is managed by the main thread
         # No signal setup needed in web dashboard thread
-        
+
         # Start Flask server
         try:
             flask_server.serve_forever()
@@ -268,7 +268,7 @@ def run_web_dashboard():
                 if not check_port_available(5000):
                     logger.error("🚨 CRITICAL: Port 5000 still unavailable after cleanup")
                     logger.error("💡 Trying alternative port cleanup method...")
-                    
+
                     # Alternative cleanup using psutil connection check
                     try:
                         import psutil
@@ -282,7 +282,7 @@ def run_web_dashboard():
                                 continue
                     except:
                         pass
-                    
+
                     logger.error("💡 Please restart the entire Repl to clear port conflicts")
                     return
                 else:
@@ -330,10 +330,10 @@ def run_web_dashboard():
                     logger.error("🚨 Web dashboard restart failed")
     finally:
         web_server_running = False
-        
+
         # Comprehensive cleanup
         logger.info("🧹 Starting comprehensive cleanup...")
-        
+
         # 1. Clean up Flask server
         if flask_server:
             try:
@@ -343,7 +343,7 @@ def run_web_dashboard():
                 logger.warning(f"Error shutting down Flask server: {e}")
             finally:
                 flask_server = None
-        
+
         # 2. Clean up lock file with enhanced verification
         lock_file = "/tmp/web_dashboard.lock"
         try:
@@ -351,7 +351,7 @@ def run_web_dashboard():
                 # Verify it's our lock file before removing
                 with open(lock_file, 'r') as f:
                     lock_pid = int(f.read().strip())
-                
+
                 current_pid = os.getpid()
                 if lock_pid == current_pid:
                     os.remove(lock_file)
@@ -367,7 +367,7 @@ def run_web_dashboard():
                         logger.info(f"🔓 Removed stale lock file (PID {lock_pid} no longer exists)")
             else:
                 logger.info("🔍 No lock file to clean up")
-                
+
         except Exception as e:
             logger.warning(f"Could not remove lock file: {e}")
             # Force removal as last resort
@@ -377,7 +377,7 @@ def run_web_dashboard():
                     logger.info("🔓 Force removed lock file")
             except:
                 pass
-        
+
         # 3. Close any remaining network connections
         try:
             import socket
@@ -385,7 +385,7 @@ def run_web_dashboard():
             time.sleep(1)
         except:
             pass
-        
+
         logger.info("🔴 Web dashboard stopped and cleaned up")
 
 async def main_bot_only():
@@ -474,7 +474,7 @@ def cleanup_process_resources():
     """Clean up process resources before shutdown"""
     logger = logging.getLogger(__name__)
     current_pid = os.getpid()
-    
+
     try:
         # Close all open file descriptors except stdin, stdout, stderr
         import resource
@@ -484,11 +484,11 @@ def cleanup_process_resources():
                 os.close(fd)
             except OSError:
                 pass
-        
+
         logger.info("🧹 Closed excess file descriptors")
     except Exception as e:
         logger.warning(f"Could not close file descriptors: {e}")
-    
+
     try:
         # Release any remaining network resources
         import socket
@@ -510,7 +510,7 @@ async def main():
     def enhanced_signal_handler(signum, frame):
         logger.info(f"🛑 Received signal {signum}, starting graceful shutdown...")
         signal_handler(signum, frame)
-        
+
         # Additional cleanup
         global web_thread
         if web_thread and web_thread.is_alive():
@@ -518,12 +518,12 @@ async def main():
             web_thread.join(timeout=5)  # Wait up to 5 seconds
             if web_thread.is_alive():
                 logger.warning("⚠️ Web thread did not finish gracefully")
-        
+
         cleanup_process_resources()
-        
+
         # Exit cleanly
         os._exit(0)
-    
+
     signal.signal(signal.SIGINT, enhanced_signal_handler)
     signal.signal(signal.SIGTERM, enhanced_signal_handler)
 
@@ -532,12 +532,12 @@ async def main():
     # SINGLE SOURCE WEB DASHBOARD LAUNCH - Only from main.py
     logger.info("🌐 MAIN.PY: Starting web dashboard (single source control)")
     logger.info("🚫 MAIN.PY: Direct web_dashboard.py launches are disabled")
-    
+
     global web_thread
     web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
     web_thread.daemon = False  # Explicitly set to non-daemon for proper cleanup
     web_thread.start()
-    
+
     # Ensure thread started successfully
     time.sleep(1)
     if not web_thread.is_alive():
@@ -668,3 +668,4 @@ if __name__ == "__main__":
                     time.sleep(5)
             except KeyboardInterrupt:
                 logger.info("🔴 Final shutdown")
+# Auto-commit permanently removed for stability
