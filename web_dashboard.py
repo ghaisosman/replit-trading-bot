@@ -62,7 +62,7 @@ def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
             # Check if limit exceeded
             if len(limit_data['requests']) >= limit_data['limit']:
                 logger.warning(f"Rate limit exceeded for {endpoint_key}: {len(limit_data['requests'])} requests in {limit_data['window']}s")
-                
+
                 # FIXED: Return complete JSON structure based on endpoint type
                 # This prevents empty {} responses that cause JavaScript parsing errors
                 if endpoint_key == 'bot_status':
@@ -500,7 +500,7 @@ def get_bot_status():
                     'status': 'bot_manager_active',
                     'success': True
                 })
-                
+
             except Exception as status_error:
                 logger.error(f"Error getting bot status: {status_error}")
                 # FIXED: Even errors return complete structure
@@ -517,7 +517,7 @@ def get_bot_status():
 
         # FIXED: Always return complete, valid JSON structure
         return jsonify(default_response)
-        
+
     except Exception as e:
         logger.error(f"Critical error in get_bot_status: {e}")
         # FIXED: Ultimate fallback - complete structure guaranteed
@@ -796,8 +796,6 @@ def update_strategy(strategy_name):
             # Max Loss as Percentage of Margin (alternative naming)
             if 'max_loss_pct' in data:
                 data['max_loss_pct'] = float(data['max_loss_pct'])
-                # FIXED: Removed stray ```python markdown marker that caused SyntaxError at line 720
-                # This prevented bot from launching due to import error in web_dashboard.py
                 if data['max_loss_pct'] <= 0 or data['max_loss_pct'] > 100:
                     return jsonify({'success': False, 'message': 'Max Loss % must be between 0.1 and 100% of margin'})
 
@@ -1017,14 +1015,14 @@ def get_balance():
             try:
                 with open(balance_file, 'r') as f:
                     balance_data = json.load(f)
-                    
+
                 # FIXED: Ensure file data has all required fields
                 complete_balance = default_balance.copy()
                 complete_balance.update(balance_data)
                 complete_balance['status'] = 'file_cache'
                 complete_balance['success'] = True
                 complete_balance['last_updated'] = datetime.now().isoformat()
-                
+
                 logger.debug(f"API Balance File Cache: {complete_balance}")
                 return jsonify(complete_balance)
             except Exception as file_error:
@@ -1040,7 +1038,7 @@ def get_balance():
         })
         logger.debug(f"API Balance Default: {default_balance}")
         return jsonify(default_balance)
-        
+
     except Exception as e:
         logger.error(f"Critical error in balance endpoint: {e}")
         # FIXED: Always return complete, valid JSON structure
@@ -1171,7 +1169,7 @@ def get_positions():
         }
         logger.debug(f"API Positions Success: {len(positions)} positions")
         return jsonify(positions_response)
-        
+
     except Exception as e:
         logger.error(f"Critical error in get_positions endpoint: {e}")
         # FIXED: Error response with complete structure
@@ -1333,7 +1331,7 @@ def get_console_log():
     """Get recent console logs with bulletproof error handling"""
     # FIXED: Always guarantee complete JSON structure to prevent parsing errors
     current_time = datetime.now().strftime("%H:%M:%S")
-    
+
     # FIXED: Default response structure that's always valid
     default_response = {
         'success': True,
@@ -1353,7 +1351,7 @@ def get_console_log():
             try:
                 # FIXED: Multiple fallback levels to ensure we always get logs
                 logs = None
-                
+
                 # Try method 1: get_recent_logs
                 if hasattr(current_bot_manager, 'get_recent_logs'):
                     logs = current_bot_manager.get_recent_logs(50)
@@ -1364,7 +1362,7 @@ def get_console_log():
                             'status': 'bot_manager_logs',
                             'timestamp': current_time
                         })
-                
+
                 # Try method 2: log_handler directly
                 if hasattr(current_bot_manager, 'log_handler') and current_bot_manager.log_handler:
                     logs = current_bot_manager.log_handler.get_recent_logs(50)
@@ -1375,7 +1373,7 @@ def get_console_log():
                             'status': 'log_handler_direct',
                             'timestamp': current_time
                         })
-                
+
                 # Try method 3: fallback logs from bot manager
                 if hasattr(current_bot_manager, '_get_fallback_logs'):
                     logs = current_bot_manager._get_fallback_logs()
@@ -1386,7 +1384,7 @@ def get_console_log():
                             'status': 'bot_manager_fallback',
                             'timestamp': current_time
                         })
-                
+
                 # Bot manager exists but no logs available
                 return jsonify({
                     'success': True, 
@@ -1398,7 +1396,7 @@ def get_console_log():
                     'status': 'bot_manager_no_logs',
                     'timestamp': current_time
                 })
-                
+
             except Exception as log_error:
                 logger.error(f"Error accessing logs: {log_error}")
                 # FIXED: Error case still returns complete structure
@@ -1425,7 +1423,7 @@ def get_console_log():
                 'status': 'waiting_for_bot_manager',
                 'timestamp': current_time
             })
-            
+
     except Exception as e:
         logger.error(f"Console log endpoint critical error: {e}")
         # FIXED: Ultimate fallback - always returns valid JSON
@@ -1434,8 +1432,7 @@ def get_console_log():
             'success': True,
             'logs': [
                 f'[{error_time}] ⚠️ Console API temporarily unavailable',
-                f'[{error_time}] 🌐 Web dashboard is active',
-                f'[{error_time}] 🔄 Logs will resume shortly'
+                f'[{error_time}] 🌐 Web dashboard is active                f'[{error_time}] 🔄 Logs will resume shortly'
             ],
             'status': 'api_critical_error',
             'error': str(e),
@@ -1641,9 +1638,6 @@ def get_ml_predictions():
 
             prediction = ml_analyzer.predict_trade_outcome(sample_features)
 
-            # FIXED: Removed stray ```tool_code markdown marker that caused SyntaxError
-            # This was preventing the bot from launching due to import error in web_dashboard.py
-
             if "error" not in prediction:
                 predictions.append({
                     'strategy': strategy_name,
@@ -1664,8 +1658,6 @@ def get_ml_predictions():
 def train_models():
     """Train ML models"""
     try:
-        # FIXED: Corrected typo "notIMPORTS_AVAILABLE" to "not IMPORTS_AVAILABLE"
-        # This was causing SyntaxError and preventing bot from launching
         if not IMPORTS_AVAILABLE:
             return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
 
