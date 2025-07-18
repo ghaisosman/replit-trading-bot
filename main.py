@@ -76,28 +76,45 @@ def run_web_dashboard():
     if os.path.exists(restart_lock_file):
         try:
             with open(restart_lock_file, 'r') as f:
-                data = f.read().strip().split(',')
-                if len(data) >= 2:
-                    last_start = float(data[0])
-                    last_pid = int(data[1])
+                data = f.read().strip()
+                
+            if ',' in data:
+                parts = data.split(',')
+                if len(parts) >= 2:
+                    try:
+                        # Clean up any floating point formatting issues
+                        time_str = parts[0].split('.')[0]  # Remove decimal if present
+                        last_start = float(time_str) if time_str.replace('.', '').isdigit() else 0
+                        last_pid = int(parts[1])
 
-                    # Check if it's too recent AND from a different process
-                    if time.time() - last_start < 15 and last_pid != current_pid:
-                        try:
-                            # Check if the other process is still running
-                            os.kill(last_pid, 0)
-                            logger.info(f"🔄 Restart prevented - another instance running (PID: {last_pid})")
-                            return
-                        except OSError:
-                            # Process doesn't exist anymore, continue
-                            pass
-        except:
-            pass
+                        # Check if it's too recent AND from a different process
+                        if time.time() - last_start < 15 and last_pid != current_pid:
+                            try:
+                                # Check if the other process is still running
+                                os.kill(last_pid, 0)
+                                logger.info(f"🔄 Restart prevented - another instance running (PID: {last_pid})")
+                                return
+                            except OSError:
+                                # Process doesn't exist anymore, continue
+                                pass
+                    except (ValueError, IndexError):
+                        logger.warning(f"Corrupted restart lock format: {data}")
+                        # Remove corrupted lock
+                        os.remove(restart_lock_file)
+            else:
+                logger.warning(f"Invalid restart lock format: {data}")
+                os.remove(restart_lock_file)
+        except Exception as e:
+            logger.warning(f"Error reading restart lock: {e}")
+            try:
+                os.remove(restart_lock_file)
+            except:
+                pass
 
     # Create restart lock with PID
     try:
         with open(restart_lock_file, 'w') as f:
-            f.write(f"{time.time()},{current_pid}")
+            f.write(f"{time.time():.0f},{current_pid}")  # Fixed: Remove decimal places
     except:
         pass
 
@@ -117,33 +134,62 @@ def run_web_dashboard():
         if os.path.exists(lock_file):
             try:
                 with open(lock_file, 'r') as f:
-                    data = f.read().strip().split(',')
-                    existing_pid = int(data[0])
-                    lock_time = float(data[1]) if len(data) > 1 else 0
-
-                    # Check if lock is recent and process still exists
-                    if time.time() - lock_time < 30:  # 30 second timeout
+                    data = f.read().strip()
+                    
+                # Handle corrupted lock files
+                if ',' in data:
+                    parts = data.split(',')
+                    if len(parts) >= 2:
                         try:
-                            os.kill(existing_pid, 0)
-                            logger.info(f"🔄 Web dashboard already running (PID: {existing_pid})")
-                            return
-                        except OSError:
-                            # Process doesn't exist, continue
-                            pass
-            except:
-                pass
+                            existing_pid = int(parts[0])
+                            # Clean up any floating point formatting issues
+                            lock_time_str = parts[1].split('.')[0]  # Remove decimal if present
+                            lock_time = float(lock_time_str) if lock_time_str.isdigit() else 0
+                        except (ValueError, IndexError):
+                            logger.warning(f"Corrupted lock file format: {data}")
+                            # Force remove corrupted lock
+                            os.remove(lock_file)
+                            logger.info("🔄 Removed corrupted web dashboard lock")
+                        else:
+                            # Check if lock is recent and process still exists
+                            if time.time() - lock_time < 30:  # 30 second timeout
+                                try:
+                                    os.kill(existing_pid, 0)
+                                    logger.info(f"🔄 Web dashboard already running (PID: {existing_pid})")
+                                    return
+                                except OSError:
+                                    # Process doesn't exist, continue
+                                    pass
+                    else:
+                        logger.warning(f"Invalid lock file format: {data}")
+                        os.remove(lock_file)
+                        logger.info("🔄 Removed invalid web dashboard lock")
+                else:
+                    logger.warning(f"Malformed lock file: {data}")
+                    os.remove(lock_file)
+                    logger.info("🔄 Removed malformed web dashboard lock")
+                    
+            except Exception as e:
+                logger.warning(f"Error reading lock file: {e}")
+                # Force remove problematic lock
+                try:
+                    os.remove(lock_file)
+                    logger.info("🔄 Force removed problematic web dashboard lock")
+                except:
+                    pass
 
-            # Remove stale lock
-            try:
-                os.remove(lock_file)
-                logger.info("🔄 Removed stale web dashboard lock")
-            except:
-                pass
+            # Remove stale lock if still exists
+            if os.path.exists(lock_file):
+                try:
+                    os.remove(lock_file)
+                    logger.info("🔄 Removed stale web dashboard lock")
+                except:
+                    pass
 
         # Create lock file with current PID and timestamp
         try:
             with open(lock_file, 'w') as f:
-                f.write(f"{current_pid},{time.time()}")
+                f.write(f"{current_pid},{time.time():.0f}")  # Fixed: Remove decimal places
             logger.info(f"🔒 Created web dashboard lock (PID: {current_pid})")
         except Exception as e:
             logger.warning(f"Could not create lock file: {e}")
