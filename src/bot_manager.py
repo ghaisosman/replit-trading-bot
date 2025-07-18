@@ -58,13 +58,13 @@ class BotManager:
         self.logger.info("🔍 VALIDATING API PERMISSIONS...")
         try:
             permissions = self.binance_client.validate_api_permissions()
-            
+
             if not permissions['market_data']:
                 self.logger.warning("⚠️ Market data access limited - continuing anyway")
-            
+
             if not permissions['account_access'] and not global_config.BINANCE_TESTNET:
                 self.logger.warning("⚠️ Account access limited - continuing anyway")
-            
+
             self.logger.info("✅ API VALIDATION COMPLETE")
         except Exception as e:
             self.logger.warning(f"⚠️ API VALIDATION ERROR: {e} - continuing anyway")
@@ -729,7 +729,7 @@ class BotManager:
                     self.telegram_reporter.report_position_opened(position_dict)
                 else:
                     self.logger.warning(f"❌ POSITION FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not execute signal")
-            else:
+            else:```python
                 # Get assessment interval for logging
                 assessment_interval = strategy_config.get('assessment_interval', 300)
 
@@ -1505,7 +1505,7 @@ Interval: every {assessment_interval} seconds
 
                         # Close position
                         if self.order_manager.close_position(strategy_name, exit_reason):
-                            self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:,.1f} | Exit: ${current_price:,.1f} | Final PnL: ${pnl:.1f}")
+                            self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:.1f} | Exit: ${current_price:,.1f} | Final PnL: ${pnl:.1f}")
 
                             from dataclasses import asdict
                             position_data = asdict(position)

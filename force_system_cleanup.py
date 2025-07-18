@@ -68,8 +68,6 @@ def cleanup_files():
     
     # Files and directories to remove
     cleanup_items = [
-        '.git',
-        '.gitignore', 
         '/tmp/web_dashboard.lock',
         '/tmp/bot_restart_lock',
         'trading_data/bot.log',
@@ -102,9 +100,8 @@ def verify_cleanup():
     
     issues = []
     
-    # Check for remaining git files
-    if os.path.exists('.git'):
-        issues.append("Git directory still exists")
+    # Check for remaining files
+    pass
     
     # Check for lock files
     if os.path.exists('/tmp/web_dashboard.lock'):
