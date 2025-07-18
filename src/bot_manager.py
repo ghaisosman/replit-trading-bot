@@ -373,7 +373,10 @@ For MAINNET:
             self.logger.info("🔴 Bot manager shutdown complete")
 
     async def _main_trading_loop(self):
-        """Main trading loop with proper error handling and throttling"""
+        """Main trading loop with enhanced error handling and restart prevention"""
+        consecutive_errors = 0
+        max_consecutive_errors = 5
+        
         while self.is_running:
             try:
                 # Display current PnL for all active positions (throttled)
@@ -395,26 +398,54 @@ For MAINNET:
                 except Exception as e:
                     self.logger.error(f"Error in anomaly detection: {e}")
 
+                # Reset error counter on successful iteration
+                consecutive_errors = 0
+
                 # Sleep before next iteration
                 await asyncio.sleep(global_config.PRICE_UPDATE_INTERVAL)
 
             except (ConnectionError, TimeoutError) as e:
-                self.logger.error(f"❌ Network Error: {e}")
-                self.telegram_reporter.report_error("Network Error", str(e))
-                await self.stop(f"Network error: {str(e)}")
-                break
+                consecutive_errors += 1
+                self.logger.error(f"❌ Network Error #{consecutive_errors}: {e}")
+                
+                if consecutive_errors >= max_consecutive_errors:
+                    self.logger.error(f"🚫 Too many consecutive network errors ({consecutive_errors}). Stopping bot to prevent restart loop.")
+                    self.telegram_reporter.report_error("Network Error - Bot Stopped", str(e))
+                    await self.stop(f"Network error after {consecutive_errors} attempts: {str(e)}")
+                    break
+                else:
+                    # Exponential backoff for network errors
+                    wait_time = min(30, 2 ** consecutive_errors)
+                    self.logger.warning(f"🔄 Waiting {wait_time}s before retry (attempt {consecutive_errors}/{max_consecutive_errors})")
+                    await asyncio.sleep(wait_time)
+                    
             except (KeyError, AttributeError) as e:
-                self.logger.error(f"❌ Configuration Error: {e}")
-                self.telegram_reporter.report_error("Configuration Error", str(e))
-                await asyncio.sleep(10)  # Wait longer for config issues
+                consecutive_errors += 1
+                self.logger.error(f"❌ Configuration Error #{consecutive_errors}: {e}")
+                
+                if consecutive_errors >= max_consecutive_errors:
+                    self.logger.error(f"🚫 Too many consecutive config errors. This usually indicates a serious issue.")
+                    await self.stop(f"Configuration error after {consecutive_errors} attempts: {str(e)}")
+                    break
+                else:
+                    self.telegram_reporter.report_error("Configuration Error", str(e))
+                    await asyncio.sleep(min(60, 10 * consecutive_errors))  # Longer wait for config issues
+                    
             except (ValueError, TypeError) as e:
-                self.logger.error(f"❌ Data Processing Error: {e}")
-                self.telegram_reporter.report_error("Data Error", str(e))
-                await asyncio.sleep(5)
+                consecutive_errors += 1
+                self.logger.error(f"❌ Data Processing Error #{consecutive_errors}: {e}")
+                
+                if consecutive_errors >= max_consecutive_errors:
+                    await self.stop(f"Data processing error after {consecutive_errors} attempts: {str(e)}")
+                    break
+                else:
+                    self.telegram_reporter.report_error("Data Error", str(e))
+                    await asyncio.sleep(5)
+                    
             except Exception as e:
-                error_msg = f"Unexpected Error: {str(e)}"
+                consecutive_errors += 1
+                error_msg = f"Unexpected Error #{consecutive_errors}: {str(e)}"
                 self.logger.error(error_msg)
-                self.telegram_reporter.report_error("Unexpected Error", str(e))
 
                 # Log memory usage for debugging
                 try:
@@ -425,18 +456,32 @@ For MAINNET:
                 except ImportError:
                     pass
 
-                # Check if it's a critical error that requires shutdown
+                # Check if it's a critical error that requires immediate shutdown
                 error_str = str(e).lower()
                 if any(keyword in error_str for keyword in ["api", "connection", "auth", "permission", "key"]):
+                    self.logger.error(f"🚫 Critical error detected: {str(e)}")
                     await self.stop(f"Critical error: {str(e)}")
                     break
 
-                await asyncio.sleep(5)  # Brief pause before retrying
+                if consecutive_errors >= max_consecutive_errors:
+                    self.logger.error(f"🚫 Too many consecutive errors ({consecutive_errors}). Stopping bot to prevent instability.")
+                    self.telegram_reporter.report_error("Multiple Errors - Bot Stopped", str(e))
+                    await self.stop(f"Multiple errors after {consecutive_errors} attempts")
+                    break
+                else:
+                    self.telegram_reporter.report_error("Unexpected Error", str(e))
+                    await asyncio.sleep(min(30, 5 * consecutive_errors))  # Progressive backoff
 
     async def _display_active_positions_pnl_throttled(self):
-        """Display current PnL for all active positions with throttling"""
+        """Display current PnL for all active positions with throttling - FIXED DUPLICATE DISPLAY"""
         try:
             current_time = datetime.now()
+
+            # Prevent duplicate calls within same second
+            if hasattr(self, '_last_position_display_time'):
+                if (current_time - self._last_position_display_time).total_seconds() < 1:
+                    return
+            self._last_position_display_time = current_time
 
             for strategy_name, position in self.order_manager.active_positions.items():
                 # Check if we should log this position (throttle to once per minute)
@@ -451,10 +496,10 @@ For MAINNET:
                 try:
                     symbol = strategy_config['symbol']
 
-                    # Get current price
+                    # Get current price with timeout protection
                     current_price = self._get_current_price(symbol)
                     if not current_price:
-                        self.logger.error(f"❌ PnL DISPLAY ERROR | {strategy_name} | Could not fetch current price for {symbol}")
+                        self.logger.debug(f"🔍 Price fetch failed for {symbol}, skipping display")
                         continue
 
                     # Use simple, reliable manual PnL calculation (matches web dashboard)
@@ -474,27 +519,28 @@ For MAINNET:
                     # Calculate PnL percentage against margin invested (matches web dashboard)
                     pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
 
-                    self.logger.debug(f"🔍 CONSOLE PNL | {symbol} | Side: {side} | Entry: ${entry_price:.2f} | Current: ${current_price:.2f} | Qty: {quantity} | PnL: ${pnl:.2f} | Margin: ${margin_invested:.2f} | Pct: {pnl_percent:.2f}%")
-
-                    # Display the position with reliable PnL data
+                    # Display the position with clean, single formatting
                     if margin_invested > 0:
                         # Get configured values for display
                         configured_leverage = strategy_config.get('leverage', 5)
 
-                        self.logger.info(f"""╔═══════════════════════════════════════════════════╗
+                        # FIXED: Single, clean position display without nesting
+                        position_display = f"""╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
 ║                                                   ║
 ║ 📊 TRADE IN PROGRESS                             ║
-║ 🎯 Strategy: {strategy_name.upper()}                        ║
-║ 💱 Symbol: {position.symbol}                              ║
-║ 📊 Side: {position.side}                                 ║
+║ 🎯 Strategy: {strategy_name.upper():<15}                    ║
+║ 💱 Symbol: {position.symbol:<20}                      ║
+║ 📊 Side: {position.side:<25}                           ║
 ║ 💵 Entry: ${position.entry_price:.1f}                          ║
 ║ 📊 Current: ${current_price:.1f}                           ║
 ║ ⚡ Config: ${margin_invested:.1f} USDT @ {configured_leverage}x           ║
 ║ 💰 PnL: ${pnl:.1f} USDT ({pnl_percent:+.1f}%)              ║
 ║                                                   ║
-╚═══════════════════════════════════════════════════╝""")
+╚═══════════════════════════════════════════════════╝"""
+                        
+                        self.logger.info(position_display)
                     else:
                         self.logger.error(f"❌ PnL DISPLAY ERROR | {strategy_name} | Invalid margin configuration for {symbol}")
 

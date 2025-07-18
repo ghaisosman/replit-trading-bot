@@ -60,18 +60,31 @@ def check_port_available(port):
         return False
 
 def cleanup_all_locks():
-    """Clean up all lock files safely"""
+    """Clean up all lock files safely with enhanced validation"""
     lock_files = [
         "/tmp/bot_restart_lock",
         "/tmp/web_dashboard.lock", 
-        "/tmp/bot_restart_count"
+        "/tmp/bot_restart_count",
+        "/tmp/bot_cleanup_in_progress"  # Additional cleanup tracking
     ]
 
     for lock_file in lock_files:
         try:
             if os.path.exists(lock_file):
-                os.remove(lock_file)
-                print(f"🧹 Cleaned up: {os.path.basename(lock_file)}")
+                # Validate lock file before removal
+                try:
+                    with open(lock_file, 'r') as f:
+                        content = f.read().strip()
+                    if content:  # Only remove if file has content (valid lock)
+                        os.remove(lock_file)
+                        print(f"🧹 Cleaned up: {os.path.basename(lock_file)} (content: {content[:50]})")
+                    else:
+                        os.remove(lock_file)  # Remove empty files too
+                        print(f"🧹 Removed empty lock: {os.path.basename(lock_file)}")
+                except:
+                    # If we can't read it, remove it anyway
+                    os.remove(lock_file)
+                    print(f"🧹 Force removed: {os.path.basename(lock_file)}")
         except Exception as e:
             print(f"⚠️ Could not remove {lock_file}: {e}")
 
@@ -608,14 +621,58 @@ if __name__ == "__main__":
         logger.info("🕐 Waiting for cleanup to complete...")
         time.sleep(3)
 
-    # DISABLE RESTART LOOP PROTECTION - always allow startup
+    # ENHANCED RESTART LOOP PROTECTION with PID validation
     restart_count_file = "/tmp/bot_restart_count"
+    current_pid = os.getpid()
+    
     try:
         if os.path.exists(restart_count_file):
-            os.remove(restart_count_file)
-            logger.info("🔄 Cleared restart count - startup allowed")
+            with open(restart_count_file, 'r') as f:
+                restart_data = f.read().strip()
+            
+            # Parse restart data (format: count,timestamp,pid)
+            if ',' in restart_data:
+                parts = restart_data.split(',')
+                if len(parts) >= 3:
+                    try:
+                        restart_count = int(parts[0])
+                        last_restart_time = float(parts[1])
+                        last_pid = int(parts[2])
+                        
+                        # Check if too many restarts from same PID in short time
+                        if (restart_count >= 3 and 
+                            time.time() - last_restart_time < 60 and 
+                            last_pid == current_pid):
+                            logger.error(f"🚫 RESTART LOOP DETECTED: {restart_count} restarts in 60s from PID {current_pid}")
+                            logger.error("🔄 Waiting 30 seconds before allowing restart...")
+                            time.sleep(30)
+                        
+                        # Reset counter if enough time has passed or different PID
+                        if (time.time() - last_restart_time > 300 or last_pid != current_pid):
+                            restart_count = 0
+                        
+                    except ValueError:
+                        restart_count = 0
+                else:
+                    restart_count = 0
+            else:
+                restart_count = 0
+            
+            # Update restart count
+            restart_count += 1
+            with open(restart_count_file, 'w') as f:
+                f.write(f"{restart_count},{time.time()},{current_pid}")
+            
+            logger.info(f"🔄 Restart count: {restart_count} (PID: {current_pid})")
+            
+        else:
+            # First start
+            with open(restart_count_file, 'w') as f:
+                f.write(f"1,{time.time()},{current_pid}")
+            logger.info(f"🚀 First startup detected (PID: {current_pid})")
+            
     except Exception as e:
-        logger.warning(f"Could not clear restart count: {e}")
+        logger.warning(f"Could not manage restart count: {e}")
 
     # Check if running in deployment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'

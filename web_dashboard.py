@@ -49,16 +49,16 @@ def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             now = time.time()
-            
+
             # Get rate limit data for this endpoint
             limit_data = rate_limits.get(endpoint_key, {
                 'requests': [], 'limit': max_requests, 'window': window_seconds
             })
-            
+
             # Clean old requests outside the window
             cutoff_time = now - limit_data['window']
             limit_data['requests'] = [req_time for req_time in limit_data['requests'] if req_time > cutoff_time]
-            
+
             # Check if limit exceeded
             if len(limit_data['requests']) >= limit_data['limit']:
                 logger.warning(f"Rate limit exceeded for {endpoint_key}: {len(limit_data['requests'])} requests in {limit_data['window']}s")
@@ -67,11 +67,11 @@ def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
                     'error': 'Rate limit exceeded',
                     'retry_after': int(limit_data['requests'][0] + limit_data['window'] - now)
                 }), 429
-            
+
             # Add current request
             limit_data['requests'].append(now)
             rate_limits[endpoint_key] = limit_data
-            
+
             return f(*args, **kwargs)
         return decorated_function
     return decorator
@@ -721,7 +721,8 @@ def create_strategy():
                 return jsonify({'success': False, 'message': 'MACD Fast must be less than MACD Slow'})
 
         # 🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Save to persistent config
-        trading_config_manager.update_strategy_params(strategy_name, new_config)
+        trading_config_manager.update_strategy_params(```python
+strategy_name, new_config)
 
         logger.info(f"🆕 NEW STRATEGY CREATED: {strategy_name} via web dashboard")
         logger.info(f"🌐 WEB DASHBOARD: New strategy config saved as single source of truth")
@@ -1178,162 +1179,112 @@ def calculate_rsi(closes, period=14):
     return rsi
 
 @app.route('/api/console-log')
-@rate_limit('console_log', max_requests=30, window_seconds=60)
 def get_console_log():
-    """Get console logs with enhanced stability and multiple fallback methods"""
+    """Get recent console log entries with enhanced error handling"""
     try:
-        # Method 1: Try bot manager's web log handler
-        current_bot = get_shared_bot_manager()
+        # Get bot manager from main module with multiple fallback methods
+        bot_manager = None
 
-        if current_bot and hasattr(current_bot, 'log_handler'):
+        # Method 1: Check main module
+        main_module = sys.modules.get('__main__')
+        if main_module and hasattr(main_module, 'bot_manager'):
+            bot_manager = main_module.bot_manager
+
+        # Method 2: Check global bot_manager variable
+        if not bot_manager and 'bot_manager' in globals():
+            bot_manager = globals()['bot_manager']
+
+        # Method 3: Check web_dashboard module
+        if not bot_manager and hasattr(sys.modules.get('web_dashboard', {}), 'bot_manager'):
+            bot_manager = sys.modules['web_dashboard'].bot_manager
+
+        if bot_manager and hasattr(bot_manager, 'log_handler'):
             try:
-                log_handler = getattr(current_bot, 'log_handler', None)
-                if log_handler and hasattr(log_handler, 'get_recent_logs'):
-                    recent_logs = log_handler.get_recent_logs(50)
+                logs = bot_manager.log_handler.get_recent_logs(50)
+                if logs and len(logs) > 0:
+                    return jsonify({'logs': logs, 'status': 'success'})
+            except Exception as log_error:
+                # Log handler exists but failed - return minimal info
+                return jsonify({
+                    'logs': [f'[{datetime.now().strftime("%H:%M:%S")}] Log handler error (non-critical)'],
+                    'status': 'partial',
+                    'error': str(log_error)
+                })
 
-                    if recent_logs and len(recent_logs) > 0:
-                        # Enhanced log processing with error isolation
-                        processed_logs = []
-                        for i, log_entry in enumerate(recent_logs):
-                            try:
-                                if isinstance(log_entry, dict):
-                                    message = log_entry.get('message', log_entry.get('raw_message', str(log_entry)))
-                                elif isinstance(log_entry, str):
-                                    message = log_entry
-                                else:
-                                    message = str(log_entry)
+        # Fallback: Return status message instead of error
+        return jsonify({
+            'logs': [f'[{datetime.now().strftime("%H:%M:%S")}] Bot starting up or log handler not ready...'],
+            'status': 'initializing'
+        })
 
-                                # Clean and validate message
-                                if message and len(message.strip()) > 0:
-                                    processed_logs.append(message.strip())
+    except Exception as e:
+        # Return user-friendly error instead of 500 status
+        return jsonify({
+            'logs': [f'[{datetime.now().strftime("%H:%M:%S")}] Dashboard connecting to bot...'],
+            'status': 'connecting',
+            'debug_error': str(e)
+        })
 
-                            except Exception as log_proc_error:
-                                logger.debug(f"Log processing error for entry {i}: {log_proc_error}")
-                                processed_logs.append(f"[Log entry {i}: processing error]")
+@app.route('/api/bot_status')
+def get_bot_status():
+    """Get current bot status with enhanced error handling"""
+    try:
+        # Multiple fallback methods to find bot manager
+        bot_manager = None
 
-                        if processed_logs:
-                            success_response = {
-                                'success': True, 
-                                'logs': processed_logs[-50:],  # Limit to last 50 logs
-                                'source': 'bot_log_handler',
-                                'count': len(processed_logs),
-                                'last_updated': datetime.now().isoformat()
-                            }
-                            return jsonify(success_response)
+        # Method 1: Check main module
+        main_module = sys.modules.get('__main__')
+        if main_module and hasattr(main_module, 'bot_manager'):
+            bot_manager = main_module.bot_manager
 
-            except Exception as handler_error:
-                logger.warning(f"Log handler access failed: {handler_error}")
+        # Method 2: Check global variables
+        if not bot_manager and 'bot_manager' in globals():
+            bot_manager = globals()['bot_manager']
 
-        # Method 2: Try file-based logs
-        log_files = ["trading_data/bot.log", "bot.log", "main.log"]
-        for log_file in log_files:
-            if os.path.exists(log_file):
-                try:
-                    with open(log_file, 'r') as f:
-                        lines = f.readlines()
+        # Method 3: Check web_dashboard module
+        if not bot_manager and hasattr(sys.modules.get('web_dashboard', {}), 'bot_manager'):
+            bot_manager = sys.modules['web_dashboard'].bot_manager
 
-                    # Process recent lines
-                    recent_lines = lines[-30:] if len(lines) > 30 else lines
-                    clean_logs = []
+        if bot_manager:
+            try:
+                status = bot_manager.get_bot_status()
+                status['connection_status'] = 'connected'
+                status['last_update'] = datetime.now().isoformat()
+                return jsonify(status)
+            except Exception as status_error:
+                # Bot manager exists but get_bot_status failed
+                return jsonify({
+                    'is_running': getattr(bot_manager, 'is_running', False),
+                    'active_positions': len(getattr(bot_manager, 'order_manager', {}).get('active_positions', {})) if hasattr(bot_manager, 'order_manager') else 0,
+                    'strategies': list(getattr(bot_manager, 'strategies', {}).keys()) if hasattr(bot_manager, 'strategies') else [],
+                    'balance': 0,
+                    'connection_status': 'partial',
+                    'error': str(status_error),
+                    'last_update': datetime.now().isoformat()
+                })
 
-                    for line in recent_lines:
-                        clean_line = line.strip()
-                        if clean_line and len(clean_line) > 3:
-                            # Remove ANSI codes and format
-                            import re
-                            clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
-                            clean_line = re.sub(r'[┌┐└┘├┤│─╔╗╚╝║═╭╮╰╯]', '', clean_line)
-                            clean_line = ' '.join(clean_line.split())
+        # Fallback: Bot not ready yet
+        return jsonify({
+            'is_running': False,
+            'active_positions': 0,
+            'strategies': [],
+            'balance': 0,
+            'connection_status': 'initializing',
+            'status': 'Bot starting up...',
+            'last_update': datetime.now().isoformat()
+        })
 
-                            if clean_line:
-                                clean_logs.append(clean_line)
-
-                    if clean_logs:
-                        file_response = {
-                            'success': True,
-                            'logs': clean_logs,
-                            'source': f'file_{os.path.basename(log_file)}',
-                            'count': len(clean_logs),
-                            'last_updated': datetime.now().isoformat()
-                        }
-                        return jsonify(file_response)
-
-                except Exception as file_error:
-                    logger.debug(f"File log read failed for {log_file}: {file_error}")
-                    continue
-
-        # Method 3: Status-based fallback
-        try:
-            current_bot = get_shared_bot_manager()
-            bot_status = "Running" if current_bot and getattr(current_bot, 'is_running', False) else "Stopped"
-
-            status_logs = [
-                f"🤖 Bot Status: {bot_status}",
-                f"🌐 Web Dashboard: Active and stable",
-                f"⏰ Current time: {datetime.now().strftime('%H:%M:%S')}",
-                f"📊 System: Console log service operational",
-                f"📋 Logs will appear here when bot generates output",
-                f"🔄 Connection: Dashboard ↔ Bot stable"
-            ]
-
-            if current_bot:
-                try:
-                    strategies = getattr(current_bot, 'strategies', {})
-                    if strategies:
-                        status_logs.append(f"📈 Active strategies: {len(strategies)}")
-
-                    if hasattr(current_bot, 'order_manager') and current_bot.order_manager:
-                        positions = getattr(current_bot.order_manager, 'active_positions', {})
-                        if positions:
-                            status_logs.append(f"💼 Active positions: {len(positions)}")
-                except Exception:
-                    pass
-
-            status_response = {
-                'success': True,
-                'logs': status_logs,
-                'source': 'status_fallback',
-                'count': len(status_logs),
-                'last_updated': datetime.now().isoformat()
-            }
-            return jsonify(status_response)
-
-        except Exception as status_error:
-            logger.warning(f"Status fallback failed: {status_error}")
-
-        # Method 4: Emergency fallback
-        emergency_logs = [
-            f"🤖 Web Dashboard: Active",
-            f"⏰ Time: {datetime.now().strftime('%H:%M:%S')}",
-            f"📋 Console log service temporarily limited",
-            f"🔄 System: Monitoring and recovery active",
-            f"💡 Logs will resume when bot activity increases"
-        ]
-
-        emergency_response = {
-            'success': True,
-            'logs': emergency_logs,
-            'source': 'emergency_fallback',
-            'count': len(emergency_logs),
-            'last_updated': datetime.now().isoformat()
-        }
-        return jsonify(emergency_response)
-
-    except Exception as critical_error:
-        logger.error(f"Critical console log endpoint error: {critical_error}")
-        # Ultimate fallback - always return valid JSON
-        ultimate_response = {
-            'success': False,
-            'logs': [
-                f"🤖 Console log service: Temporary unavailability",
-                f"⏰ Time: {datetime.now().strftime('%H:%M:%S')}",
-                f"🔧 System: Auto-recovery in progress"
-            ],
-            'source': 'ultimate_fallback',
-            'error': f'Service temporarily unavailable: {str(critical_error)}',
-            'last_updated': datetime.now().isoformat()
-        }
-        return jsonify(ultimate_response), 200
+    except Exception as e:
+        # Return user-friendly status instead of error
+        return jsonify({
+            'is_running': False,
+            'active_positions': 0,
+            'strategies': [],
+            'balance': 0,
+            'connection_status': 'error',
+            'status': f'Connection error: {str(e)}',
+            'last_update': datetime.now().isoformat()
+        })
 
 def get_bot_status():
     """Get current bot status with enhanced error handling - LEGACY FUNCTION"""
