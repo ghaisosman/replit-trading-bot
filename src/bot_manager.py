@@ -735,8 +735,7 @@ class BotManager:
                     position_dict = asdict(position)
                     # Add current leverage info to the position data
                     position_dict['leverage'] = strategy_config.get('leverage', 5)
-                    self.telegram_reporter.```python
-report_position_opened(position_dict)
+                    self.telegram_reporter.report_position_opened(position_dict)
                 else:
                     self.logger.warning(f"❌ POSITION FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not execute signal")
             else:
