@@ -461,6 +461,7 @@ def setup_logger():
     root_logger.addHandler(file_handler)
     root_logger.addHandler(file_handler_web)
 
+
     # Add web log handler
     web_log_handler = WebLogHandler()
     web_log_handler.setFormatter(ColoredFormatter())
@@ -468,17 +469,24 @@ def setup_logger():
     root_logger.addHandler(web_log_handler)
 
 
+
     # Suppress noisy loggers
     logging.getLogger('urllib3').setLevel(logging.WARNING)
+    print(">>> [logger.py] Step 22")
     logging.getLogger('requests').setLevel(logging.WARNING)
+    print(">>> [logger.py] Step 23")
 
     # Test the new format
     logger = logging.getLogger(__name__)
+    print(">>> [logger.py] Step 24")
     logger.info("📱 Telegram-style vertical logging format initialized")
+    print(">>> [logger.py] Step 25")
 
     # Force flush to ensure logs are written immediately
     for handler in logger.handlers:
+        print(">>> [logger.py] Step 26")
         handler.flush()
+        print(">>> [logger.py] Step 27")
 
 
 class WebLogHandler(logging.Handler):
@@ -488,70 +496,47 @@ class WebLogHandler(logging.Handler):
         super().__init__()
         self.max_logs = max_logs
         self.logs = deque(maxlen=max_logs)
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()  # Use reentrant lock
 
     def emit(self, record):
-        """Store log record in memory with enhanced safety"""
         try:
             with self.lock:
-                # FIXED: Better error handling and validation
                 if not record or not hasattr(record, 'created'):
                     return
-                
-                # Format the log message safely
+
+                # Format the log message safely (never log from here!)
                 try:
                     log_msg = self.format(record)
                 except Exception:
-                    # Fallback formatting if main formatter fails
                     log_msg = str(getattr(record, 'msg', ''))
-                
+
                 timestamp = datetime.fromtimestamp(record.created).strftime('%H:%M:%S')
 
-                # Clean up the message for web display - FIXED: More robust cleaning
+                # Clean up the message for web display
                 if log_msg:
                     clean_msg = str(log_msg)
-                    # Remove box drawing characters safely
                     box_chars = ['┌', '┐', '└', '┘', '├', '┤', '│', '─', '╔', '╗', '╚', '╝', '║', '═']
                     for char in box_chars:
                         clean_msg = clean_msg.replace(char, '')
-                    
                     clean_msg = clean_msg.strip()
-                    
-                    # Only add meaningful messages
                     if clean_msg and len(clean_msg) > 2 and clean_msg not in ['ℹ️  INFO', 'INFO', '']:
                         formatted_log = f'[{timestamp}] {clean_msg}'
                         self.logs.append(formatted_log)
-                        
-        except Exception as e:
-            # FIXED: Don't let logging errors crash the application, but log the error
-            try:
-                error_msg = f'[{datetime.now().strftime("%H:%M:%S")}] [LOGGING ERROR] {str(e)}'
-                self.logs.append(error_msg)
-            except:
-                # Ultimate fallback - completely silent failure
-                pass
+        except Exception:
+            # DO NOT log here! Just pass
+            pass
 
     def get_recent_logs(self, count=50):
-        """Get recent log messages for web dashboard with enhanced safety"""
         try:
             with self.lock:
-                # FIXED: Better validation and error handling
                 if not self.logs:
                     return [f'[{datetime.now().strftime("%H:%M:%S")}] [INFO] Bot is starting up...']
-                
-                # Ensure count is valid
                 count = max(1, min(count, len(self.logs)))
-                
-                # Return the last 'count' logs
                 recent_logs = list(self.logs)[-count:] if len(self.logs) > count else list(self.logs)
-                
-                # Validate each log entry
                 validated_logs = []
                 for log in recent_logs:
                     if isinstance(log, str) and len(log.strip()) > 0:
                         validated_logs.append(log.strip())
-                
                 return validated_logs if validated_logs else [f'[{datetime.now().strftime("%H:%M:%S")}] [INFO] Logs initializing...']
-                
-        except Exception as e:
-            return [f'[{datetime.now().strftime("%H:%M:%S")}] [ERROR] Could not retrieve logs: {str(e)}']
+        except Exception:
+            return [f'[{datetime.now().strftime("%H:%M:%S")}] [ERROR] Could not retrieve logs.']

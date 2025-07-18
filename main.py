@@ -1,3 +1,5 @@
+print(">>> main.py is running")
+
 import asyncio
 import logging
 import os
@@ -34,6 +36,11 @@ def run_web_dashboard():
         logger.error(f"Web dashboard error: {e}")
 
 async def main():
+    print(">>> ENTERED main()")
+    # Setup logging
+    print(">>> BEFORE setup_logger()")
+    setup_logger()
+    print(">>> AFTER setup_logger()")
     """Main bot function"""
     global bot_manager
 
