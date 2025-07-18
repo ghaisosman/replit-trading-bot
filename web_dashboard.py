@@ -1446,8 +1446,7 @@ def trades_database():
                 'symbol': trade_data.get('symbol', 'N/A'),
                 'side': trade_data.get('side', 'N/A'),
                 'entry_price': trade_data.get('entry_price', 0),
-                'exit_price':```python
- trade_data.get('exit_price', 0),
+                'exit_price': trade_data.get('exit_price', 0),
                 'quantity': trade_data.get('quantity', 0),
                 'leverage': trade_data.get('leverage', 0),
                 'margin_usdt': trade_data.get('margin_usdt', 0),
