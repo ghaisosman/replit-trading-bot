@@ -717,8 +717,9 @@ def update_strategy(strategy_name):
 
             # Max Loss as Percentage of Margin (alternative naming)
             if 'max_loss_pct' in data:
-                ```python
-data['max_loss_pct'] = float(data['max_loss_pct'])
+                data['max_loss_pct'] = float(data['max_loss_pct'])
+                # FIXED: Removed stray ```python markdown marker that caused SyntaxError at line 720
+                # This prevented bot from launching due to import error in web_dashboard.py
                 if data['max_loss_pct'] <= 0 or data['max_loss_pct'] > 100:
                     return jsonify({'success': False, 'message': 'Max Loss % must be between 0.1 and 100% of margin'})
 
