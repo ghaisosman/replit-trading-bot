@@ -1,0 +1,112 @@
+
+Go to file
+t
+Name		
+author
+ghaisosman
+Checkpoint before assistant change: Add screenshot to clarify a visua…
+49a3917
+ · 
+1 hour ago
+attached_assets
+Checkpoint before assistant change: Add screenshot to clarify a visua…
+1 hour ago
+src
+Assistant checkpoint: Optimized MACD config for pre-crossover diverge…
+1 hour ago
+templates
+Assistant checkpoint: Fixed MACD strategy configuration modal
+8 hours ago
+trading_data
+update trading bot configuration
+1 hour ago
+.gitignore
+Assistant checkpoint: Create .env file and fix import error
+4 days ago
+.replit
+update trading bot configuration
+1 hour ago
+Instructions.md
+Assistant checkpoint: Force mainnet everywhere, prepare for proxy sol…
+18 hours ago
+advanced_conflict_scanner.py
+Assistant checkpoint: Fix scanner and identify all conflicting processes
+12 hours ago
+anomaly_manager.py
+Checkpoint before assistant change: Improve overall system reliabilit…
+13 hours ago
+check_database_status.py
+Checkpoint before assistant change: Provide more detailed information…
+8 hours ago
+check_ml_status.py
+Checkpoint before assistant change: Improve overall system reliabilit…
+13 hours ago
+check_strategy_colors.py
+Assistant checkpoint: Add dynamic strategy color system
+2 hours ago
+clear_open_trades.py
+Checkpoint before assistant change: Improve overall system reliabilit…
+13 hours ago
+clear_orphan.py
+Checkpoint before assistant change: Improve overall system reliabilit…
+13 hours ago
+complete_reset.py
+Assistant checkpoint
+13 hours ago
+config_manager.py
+Checkpoint before assistant change: Improve overall system reliabilit…
+13 hours ago
+database_sync_fix.py
+Checkpoint before assistant change: Improve overall system reliabilit…
+13 hours ago
+deep_process_cleanup.py
+Assistant checkpoint: Fix cleanup scripts for Replit environment
+11 hours ago
+deep_system_diagnosis.py
+Checkpoint before assistant change: Add tool that diagnoses and resol…
+12 hours ago
+diagnose_database_issue.py
+Checkpoint before assistant change: Improve overall system reliabilit…
+13 hours ago
+fix_database_sync.py
+Checkpoint before assistant change: Improve overall system reliabilit…
+13 hours ago
+fix_trade_data.py
+Checkpoint before assistant change: Improve overall system reliabilit…
+13 hours ago
+force_clean_restart.py
+Assistant checkpoint
+12 hours ago
+force_clear_position.py
+Checkpoint before assistant change: Improve overall system reliabilit…
+13 hours ago
+main.py
+Assistant checkpoint: Remove signal handlers from web dashboard thread
+9 hours ago
+ml_requirements.txt
+Checkpoint before assistant change: Add machine learning capabilities…
+4 days ago
+pyproject.toml
+Assistant checkpoint: Added missing dashboard template and dependencies
+14 hours ago
+setup_live_trading.py
+Checkpoint before assistant change: Improve overall system reliabilit…
+13 hours ago
+simple_cleanup.py
+Assistant checkpoint: Fix cleanup scripts for Replit environment
+11 hours ago
+test_api.py
+Checkpoint before assistant change: Improve overall system reliabilit…
+13 hours ago
+trade_report.py
+Checkpoint before assistant change: Improve overall system reliabilit…
+13 hours ago
+ultimate_process_killer.py
+Assistant checkpoint: Fix cleanup scripts for Replit environment
+11 hours ago
+uv.lock
+Assistant checkpoint: Added missing dashboard template and dependencies
+14 hours ago
+web_dashboard.py
+Assistant checkpoint: Make all strategies configurable via dashboard
+8 hours ago

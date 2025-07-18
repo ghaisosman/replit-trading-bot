@@ -19,7 +19,9 @@
     "CALL": "\u001b[1;36m",
     "SUCCESSFULLY": "\u001b[1;33m",
     "LOGGED": "\u001b[1;31m",
-    "OPENED": "\u001b[1;32m"
+    "OPENED": "\u001b[1;32m",
+    "TRIGGERED": "\u001b[1;34m",
+    "BLOCKED": "\u001b[1;37m"
   },
   "active_position_colors": {
     "LOADED": "\u001b[1;95m",
@@ -41,6 +43,8 @@
     "CALL": "\u001b[1;36m",
     "SUCCESSFULLY": "\u001b[1;33m",
     "LOGGED": "\u001b[1;31m",
-    "OPENED": "\u001b[1;32m"
+    "OPENED": "\u001b[1;32m",
+    "TRIGGERED": "\u001b[1;34m",
+    "BLOCKED": "\u001b[1;37m"
   }
 }
