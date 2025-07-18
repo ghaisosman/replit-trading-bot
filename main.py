@@ -85,6 +85,9 @@ async def main():
 
             # Make bot manager available to web dashboard
             sys.modules['__main__'].bot_manager = bot_manager
+            
+            # Also make it available globally for web dashboard
+            globals()['bot_manager'] = bot_manager
 
             # Start bot
             logger.info("🚀 Starting trading bot...")

@@ -990,15 +990,41 @@ class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g.
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
-                    return response.json();
+                    
+                    // FIXED: Check if response has content
+                    const contentLength = response.headers.get('content-length');
+                    if (contentLength === '0') {
+                        throw new Error('Empty response from server');
+                    }
+                    
+                    return response.text();
                 })
-                .then(data => {
+                .then(text => {
+                    // FIXED: Validate JSON before parsing
+                    if (!text || text.trim() === '') {
+                        throw new Error('Empty response body');
+                    }
+                    
+                    let data;
+                    try {
+                        data = JSON.parse(text);
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError, 'Response:', text.substring(0, 100));
+                        throw new Error('Invalid JSON response');
+                    }
+                    
+                    // FIXED: Validate data structure
+                    if (!data || typeof data !== 'object') {
+                        throw new Error('Invalid data structure received');
+                    }
+                    
                     setCachedData('botStatus', data);
                     updateBotStatusUI(data);
                     markRequestEnd('botStatus', true);
                     return data;
                 })
                 .catch(error => {
+                    console.error('Update error for botStatus:', error);
                     console.error('Error updating bot status:', error);
                     updateBotStatusErrorUI();
                     markRequestEnd('botStatus', false);
@@ -1007,6 +1033,13 @@ class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g.
         }
 
         function updateBotStatusUI(data) {
+            // FIXED: Validate data object before accessing properties
+            if (!data || typeof data !== 'object') {
+                console.warn('Invalid bot status data received:', data);
+                updateBotStatusErrorUI();
+                return;
+            }
+
             const statusBadge = document.getElementById('statusBadge');
             const botToggle = document.getElementById('botToggle');
             const botStatus = document.getElementById('botStatus');
@@ -1017,7 +1050,10 @@ class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g.
                 botToggle.disabled = false; // Re-enable button
             }
 
-            if (data.running) {
+            // Check if bot is running (handle both 'running' and 'is_running' properties)
+            const isRunning = data.running || data.is_running || false;
+
+            if (isRunning) {
                 if (statusBadge) {
                     statusBadge.textContent = `RUNNING (${data.strategies || 0} strategies)`;
                     statusBadge.className = 'badge bg-success me-2';

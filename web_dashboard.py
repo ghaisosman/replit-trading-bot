@@ -465,72 +465,89 @@ import sys
 @rate_limit('bot_status', max_requests=20, window_seconds=60)
 def get_bot_status():
     """Get current bot status with bulletproof error handling"""
-    # FIXED: Always start with complete, valid JSON structure to prevent empty {} responses
-    # This is the root cause of the JavaScript parsing errors
-    default_response = {
-        'is_running': False,
-        'active_positions': 0,
-        'strategies': [],
-        'balance': 0,
-        'status': 'initializing',
-        'last_update': datetime.now().strftime('%H:%M:%S'),
-        'success': True
-    }
-
     try:
+        # FIXED: Always guarantee complete, valid JSON structure
+        current_time = datetime.now().strftime('%H:%M:%S')
+        
+        # Build response with all required fields
+        response = {
+            'success': True,
+            'running': False,
+            'is_running': False,
+            'active_positions': 0,
+            'strategies': 0,
+            'balance': 0.0,
+            'status': 'checking',
+            'last_update': current_time,
+            'timestamp': current_time
+        }
+
+        # Try to get current bot manager
         current_bot_manager = get_bot_manager()
 
         if current_bot_manager:
             try:
-                # Get bot status safely with complete error handling
-                if hasattr(current_bot_manager, 'get_bot_status'):
-                    status = current_bot_manager.get_bot_status()
-                    if isinstance(status, dict) and status:
-                        # FIXED: Ensure all required fields are present
-                        complete_status = default_response.copy()
-                        complete_status.update(status)
-                        complete_status['last_update'] = datetime.now().strftime('%H:%M:%S')
-                        complete_status['success'] = True
-                        return jsonify(complete_status)
-
-                # FIXED: Fallback with complete structure - no partial responses
-                default_response.update({
-                    'is_running': getattr(current_bot_manager, 'is_running', False),
-                    'active_positions': len(getattr(current_bot_manager.order_manager, 'active_positions', {})) if hasattr(current_bot_manager, 'order_manager') else 0,
-                    'strategies': list(getattr(current_bot_manager, 'strategies', {}).keys()) if hasattr(current_bot_manager, 'strategies') else [],
-                    'status': 'bot_manager_active',
-                    'success': True
+                # Get running status
+                is_running = getattr(current_bot_manager, 'is_running', False)
+                response.update({
+                    'running': is_running,
+                    'is_running': is_running,
+                    'status': 'running' if is_running else 'stopped'
                 })
 
-            except Exception as status_error:
-                logger.error(f"Error getting bot status: {status_error}")
-                # FIXED: Even errors return complete structure
-                default_response.update({
-                    'status': 'error_getting_status',
-                    'error': str(status_error),
+                # Get active positions count
+                if hasattr(current_bot_manager, 'order_manager') and current_bot_manager.order_manager:
+                    active_count = len(getattr(current_bot_manager.order_manager, 'active_positions', {}))
+                    response['active_positions'] = active_count
+
+                # Get strategies count
+                if hasattr(current_bot_manager, 'strategies'):
+                    strategies_count = len(current_bot_manager.strategies)
+                    response['strategies'] = strategies_count
+
+                # Try to get balance
+                if hasattr(current_bot_manager, 'balance_fetcher'):
+                    try:
+                        balance = current_bot_manager.balance_fetcher.get_usdt_balance()
+                        if balance is not None:
+                            response['balance'] = float(balance)
+                    except Exception:
+                        pass  # Keep default balance
+
+                logger.debug(f"Bot status API success: {response}")
+                return jsonify(response)
+
+            except Exception as bot_error:
+                logger.error(f"Error accessing bot manager: {bot_error}")
+                response.update({
+                    'status': 'bot_error',
+                    'error': str(bot_error),
                     'success': False
                 })
+                return jsonify(response)
         else:
-            default_response.update({
-                'status': 'waiting_for_bot_manager',
+            # No bot manager available
+            response.update({
+                'status': 'no_bot_manager',
                 'success': True
             })
-
-        # FIXED: Always return complete, valid JSON structure
-        return jsonify(default_response)
+            return jsonify(response)
 
     except Exception as e:
-        logger.error(f"Critical error in get_bot_status: {e}")
-        # FIXED: Ultimate fallback - complete structure guaranteed
+        logger.error(f"Critical error in bot status API: {e}")
+        # Ultimate fallback - always return valid JSON
+        current_time = datetime.now().strftime('%H:%M:%S')
         error_response = {
+            'success': False,
+            'running': False,
             'is_running': False,
             'active_positions': 0,
-            'strategies': [],
-            'balance': 0,
-            'status': 'api_critical_error',
+            'strategies': 0,
+            'balance': 0.0,
+            'status': 'api_error',
             'error': str(e),
-            'last_update': datetime.now().strftime('%H:%M:%S'),
-            'success': False
+            'last_update': current_time,
+            'timestamp': current_time
         }
         return jsonify(error_response), 200
 
@@ -1320,11 +1337,26 @@ def calculate_rsi(closes, period=14):
         return 50.0  # Safe fallback
 
 def get_bot_manager():
-    """Helper function to get the bot manager"""
-    # Always try to get the latest shared bot manager first
-    shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-    # Return the shared bot manager if it exists, otherwise fallback to the local bot_manager
-    return shared_bot_manager if shared_bot_manager else bot_manager
+    """Helper function to get the bot manager with proper error handling"""
+    try:
+        # Try to get shared bot manager from main module
+        main_module = sys.modules.get('__main__')
+        if main_module and hasattr(main_module, 'bot_manager'):
+            shared_manager = getattr(main_module, 'bot_manager')
+            if shared_manager is not None:
+                return shared_manager
+        
+        # Fallback to global bot_manager
+        global bot_manager
+        if bot_manager is not None:
+            return bot_manager
+            
+        # No bot manager available
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error getting bot manager: {e}")
+        return None
 
 @app.route('/api/console-log')
 @rate_limit('console_log', max_requests=30, window_seconds=60)
