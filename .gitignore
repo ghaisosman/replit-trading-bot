@@ -1,6 +1,9 @@
 # Environment variables
 .env
 
+# Development artifacts (speeds up Git operations)
+attached_assets/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
