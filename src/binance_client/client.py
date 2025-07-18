@@ -1,6 +1,3 @@
-The code needs to include `requests` for proxy support and a mechanism to enable/disable the VPN proxy.
-```
-```replit_final_file
 import logging
 import time
 import requests
