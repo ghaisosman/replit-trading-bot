@@ -89,7 +89,8 @@ def auto_commit_and_push():
             time.sleep(60)
 
 if __name__ == "__main__":
-    print("🔄 Starting automatic Git commit and push service...")
-    print("📁 Monitoring for changes every 5 minutes")
-    print("🛑 Press Ctrl+C to stop")
-    auto_commit_and_push()
+    print("⚠️  Auto-commit functionality is DISABLED")
+    print("📝 Manual commits should be used instead")
+    print("🔄 To enable auto-commit, uncomment the line below:")
+    print("   # auto_commit_and_push()")
+    # auto_commit_and_push()  # Disabled - use manual commits
