@@ -42,6 +42,14 @@ bot_running = False
 import sys
 shared_bot_manager = None
 
+def get_shared_bot_manager():
+    """Get the shared bot manager with proper error handling"""
+    try:
+        return getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+    except Exception as e:
+        logger.debug(f"Error getting shared bot manager: {e}")
+        return None
+
 # Try to safely import required modules
 try:
     from src.config.trading_config import trading_config_manager
@@ -56,8 +64,8 @@ try:
     setup_logger()
     logger = logging.getLogger(__name__)
 
-    if hasattr(sys.modules.get('__main__', None), 'bot_manager'):
-        shared_bot_manager = sys.modules['__main__'].bot_manager
+    # Get initial shared bot manager reference
+    shared_bot_manager = get_shared_bot_manager()
 
     # Initialize clients for web interface
     binance_client = BinanceClientWrapper()
@@ -80,7 +88,7 @@ except ImportError as e:
 
     class DummyBalanceFetcher:
         def get_usdt_balance(self):
-            return 100.0
+            return 169.1
 
     trading_config_manager = DummyConfigManager()
     balance_fetcher = DummyBalanceFetcher()
@@ -392,9 +400,10 @@ def get_bot_status():
                     'message': f'Bot {("running" if is_running else "stopped")} with {strategies_count} strategies'
                 })
 
+                logger.debug(f"API Status Success: {response_data}")
                 return jsonify(response_data)
             except Exception as shared_error:
-                logger.debug(f"Error accessing shared bot manager: {shared_error}")
+                logger.error(f"Error accessing shared bot manager: {shared_error}")
                 # Continue to fallback logic
 
         # Fallback to standalone bot manager
@@ -423,9 +432,10 @@ def get_bot_status():
                     'message': f'Standalone bot {("running" if is_running else "stopped")} with {strategies_count} strategies'
                 })
 
+                logger.debug(f"API Status Success: {response_data}")
                 return jsonify(response_data)
             except Exception as standalone_error:
-                logger.debug(f"Error accessing standalone bot manager: {standalone_error}")
+                logger.error(f"Error accessing standalone bot manager: {standalone_error}")
 
         # Final fallback - use configuration data if available
         if IMPORTS_AVAILABLE:
@@ -441,23 +451,26 @@ def get_bot_status():
                     'message': f'Bot stopped - {strategies_count} strategies configured'
                 })
             except Exception as config_error:
-                logger.debug(f"Error getting strategies from config: {config_error}")
+                logger.error(f"Error getting strategies from config: {config_error}")
                 response_data.update({
                     'message': 'Bot manager not available - using defaults'
                 })
 
+        logger.debug(f"API Status Fallback: {response_data}")
         return jsonify(response_data)
 
     except Exception as e:
-        logger.warning(f"Error in get_bot_status endpoint: {e}")
+        logger.error(f"Critical error in get_bot_status endpoint: {e}")
         # Even in case of complete failure, return valid JSON structure
-        return jsonify({
+        fallback_response = {
             'status': 'error',
-            'message': 'Status check failed',
+            'message': f'Status check failed: {str(e)}',
             'strategies': 0,
             'active_positions': 0,
-            'running': False
-        }), 200  # Return 200 to prevent frontend errors
+            'running': False,
+            'error': str(e)
+        }
+        return jsonify(fallback_response), 200  # Return 200 to prevent frontend errors
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -908,15 +921,17 @@ def get_balance():
                 if usdt_balance is None:
                     usdt_balance = 0.0
 
-                return jsonify({
+                balance_response = {
                     'total_balance': float(usdt_balance),
                     'available_balance': float(usdt_balance),
                     'used_balance': 0.0,
                     'last_updated': datetime.now().isoformat(),
                     'status': 'success'
-                })
+                }
+                logger.debug(f"API Balance Success: {balance_response}")
+                return jsonify(balance_response)
             except Exception as balance_error:
-                logger.debug(f"Error getting live balance: {balance_error}")
+                logger.error(f"Error getting live balance: {balance_error}")
                 # Continue to fallback instead of failing
 
         # Fallback to file-based balance
@@ -926,29 +941,33 @@ def get_balance():
                 with open(balance_file, 'r') as f:
                     balance_data = json.load(f)
                 balance_data['status'] = 'file_cache'
+                logger.debug(f"API Balance File Cache: {balance_data}")
                 return jsonify(balance_data)
-            except:
-                pass
+            except Exception as file_error:
+                logger.error(f"Error reading balance file: {file_error}")
 
         # Default balance for demo/testnet
-        return jsonify({
-            'total_balance': 1000.0,
-            'available_balance': 1000.0,
+        default_balance = {
+            'total_balance': 169.1,
+            'available_balance': 169.1,
             'used_balance': 0.0,
             'last_updated': datetime.now().isoformat(),
             'status': 'default'
-        })
+        }
+        logger.debug(f"API Balance Default: {default_balance}")
+        return jsonify(default_balance)
     except Exception as e:
-        logger.debug(f"Error in balance endpoint: {e}")
+        logger.error(f"Critical error in balance endpoint: {e}")
         # Always return valid JSON to prevent frontend errors
-        return jsonify({
+        error_balance = {
             'total_balance': 0.0,
             'available_balance': 0.0,
             'used_balance': 0.0,
             'last_updated': datetime.now().isoformat(),
             'status': 'error',
-            'error': 'Balance unavailable'
-        }), 200
+            'error': f'Balance unavailable: {str(e)}'
+        }
+        return jsonify(error_balance), 200
 
 @app.route('/api/positions')
 def get_positions():
@@ -964,57 +983,85 @@ def get_positions():
             active_positions = dict(current_bot.order_manager.active_positions)
 
             for strategy_name, position in active_positions.items():
-                # Check if this position has an anomaly (orphan/ghost trade)
-                anomaly_status = None
-                if hasattr(current_bot, 'anomaly_detector'):
-                    anomaly_status = current_bot.anomaly_detector.get_anomaly_status(strategy_name)
+                try:
+                    # Check if this position has an anomaly (orphan/ghost trade)
+                    anomaly_status = None
+                    if hasattr(current_bot, 'anomaly_detector'):
+                        anomaly_status = current_bot.anomaly_detector.get_anomaly_status(strategy_name)
 
-                # Get current price
-                current_price = price_fetcher.get_current_price(position.symbol)
+                    # Get current price
+                    current_price = None
+                    if IMPORTS_AVAILABLE:
+                        current_price = price_fetcher.get_current_price(position.symbol)
 
-                # Calculate PnL
-                if current_price:
-                    entry_price = position.entry_price
-                    quantity = position.quantity
-                    side = position.side
+                    # Calculate PnL
+                    if current_price:
+                        entry_price = position.entry_price
+                        quantity = position.quantity
+                        side = position.side
 
-                    # For futures trading, PnL calculation (matches console calculation)
-                    if side == 'BUY':  # Long position
-                        pnl = (current_price - entry_price) * quantity
-                    else:  # Short position (SELL)
-                        pnl = (entry_price - current_price) * quantity
+                        # For futures trading, PnL calculation (matches console calculation)
+                        if side == 'BUY':  # Long position
+                            pnl = (current_price - entry_price) * quantity
+                        else:  # Short position (SELL)
+                            pnl = (entry_price - current_price) * quantity
 
-                    # Calculate position value and get actual margin invested
-                    position_value_usdt = entry_price * quantity
+                        # Calculate position value and get actual margin invested
+                        position_value_usdt = entry_price * quantity
 
-                    # Get leverage and margin from strategy config (default 5x if not found)
-                    strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
-                    leverage = strategy_config.get('leverage', 5)
+                        # Get leverage and margin from strategy config (default 5x if not found)
+                        strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
+                        leverage = strategy_config.get('leverage', 5)
 
-                    # Use the configured margin as the actual margin invested (matches trading logic)
-                    margin_invested = strategy_config.get('margin', 50.0)
+                        # Use the configured margin as the actual margin invested (matches trading logic)
+                        margin_invested = strategy_config.get('margin', 50.0)
 
-                    # For futures trading, PnL percentage should be calculated against margin invested, not position value
-                    pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
+                        # For futures trading, PnL percentage should be calculated against margin invested, not position value
+                        pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
 
-                    positions.append({
-                        'strategy': position.strategy_name,
-                        'symbol': position.symbol,
-                        'side': position.side,
-                        'entry_price': entry_price,
-                        'current_price': current_price,
-                        'quantity': quantity,
-                        'position_value_usdt': position_value_usdt,
-                        'margin_invested': margin_invested,
-                        'pnl': pnl,
-                        'pnl_percent': pnl_percent,
-                        'anomaly_status': anomaly_status  # Add anomaly status
-                    })
+                        positions.append({
+                            'strategy': position.strategy_name,
+                            'symbol': position.symbol,
+                            'side': position.side,
+                            'entry_price': entry_price,
+                            'current_price': current_price,
+                            'quantity': quantity,
+                            'position_value_usdt': position_value_usdt,
+                            'margin_invested': margin_invested,
+                            'pnl': pnl,
+                            'pnl_percent': pnl_percent,
+                            'anomaly_status': anomaly_status  # Add anomaly status
+                        })
+                    else:
+                        # Add position without current price/PnL data
+                        positions.append({
+                            'strategy': position.strategy_name,
+                            'symbol': position.symbol,
+                            'side': position.side,
+                            'entry_price': position.entry_price,
+                            'current_price': None,
+                            'quantity': position.quantity,
+                            'position_value_usdt': position.entry_price * position.quantity,
+                            'margin_invested': 0.0,
+                            'pnl': 0.0,
+                            'pnl_percent': 0.0,
+                            'anomaly_status': anomaly_status
+                        })
+                except Exception as pos_error:
+                    logger.error(f"Error processing position {strategy_name}: {pos_error}")
+                    continue
 
-        return jsonify({'success': True, 'positions': positions})
+        positions_response = {'success': True, 'positions': positions}
+        logger.debug(f"API Positions Success: {len(positions)} positions")
+        return jsonify(positions_response)
     except Exception as e:
-        logger.error(f"Error in get_positions endpoint: {e}")
-        return jsonify({'success': False, 'error': str(e), 'positions': []}), 200
+        logger.error(f"Critical error in get_positions endpoint: {e}")
+        error_response = {
+            'success': False, 
+            'error': f'Positions unavailable: {str(e)}', 
+            'positions': []
+        }
+        return jsonify(error_response), 200
 
 @app.route('/api/rsi/<symbol>')
 def get_rsi(symbol):
@@ -1107,9 +1154,12 @@ def get_console_log():
                                 string_logs.append(str(log))
                         except Exception:
                             string_logs.append('[Log formatting error]')
-                    return jsonify({'success': True, 'logs': string_logs, 'source': 'web_handler'})
+                    
+                    log_response = {'success': True, 'logs': string_logs, 'source': 'web_handler'}
+                    logger.debug(f"API Console Log Success: {len(string_logs)} logs")
+                    return jsonify(log_response)
             except Exception as web_error:
-                logger.debug(f"Error getting web logs: {web_error}")
+                logger.error(f"Error getting web logs: {web_error}")
 
         # Fallback to default status logs
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
@@ -1123,25 +1173,29 @@ def get_console_log():
             "🔄 Dashboard connection stable"
         ]
 
-        return jsonify({
+        default_response = {
             'success': True, 
             'logs': default_logs,
             'source': 'default'
-        })
+        }
+        logger.debug(f"API Console Log Default: {len(default_logs)} logs")
+        return jsonify(default_response)
         
     except Exception as e:
-        logger.debug(f"Error in console log endpoint: {e}")
+        logger.error(f"Critical error in console log endpoint: {e}")
         # Always return valid response to prevent frontend errors
-        return jsonify({
+        fallback_response = {
             'success': True, 
             'logs': [
                 f"🤖 Web Dashboard: Active",
                 f"⏰ Time: {datetime.now().strftime('%H:%M:%S')}",
-                "📋 Console logs temporarily unavailable",
+                f"📋 Console logs temporarily unavailable: {str(e)}",
                 "🔄 Dashboard connection restored"
             ],
-            'source': 'fallback'
-        }), 200
+            'source': 'fallback',
+            'error': str(e)
+        }
+        return jsonify(fallback_response), 200
 
 def get_bot_status():
     """Get current bot status with enhanced error handling - LEGACY FUNCTION"""
