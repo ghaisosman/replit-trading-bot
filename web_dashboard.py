@@ -416,51 +416,48 @@ import sys
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
     try:
+        # FIXED: Always start with a valid default response structure
+        # This prevents empty {} responses that cause frontend errors
+        default_response = {
+            'is_running': False,
+            'active_positions': 0,
+            'strategies': [],
+            'balance': 0,
+            'status': 'unknown',
+            'last_update': datetime.now().strftime('%H:%M:%S')
+        }
+
         current_bot_manager = get_bot_manager()
 
         if current_bot_manager:
-            # FIXED: Use safe method to get bot status with proper error handling
-            # Added comprehensive try-catch to prevent API endpoint failures
-            if hasattr(current_bot_manager, 'get_bot_status'):
-                try:
+            try:
+                # Get bot status safely
+                if hasattr(current_bot_manager, 'get_bot_status'):
                     status = current_bot_manager.get_bot_status()
-                    # Add timestamp for debugging
-                    status['last_update'] = datetime.now().strftime('%H:%M:%S')
-                    return jsonify(status)
-                except Exception as status_error:
-                    logger.error(f"Error getting bot status: {status_error}")
-                    # Fallback to basic status
-                    return jsonify({
-                        'is_running': getattr(current_bot_manager, 'is_running', False),
-                        'active_positions': 0,
-                        'strategies': [],
-                        'balance': 0,
-                        'status': 'error_getting_status',
-                        'last_update': datetime.now().strftime('%H:%M:%S')
-                    })
-            else:
-                # Bot manager exists but methods not ready
-                return jsonify({
+                    if isinstance(status, dict):
+                        status['last_update'] = datetime.now().strftime('%H:%M:%S')
+                        return jsonify(status)
+
+                # Fallback: construct status manually
+                default_response.update({
                     'is_running': getattr(current_bot_manager, 'is_running', False),
-                    'active_positions': 0,
-                    'strategies': [],
-                    'balance': 0,
-                    'status': 'initializing',
-                    'last_update': datetime.now().strftime('%H:%M:%S')
+                    'active_positions': len(getattr(current_bot_manager.order_manager, 'active_positions', {})) if hasattr(current_bot_manager, 'order_manager') else 0,
+                    'strategies': list(getattr(current_bot_manager, 'strategies', {}).keys()) if hasattr(current_bot_manager, 'strategies') else [],
+                    'status': 'manual_status'
                 })
+                
+            except Exception as status_error:
+                logger.error(f"Error getting bot status: {status_error}")
+                default_response['status'] = 'error_getting_status'
+                default_response['error'] = str(status_error)
         else:
-            return jsonify({
-                'is_running': False,
-                'active_positions': 0,
-                'strategies': [],
-                'balance': 0,
-                'status': 'waiting_for_bot_manager',
-                'last_update': datetime.now().strftime('%H:%M:%S')
-            })
+            default_response['status'] = 'waiting_for_bot_manager'
+
+        # FIXED: Always return the complete structure
+        return jsonify(default_response)
     except Exception as e:
         logger.error(f"Critical error in get_bot_status: {e}")
-        # FIXED: Always return valid JSON structure to prevent frontend errors
-        # This prevents the empty {} responses seen in webview logs
+        # FIXED: Ultimate fallback with complete structure
         return jsonify({
             'is_running': False,
             'active_positions': 0,
@@ -1213,6 +1210,13 @@ def get_bot_manager():
 def get_console_log():
     """Get recent console logs with enhanced error handling"""
     try:
+        # FIXED: Always start with a valid default response to prevent empty {} responses
+        current_time = datetime.now().strftime("%H:%M:%S")
+        default_logs = [
+            f'[{current_time}] 🌐 Web dashboard active',
+            f'[{current_time}] 🔄 Checking bot manager status...'
+        ]
+
         # Try to get bot manager from various sources
         current_bot_manager = get_bot_manager()
 
@@ -1221,43 +1225,53 @@ def get_console_log():
             try:
                 if hasattr(current_bot_manager, 'get_recent_logs'):
                     logs = current_bot_manager.get_recent_logs(50)
-                    # FIXED: Ensure logs is always a list to prevent empty responses
-                    if not isinstance(logs, list):
-                        logs = []
-                    return jsonify({'success': True, 'logs': logs, 'status': 'success'})
+                    # FIXED: Validate logs structure before returning
+                    if isinstance(logs, list) and len(logs) > 0:
+                        return jsonify({'success': True, 'logs': logs, 'status': 'success'})
+                    else:
+                        # Fallback to bot manager's fallback logs
+                        fallback_logs = getattr(current_bot_manager, '_get_fallback_logs', lambda: default_logs)()
+                        return jsonify({'success': True, 'logs': fallback_logs, 'status': 'fallback'})
+                        
                 elif hasattr(current_bot_manager, 'log_handler') and current_bot_manager.log_handler:
                     logs = current_bot_manager.log_handler.get_recent_logs(50)
-                    # FIXED: Ensure logs is always a list to prevent empty responses
-                    if not isinstance(logs, list):
-                        logs = []
-                    return jsonify({'success': True, 'logs': logs, 'status': 'success'})
-                else:
-                    # Bot manager exists but no log handler yet
-                    return jsonify({'success': True, 'logs': [
-                        f'[{datetime.now().strftime("%H:%M:%S")}] Bot manager initializing...',
-                        f'[{datetime.now().strftime("%H:%M:%S")}] Web log handler not ready yet'
-                    ], 'status': 'initializing'})
+                    if isinstance(logs, list) and len(logs) > 0:
+                        return jsonify({'success': True, 'logs': logs, 'status': 'success'})
+                
+                # Bot manager exists but no log handler ready
+                return jsonify({'success': True, 'logs': [
+                    f'[{current_time}] 🚀 Bot manager detected',
+                    f'[{current_time}] 📊 Running: {getattr(current_bot_manager, "is_running", False)}',
+                    f'[{current_time}] 🔄 Log handler initializing...'
+                ], 'status': 'initializing'})
+                
             except Exception as log_error:
                 logger.error(f"Error accessing logs: {log_error}")
                 return jsonify({'success': True, 'logs': [
-                    f'[{datetime.now().strftime("%H:%M:%S")}] Log access temporarily unavailable',
-                    f'[{datetime.now().strftime("%H:%M:%S")}] Bot is running normally'
+                    f'[{current_time}] ⚠️ Log access temporarily unavailable',
+                    f'[{current_time}] 🚀 Bot manager is active',
+                    f'[{current_time}] 🔄 Logs will be available shortly'
                 ], 'status': 'log_error'})
         else:
             # No bot manager available
             return jsonify({'success': True, 'logs': [
-                f'[{datetime.now().strftime("%H:%M:%S")}] Waiting for bot manager to initialize...',
-                f'[{datetime.now().strftime("%H:%M:%S")}] Bot startup in progress'
+                f'[{current_time}] 🔄 Waiting for bot manager to initialize...',
+                f'[{current_time}] 🚀 Bot startup in progress',
+                f'[{current_time}] 🌐 Web dashboard ready'
             ], 'status': 'waiting_for_bot_manager'})
+            
     except Exception as e:
         logger.error(f"Console log endpoint error: {e}")
-        # FIXED: Always return valid JSON structure to prevent frontend errors
-        # This prevents the empty {} responses seen in webview logs
+        # FIXED: Ultimate fallback with valid structure
         error_time = datetime.now().strftime("%H:%M:%S")
         return jsonify({
             'success': True,
-            'logs': [f'[{error_time}] ⚠️ Console temporarily unavailable - Bot is running'],
-            'status': 'error',
+            'logs': [
+                f'[{error_time}] ⚠️ Console API temporarily unavailable',
+                f'[{error_time}] 🌐 Web dashboard is active',
+                f'[{error_time}] 🔄 Logs will resume shortly'
+            ],
+            'status': 'api_error',
             'error': str(e)
         }), 200
 

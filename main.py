@@ -429,16 +429,48 @@ async def main_bot_only():
     logger.info("🌐 Using existing Web Dashboard instance")
 
     try:
-        # Initialize the bot manager with enhanced error handling
+        # Initialize the bot manager with enhanced error handling and validation
         logger.info("🔧 INITIALIZING BOT MANAGER...")
 
         try:
+            # FIXED: Add pre-initialization checks to catch issues early
+            logger.info("🔍 Pre-initialization validation...")
+
+            # Validate imports first
+            try:
+                from src.config.global_config import global_config
+                from src.binance_client.client import BinanceClientWrapper
+                logger.info("✅ Core imports validated")
+            except ImportError as import_error:
+                logger.error(f"❌ IMPORT ERROR: {import_error}")
+                raise
+
+            # Validate configuration
+            if not global_config.validate_config():
+                logger.error("❌ CONFIGURATION VALIDATION FAILED")
+                raise ValueError("Invalid configuration")
+
+            logger.info("🚀 Creating bot manager instance...")
             bot_manager = BotManager()
+
+            # FIXED: Validate bot manager was created properly
+            if not hasattr(bot_manager, 'logger') or not hasattr(bot_manager, 'binance_client'):
+                raise RuntimeError("Bot manager initialization incomplete")
+
             logger.info("✅ Bot manager created successfully")
+            logger.info(f"🔍 Bot manager validation: logger={hasattr(bot_manager, 'logger')}, client={hasattr(bot_manager, 'binance_client')}")
+
         except Exception as e:
             logger.error(f"❌ CRITICAL: Bot manager initialization failed: {e}")
-            logger.error("🔍 This usually indicates configuration or API connection issues")
-            logger.error("💡 Please check your environment variables and API keys")
+            logger.error(f"🔍 Error type: {type(e).__name__}")
+            logger.error("💡 Common causes:")
+            logger.error("   - Invalid API keys or network issues")
+            logger.error("   - Missing environment variables")
+            logger.error("   - Configuration file errors")
+
+            # FIXED: Add more detailed error information for debugging
+            import traceback
+            logger.error(f"🔍 Full traceback: {traceback.format_exc()}")
             raise
 
         # Enhanced bot manager reference sharing with error handling
@@ -551,16 +583,48 @@ async def main():
     logger.info("🌐 Web Dashboard accessible and will remain active")
 
     try:
-        # Initialize the bot manager with enhanced error handling
+        # Initialize the bot manager with enhanced error handling and validation
         logger.info("🔧 INITIALIZING BOT MANAGER...")
 
         try:
+            # FIXED: Add pre-initialization checks to catch issues early
+            logger.info("🔍 Pre-initialization validation...")
+
+            # Validate imports first
+            try:
+                from src.config.global_config import global_config
+                from src.binance_client.client import BinanceClientWrapper
+                logger.info("✅ Core imports validated")
+            except ImportError as import_error:
+                logger.error(f"❌ IMPORT ERROR: {import_error}")
+                raise
+
+            # Validate configuration
+            if not global_config.validate_config():
+                logger.error("❌ CONFIGURATION VALIDATION FAILED")
+                raise ValueError("Invalid configuration")
+
+            logger.info("🚀 Creating bot manager instance...")
             bot_manager = BotManager()
+
+            # FIXED: Validate bot manager was created properly
+            if not hasattr(bot_manager, 'logger') or not hasattr(bot_manager, 'binance_client'):
+                raise RuntimeError("Bot manager initialization incomplete")
+
             logger.info("✅ Bot manager created successfully")
+            logger.info(f"🔍 Bot manager validation: logger={hasattr(bot_manager, 'logger')}, client={hasattr(bot_manager, 'binance_client')}")
+
         except Exception as e:
             logger.error(f"❌ CRITICAL: Bot manager initialization failed: {e}")
-            logger.error("🔍 This usually indicates configuration or API connection issues")
-            logger.error("💡 Please check your environment variables and API keys")
+            logger.error(f"🔍 Error type: {type(e).__name__}")
+            logger.error("💡 Common causes:")
+            logger.error("   - Invalid API keys or network issues")
+            logger.error("   - Missing environment variables")
+            logger.error("   - Configuration file errors")
+
+            # FIXED: Add more detailed error information for debugging
+            import traceback
+            logger.error(f"🔍 Full traceback: {traceback.format_exc()}")
             raise
 
         # Enhanced bot manager reference sharing with error handling
