@@ -435,43 +435,76 @@ async def main_bot_only():
             # FIXED: Add pre-initialization checks to catch issues early
             logger.info("🔍 Pre-initialization validation...")
 
-            # Validate imports first
+            # Validate imports first with timeout protection
             try:
+                import signal
+
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("Import validation timed out")
+
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(10)  # 10 second timeout
+
                 from src.config.global_config import global_config
                 from src.binance_client.client import BinanceClientWrapper
+
+                signal.alarm(0)  # Cancel timeout
                 logger.info("✅ Core imports validated")
+            except TimeoutError:
+                logger.error("❌ IMPORT TIMEOUT: Core modules failed to load within 10 seconds")
+                raise
             except ImportError as import_error:
                 logger.error(f"❌ IMPORT ERROR: {import_error}")
                 raise
 
-            # Validate configuration
-            if not global_config.validate_config():
-                logger.error("❌ CONFIGURATION VALIDATION FAILED")
-                raise ValueError("Invalid configuration")
+            # Quick validation check with timeout
+            try:
+                signal.alarm(5)  # 5 second timeout
+                config_valid = hasattr(global_config, 'BINANCE_API_KEY') and hasattr(global_config, 'BINANCE_SECRET_KEY')
+                signal.alarm(0)
+
+                if not config_valid:
+                    logger.error("❌ CONFIGURATION VALIDATION FAILED")
+                    raise ValueError("Invalid configuration - missing API keys")
+                else:
+                    logger.info("✅ Configuration validation passed")
+            except TimeoutError:
+                logger.error("❌ CONFIG TIMEOUT: Configuration validation timed out")
+                raise
 
             logger.info("🚀 Creating bot manager instance...")
             # Import BotManager here to avoid circular imports
-            from src.bot_manager import BotManager
-            bot_manager = BotManager()
+            try:
+                signal.alarm(15)  # 15 second timeout for bot manager creation
+                from src.bot_manager import BotManager
+                bot_manager = BotManager()
+                signal.alarm(0)
+            except TimeoutError:
+                logger.error("❌ BOT MANAGER TIMEOUT: Initialization took too long")
+                raise
 
-            # FIXED: Validate bot manager was created properly
-            if not hasattr(bot_manager, 'logger') or not hasattr(bot_manager, 'binance_client'):
-                raise RuntimeError("Bot manager initialization incomplete")
+            # Quick validation
+            if not hasattr(bot_manager, 'logger'):
+                raise RuntimeError("Bot manager initialization incomplete - missing logger")
 
             logger.info("✅ Bot manager created successfully")
-            logger.info(f"🔍 Bot manager validation: logger={hasattr(bot_manager, 'logger')}, client={hasattr(bot_manager, 'binance_client')}")
 
         except Exception as e:
             logger.error(f"❌ CRITICAL: Bot manager initialization failed: {e}")
             logger.error(f"🔍 Error type: {type(e).__name__}")
-            logger.error("💡 Common causes:")
-            logger.error("   - Invalid API keys or network issues")
-            logger.error("   - Missing environment variables")
-            logger.error("   - Configuration file errors")
 
-            # FIXED: Add more detailed error information for debugging
-            import traceback
-            logger.error(f"🔍 Full traceback: {traceback.format_exc()}")
+            # Provide specific guidance based on error type
+            if "TimeoutError" in str(type(e)) or "timeout" in str(e).lower():
+                logger.error("💡 TIMEOUT ISSUE - Try these solutions:")
+                logger.error("   1. Check your internet connection")
+                logger.error("   2. Verify API keys are correctly set")
+                logger.error("   3. Restart the Repl if the issue persists")
+            else:
+                logger.error("💡 Common causes:")
+                logger.error("   - Invalid API keys or network issues")
+                logger.error("   - Missing environment variables")
+                logger.error("   - Configuration file errors")
+
             raise
 
         # Enhanced bot manager reference sharing with error handling
@@ -591,43 +624,76 @@ async def main():
             # FIXED: Add pre-initialization checks to catch issues early
             logger.info("🔍 Pre-initialization validation...")
 
-            # Validate imports first
+            # Validate imports first with timeout protection
             try:
+                import signal
+
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("Import validation timed out")
+
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(10)  # 10 second timeout
+
                 from src.config.global_config import global_config
                 from src.binance_client.client import BinanceClientWrapper
+
+                signal.alarm(0)  # Cancel timeout
                 logger.info("✅ Core imports validated")
+            except TimeoutError:
+                logger.error("❌ IMPORT TIMEOUT: Core modules failed to load within 10 seconds")
+                raise
             except ImportError as import_error:
                 logger.error(f"❌ IMPORT ERROR: {import_error}")
                 raise
 
-            # Validate configuration
-            if not global_config.validate_config():
-                logger.error("❌ CONFIGURATION VALIDATION FAILED")
-                raise ValueError("Invalid configuration")
+            # Quick validation check with timeout
+            try:
+                signal.alarm(5)  # 5 second timeout
+                config_valid = hasattr(global_config, 'BINANCE_API_KEY') and hasattr(global_config, 'BINANCE_SECRET_KEY')
+                signal.alarm(0)
+
+                if not config_valid:
+                    logger.error("❌ CONFIGURATION VALIDATION FAILED")
+                    raise ValueError("Invalid configuration - missing API keys")
+                else:
+                    logger.info("✅ Configuration validation passed")
+            except TimeoutError:
+                logger.error("❌ CONFIG TIMEOUT: Configuration validation timed out")
+                raise
 
             logger.info("🚀 Creating bot manager instance...")
             # Import BotManager here to avoid circular imports
-            from src.bot_manager import BotManager
-            bot_manager = BotManager()
+            try:
+                signal.alarm(15)  # 15 second timeout for bot manager creation
+                from src.bot_manager import BotManager
+                bot_manager = BotManager()
+                signal.alarm(0)
+            except TimeoutError:
+                logger.error("❌ BOT MANAGER TIMEOUT: Initialization took too long")
+                raise
 
-            # FIXED: Validate bot manager was created properly
-            if not hasattr(bot_manager, 'logger') or not hasattr(bot_manager, 'binance_client'):
-                raise RuntimeError("Bot manager initialization incomplete")
+            # Quick validation
+            if not hasattr(bot_manager, 'logger'):
+                raise RuntimeError("Bot manager initialization incomplete - missing logger")
 
             logger.info("✅ Bot manager created successfully")
-            logger.info(f"🔍 Bot manager validation: logger={hasattr(bot_manager, 'logger')}, client={hasattr(bot_manager, 'binance_client')}")
 
         except Exception as e:
             logger.error(f"❌ CRITICAL: Bot manager initialization failed: {e}")
             logger.error(f"🔍 Error type: {type(e).__name__}")
-            logger.error("💡 Common causes:")
-            logger.error("   - Invalid API keys or network issues")
-            logger.error("   - Missing environment variables")
-            logger.error("   - Configuration file errors")
 
-            # FIXED: Add more detailed error information for debugging
-            import traceback
-            logger.error(f"🔍 Full traceback: {traceback.format_exc()}")
+            # Provide specific guidance based on error type
+            if "TimeoutError" in str(type(e)) or "timeout" in str(e).lower():
+                logger.error("💡 TIMEOUT ISSUE - Try these solutions:")
+                logger.error("   1. Check your internet connection")
+                logger.error("   2. Verify API keys are correctly set")
+                logger.error("   3. Restart the Repl if the issue persists")
+            else:
+                logger.error("💡 Common causes:")
+                logger.error("   - Invalid API keys or network issues")
+                logger.error("   - Missing environment variables")
+                logger.error("   - Configuration file errors")
+
             raise
 
         # Enhanced bot manager reference sharing with error handling

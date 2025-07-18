@@ -40,24 +40,31 @@ class BotManager:
         # Initialize components
         self.binance_client = BinanceClientWrapper()
 
-        # Test Binance API connection and permissions
-        if not self.binance_client.test_connection():
-            error_msg = f"""
-❌ Failed to connect to Binance API.
+        # Test connection early to validate everything works
+        self.logger.info("🔍 TESTING BINANCE CONNECTION...")
 
-Current mode: {'TESTNET' if global_config.BINANCE_TESTNET else 'MAINNET'}
+        try:
+            # Add timeout for connection test
+            import asyncio
+            import concurrent.futures
 
-For TESTNET:
-1. Go to https://testnet.binance.vision/
-2. Create API keys with TRADING permissions
-3. Update your Replit Secrets with the testnet keys
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(self.binance_client.test_connection)
+                try:
+                    connection_success = future.result(timeout=10)  # 10 second timeout
+                except concurrent.futures.TimeoutError:
+                    self.logger.error("❌ CONNECTION TIMEOUT: Binance connection test timed out after 10 seconds")
+                    self.logger.error("💡 This may indicate network issues or geographic restrictions")
+                    raise ConnectionError("Binance API connection timeout")
 
-For MAINNET:
-1. Set BINANCE_TESTNET=false in Secrets
-2. Use your real Binance API keys with trading permissions
-3. Ensure IP whitelisting is disabled or your IP is whitelisted
-            """
-            raise ValueError(error_msg)
+                if not connection_success:
+                    error_msg = "❌ CRITICAL: Binance connection test failed"
+                    self.logger.error(error_msg)
+                    raise ConnectionError("Binance API connection failed")
+
+        except Exception as conn_error:
+            self.logger.error(f"❌ Connection test error: {conn_error}")
+            raise
 
         # Validate API permissions
         self.logger.info("🔍 VALIDATING API PERMISSIONS...")
@@ -154,7 +161,7 @@ For MAINNET:
         try:
             # Import WebLogHandler from utils.logger to prevent circular dependencies
             from src.utils.logger import WebLogHandler
-            
+
             self.log_handler = WebLogHandler()
             self.log_handler.setFormatter(logging.Formatter('%(message)s'))  # Simplified format for web
 
@@ -171,9 +178,9 @@ For MAINNET:
 
             # Also add to bot manager's own logger
             self.logger.addHandler(self.log_handler)
-            
+
             self.logger.debug("🔍 Web log handler successfully initialized")
-            
+
         except Exception as e:
             self.logger.warning(f"⚠️ Could not initialize web log handler: {e}")
             # FIXED: Create a minimal fallback log handler to prevent API failures
@@ -337,7 +344,7 @@ For MAINNET:
         max_consecutive_errors = 5
         last_anomaly_check = datetime.now()
         anomaly_check_interval = 30  # Check anomalies every 30 seconds
-        
+
         while self.is_running:
             try:
                 # Display current PnL for all active positions (throttled)
@@ -371,7 +378,7 @@ For MAINNET:
             except (ConnectionError, TimeoutError) as e:
                 consecutive_errors += 1
                 self.logger.error(f"❌ Network Error #{consecutive_errors}: {e}")
-                
+
                 if consecutive_errors >= max_consecutive_errors:
                     self.logger.error(f"🚫 Too many consecutive network errors ({consecutive_errors}). Stopping bot to prevent restart loop.")
                     self.telegram_reporter.report_error("Network Error - Bot Stopped", str(e))
@@ -382,11 +389,11 @@ For MAINNET:
                     wait_time = min(30, 2 ** consecutive_errors)
                     self.logger.warning(f"🔄 Waiting {wait_time}s before retry (attempt {consecutive_errors}/{max_consecutive_errors})")
                     await asyncio.sleep(wait_time)
-                    
+
             except (KeyError, AttributeError) as e:
                 consecutive_errors += 1
                 self.logger.error(f"❌ Configuration Error #{consecutive_errors}: {e}")
-                
+
                 if consecutive_errors >= max_consecutive_errors:
                     self.logger.error(f"🚫 Too many consecutive config errors. This usually indicates a serious issue.")
                     await self.stop(f"Configuration error after {consecutive_errors} attempts: {str(e)}")
@@ -394,18 +401,18 @@ For MAINNET:
                 else:
                     self.telegram_reporter.report_error("Configuration Error", str(e))
                     await asyncio.sleep(min(60, 10 * consecutive_errors))  # Longer wait for config issues
-                    
+
             except (ValueError, TypeError) as e:
                 consecutive_errors += 1
                 self.logger.error(f"❌ Data Processing Error #{consecutive_errors}: {e}")
-                
+
                 if consecutive_errors >= max_consecutive_errors:
                     await self.stop(f"Data processing error after {consecutive_errors} attempts: {str(e)}")
                     break
                 else:
                     self.telegram_reporter.report_error("Data Error", str(e))
                     await asyncio.sleep(5)
-                    
+
             except Exception as e:
                 consecutive_errors += 1
                 error_msg = f"Unexpected Error #{consecutive_errors}: {str(e)}"
@@ -455,7 +462,7 @@ For MAINNET:
                 for strategy_name, log_time in self.last_position_log_time.items():
                     if log_time < cutoff_time:
                         to_remove.append(strategy_name)
-                
+
                 for strategy_name in to_remove:
                     del self.last_position_log_time[strategy_name]
 
@@ -515,7 +522,7 @@ For MAINNET:
 ║ 💰 PnL: ${pnl:.1f} USDT ({pnl_percent:+.1f}%)              ║
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝"""
-                        
+
                         self.logger.info(position_display)
                     else:
                         self.logger.error(f"❌ PnL DISPLAY ERROR | {strategy_name} | Invalid margin configuration for {symbol}")
@@ -728,7 +735,8 @@ For MAINNET:
                     position_dict = asdict(position)
                     # Add current leverage info to the position data
                     position_dict['leverage'] = strategy_config.get('leverage', 5)
-                    self.telegram_reporter.report_position_opened(position_dict)
+                    self.telegram_reporter.```python
+report_position_opened(position_dict)
                 else:
                     self.logger.warning(f"❌ POSITION FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not execute signal")
             else:
