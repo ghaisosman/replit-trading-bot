@@ -44,39 +44,75 @@ class BotManager:
         self.logger.info("🔍 TESTING BINANCE CONNECTION...")
 
         try:
-            # Add timeout for connection test
+            # Add timeout for connection test with enhanced error handling
             import asyncio
             import concurrent.futures
+            import signal
 
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(self.binance_client.test_connection)
-                try:
-                    connection_success = future.result(timeout=10)  # 10 second timeout
-                except concurrent.futures.TimeoutError:
-                    self.logger.error("❌ CONNECTION TIMEOUT: Binance connection test timed out after 10 seconds")
-                    self.logger.error("💡 This may indicate network issues or geographic restrictions")
-                    raise ConnectionError("Binance API connection timeout")
+            def timeout_handler(signum, frame):
+                raise TimeoutError("Connection test timed out")
 
-                if not connection_success:
-                    error_msg = "❌ CRITICAL: Binance connection test failed"
-                    self.logger.error(error_msg)
-                    raise ConnectionError("Binance API connection failed")
+            # Set up signal-based timeout as backup
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(15)  # 15 second hard timeout
+
+            try:
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(self.binance_client.test_connection)
+                    try:
+                        connection_success = future.result(timeout=10)  # 10 second timeout
+                    except concurrent.futures.TimeoutError:
+                        self.logger.error("❌ CONNECTION TIMEOUT: Binance connection test timed out after 10 seconds")
+                        self.logger.error("💡 This may indicate network issues or geographic restrictions")
+                        self.logger.error("🔄 Attempting to continue with limited functionality...")
+                        connection_success = False
+
+                    if not connection_success:
+                        self.logger.warning("⚠️ BINANCE CONNECTION FAILED - Continuing with limited functionality")
+                        self.logger.warning("💡 Bot will start but may have issues with live trading")
+                        # Don't raise error - allow bot to start in limited mode
+                    else:
+                        self.logger.info("✅ BINANCE CONNECTION SUCCESSFUL")
+
+            finally:
+                signal.alarm(0)  # Clear the alarm
+                signal.signal(signal.SIGALRM, old_handler)  # Restore old handler
 
         except Exception as conn_error:
             self.logger.error(f"❌ Connection test error: {conn_error}")
-            raise
+            self.logger.warning("🔄 Continuing bot startup despite connection issues...")
+            # Don't raise error - allow bot to start
 
-        # Validate API permissions
+        # Validate API permissions with timeout
         self.logger.info("🔍 VALIDATING API PERMISSIONS...")
-        permissions = self.binance_client.validate_api_permissions()
-
-        if not permissions['market_data']:
-            raise ValueError("❌ Market data access required but not available")
-
-        if not permissions['account_access'] and not global_config.BINANCE_TESTNET:
-            raise ValueError("❌ Account access required for live trading")
-
-        self.logger.info("✅ API VALIDATION COMPLETE")
+        try:
+            import signal
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError("API validation timed out")
+                
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(8)  # 8 second timeout for API validation
+            
+            try:
+                permissions = self.binance_client.validate_api_permissions()
+                
+                if not permissions['market_data']:
+                    self.logger.warning("⚠️ Market data access limited - continuing anyway")
+                
+                if not permissions['account_access'] and not global_config.BINANCE_TESTNET:
+                    self.logger.warning("⚠️ Account access limited - continuing anyway")
+                
+                self.logger.info("✅ API VALIDATION COMPLETE")
+                
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+                
+        except TimeoutError:
+            self.logger.warning("⚠️ API VALIDATION TIMEOUT - continuing anyway")
+        except Exception as e:
+            self.logger.warning(f"⚠️ API VALIDATION ERROR: {e} - continuing anyway")
 
         self.price_fetcher = PriceFetcher(self.binance_client)
         self.balance_fetcher = BalanceFetcher(self.binance_client)

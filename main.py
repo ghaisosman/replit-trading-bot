@@ -475,12 +475,14 @@ async def main_bot_only():
             logger.info("🚀 Creating bot manager instance...")
             # Import BotManager here to avoid circular imports
             try:
-                signal.alarm(15)  # 15 second timeout for bot manager creation
+                signal.alarm(30)  # 30 second timeout for bot manager creation
                 from src.bot_manager import BotManager
                 bot_manager = BotManager()
                 signal.alarm(0)
             except TimeoutError:
                 logger.error("❌ BOT MANAGER TIMEOUT: Initialization took too long")
+                logger.error("💡 This is likely due to network/API connection issues")
+                logger.error("🔄 Try restarting or check your internet connection")
                 raise
 
             # Quick validation
@@ -664,12 +666,14 @@ async def main():
             logger.info("🚀 Creating bot manager instance...")
             # Import BotManager here to avoid circular imports
             try:
-                signal.alarm(15)  # 15 second timeout for bot manager creation
+                signal.alarm(30)  # 30 second timeout for bot manager creation
                 from src.bot_manager import BotManager
                 bot_manager = BotManager()
                 signal.alarm(0)
             except TimeoutError:
                 logger.error("❌ BOT MANAGER TIMEOUT: Initialization took too long")
+                logger.error("💡 This is likely due to network/API connection issues")
+                logger.error("🔄 Try restarting or check your internet connection")
                 raise
 
             # Quick validation
