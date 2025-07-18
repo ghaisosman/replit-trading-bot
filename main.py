@@ -719,7 +719,7 @@ if __name__ == "__main__":
         logger.info("🕐 Waiting for cleanup to complete...")
         time.sleep(3)
 
-    # ENHANCED RESTART LOOP PROTECTION with PID validation
+    # FIXED: Enhanced restart loop protection with better error handling
     restart_count_file = "/tmp/bot_restart_count"
     current_pid = os.getpid()
 
@@ -737,20 +737,21 @@ if __name__ == "__main__":
                         last_restart_time = float(parts[1])
                         last_pid = int(parts[2])
 
-                        # Check if too many restarts from same PID in short time
+                        # FIXED: More aggressive restart loop prevention
                         if (restart_count >= 3 and 
-                            time.time() - last_restart_time < 60 and 
+                            time.time() - last_restart_time < 120 and  # Extended to 2 minutes
                             last_pid == current_pid):
-                            logger.error(f"🚫 RESTART LOOP DETECTED: {restart_count} restarts in 60s from PID {current_pid}")
-                            logger.error("🔄 Waiting 30 seconds before allowing restart...")
-                            time.sleep(30)
+                            logger.error(f"🚫 RESTART LOOP DETECTED: {restart_count} restarts in 2 minutes from PID {current_pid}")
+                            logger.error("🔄 Waiting 60 seconds before allowing restart...")
+                            time.sleep(60)  # Extended wait time
 
                         # Reset counter if enough time has passed or different PID
-                        if (time.time() - last_restart_time > 300 or last_pid != current_pid):
+                        if (time.time() - last_restart_time > 600 or last_pid != current_pid):  # Extended to 10 minutes
                             restart_count = 0
 
                     except ValueError:
                         restart_count = 0
+                        logger.warning("Invalid restart count data, resetting")
                 else:
                     restart_count = 0
             else:
@@ -771,6 +772,8 @@ if __name__ == "__main__":
 
     except Exception as e:
         logger.warning(f"Could not manage restart count: {e}")
+        # FIXED: Continue without restart protection if file operations fail
+        logger.info("🔄 Continuing startup without restart protection")
 
     # Check if running in deployment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
@@ -791,8 +794,34 @@ if __name__ == "__main__":
         logger.info("🔄 Bot can be started/stopped through the web dashboard")
 
         try:
+            # FIXED: Add process health monitoring to prevent infinite loops
+            health_check_count = 0
             while True:
                 time.sleep(10)
+                
+                # Health check every 10 iterations (100 seconds)
+                health_check_count += 1
+                if health_check_count % 10 == 0:
+                    try:
+                        # Check if web thread is still alive
+                        if web_thread and not web_thread.is_alive():
+                            logger.error("🚨 Web dashboard thread died, restarting...")
+                            web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
+                            web_thread.start()
+                            
+                        # Check memory usage
+                        try:
+                            process = psutil.Process()
+                            memory_mb = process.memory_info().rss / 1024 / 1024
+                            if memory_mb > 500:  # 500MB threshold
+                                logger.warning(f"⚠️ High memory usage: {memory_mb:.1f} MB")
+                        except:
+                            pass
+                            
+                        logger.debug(f"✅ Health check {health_check_count} passed")
+                    except Exception as health_error:
+                        logger.error(f"Health check failed: {health_error}")
+                        
         except KeyboardInterrupt:
             logger.info("🔴 Deployment shutdown")
     else:

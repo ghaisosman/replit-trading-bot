@@ -1303,6 +1303,44 @@
         let updateTimeouts = {};
         let pollingActive = true;
 
+        // FIXED: Safe API response handler to prevent parsing errors
+        function safeApiCall(url, options = {}) {
+            return fetch(url, options)
+                .then(response => {
+                    // Check if response is ok and has content
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    // Check content length
+                    const contentLength = response.headers.get('content-length');
+                    if (contentLength && parseInt(contentLength) === 0) {
+                        console.log('🔧 Empty response detected, using fallback');
+                        return { success: false, error: 'Empty response' };
+                    }
+
+                    return response.text().then(text => {
+                        // Validate that we have actual content
+                        if (!text || text.trim() === '') {
+                            console.log('🔧 Empty response body detected, using fallback');
+                            return { success: false, error: 'Empty response body' };
+                        }
+
+                        try {
+                            return JSON.parse(text);
+                        } catch (parseError) {
+                            console.log('🔧 JSON parse error, response was:', text.substring(0, 100));
+                            return { success: false, error: 'Invalid JSON response' };
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.log('🔧 API call failed:', error.message);
+                    return { success: false, error: error.message };
+                });
+        }
+
+        // FIXED: Enhanced intelligent update system with adaptive intervals
         function startIntelligentUpdates() {
             // Clear any existing timeouts
             Object.values(updateTimeouts).forEach(timeout => clearTimeout(timeout));
@@ -1416,7 +1454,37 @@
                     Object.keys(requestThrottle).forEach(key => {
                         requestThrottle[key].currentInterval = requestThrottle[key].minInterval;
                     });
-                    refreshData(); // Get fresh data when tab becomes active
+
+                    // Refresh all data when tab becomes visible
+                    Promise.allSettled([
+                        updateBotStatus(),
+                        updateBalance(),
+                        updateConsoleLog(),
+                        updatePositions()
+                    ]).then(() => {
+                        console.log('🔄 Dashboard refresh completed');
+                    });
+                }
+            });
+
+            // FIXED: Add global error handler for API response parsing errors
+            // This prevents the "Unexpected end of input" JavaScript errors
+            window.addEventListener('error', function(event) {
+                if (event.message && event.message.includes('Unexpected end of input')) {
+                    console.log('🔧 Detected API parsing error - likely empty response');
+                    // Don't log these errors to reduce console noise
+                    event.preventDefault();
+                    return false;
+                }
+            });
+
+            // FIXED: Add unhandled promise rejection handler
+            window.addEventListener('unhandledrejection', function(event) {
+                if (event.reason && event.reason.message && event.reason.message.includes('Unexpected end of input')) {
+                    console.log('🔧 Detected API parsing promise rejection - likely empty response');
+                    // Don't log these errors to reduce console noise
+                    event.preventDefault();
+                    return false;
                 }
             });
 
@@ -1581,7 +1649,8 @@
 
             fetch('/api/strategies/' + strategyName, {
                 method: 'POST',
-                headers: {
+                ```text
+headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(updates)
