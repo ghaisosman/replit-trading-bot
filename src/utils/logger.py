@@ -24,25 +24,121 @@ class ColoredFormatter(logging.Formatter):
         'RESET': '\033[0m'      # Reset
     }
 
-    # Strategy-specific colors
-    STRATEGY_COLORS = {
-        'RSI_OVERSOLD': '\033[95m',      # Purple/Magenta
-        'SMA_CROSSOVER': '\033[93m',     # Yellow
-        'rsi_oversold': '\033[95m',      # Purple/Magenta
-        'sma_crossover': '\033[93m',     # Yellow
-    }
+    # Extended color palette for strategies
+    AVAILABLE_STRATEGY_COLORS = [
+        '\033[95m',   # Purple/Magenta
+        '\033[93m',   # Yellow
+        '\033[96m',   # Cyan
+        '\033[91m',   # Light Red
+        '\033[92m',   # Light Green
+        '\033[94m',   # Light Blue
+        '\033[97m',   # White
+        '\033[90m',   # Dark Gray
+        '\033[35m',   # Magenta
+        '\033[36m',   # Dark Cyan
+        '\033[33m',   # Dark Yellow
+        '\033[31m',   # Dark Red
+        '\033[32m',   # Dark Green
+        '\033[34m',   # Dark Blue
+        '\033[37m',   # Light Gray
+        '\033[1;35m', # Bold Magenta
+        '\033[1;36m', # Bold Cyan
+        '\033[1;33m', # Bold Yellow
+        '\033[1;31m', # Bold Red
+        '\033[1;32m', # Bold Green
+        '\033[1;34m', # Bold Blue
+        '\033[1;37m', # Bold White
+    ]
 
-    # Active position colors (brighter/bold versions)
-    ACTIVE_POSITION_COLORS = {
-        'RSI_OVERSOLD': '\033[1;95m',    # Bold Purple/Magenta
-        'SMA_CROSSOVER': '\033[1;93m',   # Bold Yellow
-        'rsi_oversold': '\033[1;95m',    # Bold Purple/Magenta
-        'sma_crossover': '\033[1;93m',   # Bold Yellow
-    }
+    # Dynamic strategy color assignment
+    STRATEGY_COLORS = {}
+    ACTIVE_POSITION_COLORS = {}
+    
+    @classmethod
+    def _load_strategy_colors(cls):
+        """Load strategy colors from persistent storage"""
+        import os
+        import json
+        
+        color_file = 'trading_data/strategy_colors.json'
+        
+        # Ensure trading_data directory exists
+        os.makedirs('trading_data', exist_ok=True)
+        
+        if os.path.exists(color_file):
+            try:
+                with open(color_file, 'r') as f:
+                    data = json.load(f)
+                    cls.STRATEGY_COLORS = data.get('strategy_colors', {})
+                    cls.ACTIVE_POSITION_COLORS = data.get('active_position_colors', {})
+            except Exception:
+                # If file is corrupted, start fresh
+                cls.STRATEGY_COLORS = {}
+                cls.ACTIVE_POSITION_COLORS = {}
+    
+    @classmethod
+    def _save_strategy_colors(cls):
+        """Save strategy colors to persistent storage"""
+        import os
+        import json
+        
+        color_file = 'trading_data/strategy_colors.json'
+        
+        # Ensure trading_data directory exists
+        os.makedirs('trading_data', exist_ok=True)
+        
+        data = {
+            'strategy_colors': cls.STRATEGY_COLORS,
+            'active_position_colors': cls.ACTIVE_POSITION_COLORS
+        }
+        
+        try:
+            with open(color_file, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception:
+            pass  # Fail silently to not break logging
+    
+    @classmethod
+    def _assign_strategy_color(cls, strategy_name):
+        """Assign a unique color to a strategy"""
+        # Normalize strategy name for consistent lookup
+        normalized_name = strategy_name.upper()
+        
+        # If already assigned, return existing color
+        if normalized_name in cls.STRATEGY_COLORS:
+            return cls.STRATEGY_COLORS[normalized_name]
+        
+        # Find next available color
+        used_colors = set(cls.STRATEGY_COLORS.values())
+        available_colors = [color for color in cls.AVAILABLE_STRATEGY_COLORS if color not in used_colors]
+        
+        if not available_colors:
+            # If all colors are used, cycle back to the beginning
+            available_colors = cls.AVAILABLE_STRATEGY_COLORS
+        
+        # Assign the first available color
+        selected_color = available_colors[0]
+        cls.STRATEGY_COLORS[normalized_name] = selected_color
+        
+        # Create bold version for active positions
+        if selected_color.startswith('\033[1;'):
+            # Already bold, use as is
+            cls.ACTIVE_POSITION_COLORS[normalized_name] = selected_color
+        else:
+            # Make bold version
+            color_code = selected_color.replace('\033[', '\033[1;')
+            cls.ACTIVE_POSITION_COLORS[normalized_name] = color_code
+        
+        # Save the updated colors
+        cls._save_strategy_colors()
+        
+        return selected_color
 
     def __init__(self):
         super().__init__()
         self.last_log_time = None
+        # Load existing strategy colors on initialization
+        self._load_strategy_colors()
 
     def format(self, record):
         # Format timestamp
@@ -55,16 +151,39 @@ class ColoredFormatter(logging.Formatter):
         # Detect strategy and position status from message
         strategy_color = None
         is_active_position = False
+        detected_strategy = None
 
-        # Check for strategy mentions and active positions
-        for strategy_name in self.STRATEGY_COLORS.keys():
-            if strategy_name.upper() in message.upper():
-                if "TRADE IN PROGRESS" in message:
-                    strategy_color = self.ACTIVE_POSITION_COLORS.get(strategy_name)
-                    is_active_position = True
-                elif any(keyword in message for keyword in ["MARKET ASSESSMENT", "ENTRY SIGNAL", "POSITION OPENED", "POSITION CLOSED", "SCANNING"]):
-                    strategy_color = self.STRATEGY_COLORS.get(strategy_name)
+        # Extract strategy name from common message patterns
+        import re
+        
+        # Pattern 1: "STRATEGY_NAME | SYMBOL" or "Strategy: STRATEGY_NAME"
+        strategy_patterns = [
+            r'🎯\s*(?:Strategy:\s*)?([A-Z_]+)',
+            r'([A-Z_]+)\s*\|',
+            r'SCANNING\s+[A-Z]+\s*\|\s*([A-Z_]+)',
+            r'POSITION\s+(?:OPENED|CLOSED)\s*\|\s*([A-Z_]+)',
+            r'SIGNAL\s+(?:DETECTED|TRIGGERED)\s*\|\s*([A-Z_]+)',
+            r'EXIT\s+TRIGGERED\s*\|\s*([A-Z_]+)',
+            r'STRATEGY\s+BLOCKED\s*\|\s*([A-Z_]+)',
+        ]
+        
+        for pattern in strategy_patterns:
+            match = re.search(pattern, message)
+            if match:
+                detected_strategy = match.group(1).upper()
                 break
+        
+        # If we detected a strategy, assign color if needed
+        if detected_strategy:
+            # Assign color dynamically if not already assigned
+            strategy_color = self._assign_strategy_color(detected_strategy)
+            
+            # Check if this is an active position
+            if "TRADE IN PROGRESS" in message or "ACTIVE POSITION" in message:
+                strategy_color = self.ACTIVE_POSITION_COLORS.get(detected_strategy, strategy_color)
+                is_active_position = True
+            elif any(keyword in message for keyword in ["MARKET ASSESSMENT", "ENTRY SIGNAL", "POSITION OPENED", "POSITION CLOSED", "SCANNING", "EXIT TRIGGERED", "STRATEGY BLOCKED"]):
+                strategy_color = self.STRATEGY_COLORS.get(detected_strategy, strategy_color)
 
         # Get colors
         if strategy_color:
