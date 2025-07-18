@@ -721,8 +721,7 @@ def create_strategy():
                 return jsonify({'success': False, 'message': 'MACD Fast must be less than MACD Slow'})
 
         # 🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Save to persistent config
-        trading_config_manager.update_strategy_params(```python
-strategy_name, new_config)
+        trading_config_manager.update_strategy_params(strategy_name, new_config)
 
         logger.info(f"🆕 NEW STRATEGY CREATED: {strategy_name} via web dashboard")
         logger.info(f"🌐 WEB DASHBOARD: New strategy config saved as single source of truth")
