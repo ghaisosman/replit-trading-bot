@@ -1,0 +1,20 @@
+{
+  "strategy_colors": {
+    "LOADED": "\u001b[95m",
+    "SOLUSDT": "\u001b[93m",
+    "BTCUSDT": "\u001b[96m",
+    "ETHUSDT": "\u001b[91m",
+    "RSI_OVERSOLD": "\u001b[92m",
+    "MACD_DIVERGENCE": "\u001b[94m",
+    "RSI_ETH": "\u001b[97m"
+  },
+  "active_position_colors": {
+    "LOADED": "\u001b[1;95m",
+    "SOLUSDT": "\u001b[1;93m",
+    "BTCUSDT": "\u001b[1;96m",
+    "ETHUSDT": "\u001b[1;91m",
+    "RSI_OVERSOLD": "\u001b[1;92m",
+    "MACD_DIVERGENCE": "\u001b[1;94m",
+    "RSI_ETH": "\u001b[1;97m"
+  }
+}
