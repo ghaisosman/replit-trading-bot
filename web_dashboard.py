@@ -1257,7 +1257,7 @@ def get_console_log():
             try:
                 logs = shared_bot_manager.log_handler.get_recent_logs(50)
                 if logs and len(logs) > 0:
-                    return jsonify({'logs': logs, 'status': 'success'})
+                    return jsonify({'success': True, 'logs': logs, 'status': 'success'})
             except Exception as log_error:
                 logger.debug(f"Log handler error: {log_error}")
                 # Continue to fallback
@@ -1300,6 +1300,7 @@ def get_console_log():
         ]
         
         return jsonify({
+            'success': True,
             'logs': fallback_logs,
             'status': 'fallback'
         })
@@ -1309,6 +1310,7 @@ def get_console_log():
         # Always return valid JSON to prevent frontend errors
         error_time = datetime.now().strftime("%H:%M:%S")
         return jsonify({
+            'success': True,
             'logs': [f'[{error_time}] ⚠️ Console temporarily unavailable - Bot is running'],
             'status': 'error',
             'error': str(e)

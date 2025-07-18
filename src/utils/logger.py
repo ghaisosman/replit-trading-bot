@@ -1,7 +1,14 @@
+"""
+Logging utilities for the trading bot
+"""
+
 import logging
 import sys
 import os
 from datetime import datetime
+from pathlib import Path
+from collections import deque
+import threading
 
 class ColoredFormatter(logging.Formatter):
     """Colorful formatter with Telegram-style vertical layout"""
@@ -53,18 +60,18 @@ class ColoredFormatter(logging.Formatter):
     # Dynamic strategy color assignment
     STRATEGY_COLORS = {}
     ACTIVE_POSITION_COLORS = {}
-    
+
     @classmethod
     def _load_strategy_colors(cls):
         """Load strategy colors from persistent storage"""
         import os
         import json
-        
+
         color_file = 'trading_data/strategy_colors.json'
-        
+
         # Ensure trading_data directory exists
         os.makedirs('trading_data', exist_ok=True)
-        
+
         if os.path.exists(color_file):
             try:
                 with open(color_file, 'r') as f:
@@ -75,51 +82,51 @@ class ColoredFormatter(logging.Formatter):
                 # If file is corrupted, start fresh
                 cls.STRATEGY_COLORS = {}
                 cls.ACTIVE_POSITION_COLORS = {}
-    
+
     @classmethod
     def _save_strategy_colors(cls):
         """Save strategy colors to persistent storage"""
         import os
         import json
-        
+
         color_file = 'trading_data/strategy_colors.json'
-        
+
         # Ensure trading_data directory exists
         os.makedirs('trading_data', exist_ok=True)
-        
+
         data = {
             'strategy_colors': cls.STRATEGY_COLORS,
             'active_position_colors': cls.ACTIVE_POSITION_COLORS
         }
-        
+
         try:
             with open(color_file, 'w') as f:
                 json.dump(data, f, indent=2)
         except Exception:
             pass  # Fail silently to not break logging
-    
+
     @classmethod
     def _assign_strategy_color(cls, strategy_name):
         """Assign a unique color to a strategy"""
         # Normalize strategy name for consistent lookup
         normalized_name = strategy_name.upper()
-        
+
         # If already assigned, return existing color
         if normalized_name in cls.STRATEGY_COLORS:
             return cls.STRATEGY_COLORS[normalized_name]
-        
+
         # Find next available color
         used_colors = set(cls.STRATEGY_COLORS.values())
         available_colors = [color for color in cls.AVAILABLE_STRATEGY_COLORS if color not in used_colors]
-        
+
         if not available_colors:
             # If all colors are used, cycle back to the beginning
             available_colors = cls.AVAILABLE_STRATEGY_COLORS
-        
+
         # Assign the first available color
         selected_color = available_colors[0]
         cls.STRATEGY_COLORS[normalized_name] = selected_color
-        
+
         # Create bold version for active positions
         if selected_color.startswith('\033[1;'):
             # Already bold, use as is
@@ -128,10 +135,10 @@ class ColoredFormatter(logging.Formatter):
             # Make bold version
             color_code = selected_color.replace('\033[', '\033[1;')
             cls.ACTIVE_POSITION_COLORS[normalized_name] = color_code
-        
+
         # Save the updated colors
         cls._save_strategy_colors()
-        
+
         return selected_color
 
     def __init__(self):
@@ -155,7 +162,7 @@ class ColoredFormatter(logging.Formatter):
 
         # Extract strategy name from common message patterns
         import re
-        
+
         # Pattern 1: "STRATEGY_NAME | SYMBOL" or "Strategy: STRATEGY_NAME"
         strategy_patterns = [
             r'🎯\s*(?:Strategy:\s*)?([A-Z_]+)',
@@ -166,18 +173,18 @@ class ColoredFormatter(logging.Formatter):
             r'EXIT\s+TRIGGERED\s*\|\s*([A-Z_]+)',
             r'STRATEGY\s+BLOCKED\s*\|\s*([A-Z_]+)',
         ]
-        
+
         for pattern in strategy_patterns:
             match = re.search(pattern, message)
             if match:
                 detected_strategy = match.group(1).upper()
                 break
-        
+
         # If we detected a strategy, assign color if needed
         if detected_strategy:
             # Assign color dynamically if not already assigned
             strategy_color = self._assign_strategy_color(detected_strategy)
-            
+
             # Check if this is an active position
             if "TRADE IN PROGRESS" in message or "ACTIVE POSITION" in message:
                 strategy_color = self.ACTIVE_POSITION_COLORS.get(detected_strategy, strategy_color)
@@ -454,6 +461,13 @@ def setup_logger():
     root_logger.addHandler(file_handler)
     root_logger.addHandler(file_handler_web)
 
+    # Add web log handler
+    web_log_handler = WebLogHandler()
+    web_log_handler.setFormatter(ColoredFormatter())
+    web_log_handler.setLevel(logging.INFO)
+    root_logger.addHandler(web_log_handler)
+
+
     # Suppress noisy loggers
     logging.getLogger('urllib3').setLevel(logging.WARNING)
     logging.getLogger('requests').setLevel(logging.WARNING)
@@ -461,3 +475,47 @@ def setup_logger():
     # Test the new format
     logger = logging.getLogger(__name__)
     logger.info("📱 Telegram-style vertical logging format initialized")
+
+    # Force flush to ensure logs are written immediately
+    for handler in logger.handlers:
+        handler.flush()
+
+
+class WebLogHandler(logging.Handler):
+    """Log handler that stores recent logs in memory for web dashboard"""
+
+    def __init__(self, max_logs=100):
+        super().__init__()
+        self.max_logs = max_logs
+        self.logs = deque(maxlen=max_logs)
+        self.lock = threading.Lock()
+
+    def emit(self, record):
+        """Store log record in memory"""
+        try:
+            with self.lock:
+                # Format the log message
+                log_msg = self.format(record)
+                timestamp = datetime.fromtimestamp(record.created).strftime('%H:%M:%S')
+
+                # Clean up the message for web display
+                clean_msg = log_msg.replace('┌─────────────────────────────────────────────────┐', '')
+                clean_msg = clean_msg.replace('└─────────────────────────────────────────────────┘', '')
+                clean_msg = clean_msg.replace('│', '').strip()
+
+                if clean_msg and clean_msg != 'ℹ️  INFO':
+                    formatted_log = f'[{timestamp}] {clean_msg}'
+                    self.logs.append(formatted_log)
+        except Exception:
+            # Don't let logging errors crash the application
+            pass
+
+    def get_recent_logs(self, count=50):
+        """Get recent log messages for web dashboard"""
+        try:
+            with self.lock:
+                # Return the last 'count' logs
+                recent_logs = list(self.logs)[-count:] if len(self.logs) > count else list(self.logs)
+                return recent_logs
+        except Exception:
+            return ['[ERROR] Could not retrieve logs']
