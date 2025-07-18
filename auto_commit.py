@@ -92,4 +92,9 @@ if __name__ == "__main__":
     print("⚠️  Auto-commit functionality is PERMANENTLY DISABLED")
     print("📝 Use manual git commands only")
     print("🚫 Auto-commit can cause conflicts and restart loops")
-    exit(0)  # Prevent any execution
+    
+    # Kill this process immediately to prevent any file watching
+    import os
+    import sys
+    print("🛑 Terminating auto-commit process to prevent restart loops")
+    sys.exit(0)
