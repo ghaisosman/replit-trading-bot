@@ -34,6 +34,14 @@ class GlobalConfig:
         self.USE_LOCAL_TIMEZONE = os.getenv('USE_LOCAL_TIMEZONE', 'false').lower() == 'true'
         self.TIMEZONE_OFFSET_HOURS = float(os.getenv('TIMEZONE_OFFSET_HOURS', '0'))  # Manual offset if needed
 
+        # Proxy configuration for geographic restriction bypass
+        self.PROXY_ENABLED = os.getenv('PROXY_ENABLED', 'false').lower() == 'true'
+        self.PROXY_URLS = os.getenv('PROXY_URLS', '').split(',') if os.getenv('PROXY_URLS') else []
+        self.PROXY_USERNAME = os.getenv('PROXY_USERNAME')
+        self.PROXY_PASSWORD = os.getenv('PROXY_PASSWORD')
+        self.PROXY_ROTATION_INTERVAL = int(os.getenv('PROXY_ROTATION_INTERVAL', '300'))  # 5 minutes
+        self.PROXY_MAX_RETRIES = int(os.getenv('PROXY_MAX_RETRIES', '3'))
+
     def validate_config(self) -> bool:
         """Validate that all required config is present"""
         required_vars = [
@@ -85,7 +93,7 @@ class GlobalConfig:
                 with open(config_file, 'r') as f:
                     env_config = json.load(f)
 
-                self.BINANCE_TESTNET = env_config.get('BINANCE_TESTNET', 'true').lower() == 'true'
+                self.BINANCE_TESTNET = env_config.get('BINANCE_TESTNET', 'false').lower() == 'true'
                 self.BINANCE_FUTURES = env_config.get('BINANCE_FUTURES', 'true').lower() == 'true'
 
                 print(f"🔧 Environment loaded from config file: {'TESTNET' if self.BINANCE_TESTNET else 'MAINNET'}")
@@ -94,19 +102,17 @@ class GlobalConfig:
             except Exception as e:
                 print(f"Warning: Could not load environment config file: {e}")
 
-        # Check if running in Replit development mode
-        is_replit_dev = not os.environ.get('REPLIT_DEPLOYMENT') == '1'
+        # Force mainnet for all environments (no more testnet switching)
+        self.BINANCE_TESTNET = False
+        self.BINANCE_FUTURES = os.getenv('BINANCE_FUTURES', 'true').lower() == 'true'
         
-        if is_replit_dev:
-            # Use testnet in Replit development to avoid geographic restrictions
-            self.BINANCE_TESTNET = True
-            self.BINANCE_FUTURES = True
-            print(f"🔧 Environment loaded: TESTNET (Replit development mode)")
-        else:
-            # Use mainnet only in deployment
-            self.BINANCE_TESTNET = False
-            self.BINANCE_FUTURES = os.getenv('BINANCE_FUTURES', 'true').lower() == 'true'
-            print(f"🔧 Environment loaded: MAINNET (deployment mode)")
+        # Check if proxy should be enabled for geographic restrictions
+        is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
+        if is_deployment and not self.PROXY_ENABLED:
+            print("🚨 DEPLOYMENT MODE: Consider enabling proxy to bypass geographic restrictions")
+            print("   Set PROXY_ENABLED=true and PROXY_URLS in your Replit Secrets")
+        
+        print(f"🔧 Environment loaded: MAINNET (proxy: {'enabled' if self.PROXY_ENABLED else 'disabled'})")
 
 # Global config instance
 global_config = GlobalConfig()

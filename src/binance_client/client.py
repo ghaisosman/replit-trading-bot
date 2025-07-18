@@ -175,38 +175,69 @@ class BinanceClientWrapper:
         return permissions
 
     def get_account_info(self) -> Optional[Dict[str, Any]]:
-        """Get account information with rate limiting"""
-        try:
-            self._rate_limit()
-            if self.is_futures:
-                return self.client.futures_account()
-            else:
-                return self.client.get_account()
-        except BinanceAPIException as e:
-            if e.code == -2015:
-                if global_config.BINANCE_TESTNET:
-                    env = "FUTURES" if self.is_futures else "SPOT"
-                    opposite_env = "SPOT" if self.is_futures else "FUTURES"
-                    url = "https://testnet.binancefuture.com/" if self.is_futures else "https://testnet.binance.vision/"
-                    opposite_url = "https://testnet.binance.vision/" if self.is_futures else "https://testnet.binancefuture.com/"
-
-                    self.logger.error(f"❌ {env} TESTNET API PERMISSION ERROR")
-                    self.logger.error(f"🔧 SOLUTION: You likely have {opposite_env} testnet keys, but need {env} testnet keys:")
-                    self.logger.error(f"   1. Go to {url} (NOT {opposite_url})")
-                    self.logger.error("   2. API Management → Create API Key")
-                    self.logger.error(f"   3. Enable: Reading + {env} Trading")
-                    self.logger.error("   4. Disable IP restrictions for testing")
-                    self.logger.error(f"   5. Update your Replit Secrets with new {env} testnet keys")
-                    self.logger.error("")
-                    self.logger.error(f"ℹ️  Current keys appear to be from {opposite_env} testnet (different endpoint)")
+        """Get account information with enhanced retry logic for geographic restrictions"""
+        max_retries = 3
+        retry_delay = 5
+        
+        for attempt in range(max_retries):
+            try:
+                self._rate_limit()
+                if self.is_futures:
+                    result = self.client.futures_account()
                 else:
-                    self.logger.error("❌ MAINNET API Keys invalid or IP not whitelisted")
-            else:
-                self.logger.error(f"Error getting account info: {e}")
-            return None
-        except Exception as e:
-            self.logger.error(f"Unexpected error getting account info: {e}")
-            return None
+                    result = self.client.get_account()
+                
+                # If successful, return immediately
+                if result:
+                    return result
+                    
+            except BinanceAPIException as e:
+                if e.code == -2015:
+                    if global_config.BINANCE_TESTNET:
+                        env = "FUTURES" if self.is_futures else "SPOT"
+                        opposite_env = "SPOT" if self.is_futures else "FUTURES"
+                        url = "https://testnet.binancefuture.com/" if self.is_futures else "https://testnet.binance.vision/"
+                        opposite_url = "https://testnet.binance.vision/" if self.is_futures else "https://testnet.binancefuture.com/"
+
+                        self.logger.error(f"❌ {env} TESTNET API PERMISSION ERROR")
+                        self.logger.error(f"🔧 SOLUTION: You likely have {opposite_env} testnet keys, but need {env} testnet keys:")
+                        self.logger.error(f"   1. Go to {url} (NOT {opposite_url})")
+                        self.logger.error("   2. API Management → Create API Key")
+                        self.logger.error(f"   3. Enable: Reading + {env} Trading")
+                        self.logger.error("   4. Disable IP restrictions for testing")
+                        self.logger.error(f"   5. Update your Replit Secrets with new {env} testnet keys")
+                        self.logger.error("")
+                        self.logger.error(f"ℹ️  Current keys appear to be from {opposite_env} testnet (different endpoint)")
+                    else:
+                        self.logger.error("❌ MAINNET API Keys invalid or IP not whitelisted")
+                    return None
+                else:
+                    self.logger.error(f"Error getting account info: {e}")
+                    if attempt < max_retries - 1:
+                        self.logger.info(f"🔄 Retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(retry_delay)
+                        continue
+                    return None
+                    
+            except Exception as e:
+                # Handle connection errors with retry
+                if "Connection aborted" in str(e) or "RemoteDisconnected" in str(e):
+                    if attempt < max_retries - 1:
+                        self.logger.warning(f"🌐 Connection issue detected, retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        self.logger.error(f"❌ Geographic restriction detected: All connection attempts failed")
+                        self.logger.error("💡 Consider running bot in development mode where geographic restrictions don't apply")
+                        return None
+                else:
+                    self.logger.error(f"Unexpected error getting account info: {e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                        continue
+                    return None
+        
+        return None
 
     def get_symbol_ticker(self, symbol: str) -> Optional[Dict]:
         """Get ticker information for a symbol"""
