@@ -1440,8 +1440,7 @@ def get_console_log():
             'timestamp': error_time
         }), 200
 
-# Removed duplicate route - using the```python
- existing '/api/bot/status' route with rate limiting instead
+# Removed duplicate route - using the existing '/api/bot/status' route with rate limiting instead
 
 def get_current_price(symbol):
     """Get current price for a symbol"""
