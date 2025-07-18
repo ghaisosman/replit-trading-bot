@@ -6,6 +6,7 @@ import sys
 import threading
 import time
 import psutil
+from src.bot_manager import BotManager
 from src.utils.logger import setup_logger
 
 # Import web dashboard after setting up the module reference
@@ -428,88 +429,10 @@ async def main_bot_only():
     logger.info("🌐 Using existing Web Dashboard instance")
 
     try:
-        # Initialize the bot manager with enhanced error handling and validation
-        logger.info("🔧 INITIALIZING BOT MANAGER...")
+        # Initialize the bot manager
+        bot_manager = BotManager()
 
-        try:
-            # FIXED: Add pre-initialization checks to catch issues early
-            logger.info("🔍 Pre-initialization validation...")
-
-            # Validate imports first with timeout protection
-            try:
-                import signal
-
-                def timeout_handler(signum, frame):
-                    raise TimeoutError("Import validation timed out")
-
-                signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(10)  # 10 second timeout
-
-                from src.config.global_config import global_config
-                from src.binance_client.client import BinanceClientWrapper
-
-                signal.alarm(0)  # Cancel timeout
-                logger.info("✅ Core imports validated")
-            except TimeoutError:
-                logger.error("❌ IMPORT TIMEOUT: Core modules failed to load within 10 seconds")
-                raise
-            except ImportError as import_error:
-                logger.error(f"❌ IMPORT ERROR: {import_error}")
-                raise
-
-            # Quick validation check with timeout
-            try:
-                signal.alarm(5)  # 5 second timeout
-                config_valid = hasattr(global_config, 'BINANCE_API_KEY') and hasattr(global_config, 'BINANCE_SECRET_KEY')
-                signal.alarm(0)
-
-                if not config_valid:
-                    logger.error("❌ CONFIGURATION VALIDATION FAILED")
-                    raise ValueError("Invalid configuration - missing API keys")
-                else:
-                    logger.info("✅ Configuration validation passed")
-            except TimeoutError:
-                logger.error("❌ CONFIG TIMEOUT: Configuration validation timed out")
-                raise
-
-            logger.info("🚀 Creating bot manager instance...")
-            # Import BotManager here to avoid circular imports
-            try:
-                signal.alarm(30)  # 30 second timeout for bot manager creation
-                from src.bot_manager import BotManager
-                bot_manager = BotManager()
-                signal.alarm(0)
-            except TimeoutError:
-                logger.error("❌ BOT MANAGER TIMEOUT: Initialization took too long")
-                logger.error("💡 This is likely due to network/API connection issues")
-                logger.error("🔄 Try restarting or check your internet connection")
-                raise
-
-            # Quick validation
-            if not hasattr(bot_manager, 'logger'):
-                raise RuntimeError("Bot manager initialization incomplete - missing logger")
-
-            logger.info("✅ Bot manager created successfully")
-
-        except Exception as e:
-            logger.error(f"❌ CRITICAL: Bot manager initialization failed: {e}")
-            logger.error(f"🔍 Error type: {type(e).__name__}")
-
-            # Provide specific guidance based on error type
-            if "TimeoutError" in str(type(e)) or "timeout" in str(e).lower():
-                logger.error("💡 TIMEOUT ISSUE - Try these solutions:")
-                logger.error("   1. Check your internet connection")
-                logger.error("   2. Verify API keys are correctly set")
-                logger.error("   3. Restart the Repl if the issue persists")
-            else:
-                logger.error("💡 Common causes:")
-                logger.error("   - Invalid API keys or network issues")
-                logger.error("   - Missing environment variables")
-                logger.error("   - Configuration file errors")
-
-            raise
-
-        # Enhanced bot manager reference sharing with error handling
+        # Enhanced bot manager reference sharing
         try:
             sys.modules['__main__'].bot_manager = bot_manager
             logger.info("✅ Bot manager registered in main module")
@@ -619,88 +542,10 @@ async def main():
     logger.info("🌐 Web Dashboard accessible and will remain active")
 
     try:
-        # Initialize the bot manager with enhanced error handling and validation
-        logger.info("🔧 INITIALIZING BOT MANAGER...")
+        # Initialize the bot manager
+        bot_manager = BotManager()
 
-        try:
-            # FIXED: Add pre-initialization checks to catch issues early
-            logger.info("🔍 Pre-initialization validation...")
-
-            # Validate imports first with timeout protection
-            try:
-                import signal
-
-                def timeout_handler(signum, frame):
-                    raise TimeoutError("Import validation timed out")
-
-                signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(10)  # 10 second timeout
-
-                from src.config.global_config import global_config
-                from src.binance_client.client import BinanceClientWrapper
-
-                signal.alarm(0)  # Cancel timeout
-                logger.info("✅ Core imports validated")
-            except TimeoutError:
-                logger.error("❌ IMPORT TIMEOUT: Core modules failed to load within 10 seconds")
-                raise
-            except ImportError as import_error:
-                logger.error(f"❌ IMPORT ERROR: {import_error}")
-                raise
-
-            # Quick validation check with timeout
-            try:
-                signal.alarm(5)  # 5 second timeout
-                config_valid = hasattr(global_config, 'BINANCE_API_KEY') and hasattr(global_config, 'BINANCE_SECRET_KEY')
-                signal.alarm(0)
-
-                if not config_valid:
-                    logger.error("❌ CONFIGURATION VALIDATION FAILED")
-                    raise ValueError("Invalid configuration - missing API keys")
-                else:
-                    logger.info("✅ Configuration validation passed")
-            except TimeoutError:
-                logger.error("❌ CONFIG TIMEOUT: Configuration validation timed out")
-                raise
-
-            logger.info("🚀 Creating bot manager instance...")
-            # Import BotManager here to avoid circular imports
-            try:
-                signal.alarm(30)  # 30 second timeout for bot manager creation
-                from src.bot_manager import BotManager
-                bot_manager = BotManager()
-                signal.alarm(0)
-            except TimeoutError:
-                logger.error("❌ BOT MANAGER TIMEOUT: Initialization took too long")
-                logger.error("💡 This is likely due to network/API connection issues")
-                logger.error("🔄 Try restarting or check your internet connection")
-                raise
-
-            # Quick validation
-            if not hasattr(bot_manager, 'logger'):
-                raise RuntimeError("Bot manager initialization incomplete - missing logger")
-
-            logger.info("✅ Bot manager created successfully")
-
-        except Exception as e:
-            logger.error(f"❌ CRITICAL: Bot manager initialization failed: {e}")
-            logger.error(f"🔍 Error type: {type(e).__name__}")
-
-            # Provide specific guidance based on error type
-            if "TimeoutError" in str(type(e)) or "timeout" in str(e).lower():
-                logger.error("💡 TIMEOUT ISSUE - Try these solutions:")
-                logger.error("   1. Check your internet connection")
-                logger.error("   2. Verify API keys are correctly set")
-                logger.error("   3. Restart the Repl if the issue persists")
-            else:
-                logger.error("💡 Common causes:")
-                logger.error("   - Invalid API keys or network issues")
-                logger.error("   - Missing environment variables")
-                logger.error("   - Configuration file errors")
-
-            raise
-
-        # Enhanced bot manager reference sharing with error handling
+        # Enhanced bot manager reference sharing
         try:
             sys.modules['__main__'].bot_manager = bot_manager
             logger.info("✅ Bot manager registered in main module")
@@ -759,22 +604,6 @@ async def main():
         logger.info("🌐 Web interface remains active despite bot error")
 
 if __name__ == "__main__":
-    # SAFETY CHECK: Prevent restart loop on critical import errors
-    # Check if web_dashboard can be imported without errors
-    try:
-        import web_dashboard
-        logger_test = logging.getLogger(__name__)
-        logger_test.info("✅ Import test passed - starting normally")
-    except SyntaxError as syntax_error:
-        print(f"🚫 CRITICAL SYNTAX ERROR DETECTED: {syntax_error}")
-        print("🔧 Please fix the syntax error before starting the bot")
-        print("💡 Check web_dashboard.py for syntax issues")
-        exit(1)
-    except Exception as import_error:
-        print(f"🚫 CRITICAL IMPORT ERROR: {import_error}")
-        print("🔧 Please fix the import error before starting the bot")
-        exit(1)
-
     # Setup logging first
     setup_logger()
     logger = logging.getLogger(__name__)
@@ -792,7 +621,7 @@ if __name__ == "__main__":
         logger.info("🕐 Waiting for cleanup to complete...")
         time.sleep(3)
 
-    # FIXED: Enhanced restart loop protection with better error handling
+    # ENHANCED RESTART LOOP PROTECTION with PID validation
     restart_count_file = "/tmp/bot_restart_count"
     current_pid = os.getpid()
 
@@ -810,21 +639,20 @@ if __name__ == "__main__":
                         last_restart_time = float(parts[1])
                         last_pid = int(parts[2])
 
-                        # FIXED: More aggressive restart loop prevention
+                        # Check if too many restarts from same PID in short time
                         if (restart_count >= 3 and 
-                            time.time() - last_restart_time < 120 and  # Extended to 2 minutes
+                            time.time() - last_restart_time < 60 and 
                             last_pid == current_pid):
-                            logger.error(f"🚫 RESTART LOOP DETECTED: {restart_count} restarts in 2 minutes from PID {current_pid}")
-                            logger.error("🔄 Waiting 60 seconds before allowing restart...")
-                            time.sleep(60)  # Extended wait time
+                            logger.error(f"🚫 RESTART LOOP DETECTED: {restart_count} restarts in 60s from PID {current_pid}")
+                            logger.error("🔄 Waiting 30 seconds before allowing restart...")
+                            time.sleep(30)
 
                         # Reset counter if enough time has passed or different PID
-                        if (time.time() - last_restart_time > 600 or last_pid != current_pid):  # Extended to 10 minutes
+                        if (time.time() - last_restart_time > 300 or last_pid != current_pid):
                             restart_count = 0
 
                     except ValueError:
                         restart_count = 0
-                        logger.warning("Invalid restart count data, resetting")
                 else:
                     restart_count = 0
             else:
@@ -845,8 +673,6 @@ if __name__ == "__main__":
 
     except Exception as e:
         logger.warning(f"Could not manage restart count: {e}")
-        # FIXED: Continue without restart protection if file operations fail
-        logger.info("🔄 Continuing startup without restart protection")
 
     # Check if running in deployment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
@@ -867,34 +693,8 @@ if __name__ == "__main__":
         logger.info("🔄 Bot can be started/stopped through the web dashboard")
 
         try:
-            # FIXED: Add process health monitoring to prevent infinite loops
-            health_check_count = 0
             while True:
                 time.sleep(10)
-
-                # Health check every 10 iterations (100 seconds)
-                health_check_count += 1
-                if health_check_count % 10 == 0:
-                    try:
-                        # Check if web thread is still alive
-                        if web_thread and not web_thread.is_alive():
-                            logger.error("🚨 Web dashboard thread died, restarting...")
-                            web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
-                            web_thread.start()
-
-                        # Check memory usage
-                        try:
-                            process = psutil.Process()
-                            memory_mb = process.memory_info().rss / 1024 / 1024
-                            if memory_mb > 500:  # 500MB threshold
-                                logger.warning(f"⚠️ High memory usage: {memory_mb:.1f} MB")
-                        except:
-                            pass
-
-                        logger.debug(f"✅ Health check {health_check_count} passed")
-                    except Exception as health_error:
-                        logger.error(f"Health check failed: {health_error}")
-
         except KeyboardInterrupt:
             logger.info("🔴 Deployment shutdown")
     else:
