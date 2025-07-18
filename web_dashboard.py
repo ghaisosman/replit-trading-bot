@@ -531,7 +531,7 @@ def get_bot_status():
             'last_update': datetime.now().strftime('%H:%M:%S'),
             'success': False
         }
-        return jsonify(error_response)ify(error_response), 200
+        return jsonify(error_response), 200
 
 @app.route('/api/strategies')
 def get_strategies():
