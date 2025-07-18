@@ -94,11 +94,19 @@ class GlobalConfig:
             except Exception as e:
                 print(f"Warning: Could not load environment config file: {e}")
 
-        # Fallback to environment variables - FORCE MAINNET
-        self.BINANCE_TESTNET = False  # Always use mainnet
-        self.BINANCE_FUTURES = os.getenv('BINANCE_FUTURES', 'true').lower() == 'true'  # Enable futures trading
-
-        print(f"🔧 Environment loaded from secrets: MAINNET (forced)")
+        # Check if running in Replit development mode
+        is_replit_dev = not os.environ.get('REPLIT_DEPLOYMENT') == '1'
+        
+        if is_replit_dev:
+            # Use testnet in Replit development to avoid geographic restrictions
+            self.BINANCE_TESTNET = True
+            self.BINANCE_FUTURES = True
+            print(f"🔧 Environment loaded: TESTNET (Replit development mode)")
+        else:
+            # Use mainnet only in deployment
+            self.BINANCE_TESTNET = False
+            self.BINANCE_FUTURES = os.getenv('BINANCE_FUTURES', 'true').lower() == 'true'
+            print(f"🔧 Environment loaded: MAINNET (deployment mode)")
 
 # Global config instance
 global_config = GlobalConfig()
