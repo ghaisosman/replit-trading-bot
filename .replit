@@ -17,7 +17,7 @@ deploymentTarget = "gce"
 ignorePorts = true
 
 [workflows]
-runButton = "Start Trading Bot"
+runButton = "Stop Trading Bot"
 
 [[workflows.workflow]]
 name = "Run Trading Bot"
@@ -67,6 +67,3 @@ args = "pkill -f \"python main.py\""
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 8080

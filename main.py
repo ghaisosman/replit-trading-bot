@@ -69,7 +69,7 @@ def run_web_dashboard():
         logger.info("🌐 Web dashboard already running - skipping duplicate start")
         return
 
-    # Enhanced restart prevention with process-specific locks
+    # Enhanced restart prevention with robust lock file handling
     restart_lock_file = "/tmp/bot_restart_lock"
     current_pid = os.getpid()
 
@@ -78,44 +78,71 @@ def run_web_dashboard():
             with open(restart_lock_file, 'r') as f:
                 data = f.read().strip()
 
-            if ',' in data:
-                parts = data.split(',')
-                if len(parts) >= 2:
-                    try:
-                        # Clean up any floating point formatting issues
-                        time_str = parts[0].split('.')[0]  # Remove decimal if present
-                        last_start = float(time_str) if time_str.replace('.', '').isdigit() else 0
-                        last_pid = int(parts[1])
+            # Robust parsing that handles any format corruption
+            lock_valid = False
+            last_start = 0
+            last_pid = 0
 
-                        # Check if it's too recent AND from a different process
-                        if time.time() - last_start < 15 and last_pid != current_pid:
-                            try:
-                                # Check if the other process is still running
-                                os.kill(last_pid, 0)
-                                logger.info(f"🔄 Restart prevented - another instance running (PID: {last_pid})")
-                                return
-                            except OSError:
-                                # Process doesn't exist anymore, continue
-                                pass
-                    except (ValueError, IndexError):
-                        logger.warning(f"Corrupted restart lock format: {data}")
-                        # Remove corrupted lock
-                        os.remove(restart_lock_file)
-            else:
-                logger.warning(f"Invalid restart lock format: {data}")
-                os.remove(restart_lock_file)
-        except Exception as e:
-            logger.warning(f"Error reading restart lock: {e}")
+            try:
+                if ',' in data:
+                    parts = data.split(',')
+                    if len(parts) >= 2:
+                        # Handle timestamp (remove any decimals or invalid chars)
+                        time_part = parts[0].strip()
+                        # Extract only digits and decimal point
+                        clean_time = ''.join(c for c in time_part if c.isdigit() or c == '.')
+                        if clean_time and clean_time.replace('.', '').isdigit():
+                            last_start = float(clean_time.split('.')[0])  # Take integer part only
+                        
+                        # Handle PID (extract only digits)
+                        pid_part = parts[1].strip()
+                        clean_pid = ''.join(c for c in pid_part if c.isdigit())
+                        if clean_pid:
+                            last_pid = int(clean_pid)
+                            lock_valid = True
+
+                if lock_valid and last_start > 0 and last_pid > 0:
+                    # Check if it's too recent AND from a different process
+                    if time.time() - last_start < 15 and last_pid != current_pid:
+                        try:
+                            # Check if the other process is still running
+                            os.kill(last_pid, 0)
+                            logger.info(f"🔄 Restart prevented - another instance running (PID: {last_pid})")
+                            return
+                        except OSError:
+                            # Process doesn't exist anymore, continue
+                            logger.info(f"🔄 Stale lock detected - previous process {last_pid} no longer exists")
+                else:
+                    logger.warning(f"Invalid lock file format detected: '{data}' - cleaning up")
+                    
+            except (ValueError, IndexError, TypeError) as e:
+                logger.warning(f"Lock file parsing error: {e} - data: '{data}'")
+            
+            # Always remove invalid or stale locks
             try:
                 os.remove(restart_lock_file)
+                logger.info(f"🔄 Removed problematic restart lock file")
+            except Exception as remove_error:
+                logger.warning(f"Could not remove lock file: {remove_error}")
+
+        except Exception as e:
+            logger.warning(f"Error reading restart lock: {e}")
+            # Force remove any problematic lock file
+            try:
+                os.remove(restart_lock_file)
+                logger.info(f"🔄 Force removed restart lock after read error")
             except:
                 pass
 
-    # Create restart lock with PID
+    # Create restart lock with proper format
     try:
         with open(restart_lock_file, 'w') as f:
-            f.write(f"{time.time():.0f},{current_pid}")  # Fixed: Remove decimal places
-    except:
+            # Use integer timestamp to prevent parsing issues
+            timestamp = int(time.time())
+            f.write(f"{timestamp},{current_pid}")
+        logger.debug(f"🔒 Created restart lock: {timestamp},{current_pid}")
+    except Exception as e:
+        logger.warning(f"Could not create restart lock: {e}")
         pass
 
     # Check if running in deployment environment
@@ -136,38 +163,59 @@ def run_web_dashboard():
                 with open(lock_file, 'r') as f:
                     data = f.read().strip()
 
-                # Handle corrupted lock files
-                if ',' in data:
-                    parts = data.split(',')
-                    if len(parts) >= 2:
-                        try:
-                            existing_pid = int(parts[0])
-                            # Clean up any floating point formatting issues
-                            lock_time_str = parts[1].split('.')[0]  # Remove decimal if present
-                            lock_time = float(lock_time_str) if lock_time_str.isdigit() else 0
-                        except (ValueError, IndexError):
-                            logger.warning(f"Corrupted lock file format: {data}")
-                            # Force remove corrupted lock
-                            os.remove(lock_file)
-                            logger.info("🔄 Removed corrupted web dashboard lock")
-                        else:
-                            # Check if lock is recent and process still exists
-                            if time.time() - lock_time < 30:  # 30 second timeout
-                                try:
-                                    os.kill(existing_pid, 0)
-                                    logger.info(f"🔄 Web dashboard already running (PID: {existing_pid})")
-                                    return
-                                except OSError:
-                                    # Process doesn't exist, continue
-                                    pass
+                # Robust lock file parsing
+                lock_valid = False
+                existing_pid = 0
+                lock_time = 0
+
+                try:
+                    if ',' in data:
+                        parts = data.split(',')
+                        if len(parts) >= 2:
+                            # Extract PID (digits only)
+                            pid_part = parts[0].strip()
+                            clean_pid = ''.join(c for c in pid_part if c.isdigit())
+                            if clean_pid:
+                                existing_pid = int(clean_pid)
+                            
+                            # Extract timestamp (digits only, no decimals)
+                            time_part = parts[1].strip()
+                            clean_time = ''.join(c for c in time_part if c.isdigit() or c == '.')
+                            if clean_time and clean_time.replace('.', '').isdigit():
+                                lock_time = float(clean_time.split('.')[0])  # Integer part only
+                                lock_valid = True
+
+                    if lock_valid and existing_pid > 0 and lock_time > 0:
+                        # Check if lock is recent and process still exists
+                        if time.time() - lock_time < 30:  # 30 second timeout
+                            try:
+                                os.kill(existing_pid, 0)
+                                logger.info(f"🔄 Web dashboard already running (PID: {existing_pid})")
+                                return
+                            except OSError:
+                                # Process doesn't exist, continue
+                                logger.info(f"🔄 Stale web dashboard lock - process {existing_pid} no longer exists")
                     else:
-                        logger.warning(f"Invalid lock file format: {data}")
-                        os.remove(lock_file)
-                        logger.info("🔄 Removed invalid web dashboard lock")
-                else:
-                    logger.warning(f"Malformed lock file: {data}")
+                        logger.warning(f"Invalid web dashboard lock format: '{data}' - cleaning up")
+                        
+                except (ValueError, IndexError, TypeError) as parse_error:
+                    logger.warning(f"Web dashboard lock parsing error: {parse_error} - data: '{data}'")
+
+                # Always remove invalid or stale locks
+                try:
                     os.remove(lock_file)
-                    logger.info("🔄 Removed malformed web dashboard lock")
+                    logger.info("🔄 Removed web dashboard lock file")
+                except Exception as remove_error:
+                    logger.warning(f"Could not remove web dashboard lock: {remove_error}")
+
+            except Exception as e:
+                logger.warning(f"Error reading web dashboard lock file: {e}")
+                # Force remove problematic lock
+                try:
+                    os.remove(lock_file)
+                    logger.info("🔄 Force removed web dashboard lock after read error")
+                except:
+                    pass
 
             except Exception as e:
                 logger.warning(f"Error reading lock file: {e}")
@@ -186,13 +234,15 @@ def run_web_dashboard():
                 except:
                     pass
 
-        # Create lock file with current PID and timestamp
+        # Create lock file with proper format
         try:
             with open(lock_file, 'w') as f:
-                f.write(f"{current_pid},{time.time():.0f}")  # Fixed: Remove decimal places
+                # Use integer timestamp to prevent parsing issues
+                timestamp = int(time.time())
+                f.write(f"{current_pid},{timestamp}")
             logger.info(f"🔒 Created web dashboard lock (PID: {current_pid})")
         except Exception as e:
-            logger.warning(f"Could not create lock file: {e}")
+            logger.warning(f"Could not create web dashboard lock: {e}")
 
         # SINGLE SOURCE CHECK - Ensure no duplicate web dashboard instances
         if not check_port_available(5000):
@@ -390,39 +440,61 @@ def run_web_dashboard():
             finally:
                 flask_server = None
 
-        # 2. Clean up lock file with enhanced verification
-        lock_file = "/tmp/web_dashboard.lock"
-        try:
-            if os.path.exists(lock_file):
-                # Verify it's our lock file before removing
-                with open(lock_file, 'r') as f:
-                    lock_pid = int(f.read().strip())
-
-                current_pid = os.getpid()
-                if lock_pid == current_pid:
-                    os.remove(lock_file)
-                    logger.info("🔓 Removed web dashboard lock file")
-                else:
-                    # Check if the lock PID still exists
-                    try:
-                        os.kill(lock_pid, 0)  # Check if process exists
-                        logger.warning(f"Lock file belongs to active process ({lock_pid}), not removing")
-                    except OSError:
-                        # Process doesn't exist, safe to remove stale lock
-                        os.remove(lock_file)
-                        logger.info(f"🔓 Removed stale lock file (PID {lock_pid} no longer exists)")
-            else:
-                logger.info("🔍 No lock file to clean up")
-
-        except Exception as e:
-            logger.warning(f"Could not remove lock file: {e}")
-            # Force removal as last resort
+        # 2. Clean up lock files with robust verification
+        lock_files = ["/tmp/web_dashboard.lock", "/tmp/bot_restart_lock"]
+        current_pid = os.getpid()
+        
+        for lock_file in lock_files:
             try:
                 if os.path.exists(lock_file):
-                    os.remove(lock_file)
-                    logger.info("🔓 Force removed lock file")
-            except:
-                pass
+                    # Robust lock file verification
+                    lock_belongs_to_us = False
+                    try:
+                        with open(lock_file, 'r') as f:
+                            data = f.read().strip()
+                        
+                        if ',' in data:
+                            parts = data.split(',')
+                            if len(parts) >= 2:
+                                # Extract PID (handle any format)
+                                pid_part = parts[0].strip()
+                                clean_pid = ''.join(c for c in pid_part if c.isdigit())
+                                if clean_pid and int(clean_pid) == current_pid:
+                                    lock_belongs_to_us = True
+                        
+                        if lock_belongs_to_us:
+                            os.remove(lock_file)
+                            logger.info(f"🔓 Removed our lock file: {os.path.basename(lock_file)}")
+                        else:
+                            # Verify if other process still exists
+                            try:
+                                if clean_pid:
+                                    os.kill(int(clean_pid), 0)
+                                    logger.warning(f"Lock file belongs to active process ({clean_pid}), not removing")
+                                else:
+                                    # Invalid format, safe to remove
+                                    os.remove(lock_file)
+                                    logger.info(f"🔓 Removed invalid lock file: {os.path.basename(lock_file)}")
+                            except (OSError, ValueError):
+                                # Process doesn't exist or invalid PID, safe to remove
+                                os.remove(lock_file)
+                                logger.info(f"🔓 Removed stale lock file: {os.path.basename(lock_file)}")
+                    
+                    except Exception as parse_error:
+                        # Cannot parse lock file, force remove
+                        logger.warning(f"Cannot parse lock file {lock_file}: {parse_error}")
+                        os.remove(lock_file)
+                        logger.info(f"🔓 Force removed unparseable lock file: {os.path.basename(lock_file)}")
+
+            except Exception as e:
+                logger.warning(f"Error cleaning up lock file {lock_file}: {e}")
+                # Final attempt to remove
+                try:
+                    if os.path.exists(lock_file):
+                        os.remove(lock_file)
+                        logger.info(f"🔓 Final cleanup of lock file: {os.path.basename(lock_file)}")
+                except:
+                    pass
 
         # 3. Close any remaining network connections
         try:
@@ -684,6 +756,59 @@ if __name__ == "__main__":
     # Setup logging first
     setup_logger()
     logger = logging.getLogger(__name__)
+
+    # Restart loop detection and prevention
+    restart_count_file = "/tmp/bot_restart_count"
+    max_restarts = 5
+    restart_window = 300  # 5 minutes
+    
+    try:
+        current_time = time.time()
+        restart_count = 0
+        last_restart_time = 0
+        
+        if os.path.exists(restart_count_file):
+            try:
+                with open(restart_count_file, 'r') as f:
+                    data = f.read().strip().split(',')
+                    if len(data) >= 2:
+                        restart_count = int(data[0])
+                        last_restart_time = float(data[1])
+                        
+                        # Reset counter if outside window
+                        if current_time - last_restart_time > restart_window:
+                            restart_count = 0
+            except:
+                restart_count = 0
+        
+        # Check for restart loop
+        if restart_count >= max_restarts:
+            logger.error(f"🚨 RESTART LOOP DETECTED: {restart_count} restarts in {restart_window}s")
+            logger.error(f"🛑 EMERGENCY STOP: Preventing infinite restart loop")
+            logger.error(f"💡 SOLUTION: Check logs for root cause, manually restart when ready")
+            
+            # Clean up all lock files to prevent future issues
+            for lock_file in ["/tmp/web_dashboard.lock", "/tmp/bot_restart_lock", restart_count_file]:
+                try:
+                    if os.path.exists(lock_file):
+                        os.remove(lock_file)
+                        logger.info(f"🧹 Cleaned up: {lock_file}")
+                except:
+                    pass
+            
+            # Exit gracefully
+            exit(1)
+        
+        # Update restart counter
+        restart_count += 1
+        with open(restart_count_file, 'w') as f:
+            f.write(f"{restart_count},{current_time}")
+        
+        logger.info(f"🔄 Bot start #{restart_count} (window: {restart_window}s)")
+        
+    except Exception as e:
+        logger.warning(f"Restart detection error: {e}")
+        # Continue anyway
 
     # Check if running in deployment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
