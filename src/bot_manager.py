@@ -337,11 +337,11 @@ For MAINNET:
                     self.logger.info("🔄 Stopped daily reporter scheduler")
                 except Exception as e:
                     self.logger.warning(f"Could not stop daily reporter: {e}")
-            
+
             # Close any open positions gracefully (if required)
             if hasattr(self, 'order_manager') and self.order_manager.active_positions:
                 self.logger.info("🔄 Bot has active positions - they will continue running")
-            
+
             # Send shutdown notification to Telegram
             self.telegram_reporter.report_bot_stopped(reason)
 
@@ -353,7 +353,7 @@ For MAINNET:
                     self.logger.info("🔄 Closed anomaly detector database")
                 except Exception as e:
                     self.logger.warning(f"Could not close anomaly detector database: {e}")
-            
+
             # Remove web log handler to prevent memory leaks
             if hasattr(self, 'log_handler'):
                 try:
@@ -363,10 +363,10 @@ For MAINNET:
                     self.logger.info("🔄 Removed web log handler")
                 except Exception as e:
                     self.logger.warning(f"Could not remove web log handler: {e}")
-            
+
             # Small delay to ensure cleanup completes
             await asyncio.sleep(1)
-            
+
         except Exception as e:
             self.logger.error(f"Error during shutdown: {e}")
         finally:
@@ -512,54 +512,54 @@ For MAINNET:
 
         # CRITICAL FIX: Also check for Binance positions that aren't in active_positions
         try:
-        # This handles the case where positions exist but weren't recovered properly
-        try:
-            if self.binance_client.is_futures:
-                positions = self.binance_client.client.futures_position_information()
-                for position in positions:
-                    symbol = position.get('symbol')
-                    position_amt = float(position.get('positionAmt', 0))
+            # This handles the case where positions exist but weren't recovered properly
+            try:
+                if self.binance_client.is_futures:
+                    positions = self.binance_client.client.futures_position_information()
+                    for position in positions:
+                        symbol = position.get('symbol')
+                        position_amt = float(position.get('positionAmt', 0))
 
-                    if abs(position_amt) > 0.001:  # Position exists
-                        # Check if this position is already tracked
-                        position_tracked = False
-                        for strategy_name, tracked_position in self.order_manager.active_positions.items():
-                            if tracked_position.symbol == symbol:
-                                position_tracked = True
-                                break
-
-                        if not position_tracked:
-                            # Find which strategy should handle this symbol
-                            managing_strategy = None
-                            for strategy_name, strategy_config in self.strategies.items():
-                                if strategy_config.get('symbol') == symbol:
-                                    managing_strategy = strategy_name
+                        if abs(position_amt) > 0.001:  # Position exists
+                            # Check if this position is already tracked
+                            position_tracked = False
+                            for strategy_name, tracked_position in self.order_manager.active_positions.items():
+                                if tracked_position.symbol == symbol:
+                                    position_tracked = True
                                     break
 
-                            if managing_strategy:
-                                # Get current price
-                                current_price = self._get_current_price(symbol)
-                                if current_price:
-                                    entry_price = float(position.get('entryPrice', 0))
-                                    side = 'BUY' if position_amt > 0 else 'SELL'
-                                    quantity = abs(position_amt)
+                            if not position_tracked:
+                                # Find which strategy should handle this symbol
+                                managing_strategy = None
+                                for strategy_name, strategy_config in self.strategies.items():
+                                    if strategy_config.get('symbol') == symbol:
+                                        managing_strategy = strategy_name
+                                        break
 
-                                    # Calculate PnL
-                                    if side == 'BUY':
-                                        pnl = (current_price - entry_price) * quantity
-                                    else:
-                                        pnl = (entry_price - current_price) * quantity
+                                if managing_strategy:
+                                    # Get current price
+                                    current_price = self._get_current_price(symbol)
+                                    if current_price:
+                                        entry_price = float(position.get('entryPrice', 0))
+                                        side = 'BUY' if position_amt > 0 else 'SELL'
+                                        quantity = abs(position_amt)
 
-                                    # Get strategy config
-                                    strategy_config = self.strategies.get(managing_strategy, {})
-                                    margin_invested = strategy_config.get('margin', 50.0)
-                                    configured_leverage = strategy_config.get('leverage', 5)
-                                    pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
+                                        # Calculate PnL
+                                        if side == 'BUY':
+                                            pnl = (current_price - entry_price) * quantity
+                                        else:
+                                            pnl = (entry_price - current_price) * quantity
 
-                                    # Check if we should log this position (throttle to once per minute)
-                                    last_log_time = self.last_position_log_time.get(f"untracked_{managing_strategy}")
-                                    if not last_log_time or (current_time - last_log_time).total_seconds() >= self.position_log_interval:
-                                        self.logger.warning(f"""╔═══════════════════════════════════════════════════╗
+                                        # Get strategy config
+                                        strategy_config = self.strategies.get(managing_strategy, {})
+                                        margin_invested = strategy_config.get('margin', 50.0)
+                                        configured_leverage = strategy_config.get('leverage', 5)
+                                        pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
+
+                                        # Check if we should log this position (throttle to once per minute)
+                                        last_log_time = self.last_position_log_time.get(f"untracked_{managing_strategy}")
+                                        if not last_log_time or (current_time - last_log_time).total_seconds() >= self.position_log_interval:
+                                            self.logger.warning(f"""╔═══════════════════════════════════════════════════╗
 ║ ⚠️  UNTRACKED POSITION DETECTED                   ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
 ║                                                   ║
@@ -576,11 +576,14 @@ For MAINNET:
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝""")
 
-                                        # Update last log time
-                                        self.last_position_log_time[f"untracked_{managing_strategy}"] = current_time
+                                            # Update last log time
+                                            self.last_position_log_time[f"untracked_{managing_strategy}"] = current_time
 
+            except Exception as e:
+                self.logger.error(f"❌ ERROR CHECKING UNTRACKED POSITIONS | {e}")
+                # Don't crash the bot for untracked position errors
         except Exception as e:
-            self.logger.error(f"❌ ERROR CHECKING UNTRACKED POSITIONS | {e}")
+            self.logger.error(f"Error checking untracked positions: {e}")
             # Don't crash the bot for untracked position errors
 
     async def _process_strategy(self, strategy_name: str, strategy_config: Dict):

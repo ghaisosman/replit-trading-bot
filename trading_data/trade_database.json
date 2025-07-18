@@ -75,9 +75,9 @@
       "sma_20_at_entry": null,
       "sma_50_at_entry": null,
       "volume_at_entry": null,
-      "pnl_usdt": null,
-      "pnl_percentage": null,
-      "exit_reason": null,
+      "pnl_usdt": 0,
+      "pnl_percentage": 0,
+      "exit_reason": "Stale Trade - Auto Closed",
       "duration_minutes": null,
       "market_trend": null,
       "volatility_score": null,
@@ -85,7 +85,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "trade_status": "OPEN"
+      "trade_status": "CLOSED"
     },
     "rsi_oversold_SOLUSDT_20250718_051022": {
       "trade_id": "rsi_oversold_SOLUSDT_20250718_051022",
@@ -117,5 +117,5 @@
       "trade_status": "CLOSED"
     }
   },
-  "last_updated": "2025-07-18T08:40:32.479233"
+  "last_updated": "2025-07-18T11:28:56.214041"
 }
