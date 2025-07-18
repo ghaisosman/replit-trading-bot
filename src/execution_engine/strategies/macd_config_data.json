@@ -1,12 +1,17 @@
 
 {
-  "max_loss_pct": 8,
-  "macd_fast": 12,
-  "macd_slow": 26,
-  "macd_signal": 9,
-  "min_histogram_threshold": 0.000001,
-  "min_distance_threshold": 0.0001,
-  "confirmation_candles": 1,
+  "max_loss_pct": 6,
+  "macd_fast": 9,
+  "macd_slow": 21,
+  "macd_signal": 6,
+  "min_histogram_threshold": 0.00005,
+  "min_distance_threshold": 0.0005,
+  "confirmation_candles": 2,
   "min_volume": 100000,
-  "cooldown_period": 60
+  "cooldown_period": 180,
+  "entry_threshold": 0.015,
+  "exit_threshold": 0.008,
+  "histogram_lookback": 10,
+  "price_lookback": 10,
+  "divergence_strength_min": 0.6
 }
