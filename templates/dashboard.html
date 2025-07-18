@@ -826,8 +826,77 @@
             updatePositions();
         }
 
-        // Update bot status with enhanced error handling and strategy count display
+        // 🔧 INTELLIGENT API POLLING SYSTEM - Prevents excessive requests
+        const apiCache = {
+            botStatus: { data: null, timestamp: 0, ttl: 3000 }, // 3 second cache
+            balance: { data: null, timestamp: 0, ttl: 25000 },   // 25 second cache
+            positions: { data: null, timestamp: 0, ttl: 8000 }  // 8 second cache
+        };
+
+        const requestThrottle = {
+            botStatus: { lastRequest: 0, minInterval: 4000 },    // Minimum 4 seconds between requests
+            balance: { lastRequest: 0, minInterval: 25000 },     // Minimum 25 seconds between requests
+            positions: { lastRequest: 0, minInterval: 8000 }    // Minimum 8 seconds between requests
+        };
+
+        let activeRequests = new Set(); // Track active requests to prevent duplicates
+
+        function getCachedData(cacheKey) {
+            const cache = apiCache[cacheKey];
+            const now = Date.now();
+            
+            if (cache.data && (now - cache.timestamp) < cache.ttl) {
+                return cache.data;
+            }
+            return null;
+        }
+
+        function setCachedData(cacheKey, data) {
+            const cache = apiCache[cacheKey];
+            cache.data = data;
+            cache.timestamp = Date.now();
+        }
+
+        function canMakeRequest(requestKey) {
+            const throttle = requestThrottle[requestKey];
+            const now = Date.now();
+            
+            if ((now - throttle.lastRequest) < throttle.minInterval) {
+                return false;
+            }
+            
+            if (activeRequests.has(requestKey)) {
+                return false; // Request already in progress
+            }
+            
+            return true;
+        }
+
+        function markRequestStart(requestKey) {
+            requestThrottle[requestKey].lastRequest = Date.now();
+            activeRequests.add(requestKey);
+        }
+
+        function markRequestEnd(requestKey) {
+            activeRequests.delete(requestKey);
+        }
+
+        // Update bot status with intelligent caching and throttling
         function updateBotStatus() {
+            // Check cache first
+            const cachedData = getCachedData('botStatus');
+            if (cachedData) {
+                updateBotStatusUI(cachedData);
+                return;
+            }
+
+            // Check if we can make a new request
+            if (!canMakeRequest('botStatus')) {
+                return; // Skip this update cycle
+            }
+
+            markRequestStart('botStatus');
+
             fetch('/api/bot/status')
                 .then(response => {
                     if (!response.ok) {
@@ -836,102 +905,120 @@
                     return response.json();
                 })
                 .then(data => {
-                    const statusBadge = document.getElementById('statusBadge');
-                    const botToggle = document.getElementById('botToggle');
-                    const botStatus = document.getElementById('botStatus');
-                    const activePositions = document.getElementById('activePositions');
-
-                    // Always update button state first
-                    if (botToggle) {
-                        botToggle.disabled = false; // Re-enable button
-                    }
-
-                    if (data.running) {
-                        if (statusBadge) {
-                            statusBadge.textContent = `RUNNING (${data.strategies || 0} strategies)`;
-                            statusBadge.className = 'badge bg-success me-2';
-                        }
-                        if (botToggle) {
-                            botToggle.textContent = 'Stop Bot';
-                            botToggle.className = 'btn btn-danger btn-sm';
-                        }
-                        if (botStatus) {
-                            botStatus.textContent = 'RUNNING';
-                            botStatus.className = 'badge bg-success';
-                        }
-                    } else {
-                        if (statusBadge) {
-                            statusBadge.textContent = `STOPPED (${data.strategies || 0} strategies)`;
-                            statusBadge.className = 'badge bg-danger me-2';
-                        }
-                        if (botToggle) {
-                            botToggle.textContent = 'Start Bot';
-                            botToggle.className = 'btn btn-success btn-sm';
-                        }
-                        if (botStatus) {
-                            botStatus.textContent = 'STOPPED';
-                            botStatus.className = 'badge bg-danger';
-                        }
-                    }
-
-                    // Update active positions count
-                    if (activePositions) {
-                        activePositions.textContent = data.active_positions || 0;
-                    }
-
-                    // Update active strategies count
-                    const activeStrategiesElement = document.getElementById('activeStrategies');
-                    if (activeStrategiesElement) {
-                        activeStrategiesElement.textContent = data.strategies || 0;
-                    }
-
-                    // Log successful status update for debugging
-                    console.debug('Bot status updated:', {
-                        running: data.running,
-                        strategies: data.strategies,
-                        positions: data.active_positions
-                    });
+                    setCachedData('botStatus', data);
+                    updateBotStatusUI(data);
                 })
                 .catch(error => {
                     console.error('Error updating bot status:', error);
-
-                    // Enhanced offline status handling
-                    const statusBadge = document.getElementById('statusBadge');
-                    const botToggle = document.getElementById('botToggle');
-                    const botStatus = document.getElementById('botStatus');
-                    const activePositions = document.getElementById('activePositions');
-
-                    if (statusBadge) {
-                        statusBadge.textContent = 'OFFLINE - Reconnecting...';
-                        statusBadge.className = 'badge bg-warning me-2';
-                    }
-
-                    if (botToggle) {
-                        botToggle.textContent = 'Reconnecting...';
-                        botToggle.className = 'btn btn-warning btn-sm';
-                        botToggle.disabled = true;
-
-                        // Auto-retry after 3 seconds
-                        setTimeout(() => {
-                            if (botToggle.disabled && botToggle.textContent === 'Reconnecting...') {
-                                updateBotStatus(); // Retry
-                            }
-                        }, 3000);
-                    }
-
-                    if (botStatus) {
-                        botStatus.textContent = 'OFFLINE';
-                        botStatus.className = 'badge bg-warning';
-                    }
-
-                    if (activePositions) {
-                        activePositions.textContent = '?';
-                    }
+                    updateBotStatusErrorUI();
+                })
+                .finally(() => {
+                    markRequestEnd('botStatus');
                 });
         }
 
-        // Update balance
+        function updateBotStatusUI(data) {
+            const statusBadge = document.getElementById('statusBadge');
+            const botToggle = document.getElementById('botToggle');
+            const botStatus = document.getElementById('botStatus');
+            const activePositions = document.getElementById('activePositions');
+
+            // Always update button state first
+            if (botToggle) {
+                botToggle.disabled = false; // Re-enable button
+            }
+
+            if (data.running) {
+                if (statusBadge) {
+                    statusBadge.textContent = `RUNNING (${data.strategies || 0} strategies)`;
+                    statusBadge.className = 'badge bg-success me-2';
+                }
+                if (botToggle) {
+                    botToggle.textContent = 'Stop Bot';
+                    botToggle.className = 'btn btn-danger btn-sm';
+                }
+                if (botStatus) {
+                    botStatus.textContent = 'RUNNING';
+                    botStatus.className = 'badge bg-success';
+                }
+            } else {
+                if (statusBadge) {
+                    statusBadge.textContent = `STOPPED (${data.strategies || 0} strategies)`;
+                    statusBadge.className = 'badge bg-danger me-2';
+                }
+                if (botToggle) {
+                    botToggle.textContent = 'Start Bot';
+                    botToggle.className = 'btn btn-success btn-sm';
+                }
+                if (botStatus) {
+                    botStatus.textContent = 'STOPPED';
+                    botStatus.className = 'badge bg-danger';
+                }
+            }
+
+            // Update active positions count
+            if (activePositions) {
+                activePositions.textContent = data.active_positions || 0;
+            }
+
+            // Update active strategies count
+            const activeStrategiesElement = document.getElementById('activeStrategies');
+            if (activeStrategiesElement) {
+                activeStrategiesElement.textContent = data.strategies || 0;
+            }
+        }
+
+        function updateBotStatusErrorUI() {
+            // Enhanced offline status handling
+            const statusBadge = document.getElementById('statusBadge');
+            const botToggle = document.getElementById('botToggle');
+            const botStatus = document.getElementById('botStatus');
+            const activePositions = document.getElementById('activePositions');
+
+            if (statusBadge) {
+                statusBadge.textContent = 'OFFLINE - Reconnecting...';
+                statusBadge.className = 'badge bg-warning me-2';
+            }
+
+            if (botToggle) {
+                botToggle.textContent = 'Reconnecting...';
+                botToggle.className = 'btn btn-warning btn-sm';
+                botToggle.disabled = true;
+
+                // Auto-retry after 5 seconds (increased from 3 to reduce request frequency)
+                setTimeout(() => {
+                    if (botToggle.disabled && botToggle.textContent === 'Reconnecting...') {
+                        updateBotStatus(); // Retry
+                    }
+                }, 5000);
+            }
+
+            if (botStatus) {
+                botStatus.textContent = 'OFFLINE';
+                botStatus.className = 'badge bg-warning';
+            }
+
+            if (activePositions) {
+                activePositions.textContent = '?';
+            }
+        }
+
+        // Update balance with intelligent caching and throttling
         function updateBalance() {
+            // Check cache first
+            const cachedData = getCachedData('balance');
+            if (cachedData) {
+                updateBalanceUI(cachedData);
+                return;
+            }
+
+            // Check if we can make a new request
+            if (!canMakeRequest('balance')) {
+                return; // Skip this update cycle
+            }
+
+            markRequestStart('balance');
+
             fetch('/api/balance')
                 .then(response => {
                     if (!response.ok) {
@@ -940,10 +1027,8 @@
                     return response.json();
                 })
                 .then(data => {
-                    const balance = document.getElementById('balance');
-                    if (balance) {
-                        balance.textContent = (data.total_balance || 0).toFixed(2);
-                    }
+                    setCachedData('balance', data);
+                    updateBalanceUI(data);
                 })
                 .catch(error => {
                     console.error('Error updating balance:', error);
@@ -951,10 +1036,24 @@
                     if (balance) {
                         balance.textContent = 'N/A';
                     }
+                })
+                .finally(() => {
+                    markRequestEnd('balance');
                 });
         }
 
-        // Update console log
+        function updateBalanceUI(data) {
+            const balance = document.getElementById('balance');
+            if (balance) {
+                balance.textContent = (data.total_balance || 0).toFixed(2);
+            }
+        }
+
+        // Update console log with adaptive throttling
+        let consoleFetchInterval = 3000; // Start with 3 seconds
+        let lastConsoleLogLength = 0;
+        let consoleInactivityCount = 0;
+
         function updateConsoleLog() {
             fetch('/api/console-log')
                 .then(response => {
@@ -966,6 +1065,22 @@
                 .then(data => {
                     const consoleLog = document.getElementById('consoleLog');
                     if (consoleLog && data.success && data.logs) {
+                        // Adaptive polling based on activity
+                        if (data.logs.length === lastConsoleLogLength) {
+                            consoleInactivityCount++;
+                            
+                            // Gradually increase interval if no new logs
+                            if (consoleInactivityCount > 3) {
+                                consoleFetchInterval = Math.min(consoleFetchInterval * 1.2, 10000); // Max 10 seconds
+                            }
+                        } else {
+                            // Reset to faster polling when activity detected
+                            consoleInactivityCount = 0;
+                            consoleFetchInterval = 2000; // Back to 2 seconds for active periods
+                        }
+                        
+                        lastConsoleLogLength = data.logs.length;
+
                         consoleLog.innerHTML = data.logs.join('<br>');
                         if (autoScroll) {
                             consoleLog.scrollTop = consoleLog.scrollHeight;
@@ -978,56 +1093,147 @@
                     if (consoleLog) {
                         consoleLog.innerHTML = '<div class="text-warning">⚠️ Connection lost - Reconnecting...</div>';
                     }
+                    
+                    // Increase interval on errors to reduce server load
+                    consoleFetchInterval = Math.min(consoleFetchInterval * 1.5, 15000); // Max 15 seconds on errors
                 });
         }
 
-        // Update positions
+        // Update positions with intelligent caching and throttling
         function updatePositions() {
+            // Check cache first
+            const cachedData = getCachedData('positions');
+            if (cachedData) {
+                updatePositionsUI(cachedData);
+                return;
+            }
+
+            // Check if we can make a new request
+            if (!canMakeRequest('positions')) {
+                return; // Skip this update cycle
+            }
+
+            markRequestStart('positions');
+
             fetch('/api/positions')
                 .then(response => response.json())
                 .then(data => {
-                    const positionsTableBody = document.getElementById('positionsTableBody');
-                    positionsTableBody.innerHTML = '';
-
-                    if (data.success && data.positions && data.positions.length > 0) {
-                        data.positions.forEach(position => {
-                            const row = `
-                                <tr>
-                                    <td>${position.strategy}</td>
-                                    <td>${position.symbol}</td>
-                                    <td>${position.side}</td>
-                                    <td>${formatNumber(position.entry_price)}</td>
-                                    <td>${formatNumber(position.position_value_usdt)}</td>
-                                    <td>${formatNumber(position.current_price)}</td>
-                                    <td class="${position.pnl >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl)}</td>
-                                    <td class="${position.pnl_percent >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl_percent)}%</td>
-                                    <td>Loading...</td>
-                                </tr>
-                            `;
-                            positionsTableBody.innerHTML += row;
-                        });
-                    } else {
-                        positionsTableBody.innerHTML = '<tr><td colspan="9" class="text-muted text-center">No active positions.</td></tr>';
-                    }
+                    setCachedData('positions', data);
+                    updatePositionsUI(data);
                 })
                 .catch(error => {
                     console.error('Error updating positions:', error);
                     document.getElementById('positionsTableBody').innerHTML = '<tr><td colspan="9" class="text-warning text-center">Error loading positions</td></tr>';
+                })
+                .finally(() => {
+                    markRequestEnd('positions');
                 });
+        }
+
+        function updatePositionsUI(data) {
+            const positionsTableBody = document.getElementById('positionsTableBody');
+            positionsTableBody.innerHTML = '';
+
+            if (data.success && data.positions && data.positions.length > 0) {
+                data.positions.forEach(position => {
+                    const row = `
+                        <tr>
+                            <td>${position.strategy}</td>
+                            <td>${position.symbol}</td>
+                            <td>${position.side}</td>
+                            <td>${formatNumber(position.entry_price)}</td>
+                            <td>${formatNumber(position.position_value_usdt)}</td>
+                            <td>${formatNumber(position.current_price)}</td>
+                            <td class="${position.pnl >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl)}</td>
+                            <td class="${position.pnl_percent >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl_percent)}%</td>
+                            <td>Loading...</td>
+                        </tr>
+                    `;
+                    positionsTableBody.innerHTML += row;
+                });
+            } else {
+                positionsTableBody.innerHTML = '<tr><td colspan="9" class="text-muted text-center">No active positions.</td></tr>';
+            }
+        }
+
+        // Initialize dashboard with intelligent update management
+        let updateIntervals = {};
+
+        function startIntelligentUpdates() {
+            // Clear any existing intervals
+            Object.values(updateIntervals).forEach(interval => clearInterval(interval));
+            
+            // Status updates: Adaptive based on bot state
+            updateIntervals.status = setInterval(() => {
+                const cachedStatus = getCachedData('botStatus');
+                
+                // If bot is running, check more frequently
+                const interval = (cachedStatus && cachedStatus.running) ? 6000 : 8000;
+                
+                updateBotStatus();
+            }, 6000); // Base 6 second interval
+            
+            // Balance updates: Less frequent as balance changes slowly
+            updateIntervals.balance = setInterval(updateBalance, 30000);
+            
+            // Console log updates: Adaptive based on activity
+            function adaptiveConsoleUpdate() {
+                updateConsoleLog();
+                
+                // Schedule next update with current interval
+                setTimeout(adaptiveConsoleUpdate, consoleFetchInterval);
+            }
+            adaptiveConsoleUpdate();
+            
+            // Position updates: Moderate frequency for real-time PnL
+            updateIntervals.positions = setInterval(updatePositions, 12000);
+        }
+
+        // Refresh data function with cache invalidation
+        function refreshData() {
+            // Clear all caches to force fresh data
+            Object.keys(apiCache).forEach(key => {
+                apiCache[key].data = null;
+                apiCache[key].timestamp = 0;
+            });
+            
+            // Reset throttle timers to allow immediate requests
+            Object.keys(requestThrottle).forEach(key => {
+                requestThrottle[key].lastRequest = 0;
+            });
+            
+            // Clear active requests set
+            activeRequests.clear();
+            
+            // Force immediate updates
+            updateBotStatus();
+            updateBalance();
+            updateConsoleLog();
+            updatePositions();
         }
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
+            // Initial load
             updateBotStatus();
             updateBalance();
             updateConsoleLog();
             updatePositions();
 
-            // Set up periodic updates
-            setInterval(updateBotStatus, 5000);
-            setInterval(updateBalance, 30000);
-            setInterval(updateConsoleLog, 2000);
-            setInterval(updatePositions, 10000);
+            // Start intelligent update system
+            startIntelligentUpdates();
+            
+            // Handle visibility changes to pause updates when tab is not active
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    // Tab is hidden, clear intervals to save resources
+                    Object.values(updateIntervals).forEach(interval => clearInterval(interval));
+                } else {
+                    // Tab is visible again, restart updates
+                    startIntelligentUpdates();
+                    refreshData(); // Get fresh data when tab becomes active
+                }
+            });
         });
 
         // Show strategies info

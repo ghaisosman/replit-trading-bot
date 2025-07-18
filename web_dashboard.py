@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import logging
 from typing import Dict, Any
+import time
+from functools import wraps
 
 # Define trades directory path
 trades_dir = Path("trading_data/trades")
@@ -32,6 +34,47 @@ werkzeug_logger.setLevel(flask_logging.WARNING)
 # Setup logging for web dashboard
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Rate limiting system to prevent API flooding
+rate_limits = {
+    'bot_status': {'requests': [], 'limit': 20, 'window': 60},    # 20 requests per minute
+    'balance': {'requests': [], 'limit': 10, 'window': 60},      # 10 requests per minute
+    'positions': {'requests': [], 'limit': 15, 'window': 60},    # 15 requests per minute
+    'console_log': {'requests': [], 'limit': 30, 'window': 60}   # 30 requests per minute
+}
+
+def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
+    """Rate limiting decorator to prevent API flooding"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            now = time.time()
+            
+            # Get rate limit data for this endpoint
+            limit_data = rate_limits.get(endpoint_key, {
+                'requests': [], 'limit': max_requests, 'window': window_seconds
+            })
+            
+            # Clean old requests outside the window
+            cutoff_time = now - limit_data['window']
+            limit_data['requests'] = [req_time for req_time in limit_data['requests'] if req_time > cutoff_time]
+            
+            # Check if limit exceeded
+            if len(limit_data['requests']) >= limit_data['limit']:
+                logger.warning(f"Rate limit exceeded for {endpoint_key}: {len(limit_data['requests'])} requests in {limit_data['window']}s")
+                return jsonify({
+                    'success': False,
+                    'error': 'Rate limit exceeded',
+                    'retry_after': int(limit_data['requests'][0] + limit_data['window'] - now)
+                }), 429
+            
+            # Add current request
+            limit_data['requests'].append(now)
+            rate_limits[endpoint_key] = limit_data
+            
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 # Global bot instance - shared with main.py
 bot_manager = None
@@ -358,6 +401,7 @@ def stop_bot():
         return jsonify({'success': False, 'message': f'Failed to stop bot: {e}'})
 
 @app.route('/api/bot/status')
+@rate_limit('bot_status', max_requests=20, window_seconds=60)
 def get_bot_status():
     """Get bot status with comprehensive error handling and fallback data"""
     try:
@@ -912,6 +956,7 @@ def update_strategy(strategy_name):
         return jsonify({'success': False, 'message': f'Failed to update strategy: {e}'})
 
 @app.route('/api/balance')
+@rate_limit('balance', max_requests=10, window_seconds=60)
 def get_balance():
     try:
         if IMPORTS_AVAILABLE:
@@ -970,6 +1015,7 @@ def get_balance():
         return jsonify(error_balance), 200
 
 @app.route('/api/positions')
+@rate_limit('positions', max_requests=15, window_seconds=60)
 def get_positions():
     """Get active positions"""
     try:
@@ -1132,6 +1178,7 @@ def calculate_rsi(closes, period=14):
     return rsi
 
 @app.route('/api/console-log')
+@rate_limit('console_log', max_requests=30, window_seconds=60)
 def get_console_log():
     """Get console logs with enhanced stability and multiple fallback methods"""
     try:
