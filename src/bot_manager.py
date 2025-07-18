@@ -711,7 +711,7 @@ For MAINNET:
                     current_rsi = df['rsi'].iloc[-1]
 
                 # Strategy-specific consolidated market assessment - single message
-                if strategy_name == 'macd_divergence':
+                if 'macd' in strategy_name.lower():
                     # Get MACD values for display
                     macd_line = df['macd'].iloc[-1] if 'macd' in df.columns else 0.0
                     macd_signal = df['macd_signal'].iloc[-1] if 'macd_signal' in df.columns else 0.0
@@ -727,8 +727,8 @@ Interval: every {assessment_interval} seconds
 🔍 SCANNING FOR ENTRY"""
                     self.logger.info(assessment_message)
 
-                elif strategy_name == 'rsi_oversold':
-                    # Consolidated RSI market assessment - single message
+                elif 'rsi' in strategy_name.lower():
+                    # Consolidated RSI market assessment - single message for ALL RSI strategies
                     rsi_text = f"📈 RSI: {current_rsi:.2f}" if current_rsi is not None else "📈 RSI: N/A"
                     assessment_message = f"""📈 MARKET ASSESSMENT
 Interval: every {assessment_interval} seconds
