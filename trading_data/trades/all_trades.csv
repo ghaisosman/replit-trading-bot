@@ -1,3 +1,5 @@
 trade_id,timestamp,strategy_name,symbol,side,entry_price,exit_price,quantity,margin_used,leverage,position_value_usdt,rsi_at_entry,macd_at_entry,sma_20_at_entry,sma_50_at_entry,volume_at_entry,pnl_usdt,pnl_percentage,exit_reason,duration_minutes,market_trend,volatility_score,risk_reward_ratio,max_drawdown,entry_signal_strength,market_phase,trade_status
 rsi_oversold_BTCUSDT_20250717_180511,2025-07-17T18:05:11.047810,rsi_oversold,BTCUSDT,SELL,119334.1,,0.001,14.9167625,8,119.3341,,,,,,,,,,,,,,,,OPEN
 rsi_oversold_SOLUSDT_20250717_220231,2025-07-17T22:02:31.871367,rsi_oversold,SOLUSDT,SELL,175.99,176.64,1.78,12.530488,25,313.2622,,,,,,-1.2103999999999615,-9.683199999999692,Stop Loss (PnL vs Margin: -10.40%),10.0,,,-0.07386783339962244,0.0,,,CLOSED
+RSI_ETH_ETHUSDT_20250718_050515,2025-07-18T05:05:15.153282,RSI_ETH,ETHUSDT,SELL,3639.71,,0.01,18.19855,2,36.3971,,,,,,,,,,,,,,,,OPEN
+rsi_oversold_SOLUSDT_20250718_051022,2025-07-18T05:10:22.896854,rsi_oversold,SOLUSDT,SELL,183.25,,0.34,12.461000000000002,5,62.30500000000001,,,,,,,,,,,,,,,,OPEN
