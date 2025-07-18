@@ -460,6 +460,7 @@ import os
 from datetime import datetime
 import sys
 
+@app.route('/api/bot/status')
 @app.route('/api/bot_status')
 @rate_limit('bot_status', max_requests=20, window_seconds=60)
 def get_bot_status():

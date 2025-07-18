@@ -328,7 +328,7 @@
                                 <strong>🚀 MAINNET MODE ACTIVE</strong><br>
                                 <small>Trading with real funds</small>
                             </div>
-                            
+
                             <!-- ExpressVPN Proxy Toggle -->
                             <div style="text-align: center; padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; margin-top: 15px;">
                                 <h5>🔐 ExpressVPN Proxy</h5>
@@ -746,7 +746,8 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="minHistogramThreshold" class="form-label">Min Histogram Threshold</label>
-                                        <input type="number" class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g., 0.0001">
+                                        <input type="number```text
+class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g., 0.0001">
                                         <div class="form-text">Minimum histogram value for signal</div>
                                     </div>
                                 </div>
@@ -1376,18 +1377,32 @@
             const executeUpdate = () => {
                 if (!pollingActive) return;
 
-                // Execute the update function
-                Promise.resolve(updateFunction())
-                    .catch(error => {
-                        console.debug(`Update error for ${key}:`, error);
-                    })
-                    .finally(() => {
-                        // Schedule next update with adaptive interval
-                        if (pollingActive) {
-                            const adaptiveInterval = calculateAdaptiveInterval(key);
-                            updateTimeouts[key] = setTimeout(executeUpdate, adaptiveInterval);
-                        }
-                    });
+                // Execute the update function with proper error handling
+                try {
+                    Promise.resolve(updateFunction())
+                        .then(() => {
+                            // Schedule next update only if polling is still active
+                            if (pollingActive) {
+                                const interval = calculateAdaptiveInterval(key);
+                                updateTimeouts[key] = setTimeout(executeUpdate, interval);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Update error for ' + key + ':', error || 'Unknown error');
+                            // Still schedule next update even if current one failed
+                            if (pollingActive) {
+                                const interval = Math.min(calculateAdaptiveInterval(key) * 2, 30000); // Backoff on error
+                                updateTimeouts[key] = setTimeout(executeUpdate, interval);
+                            }
+                        });
+                } catch (syncError) {
+                    console.error('Synchronous error for ' + key + ':', syncError || 'Unknown sync error');
+                    // Still schedule next update
+                    if (pollingActive) {
+                        const interval = Math.min(calculateAdaptiveInterval(key) * 2, 30000);
+                        updateTimeouts[key] = setTimeout(executeUpdate, interval);
+                    }
+                }
             };
 
             // Start immediately
@@ -1800,21 +1815,21 @@
                     if (data.success && data.environment) {
                         const proxyEnabled = data.environment.proxy_enabled;
                         const proxyStatus = data.environment.proxy_status;
-                        
+
                         const proxyToggle = document.getElementById('proxyToggle');
                         const proxyStatusEl = document.getElementById('proxyStatus');
                         const proxyStatusText = document.getElementById('proxyStatusText');
-                        
+
                         if (proxyToggle) {
                             proxyToggle.checked = proxyEnabled;
                             proxyToggle.disabled = false;
                         }
-                        
+
                         if (proxyStatusEl) {
                             proxyStatusEl.textContent = proxyEnabled ? 'ExpressVPN ON' : 'ExpressVPN OFF';
                             proxyStatusEl.className = proxyEnabled ? 'text-success' : 'text-secondary';
                         }
-                        
+
                         if (proxyStatusText) {
                             if (proxyEnabled) {
                                 proxyStatusText.innerHTML = '🔐 <strong>Protected</strong> - Trading through ExpressVPN';
@@ -1842,10 +1857,10 @@
             if (proxyToggle) {
                 proxyToggle.addEventListener('change', function() {
                     const enabled = this.checked;
-                    
+
                     // Disable toggle while processing
                     this.disabled = true;
-                    
+
                     fetch('/api/proxy/toggle', {
                         method: 'POST',
                         headers: {
@@ -1857,12 +1872,12 @@
                     .then(data => {
                         if (data.success) {
                             updateProxyStatus();
-                            
+
                             // Show success message
                             const message = enabled ? 
                                 '✅ ExpressVPN proxy enabled! Geographic restrictions bypassed.' :
                                 '✅ ExpressVPN proxy disabled! Using direct connection.';
-                            
+
                             if (data.restart_required) {
                                 alert(message + '\n\n⚠️ Bot restart required for changes to take effect.');
                             } else {
