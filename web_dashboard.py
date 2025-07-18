@@ -721,8 +721,7 @@ def create_strategy():
                 return jsonify({'success': False, 'message': 'MACD Fast must be less than MACD Slow'})
 
         # 🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Save to persistent config
-        trading_config_manager.update_strategy_params(strategy_name,```python
- new_config)
+        trading_config_manager.update_strategy_params(strategy_name, new_config)
 
         logger.info(f"🆕 NEW STRATEGY CREATED: {strategy_name} via web dashboard")
         logger.info(f"🌐 WEB DASHBOARD: New strategy config saved as single source of truth")
@@ -1417,8 +1416,7 @@ def get_ml_predictions():
             }
 
             # Add strategy-specific features
-            if```python
- 'rsi' in strategy_name.lower():
+            if 'rsi' in strategy_name.lower():
                 sample_features['rsi_entry'] = 30  # Oversold
             elif 'macd' in strategy_name.lower():
                 sample_features['macd_entry'] = 0.1
