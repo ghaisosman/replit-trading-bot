@@ -1,9 +1,13 @@
+The code needs to include `requests` for proxy support and a mechanism to enable/disable the VPN proxy.
+```
+```replit_final_file
+import logging
+import time
+import requests
+from typing import Dict, Any, Optional, List
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
-import logging
-from typing import Dict, Any, Optional, List
 from src.config.global_config import global_config
-import time
 
 class BinanceClientWrapper:
     """Wrapper for Binance client with error handling (supports both Spot and Futures)"""
@@ -14,18 +18,28 @@ class BinanceClientWrapper:
         self.is_futures = global_config.BINANCE_FUTURES
         self._last_request_time = 0
         self._min_request_interval = 0.1  # Minimum 100ms between requests
+        self._use_proxy = False  # Initially, don't use proxy
         self._initialize_client()
 
     def _initialize_client(self):
         """Initialize Binance client for Spot or Futures"""
         try:
+            proxies = None  # No proxy by default
+            if self._use_proxy:
+                proxies = {
+                    'http': 'http://username:password@host:port',  # Replace with your ExpressVPN proxy details
+                    'https': 'http://username:password@host:port'  # Replace with your ExpressVPN proxy details
+                }
+                self.logger.info("Using ExpressVPN proxy for Binance client.")
+
             if global_config.BINANCE_TESTNET:
                 if self.is_futures:
                     # Use futures testnet
                     self.client = Client(
                         api_key=global_config.BINANCE_API_KEY,
                         api_secret=global_config.BINANCE_SECRET_KEY,
-                        testnet=True
+                        testnet=True,
+                        requests_params={'proxies': proxies} if proxies else {}  # Pass proxies here
                     )
                     # Override base URLs for futures testnet
                     self.client.API_URL = 'https://testnet.binancefuture.com'
@@ -37,7 +51,8 @@ class BinanceClientWrapper:
                     self.client = Client(
                         api_key=global_config.BINANCE_API_KEY,
                         api_secret=global_config.BINANCE_SECRET_KEY,
-                        testnet=True
+                        testnet=True,
+                        requests_params={'proxies': proxies} if proxies else {}  # Pass proxies here
                     )
                     self.logger.info("Binance SPOT testnet client initialized successfully")
                     self.logger.info(f"Using spot testnet URL: {self.client.API_URL}")
@@ -46,7 +61,8 @@ class BinanceClientWrapper:
                 self.client = Client(
                     api_key=global_config.BINANCE_API_KEY,
                     api_secret=global_config.BINANCE_SECRET_KEY,
-                    testnet=False
+                    testnet=False,
+                    requests_params={'proxies': proxies} if proxies else {}  # Pass proxies here
                 )
                 mode = "FUTURES" if self.is_futures else "SPOT"
                 self.logger.info(f"Binance {mode} mainnet client initialized successfully")
@@ -178,7 +194,7 @@ class BinanceClientWrapper:
         """Get account information with enhanced retry logic for geographic restrictions"""
         max_retries = 3
         retry_delay = 5
-        
+
         for attempt in range(max_retries):
             try:
                 self._rate_limit()
@@ -186,11 +202,11 @@ class BinanceClientWrapper:
                     result = self.client.futures_account()
                 else:
                     result = self.client.get_account()
-                
+
                 # If successful, return immediately
                 if result:
                     return result
-                    
+
             except BinanceAPIException as e:
                 if e.code == -2015:
                     if global_config.BINANCE_TESTNET:
@@ -218,7 +234,7 @@ class BinanceClientWrapper:
                         time.sleep(retry_delay)
                         continue
                     return None
-                    
+
             except Exception as e:
                 # Handle connection errors with retry
                 if "Connection aborted" in str(e) or "RemoteDisconnected" in str(e):
@@ -236,7 +252,7 @@ class BinanceClientWrapper:
                         time.sleep(retry_delay)
                         continue
                     return None
-        
+
         return None
 
     def get_symbol_ticker(self, symbol: str) -> Optional[Dict]:
@@ -357,3 +373,15 @@ class BinanceClientWrapper:
         except Exception as e:
             self.logger.error(f"Unexpected error setting margin type for {symbol}: {e}")
             return None
+
+    def enable_vpn(self):
+        """Enable the VPN proxy."""
+        self._use_proxy = True
+        self._initialize_client()  # Reinitialize the client to apply proxy settings
+        self.logger.info("VPN proxy enabled.")
+
+    def disable_vpn(self):
+        """Disable the VPN proxy."""
+        self._use_proxy = False
+        self._initialize_client()  # Reinitialize the client to remove proxy settings
+        self.logger.info("VPN proxy disabled.")

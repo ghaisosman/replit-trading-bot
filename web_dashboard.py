@@ -207,14 +207,14 @@ def dashboard():
             # Ensure we always have both strategies available for display
             if 'rsi_oversold' not in strategies:
                 strategies['rsi_oversold'] = {
-                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
+                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
                     'max_loss_pct': 5, 'assessment_interval': 20, 'decimals': 2,
                     'cooldown_period': 300, 'rsi_long_entry': 30, 'rsi_long_exit': 70,
                     'rsi_short_entry': 70, 'rsi_short_exit': 30
                 }
             if 'macd_divergence' not in strategies:
                 strategies['macd_divergence'] = {
-                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
+                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m'},
                     'max_loss_pct': 10, 'assessment_interval': 60, 'decimals': 3,
                     'cooldown_period': 300, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
                     'min_histogram_threshold': 0.0001, 'macd_entry_threshold': 0.05,
@@ -1440,7 +1440,8 @@ def get_console_log():
             'timestamp': error_time
         }), 200
 
-# Removed duplicate route - using the existing '/api/bot/status' route with rate limiting instead
+# Removed duplicate route - using the```python
+ existing '/api/bot/status' route with rate limiting instead
 
 def get_current_price(symbol):
     """Get current price for a symbol"""
@@ -1764,6 +1765,61 @@ def update_trading_environment():
     except Exception as e:
         logger.error(f"Error updating trading environment: {e}")
         return jsonify({'success': False, 'message': f'Failed to update environment: {e}'})
+
+@app.route('/api/proxy/toggle', methods=['POST'])
+def toggle_proxy():
+    """Toggle ExpressVPN proxy on/off"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'message': 'Proxy toggle not available in demo mode'})
+
+        data = request.get_json()
+        if not data or 'enabled' not in data:
+            return jsonify({'success': False, 'message': 'Missing enabled parameter'})
+
+        enabled = bool(data['enabled'])
+
+        # Update global config
+        global_config.PROXY_ENABLED = enabled
+        global_config.EXPRESSVPN_ENABLED = enabled
+
+        # Save to environment configuration file for persistence
+        config_file = "trading_data/proxy_config.json"
+        os.makedirs(os.path.dirname(config_file), exist_ok=True)
+
+        proxy_config = {
+            'PROXY_ENABLED': str(enabled).lower(),
+            'EXPRESSVPN_ENABLED': str(enabled).lower()
+        }
+
+        with open(config_file, 'w') as f:
+            json.dump(proxy_config, f, indent=2)
+
+        status = 'ExpressVPN' if enabled else 'disabled'
+        logger.info(f"🔄 PROXY TOGGLED: {status}")
+        logger.info(f"🌐 WEB DASHBOARD: Proxy settings updated via web interface")
+
+        # Check if bot is running and warn about restart requirement
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        bot_running = current_bot and getattr(current_bot, 'is_running', False)
+
+        message = f'Proxy {status}'
+        if bot_running:
+            message += ' (Bot restart required to apply changes)'
+            logger.warning("⚠️ Bot restart required for proxy changes to take effect")
+
+        return jsonify({
+            'success': True,
+            'message': message,
+            'proxy_enabled': enabled,
+            'expressvpn_enabled': enabled,
+            'proxy_status': status,
+            'restart_required': bot_running
+        })
+
+    except Exception as e:
+        logger.error(f"Error toggling proxy: {e}")
+        return jsonify({'success': False, 'message': f'Failed to toggle proxy: {e}'})
 
 def run_web_dashboard():
     """Run the web dashboard"""
