@@ -435,9 +435,10 @@ For MAINNET:
 
     async def _display_active_positions_pnl_throttled(self):
         """Display current PnL for all active positions with throttling"""
-        current_time = datetime.now()
+        try:
+            current_time = datetime.now()
 
-        for strategy_name, position in self.order_manager.active_positions.items():
+            for strategy_name, position in self.order_manager.active_positions.items():
             # Check if we should log this position (throttle to once per minute)
             last_log_time = self.last_position_log_time.get(strategy_name)
             if last_log_time and (current_time - last_log_time).total_seconds() < self.position_log_interval:
@@ -502,8 +503,15 @@ For MAINNET:
 
             except Exception as e:
                 self.logger.error(f"❌ ERROR DISPLAYING POSITION PnL | {strategy_name} | {e}")
+                # Continue with other positions despite error
+                continue
+
+        except Exception as main_error:
+            self.logger.error(f"❌ CRITICAL ERROR in position display: {main_error}")
+            return  # Exit gracefully instead of crashing
 
         # CRITICAL FIX: Also check for Binance positions that aren't in active_positions
+        try:
         # This handles the case where positions exist but weren't recovered properly
         try:
             if self.binance_client.is_futures:
@@ -573,6 +581,7 @@ For MAINNET:
 
         except Exception as e:
             self.logger.error(f"❌ ERROR CHECKING UNTRACKED POSITIONS | {e}")
+            # Don't crash the bot for untracked position errors
 
     async def _process_strategy(self, strategy_name: str, strategy_config: Dict):
         """Process a single strategy with improved error handling"""
