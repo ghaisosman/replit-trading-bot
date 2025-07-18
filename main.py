@@ -77,7 +77,7 @@ def run_web_dashboard():
         try:
             with open(restart_lock_file, 'r') as f:
                 data = f.read().strip()
-                
+
             if ',' in data:
                 parts = data.split(',')
                 if len(parts) >= 2:
@@ -135,7 +135,7 @@ def run_web_dashboard():
             try:
                 with open(lock_file, 'r') as f:
                     data = f.read().strip()
-                    
+
                 # Handle corrupted lock files
                 if ',' in data:
                     parts = data.split(',')
@@ -168,7 +168,7 @@ def run_web_dashboard():
                     logger.warning(f"Malformed lock file: {data}")
                     os.remove(lock_file)
                     logger.info("🔄 Removed malformed web dashboard lock")
-                    
+
             except Exception as e:
                 logger.warning(f"Error reading lock file: {e}")
                 # Force remove problematic lock
@@ -456,10 +456,26 @@ async def main_bot_only():
         # Initialize the bot manager
         bot_manager = BotManager()
 
-        # Make bot manager accessible to web interface
-        sys.modules['__main__'].bot_manager = bot_manager
-        web_dashboard.bot_manager = bot_manager
-        web_dashboard.shared_bot_manager = bot_manager
+        # Enhanced bot manager reference sharing with multiple access points
+        try:
+            sys.modules['__main__'].bot_manager = bot_manager
+            logger.info("✅ Bot manager registered in main module")
+        except Exception as e:
+            logger.warning(f"Could not register in main module: {e}")
+
+        try:
+            web_dashboard.bot_manager = bot_manager
+            web_dashboard.shared_bot_manager = bot_manager
+            logger.info("✅ Bot manager registered in web dashboard module")
+        except Exception as e:
+            logger.warning(f"Could not register in web dashboard: {e}")
+
+        try:
+            # Additional reference for stability
+            setattr(sys.modules[__name__], 'current_bot_manager', bot_manager)
+            logger.info("✅ Bot manager registered with additional reference")
+        except Exception as e:
+            logger.warning(f"Could not create additional reference: {e}")
 
         # Start the trading bot
         logger.info("🚀 Starting trading bot main loop...")
@@ -600,10 +616,26 @@ async def main():
         # Initialize the bot manager
         bot_manager = BotManager()
 
-        # Make bot manager accessible to web interface
-        sys.modules['__main__'].bot_manager = bot_manager
-        web_dashboard.bot_manager = bot_manager
-        web_dashboard.shared_bot_manager = bot_manager
+        # Enhanced bot manager reference sharing with multiple access points
+        try:
+            sys.modules['__main__'].bot_manager = bot_manager
+            logger.info("✅ Bot manager registered in main module")
+        except Exception as e:
+            logger.warning(f"Could not register in main module: {e}")
+
+        try:
+            web_dashboard.bot_manager = bot_manager
+            web_dashboard.shared_bot_manager = bot_manager
+            logger.info("✅ Bot manager registered in web dashboard module")
+        except Exception as e:
+            logger.warning(f"Could not register in web dashboard: {e}")
+
+        try:
+            # Additional reference for stability
+            setattr(sys.modules[__name__], 'current_bot_manager', bot_manager)
+            logger.info("✅ Bot manager registered with additional reference")
+        except Exception as e:
+            logger.warning(f"Could not create additional reference: {e}")
 
         # Start the bot in a task so we can handle shutdown signals
         logger.info("🚀 Starting trading bot main loop...")
