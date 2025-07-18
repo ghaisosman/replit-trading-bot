@@ -721,7 +721,8 @@ def create_strategy():
                 return jsonify({'success': False, 'message': 'MACD Fast must be less than MACD Slow'})
 
         # 🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Save to persistent config
-        trading_config_manager.update_strategy_params(strategy_name, new_config)
+        trading_config_manager.update_strategy_params(strategy_name,```python
+ new_config)
 
         logger.info(f"🆕 NEW STRATEGY CREATED: {strategy_name} via web dashboard")
         logger.info(f"🌐 WEB DASHBOARD: New strategy config saved as single source of truth")
@@ -1224,129 +1225,7 @@ def get_console_log():
             'debug_error': str(e)
         })
 
-@app.route('/api/bot_status')
-def get_bot_status():
-    """Get current bot status with enhanced error handling"""
-    try:
-        # Multiple fallback methods to find bot manager
-        bot_manager = None
-
-        # Method 1: Check main module
-        main_module = sys.modules.get('__main__')
-        if main_module and hasattr(main_module, 'bot_manager'):
-            bot_manager = main_module.bot_manager
-
-        # Method 2: Check global variables
-        if not bot_manager and 'bot_manager' in globals():
-            bot_manager = globals()['bot_manager']
-
-        # Method 3: Check web_dashboard module
-        if not bot_manager and hasattr(sys.modules.get('web_dashboard', {}), 'bot_manager'):
-            bot_manager = sys.modules['web_dashboard'].bot_manager
-
-        if bot_manager:
-            try:
-                status = bot_manager.get_bot_status()
-                status['connection_status'] = 'connected'
-                status['last_update'] = datetime.now().isoformat()
-                return jsonify(status)
-            except Exception as status_error:
-                # Bot manager exists but get_bot_status failed
-                return jsonify({
-                    'is_running': getattr(bot_manager, 'is_running', False),
-                    'active_positions': len(getattr(bot_manager, 'order_manager', {}).get('active_positions', {})) if hasattr(bot_manager, 'order_manager') else 0,
-                    'strategies': list(getattr(bot_manager, 'strategies', {}).keys()) if hasattr(bot_manager, 'strategies') else [],
-                    'balance': 0,
-                    'connection_status': 'partial',
-                    'error': str(status_error),
-                    'last_update': datetime.now().isoformat()
-                })
-
-        # Fallback: Bot not ready yet
-        return jsonify({
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': [],
-            'balance': 0,
-            'connection_status': 'initializing',
-            'status': 'Bot starting up...',
-            'last_update': datetime.now().isoformat()
-        })
-
-    except Exception as e:
-        # Return user-friendly status instead of error
-        return jsonify({
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': [],
-            'balance': 0,
-            'connection_status': 'error',
-            'status': f'Connection error: {str(e)}',
-            'last_update': datetime.now().isoformat()
-        })
-
-def get_bot_status():
-    """Get current bot status with enhanced error handling - LEGACY FUNCTION"""
-    global bot_running, bot_manager, shared_bot_manager
-
-    try:
-        # Always get fresh reference to shared bot manager
-        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-
-        # Default safe response
-        default_status = {
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': [],
-            'balance': 0
-        }
-
-        # Check shared bot manager first
-        if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
-            try:
-                strategies_list = []
-                if hasattr(shared_bot_manager, 'strategies'):
-                    strategies_dict = getattr(shared_bot_manager, 'strategies', {})
-                    strategies_list = list(strategies_dict.keys()) if strategies_dict else []
-
-                active_positions_count = 0
-                if hasattr(shared_bot_manager, 'order_manager') and shared_bot_manager.order_manager:
-                    try:
-                        active_positions = getattr(shared_bot_manager.order_manager, 'active_positions', {})
-                        active_positions_count = len(active_positions) if active_positions else 0
-                    except:
-                        active_positions_count = 0
-
-                status = {
-                    'is_running': getattr(shared_bot_manager, 'is_running', False),
-                    'active_positions': active_positions_count,
-                    'strategies': strategies_list,
-                    'balance': 0  # Will be updated separately
-                }
-                return status
-            except Exception as e:
-                logger.debug(f"Error getting shared bot status: {e}")
-                return default_status
-
-        # Fallback to global bot_running flag
-        try:
-            if IMPORTS_AVAILABLE:
-                strategies = trading_config_manager.get_all_strategies()
-                default_status['strategies'] = list(strategies.keys()) if strategies else []
-        except Exception as config_error:
-            logger.debug(f"Could not get strategies from config: {config_error}")
-
-        return default_status
-
-    except Exception as e:
-        logger.warning(f"Error in legacy get_bot_status: {e}")
-        return {
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': [],
-            'balance': 0,
-            'error': f'Status check failed: {str(e)}'
-        }
+# Removed duplicate route - using the existing '/api/bot/status' route with rate limiting instead
 
 def get_current_price(symbol):
     """Get current price for a symbol"""
@@ -1538,7 +1417,8 @@ def get_ml_predictions():
             }
 
             # Add strategy-specific features
-            if 'rsi' in strategy_name.lower():
+            if```python
+ 'rsi' in strategy_name.lower():
                 sample_features['rsi_entry'] = 30  # Oversold
             elif 'macd' in strategy_name.lower():
                 sample_features['macd_entry'] = 0.1
