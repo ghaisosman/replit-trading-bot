@@ -1432,7 +1432,8 @@ def get_console_log():
             'success': True,
             'logs': [
                 f'[{error_time}] ⚠️ Console API temporarily unavailable',
-                f'[{error_time}] 🌐 Web dashboard is active                f'[{error_time}] 🔄 Logs will resume shortly'
+                f'[{error_time}] 🌐 Web dashboard is active',
+                f'[{error_time}] 🔄 Logs will resume shortly'
             ],
             'status': 'api_critical_error',
             'error': str(e),
