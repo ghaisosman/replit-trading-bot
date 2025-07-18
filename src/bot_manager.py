@@ -21,70 +21,7 @@ from collections import deque
 import logging
 
 
-class WebLogHandler(logging.Handler):
-    """Custom log handler to capture logs for web dashboard"""
-
-    def __init__(self, max_logs=1000):
-        super().__init__()
-        self.logs = deque(maxlen=max_logs)
-        self.setLevel(logging.INFO)
-
-    def emit(self, record):
-        try:
-            # Get the original message without formatting
-            original_msg = record.getMessage()
-
-            # Remove ANSI color codes and box drawing characters
-            import re
-            clean_msg = re.sub(r'\x1b\[[0-9;]*m', '', original_msg)
-            clean_msg = re.sub(r'[┌┐└┘├┤│─╔╗╚╝║═╭╮╰╯│]', '', clean_msg)
-            clean_msg = re.sub(r'\s+', ' ', clean_msg).strip()
-
-            if clean_msg and len(clean_msg) > 3:  # Ignore very short messages
-                timestamp = record.created
-                formatted_time = datetime.fromtimestamp(timestamp).strftime('%H:%M:%S')
-
-                # Create a clean, web-friendly log entry
-                web_message = f"[{formatted_time}] {clean_msg}"
-
-                self.logs.append({
-                    'timestamp': timestamp,
-                    'level': record.levelname,
-                    'message': web_message,
-                    'raw_message': clean_msg
-                })
-        except Exception as e:
-            # Silently fail but try to log the error to a basic format
-            try:
-                self.logs.append({
-                    'timestamp': record.created,
-                    'level': 'ERROR',
-                    'message': f"[{datetime.now().strftime('%H:%M:%S')}] Log handler error: {str(e)}",
-                    'raw_message': f"Log handler error: {str(e)}"
-                })
-            except:
-                pass  # Ultimate fallback - don't break the application
-
-    def get_recent_logs(self, count=50):
-        """Get recent logs formatted for web display"""
-        try:
-            recent = list(self.logs)[-count:] if self.logs else []
-            if not recent:
-                return ['[INFO] Bot is starting up...']
-
-            # Extract message strings from log entries
-            log_messages = []
-            for log in recent:
-                if isinstance(log, dict) and 'message' in log:
-                    log_messages.append(log['message'])
-                elif isinstance(log, str):
-                    log_messages.append(log)
-                else:
-                    log_messages.append(str(log))
-
-            return log_messages
-        except Exception as e:
-            return [f'[ERROR] Could not retrieve logs: {str(e)}']
+# WebLogHandler moved to src/utils/logger.py to prevent circular imports
 
 class BotManager:
     """Main bot manager that orchestrates all components"""
@@ -215,8 +152,9 @@ For MAINNET:
     def _initialize_web_logging(self):
         """Initialize web logging handler safely after basic setup"""
         try:
-            # FIXED: Use the existing WebLogHandler class defined in this file
-            # to prevent import issues and circular dependencies
+            # Import WebLogHandler from utils.logger to prevent circular dependencies
+            from src.utils.logger import WebLogHandler
+            
             self.log_handler = WebLogHandler()
             self.log_handler.setFormatter(logging.Formatter('%(message)s'))  # Simplified format for web
 
@@ -239,7 +177,8 @@ For MAINNET:
         except Exception as e:
             self.logger.warning(f"⚠️ Could not initialize web log handler: {e}")
             # FIXED: Create a minimal fallback log handler to prevent API failures
-            self.log_handler = WebLogHandler()  # Use existing class as fallback
+            from src.utils.logger import WebLogHandler
+            self.log_handler = WebLogHandler()  # Use imported class as fallback
             self.logger.warning("🔄 Using fallback log handler for web dashboard")
 
     async def start(self):
@@ -396,6 +335,8 @@ For MAINNET:
         """Main trading loop with enhanced error handling and restart prevention"""
         consecutive_errors = 0
         max_consecutive_errors = 5
+        last_anomaly_check = datetime.now()
+        anomaly_check_interval = 30  # Check anomalies every 30 seconds
         
         while self.is_running:
             try:
@@ -412,11 +353,14 @@ For MAINNET:
                 # Check exit conditions for open positions
                 await self._check_exit_conditions()
 
-                # Check for trade anomalies (orphan/ghost trades)
-                try:
-                    self.anomaly_detector.run_detection()
-                except Exception as e:
-                    self.logger.error(f"Error in anomaly detection: {e}")
+                # Check for trade anomalies (orphan/ghost trades) - throttled for performance
+                current_time = datetime.now()
+                if (current_time - last_anomaly_check).total_seconds() >= anomaly_check_interval:
+                    try:
+                        self.anomaly_detector.run_detection()
+                        last_anomaly_check = current_time
+                    except Exception as e:
+                        self.logger.error(f"Error in anomaly detection: {e}")
 
                 # Reset error counter on successful iteration
                 consecutive_errors = 0
@@ -502,6 +446,18 @@ For MAINNET:
                 if (current_time - self._last_position_display_time).total_seconds() < 1:
                     return
             self._last_position_display_time = current_time
+
+            # Memory cleanup for position log times
+            if hasattr(self, 'last_position_log_time'):
+                # Clean up old entries to prevent memory leak
+                cutoff_time = current_time - timedelta(hours=24)
+                to_remove = []
+                for strategy_name, log_time in self.last_position_log_time.items():
+                    if log_time < cutoff_time:
+                        to_remove.append(strategy_name)
+                
+                for strategy_name in to_remove:
+                    del self.last_position_log_time[strategy_name]
 
             for strategy_name, position in self.order_manager.active_positions.items():
                 # Check if we should log this position (throttle to once per minute)
@@ -1398,10 +1354,14 @@ Interval: every {assessment_interval} seconds
             # Calculate PnL using reliable method
             pnl = self._calculate_pnl(position, current_price)
 
-            # Calculate margin invested
-            leverage = strategy_config.get('leverage', 5)
+            # Calculate margin invested with validation
+            leverage = max(1, strategy_config.get('leverage', 5))  # Ensure minimum leverage of 1
             position_value = position.entry_price * position.quantity
             margin_invested = position_value / leverage
+
+            # Ensure margin_invested is not zero
+            if margin_invested <= 0:
+                margin_invested = strategy_config.get('margin', 50.0)
 
             # Calculate PnL percentage
             pnl_percentage = (pnl / margin_invested) * 100 if margin_invested > 0 else 0

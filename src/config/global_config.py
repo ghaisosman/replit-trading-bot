@@ -62,6 +62,26 @@ class GlobalConfig:
             if not getattr(self, var):
                 print(f"Warning: Missing optional environment variable: {var} (Telegram reporting disabled)")
 
+        # Validate proxy configuration if enabled
+        if self.PROXY_ENABLED:
+            if not self.PROXY_URLS or not any(self.PROXY_URLS):
+                print("Warning: PROXY_ENABLED=true but no PROXY_URLS provided")
+                self.PROXY_ENABLED = False
+            else:
+                # Validate proxy URLs format
+                valid_proxies = []
+                for proxy_url in self.PROXY_URLS:
+                    proxy_url = proxy_url.strip()
+                    if proxy_url and ('http://' in proxy_url or 'https://' in proxy_url or 'socks5://' in proxy_url):
+                        valid_proxies.append(proxy_url)
+                
+                if not valid_proxies:
+                    print("Warning: No valid proxy URLs found, disabling proxy")
+                    self.PROXY_ENABLED = False
+                else:
+                    self.PROXY_URLS = valid_proxies
+                    print(f"✅ Proxy configuration validated: {len(valid_proxies)} proxies")
+
         return True
 
     def is_live_trading_ready(self) -> bool:

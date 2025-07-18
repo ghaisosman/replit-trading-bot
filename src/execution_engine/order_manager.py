@@ -223,7 +223,7 @@ class OrderManager:
             side = position.side
             quantity = position.quantity
 
-            if not all([entry_price, side, quantity]) or current_price <= 0:
+            if not all([entry_price, side, quantity]) or current_price <= 0 or entry_price <= 0:
                 return 0.0, 0.0
 
             # Calculate PnL based on position side
@@ -238,11 +238,15 @@ class OrderManager:
                 margin_invested = position.strategy_config.get('margin', 50.0)
             else:
                 # Fallback: calculate from position value and leverage
-                leverage = 5  # Default leverage
+                leverage = max(1, 5)  # Default leverage, ensure minimum 1
                 position_value = entry_price * quantity
                 margin_invested = position_value / leverage
 
-            pnl_percentage = (pnl / margin_invested) * 100 if margin_invested != 0 else 0
+            # Ensure margin_invested is not zero to prevent division by zero
+            if margin_invested <= 0:
+                margin_invested = 50.0  # Safe fallback
+
+            pnl_percentage = (pnl / margin_invested) * 100
 
             return pnl, pnl_percentage
 

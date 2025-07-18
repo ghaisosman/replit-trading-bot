@@ -6,7 +6,6 @@ import sys
 import threading
 import time
 import psutil
-from src.bot_manager import BotManager
 from src.utils.logger import setup_logger
 
 # Import web dashboard after setting up the module reference
@@ -451,6 +450,8 @@ async def main_bot_only():
                 raise ValueError("Invalid configuration")
 
             logger.info("🚀 Creating bot manager instance...")
+            # Import BotManager here to avoid circular imports
+            from src.bot_manager import BotManager
             bot_manager = BotManager()
 
             # FIXED: Validate bot manager was created properly
@@ -605,6 +606,8 @@ async def main():
                 raise ValueError("Invalid configuration")
 
             logger.info("🚀 Creating bot manager instance...")
+            # Import BotManager here to avoid circular imports
+            from src.bot_manager import BotManager
             bot_manager = BotManager()
 
             # FIXED: Validate bot manager was created properly
@@ -798,7 +801,7 @@ if __name__ == "__main__":
             health_check_count = 0
             while True:
                 time.sleep(10)
-                
+
                 # Health check every 10 iterations (100 seconds)
                 health_check_count += 1
                 if health_check_count % 10 == 0:
@@ -808,7 +811,7 @@ if __name__ == "__main__":
                             logger.error("🚨 Web dashboard thread died, restarting...")
                             web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
                             web_thread.start()
-                            
+
                         # Check memory usage
                         try:
                             process = psutil.Process()
@@ -817,11 +820,11 @@ if __name__ == "__main__":
                                 logger.warning(f"⚠️ High memory usage: {memory_mb:.1f} MB")
                         except:
                             pass
-                            
+
                         logger.debug(f"✅ Health check {health_check_count} passed")
                     except Exception as health_error:
                         logger.error(f"Health check failed: {health_error}")
-                        
+
         except KeyboardInterrupt:
             logger.info("🔴 Deployment shutdown")
     else:
