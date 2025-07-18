@@ -1,7 +1,7 @@
 {
   "rsi_oversold": {
     "symbol": "SOLUSDT",
-    "margin": 12.5,
+    "margin": 7.0,
     "leverage": 5,
     "timeframe": "15m",
     "max_loss_pct": 10.0,
