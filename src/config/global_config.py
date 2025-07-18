@@ -34,25 +34,24 @@ class GlobalConfig:
         self.USE_LOCAL_TIMEZONE = os.getenv('USE_LOCAL_TIMEZONE', 'false').lower() == 'true'
         self.TIMEZONE_OFFSET_HOURS = float(os.getenv('TIMEZONE_OFFSET_HOURS', '0'))  # Manual offset if needed
 
-        # ExpressVPN proxy configuration for geographic restriction bypass
+        # Proxy configuration for geographic restriction bypass
         self.PROXY_ENABLED = os.getenv('PROXY_ENABLED', 'false').lower() == 'true'
-        self.EXPRESSVPN_ENABLED = os.getenv('EXPRESSVPN_ENABLED', 'false').lower() == 'true'
         
-        # ExpressVPN SOCKS5 proxy settings (default ExpressVPN SOCKS5 endpoints)
-        self.EXPRESSVPN_SOCKS5_HOST = os.getenv('EXPRESSVPN_SOCKS5_HOST', 'socks5-us-newyork-1.expressnetw.com')
-        self.EXPRESSVPN_SOCKS5_PORT = int(os.getenv('EXPRESSVPN_SOCKS5_PORT', '1080'))
-        self.EXPRESSVPN_USERNAME = os.getenv('EXPRESSVPN_USERNAME')
-        self.EXPRESSVPN_PASSWORD = os.getenv('EXPRESSVPN_PASSWORD')
-        
-        # Fallback to generic proxy configuration
+        # HTTP/HTTPS Proxy Services (recommended for reliability)
         self.PROXY_URLS = os.getenv('PROXY_URLS', '').split(',') if os.getenv('PROXY_URLS') else []
         self.PROXY_USERNAME = os.getenv('PROXY_USERNAME')
         self.PROXY_PASSWORD = os.getenv('PROXY_PASSWORD')
         self.PROXY_ROTATION_INTERVAL = int(os.getenv('PROXY_ROTATION_INTERVAL', '300'))  # 5 minutes
         self.PROXY_MAX_RETRIES = int(os.getenv('PROXY_MAX_RETRIES', '3'))
         
-        # Auto-enable proxy if ExpressVPN is configured
-        if self.EXPRESSVPN_ENABLED and self.EXPRESSVPN_USERNAME and self.EXPRESSVPN_PASSWORD:
+        # Popular proxy service configurations (examples)
+        # Users can set PROXY_URLS to one of these formats:
+        # - http://username:password@proxy.provider.com:8080
+        # - https://username:password@proxy.provider.com:8080
+        # - socks5://username:password@proxy.provider.com:1080
+        
+        # Auto-enable proxy if configured
+        if self.PROXY_URLS and any(url.strip() for url in self.PROXY_URLS):
             self.PROXY_ENABLED = True
 
     def validate_config(self) -> bool:
@@ -77,16 +76,8 @@ class GlobalConfig:
 
         # Validate proxy configuration if enabled
         if self.PROXY_ENABLED:
-            if self.EXPRESSVPN_ENABLED:
-                # Validate ExpressVPN configuration
-                if not self.EXPRESSVPN_USERNAME or not self.EXPRESSVPN_PASSWORD:
-                    print("Warning: ExpressVPN enabled but missing credentials")
-                    self.PROXY_ENABLED = False
-                    self.EXPRESSVPN_ENABLED = False
-                else:
-                    print(f"✅ ExpressVPN proxy configured: {self.EXPRESSVPN_SOCKS5_HOST}:{self.EXPRESSVPN_SOCKS5_PORT}")
-            elif not self.PROXY_URLS or not any(self.PROXY_URLS):
-                print("Warning: PROXY_ENABLED=true but no PROXY_URLS or ExpressVPN provided")
+            if not self.PROXY_URLS or not any(self.PROXY_URLS):
+                print("Warning: PROXY_ENABLED=true but no PROXY_URLS provided")
                 self.PROXY_ENABLED = False
             else:
                 # Validate proxy URLs format

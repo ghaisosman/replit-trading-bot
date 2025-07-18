@@ -1800,7 +1800,7 @@ def update_trading_environment():
 
 @app.route('/api/proxy/toggle', methods=['POST'])
 def toggle_proxy():
-    """Toggle ExpressVPN proxy on/off"""
+    """Toggle proxy service on/off"""
     try:
         if not IMPORTS_AVAILABLE:
             return jsonify({'success': False, 'message': 'Proxy toggle not available in demo mode'})
@@ -1813,21 +1813,19 @@ def toggle_proxy():
 
         # Update global config
         global_config.PROXY_ENABLED = enabled
-        global_config.EXPRESSVPN_ENABLED = enabled
 
         # Save to environment configuration file for persistence
         config_file = "trading_data/proxy_config.json"
         os.makedirs(os.path.dirname(config_file), exist_ok=True)
 
         proxy_config = {
-            'PROXY_ENABLED': str(enabled).lower(),
-            'EXPRESSVPN_ENABLED': str(enabled).lower()
+            'PROXY_ENABLED': str(enabled).lower()
         }
 
         with open(config_file, 'w') as f:
             json.dump(proxy_config, f, indent=2)
 
-        status = 'ExpressVPN' if enabled else 'disabled'
+        status = 'enabled' if enabled else 'disabled'
         logger.info(f"🔄 PROXY TOGGLED: {status}")
         logger.info(f"🌐 WEB DASHBOARD: Proxy settings updated via web interface")
 
@@ -1844,7 +1842,6 @@ def toggle_proxy():
             'success': True,
             'message': message,
             'proxy_enabled': enabled,
-            'expressvpn_enabled': enabled,
             'proxy_status': status,
             'restart_required': bot_running
         })
