@@ -439,49 +439,49 @@ For MAINNET:
             current_time = datetime.now()
 
             for strategy_name, position in self.order_manager.active_positions.items():
-            # Check if we should log this position (throttle to once per minute)
-            last_log_time = self.last_position_log_time.get(strategy_name)
+                # Check if we should log this position (throttle to once per minute)
+                last_log_time = self.last_position_log_time.get(strategy_name)
             if last_log_time and (current_time - last_log_time).total_seconds() < self.position_log_interval:
-                continue  # Skip logging for this position
+                    continue  # Skip logging for this position
 
-            strategy_config = self.strategies.get(strategy_name)
-            if not strategy_config:
-                continue
-
-            try:
-                symbol = strategy_config['symbol']
-
-                # Get current price
-                current_price = self._get_current_price(symbol)
-                if not current_price:
-                    self.logger.error(f"❌ PnL DISPLAY ERROR | {strategy_name} | Could not fetch current price for {symbol}")
+                strategy_config = self.strategies.get(strategy_name)
+                if not strategy_config:
                     continue
 
-                # Use simple, reliable manual PnL calculation (matches web dashboard)
-                entry_price = position.entry_price
-                quantity = position.quantity
-                side = position.side
+                try:
+                    symbol = strategy_config['symbol']
 
-                # Manual PnL calculation (same as web dashboard)
-                if side == 'BUY':  # Long position
-                    pnl = (current_price - entry_price) * quantity
-                else:  # Short position (SELL)
-                    pnl = (entry_price - current_price) * quantity
+                # Get current price
+                    current_price = self._get_current_price(symbol)
+                    if not current_price:
+                        self.logger.error(f"❌ PnL DISPLAY ERROR | {strategy_name} | Could not fetch current price for {symbol}")
+                        continue
 
-                # Use the configured margin as the actual margin invested (matches web dashboard)
-                margin_invested = strategy_config.get('margin', 50.0)
+                    # Use simple, reliable manual PnL calculation (matches web dashboard)
+                    entry_price = position.entry_price
+                    quantity = position.quantity
+                    side = position.side
 
-                # Calculate PnL percentage against margin invested (matches web dashboard)
-                pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
+                    # Manual PnL calculation (same as web dashboard)
+                    if side == 'BUY':  # Long position
+                        pnl = (current_price - entry_price) * quantity
+                    else:  # Short position (SELL)
+                        pnl = (entry_price - current_price) * quantity
 
-                self.logger.debug(f"🔍 CONSOLE PNL | {symbol} | Side: {side} | Entry: ${entry_price:.2f} | Current: ${current_price:.2f} | Qty: {quantity} | PnL: ${pnl:.2f} | Margin: ${margin_invested:.2f} | Pct: {pnl_percent:.2f}%")
+                    # Use the configured margin as the actual margin invested (matches web dashboard)
+                    margin_invested = strategy_config.get('margin', 50.0)
 
-                # Display the position with reliable PnL data
-                if margin_invested > 0:
-                    # Get configured values for display
-                    configured_leverage = strategy_config.get('leverage', 5)
+                    # Calculate PnL percentage against margin invested (matches web dashboard)
+                    pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
 
-                    self.logger.info(f"""╔═══════════════════════════════════════════════════╗
+                    self.logger.debug(f"🔍 CONSOLE PNL | {symbol} | Side: {side} | Entry: ${entry_price:.2f} | Current: ${current_price:.2f} | Qty: {quantity} | PnL: ${pnl:.2f} | Margin: ${margin_invested:.2f} | Pct: {pnl_percent:.2f}%")
+
+                    # Display the position with reliable PnL data
+                    if margin_invested > 0:
+                        # Get configured values for display
+                        configured_leverage = strategy_config.get('leverage', 5)
+
+                        self.logger.info(f"""╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
 ║                                                   ║
@@ -495,16 +495,16 @@ For MAINNET:
 ║ 💰 PnL: ${pnl:.1f} USDT ({pnl_percent:+.1f}%)              ║
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝""")
-                else:
-                    self.logger.error(f"❌ PnL DISPLAY ERROR | {strategy_name} | Invalid margin configuration for {symbol}")
+                    else:
+                        self.logger.error(f"❌ PnL DISPLAY ERROR | {strategy_name} | Invalid margin configuration for {symbol}")
 
-                # Update last log time
-                self.last_position_log_time[strategy_name] = current_time
+                    # Update last log time
+                    self.last_position_log_time[strategy_name] = current_time
 
-            except Exception as e:
-                self.logger.error(f"❌ ERROR DISPLAYING POSITION PnL | {strategy_name} | {e}")
-                # Continue with other positions despite error
-                continue
+                except Exception as e:
+                    self.logger.error(f"❌ ERROR DISPLAYING POSITION PnL | {strategy_name} | {e}")
+                    # Continue with other positions despite error
+                    continue
 
         except Exception as main_error:
             self.logger.error(f"❌ CRITICAL ERROR in position display: {main_error}")
