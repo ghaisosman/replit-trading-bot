@@ -441,7 +441,7 @@ For MAINNET:
             for strategy_name, position in self.order_manager.active_positions.items():
                 # Check if we should log this position (throttle to once per minute)
                 last_log_time = self.last_position_log_time.get(strategy_name)
-            if last_log_time and (current_time - last_log_time).total_seconds() < self.position_log_interval:
+                if last_log_time and (current_time - last_log_time).total_seconds() < self.position_log_interval:
                     continue  # Skip logging for this position
 
                 strategy_config = self.strategies.get(strategy_name)
@@ -451,7 +451,7 @@ For MAINNET:
                 try:
                     symbol = strategy_config['symbol']
 
-                # Get current price
+                    # Get current price
                     current_price = self._get_current_price(symbol)
                     if not current_price:
                         self.logger.error(f"❌ PnL DISPLAY ERROR | {strategy_name} | Could not fetch current price for {symbol}")
