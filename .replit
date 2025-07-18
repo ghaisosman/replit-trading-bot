@@ -17,7 +17,7 @@ deploymentTarget = "gce"
 ignorePorts = true
 
 [workflows]
-runButton = "Stop Trading Bot"
+runButton = "Start Trading Bot"
 
 [[workflows.workflow]]
 name = "Run Trading Bot"
@@ -63,6 +63,32 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pkill -f \"python main.py\""
+
+[[workflows.workflow]]
+name = "Force Start Bot"
+author = 43555514
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python force_start_bot.py"
+
+[[workflows.workflow]]
+name = "Emergency Cleanup"
+author = 43555514
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pkill -f \"python main.py\""
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "sleep 2"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python force_start_bot.py"
 
 [[ports]]
 localPort = 5000

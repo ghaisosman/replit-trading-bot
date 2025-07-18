@@ -59,6 +59,59 @@ def check_port_available(port):
         # Unexpected error
         return False
 
+def cleanup_all_locks():
+    """Clean up all lock files safely"""
+    lock_files = [
+        "/tmp/bot_restart_lock",
+        "/tmp/web_dashboard.lock", 
+        "/tmp/bot_restart_count"
+    ]
+
+    for lock_file in lock_files:
+        try:
+            if os.path.exists(lock_file):
+                os.remove(lock_file)
+                print(f"🧹 Cleaned up: {os.path.basename(lock_file)}")
+        except Exception as e:
+            print(f"⚠️ Could not remove {lock_file}: {e}")
+
+def force_cleanup_processes():
+    """Force cleanup of any remaining bot processes"""
+    current_pid = os.getpid()
+    killed_count = 0
+
+    try:
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.pid == current_pid:
+                    continue
+
+                cmdline = ' '.join(proc.info['cmdline'] or [])
+
+                # Kill processes that might be conflicting
+                if any(pattern in cmdline.lower() for pattern in [
+                    'main.py', 'web_dashboard', 'flask', 'python main'
+                ]):
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=3)
+                    except psutil.TimeoutExpired:
+                        proc.kill()
+                    killed_count += 1
+                    print(f"🔄 Terminated process {proc.pid}: {proc.info['name']}")
+
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+
+    except Exception as e:
+        print(f"⚠️ Error during process cleanup: {e}")
+
+    if killed_count > 0:
+        print(f"🔄 Terminated {killed_count} conflicting processes")
+        time.sleep(2)  # Give time for cleanup
+
+    return killed_count
+
 def run_web_dashboard():
     """Run web dashboard in separate thread - keeps running even if bot stops"""
     global web_server_running, flask_server
@@ -69,7 +122,7 @@ def run_web_dashboard():
         logger.info("🌐 Web dashboard already running - skipping duplicate start")
         return
 
-    # Enhanced restart prevention with robust lock file handling
+    # Simple restart prevention with current PID check
     restart_lock_file = "/tmp/bot_restart_lock"
     current_pid = os.getpid()
 
@@ -78,92 +131,54 @@ def run_web_dashboard():
             with open(restart_lock_file, 'r') as f:
                 data = f.read().strip()
 
-            # BULLETPROOF PARSING - handles any format corruption
-            lock_valid = False
-            last_start = 0
-            last_pid = 0
-
+            # Simple validation - check if it's recent and from different process
             try:
                 if ',' in data:
-                    parts = data.split(',')
-                    if len(parts) >= 2:
-                        # ROBUST PARSING: Try both timestamp,pid and pid,timestamp formats
-                        part1 = parts[0].strip()
-                        part2 = parts[1].strip()
-                        
-                        # Extract only digits from both parts
-                        clean_part1 = ''.join(c for c in part1 if c.isdigit())
-                        clean_part2 = ''.join(c for c in part2 if c.isdigit())
-                        
-                        if clean_part1 and clean_part2:
-                            # Convert to integers for comparison
-                            val1 = int(clean_part1)
-                            val2 = int(clean_part2)
-                            
-                            # Determine which is timestamp vs PID based on realistic ranges
-                            # PIDs are typically < 100000, timestamps are > 1600000000
-                            if val1 > 1600000000 and val2 < 100000:
-                                # Format: timestamp,pid
-                                last_start = val1
-                                last_pid = val2
-                                lock_valid = True
-                            elif val2 > 1600000000 and val1 < 100000:
-                                # Format: pid,timestamp
-                                last_start = val2
-                                last_pid = val1
-                                lock_valid = True
-                            else:
-                                # Invalid format - use current time to expire it
-                                logger.warning(f"Ambiguous lock format: {data} - treating as expired")
-                                last_start = 0
-                                last_pid = 0
+                    parts = data.split(',', 1)
+                    if len(parts) == 2:
+                        timestamp_str = parts[0].strip()
+                        pid_str = parts[1].strip()
 
-                if lock_valid and last_start > 0 and last_pid > 0:
-                    # Check if it's too recent AND from a different process
-                    time_diff = time.time() - last_start
-                    if time_diff < 15 and last_pid != current_pid:
-                        try:
-                            # Check if the other process is still running
-                            os.kill(last_pid, 0)
-                            logger.info(f"🔄 Restart prevented - another instance running (PID: {last_pid})")
-                            return
-                        except OSError:
-                            # Process doesn't exist anymore, continue
-                            logger.info(f"🔄 Stale lock detected - previous process {last_pid} no longer exists")
-                else:
-                    # Either invalid format or expired lock
-                    if data:
-                        logger.warning(f"Invalid/expired lock file format: '{data}' - cleaning up")
-                    
-            except (ValueError, IndexError, TypeError) as e:
-                logger.warning(f"Lock file parsing error: {e} - data: '{data}' - treating as corrupted")
-            
-            # Always remove invalid, stale, or corrupted locks
-            try:
+                        # Extract only digits
+                        clean_timestamp = ''.join(c for c in timestamp_str if c.isdigit())
+                        clean_pid = ''.join(c for c in pid_str if c.isdigit())
+
+                        if clean_timestamp and clean_pid:
+                            lock_timestamp = int(clean_timestamp)
+                            lock_pid = int(clean_pid)
+
+                            # Check if recent (within 15 seconds) and different process
+                            if (time.time() - lock_timestamp < 15 and lock_pid != current_pid):
+                                try:
+                                    os.kill(lock_pid, 0)  # Check if process exists
+                                    logger.info(f"🔄 Recent lock detected - another instance running (PID: {lock_pid})")
+                                    return
+                                except OSError:
+                                    # Process doesn't exist, continue
+                                    pass
+
+                # Remove stale or invalid lock
                 os.remove(restart_lock_file)
-                logger.info(f"🔄 Removed problematic restart lock file")
-            except Exception as remove_error:
-                logger.warning(f"Could not remove lock file: {remove_error}")
+                logger.info("🔄 Removed stale restart lock file")
+
+            except (ValueError, IndexError) as e:
+                logger.warning(f"Invalid lock format: {data} - removing")
+                os.remove(restart_lock_file)
 
         except Exception as e:
             logger.warning(f"Error reading restart lock: {e}")
-            # Force remove any problematic lock file
             try:
                 os.remove(restart_lock_file)
-                logger.info(f"🔄 Force removed restart lock after read error")
             except:
                 pass
 
-    # Create restart lock with CONSISTENT format (timestamp,pid)
+    # Create restart lock with simple format
     try:
         with open(restart_lock_file, 'w') as f:
-            # Always use format: timestamp,pid (no decimals, no ambiguity)
-            timestamp = int(time.time())
-            f.write(f"{timestamp},{current_pid}")
-        logger.debug(f"🔒 Created restart lock: {timestamp},{current_pid}")
+            f.write(f"{int(time.time())},{current_pid}")
+        logger.debug(f"🔒 Created restart lock: {int(time.time())},{current_pid}")
     except Exception as e:
         logger.warning(f"Could not create restart lock: {e}")
-        pass
 
     # Check if running in deployment environment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
@@ -174,156 +189,92 @@ def run_web_dashboard():
         # Import and run web dashboard
         from web_dashboard import app
 
-        # Enhanced web dashboard lock with timeout
+        # Simple web dashboard lock
         lock_file = "/tmp/web_dashboard.lock"
-        current_pid = os.getpid()
 
         if os.path.exists(lock_file):
             try:
                 with open(lock_file, 'r') as f:
                     data = f.read().strip()
 
-                # BULLETPROOF PARSING - identical to restart lock logic
-                lock_valid = False
-                existing_pid = 0
-                lock_time = 0
-
+                # Simple validation
                 try:
                     if ',' in data:
-                        parts = data.split(',')
-                        if len(parts) >= 2:
-                            # ROBUST PARSING: Try both pid,timestamp and timestamp,pid formats
-                            part1 = parts[0].strip()
-                            part2 = parts[1].strip()
-                            
-                            # Extract only digits from both parts
-                            clean_part1 = ''.join(c for c in part1 if c.isdigit())
-                            clean_part2 = ''.join(c for c in part2 if c.isdigit())
-                            
-                            if clean_part1 and clean_part2:
-                                # Convert to integers for comparison
-                                val1 = int(clean_part1)
-                                val2 = int(clean_part2)
-                                
-                                # Determine which is timestamp vs PID based on realistic ranges
-                                # PIDs are typically < 100000, timestamps are > 1600000000
-                                if val1 < 100000 and val2 > 1600000000:
-                                    # Format: pid,timestamp
-                                    existing_pid = val1
-                                    lock_time = val2
-                                    lock_valid = True
-                                elif val2 < 100000 and val1 > 1600000000:
-                                    # Format: timestamp,pid
-                                    existing_pid = val2
-                                    lock_time = val1
-                                    lock_valid = True
-                                else:
-                                    # Invalid format - treat as expired
-                                    logger.warning(f"Ambiguous web dashboard lock format: {data} - treating as expired")
-                                    existing_pid = 0
-                                    lock_time = 0
+                        parts = data.split(',', 1)
+                        if len(parts) == 2:
+                            pid_str = parts[0].strip()
+                            timestamp_str = parts[1].strip()
 
-                    if lock_valid and existing_pid > 0 and lock_time > 0:
-                        # Check if lock is recent and process still exists
-                        time_diff = time.time() - lock_time
-                        if time_diff < 30:  # 30 second timeout
-                            try:
-                                os.kill(existing_pid, 0)
-                                logger.info(f"🔄 Web dashboard already running (PID: {existing_pid})")
-                                return
-                            except OSError:
-                                # Process doesn't exist, continue
-                                logger.info(f"🔄 Stale web dashboard lock - process {existing_pid} no longer exists")
-                    else:
-                        # Either invalid format or expired lock
-                        if data:
-                            logger.warning(f"Invalid/expired web dashboard lock format: '{data}' - cleaning up")
-                        
-                except (ValueError, IndexError, TypeError) as parse_error:
-                    logger.warning(f"Web dashboard lock parsing error: {parse_error} - data: '{data}' - treating as corrupted")
+                            clean_pid = ''.join(c for c in pid_str if c.isdigit())
+                            clean_timestamp = ''.join(c for c in timestamp_str if c.isdigit())
 
-                # Always remove invalid, stale, or corrupted locks
+                            if clean_pid and clean_timestamp:
+                                lock_pid = int(clean_pid)
+                                lock_timestamp = int(clean_timestamp)
+
+                                # Check if recent and process exists
+                                if (time.time() - lock_timestamp < 30):
+                                    try:
+                                        os.kill(lock_pid, 0)
+                                        logger.info(f"🔄 Web dashboard already running (PID: {lock_pid})")
+                                        return
+                                    except OSError:
+                                        pass
+
+                    # Remove stale lock
+                    os.remove(lock_file)
+                    logger.info("🔄 Removed stale web dashboard lock")
+
+                except (ValueError, IndexError):
+                    os.remove(lock_file)
+
+            except Exception:
                 try:
                     os.remove(lock_file)
-                    logger.info("🔄 Removed web dashboard lock file")
-                except Exception as remove_error:
-                    logger.warning(f"Could not remove web dashboard lock: {remove_error}")
-
-            except Exception as e:
-                logger.warning(f"Error reading web dashboard lock file: {e}")
-                # Force remove problematic lock
-                try:
-                    os.remove(lock_file)
-                    logger.info("🔄 Force removed web dashboard lock after read error")
                 except:
                     pass
 
-        # Create lock file with CONSISTENT format (pid,timestamp)
+        # Create web dashboard lock
         try:
             with open(lock_file, 'w') as f:
-                # Always use format: pid,timestamp (no decimals, no ambiguity)
-                timestamp = int(time.time())
-                f.write(f"{current_pid},{timestamp}")
+                f.write(f"{current_pid},{int(time.time())}")
             logger.info(f"🔒 Created web dashboard lock (PID: {current_pid})")
         except Exception as e:
             logger.warning(f"Could not create web dashboard lock: {e}")
 
-        # SINGLE SOURCE CHECK - Ensure no duplicate web dashboard instances
+        # Check and cleanup port conflicts
         if not check_port_available(5000):
-            logger.error("🚨 PORT 5000 UNAVAILABLE: Another web dashboard instance detected")
-            logger.error("🚫 MAIN.PY: Cleaning up duplicate instances")
+            logger.error("🚨 PORT 5000 UNAVAILABLE: Cleaning up...")
 
-            # Kill existing processes using port 5000 - Replit compatible method
+            # Force cleanup processes using port 5000
             try:
-                # Use psutil instead of lsof for Replit compatibility
-                import psutil
-                killed_count = 0
-
-                for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'connections']):
+                for proc in psutil.process_iter(['pid', 'name', 'connections']):
                     try:
-                        # Check if process is using port 5000
                         if proc.info['connections']:
                             for conn in proc.info['connections']:
                                 if hasattr(conn, 'laddr') and conn.laddr and conn.laddr.port == 5000:
-                                    if proc.pid != os.getpid():  # Don't kill ourselves
+                                    if proc.pid != os.getpid():
                                         proc.terminate()
                                         logger.info(f"🔄 Killed process {proc.pid} using port 5000")
-                                        killed_count += 1
+                                        try:
+                                            proc.wait(timeout=3)
+                                        except psutil.TimeoutExpired:
+                                            proc.kill()
                                         break
                     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                         continue
 
-                if killed_count > 0:
-                    logger.info(f"🔄 Terminated {killed_count} processes using port 5000")
-                    # Wait for port to be freed
-                    time.sleep(3)
+                time.sleep(3)
 
-                    # Check if port is now available
-                    if check_port_available(5000):
-                        logger.info("✅ Port 5000 successfully freed")
-                    else:
-                        logger.error("❌ Port 5000 still unavailable after cleanup")
-                        return
+                if check_port_available(5000):
+                    logger.info("✅ Port 5000 successfully freed")
                 else:
-                    logger.info("🔍 No processes found using port 5000")
-            except Exception as e:
-                logger.error(f"Error during psutil port cleanup: {e}")
-                # Fallback to simple process termination
-                try:
-                    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                        try:
-                            if proc.info['cmdline']:
-                                cmdline_str = ' '.join(proc.info['cmdline'])
-                                if ('flask' in cmdline_str.lower() or 'web_dashboard' in cmdline_str.lower()):
-                                    if proc.pid != os.getpid():
-                                        proc.terminate()
-                                        logger.info(f"🔄 Terminated Flask process {proc.pid}")
-                        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                            continue
-                    time.sleep(2)
-                except:
-                    logger.error("Fallback cleanup also failed")
+                    logger.error("❌ Port 5000 still unavailable after cleanup")
                     return
+
+            except Exception as e:
+                logger.error(f"Error during port cleanup: {e}")
+                return
 
         web_server_running = True
         logger.info("🌐 Starting web dashboard on 0.0.0.0:5000")
@@ -337,9 +288,6 @@ def run_web_dashboard():
         flask_server = make_server('0.0.0.0', port, app, threaded=True)
         logger.info(f"🌐 Flask server created on port {port}")
 
-        # Signal handling is managed by the main thread
-        # No signal setup needed in web dashboard thread
-
         # Start Flask server
         try:
             flask_server.serve_forever()
@@ -352,9 +300,8 @@ def run_web_dashboard():
         logger.error(f"Web dashboard error: {e}")
         if "Address already in use" in str(e):
             logger.error("🚨 PORT 5000 UNAVAILABLE: Another web dashboard instance detected")
-            logger.error("🚫 MAIN.PY: Cleaning up duplicate instances...")
+            # Try alternative cleanup
             try:
-                # Kill Python processes that might be using port 5000
                 killed_count = 0
                 for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
                     try:
@@ -362,51 +309,31 @@ def run_web_dashboard():
                             cmdline_str = ' '.join(proc.info['cmdline'])
                             if ('python' in proc.info['name'].lower() and 
                                 ('web_dashboard' in cmdline_str or 'flask' in cmdline_str or 'main.py' in cmdline_str)):
-                                if proc.pid != os.getpid():  # Don't kill ourselves
+                                if proc.pid != os.getpid():
                                     proc.terminate()
                                     logger.info(f"🔄 Terminated process {proc.pid}: {proc.info['name']}")
                                     killed_count += 1
-                                    # Wait for process to terminate
                                     try:
                                         proc.wait(timeout=3)
                                     except psutil.TimeoutExpired:
-                                        proc.kill()  # Force kill if it doesn't terminate
+                                        proc.kill()
                     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                         continue
 
                 if killed_count > 0:
                     logger.info(f"🔄 Terminated {killed_count} processes")
-                    # Wait longer for cleanup to complete
                     time.sleep(5)
+
+                if check_port_available(5000):
+                    logger.info("✅ Port 5000 cleared successfully")
+                    # Try to start again
+                    web_server_running = True
+                    port = int(os.environ.get('PORT', 5000))
+                    logger.info(f"🌐 Restarting web dashboard on 0.0.0.0:{port}")
+                    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
                 else:
-                    logger.info("🔍 No conflicting processes found")
-
-                # Wait a moment for cleanup
-                time.sleep(2)
-
-                # Check again
-                if not check_port_available(5000):
-                    logger.error("🚨 CRITICAL: Port 5000 still unavailable after cleanup")
-                    logger.error("💡 Trying alternative port cleanup method...")
-
-                    # Alternative cleanup using psutil connection check
-                    try:
-                        import psutil
-                        for proc in psutil.process_iter(['pid', 'name', 'connections']):
-                            try:
-                                if proc.info['connections']:
-                                    for conn in proc.info['connections']:
-                                        if hasattr(conn, 'laddr') and conn.laddr and conn.laddr.port == 5000:
-                                            logger.info(f"🔍 Found process {proc.pid} ({proc.info['name']}) using port 5000")
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                continue
-                    except:
-                        pass
-
                     logger.error("💡 Please restart the entire Repl to clear port conflicts")
                     return
-                else:
-                    logger.info("✅ Port 5000 cleared successfully")
 
             except Exception as cleanup_error:
                 logger.error(f"Error during port cleanup: {cleanup_error}")
@@ -414,47 +341,27 @@ def run_web_dashboard():
 
         web_server_running = True
         logger.info("🌐 WEB DASHBOARD: Starting persistent web interface on http://0.0.0.0:5000")
-        logger.info("🌐 WEB DASHBOARD: Dashboard will remain active even when bot stops")
 
-        # Run Flask with minimal logging to reduce console noise
+        # Run Flask with minimal logging
         import logging as flask_logging
         flask_log = flask_logging.getLogger('werkzeug')
         flask_log.setLevel(flask_logging.WARNING)
 
-        # Set Flask app configuration for better error handling
         app.config['TESTING'] = False
         app.config['DEBUG'] = False
 
-        # Get port from environment for deployment compatibility
         port = int(os.environ.get('PORT', 5000))
         logger.info(f"🌐 Starting web dashboard on 0.0.0.0:{port}")
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
 
     except Exception as e:
         logger.error(f"Web dashboard error: {e}")
-        if "Address already in use" in str(e):
-            logger.error("🚨 CRITICAL: Port conflict persists")
-            logger.info("💡 Please restart the Repl to resolve port conflicts")
-        else:
-            logger.error(f"🚨 WEB DASHBOARD ERROR: {str(e)}")
-            logger.info("🌐 Attempting to restart web dashboard...")
-            # Try to restart after a delay
-            time.sleep(5)
-            if web_server_running:
-                try:
-                    # Get port from environment for deployment compatibility
-                    port = int(os.environ.get('PORT', 5000))
-                    logger.info(f"🌐 Restarting web dashboard on 0.0.0.0:{port}")
-                    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
-                except:
-                    logger.error("🚨 Web dashboard restart failed")
     finally:
         web_server_running = False
 
-        # Comprehensive cleanup
-        logger.info("🧹 Starting comprehensive cleanup...")
+        # Cleanup on exit
+        logger.info("🧹 Starting web dashboard cleanup...")
 
-        # 1. Clean up Flask server
         if flask_server:
             try:
                 flask_server.shutdown()
@@ -464,69 +371,30 @@ def run_web_dashboard():
             finally:
                 flask_server = None
 
-        # 2. Clean up lock files with robust verification
+        # Clean up lock files
         lock_files = ["/tmp/web_dashboard.lock", "/tmp/bot_restart_lock"]
         current_pid = os.getpid()
-        
+
         for lock_file in lock_files:
             try:
                 if os.path.exists(lock_file):
-                    # Robust lock file verification
-                    lock_belongs_to_us = False
+                    # Simple ownership check
                     try:
                         with open(lock_file, 'r') as f:
                             data = f.read().strip()
-                        
-                        if ',' in data:
-                            parts = data.split(',')
-                            if len(parts) >= 2:
-                                # Extract PID (handle any format)
-                                pid_part = parts[0].strip()
-                                clean_pid = ''.join(c for c in pid_part if c.isdigit())
-                                if clean_pid and int(clean_pid) == current_pid:
-                                    lock_belongs_to_us = True
-                        
-                        if lock_belongs_to_us:
+
+                        if str(current_pid) in data:
                             os.remove(lock_file)
                             logger.info(f"🔓 Removed our lock file: {os.path.basename(lock_file)}")
                         else:
-                            # Verify if other process still exists
-                            try:
-                                if clean_pid:
-                                    os.kill(int(clean_pid), 0)
-                                    logger.warning(f"Lock file belongs to active process ({clean_pid}), not removing")
-                                else:
-                                    # Invalid format, safe to remove
-                                    os.remove(lock_file)
-                                    logger.info(f"🔓 Removed invalid lock file: {os.path.basename(lock_file)}")
-                            except (OSError, ValueError):
-                                # Process doesn't exist or invalid PID, safe to remove
-                                os.remove(lock_file)
-                                logger.info(f"🔓 Removed stale lock file: {os.path.basename(lock_file)}")
-                    
-                    except Exception as parse_error:
-                        # Cannot parse lock file, force remove
-                        logger.warning(f"Cannot parse lock file {lock_file}: {parse_error}")
+                            logger.info(f"🔍 Lock file belongs to another process: {os.path.basename(lock_file)}")
+                    except:
+                        # If we can't read it, try to remove it anyway
                         os.remove(lock_file)
-                        logger.info(f"🔓 Force removed unparseable lock file: {os.path.basename(lock_file)}")
+                        logger.info(f"🔓 Force removed lock file: {os.path.basename(lock_file)}")
 
             except Exception as e:
                 logger.warning(f"Error cleaning up lock file {lock_file}: {e}")
-                # Final attempt to remove
-                try:
-                    if os.path.exists(lock_file):
-                        os.remove(lock_file)
-                        logger.info(f"🔓 Final cleanup of lock file: {os.path.basename(lock_file)}")
-                except:
-                    pass
-
-        # 3. Close any remaining network connections
-        try:
-            import socket
-            # Give time for connections to close naturally
-            time.sleep(1)
-        except:
-            pass
 
         logger.info("🔴 Web dashboard stopped and cleaned up")
 
@@ -544,7 +412,6 @@ async def main_bot_only():
 
     logger.info("Starting Multi-Strategy Trading Bot (Web Dashboard already running)")
 
-    # No web dashboard launch here - already started from main entry point
     await asyncio.sleep(1)
     logger.info("🌐 Using existing Web Dashboard instance")
 
@@ -552,7 +419,7 @@ async def main_bot_only():
         # Initialize the bot manager
         bot_manager = BotManager()
 
-        # Enhanced bot manager reference sharing with multiple access points
+        # Enhanced bot manager reference sharing
         try:
             sys.modules['__main__'].bot_manager = bot_manager
             logger.info("✅ Bot manager registered in main module")
@@ -567,7 +434,6 @@ async def main_bot_only():
             logger.warning(f"Could not register in web dashboard: {e}")
 
         try:
-            # Additional reference for stability
             setattr(sys.modules[__name__], 'current_bot_manager', bot_manager)
             logger.info("✅ Bot manager registered with additional reference")
         except Exception as e:
@@ -575,33 +441,28 @@ async def main_bot_only():
 
         # Start the trading bot
         logger.info("🚀 Starting trading bot main loop...")
-
-        # Set startup source for notifications
         logger.info("🌐 BOT STARTUP INITIATED FROM: Console")
 
-        # Ensure web dashboard is running from main thread management
+        # Ensure web dashboard is running
         if not web_server_running:
             logger.info("🌐 Starting web dashboard alongside bot...")
             web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
             web_thread.start()
-            await asyncio.sleep(2)  # Give web dashboard time to start
+            await asyncio.sleep(2)
 
         # Start the bot
         bot_task = asyncio.create_task(bot_manager.start())
         shutdown_task = asyncio.create_task(shutdown_event.wait())
 
-        # Wait for either the bot to complete or shutdown signal
         done, pending = await asyncio.wait(
             [bot_task, shutdown_task],
             return_when=asyncio.FIRST_COMPLETED
         )
 
-        # Check if shutdown was triggered
         if shutdown_task in done:
             logger.info("🛑 Shutdown signal received, stopping bot...")
             await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
 
-        # Cancel any pending tasks
         for task in pending:
             task.cancel()
             try:
@@ -609,11 +470,9 @@ async def main_bot_only():
             except asyncio.CancelledError:
                 pass
 
-        # Keep web server running after bot stops
         logger.info("🔴 Bot stopped but web interface remains active for control")
         logger.info("💡 You can restart the bot using the web interface")
 
-        # Keep the main process alive to maintain web interface
         while web_server_running:
             await asyncio.sleep(5)
 
@@ -628,75 +487,37 @@ async def main_bot_only():
             await bot_manager.stop(f"Unexpected error: {e}")
         logger.info("🌐 Web interface remains active despite bot error")
 
-def cleanup_process_resources():
-    """Clean up process resources before shutdown"""
-    logger = logging.getLogger(__name__)
-    current_pid = os.getpid()
-
-    try:
-        # Close all open file descriptors except stdin, stdout, stderr
-        import resource
-        max_fd = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
-        for fd in range(3, min(max_fd, 1024)):  # Skip stdin(0), stdout(1), stderr(2)
-            try:
-                os.close(fd)
-            except OSError:
-                pass
-
-        logger.info("🧹 Closed excess file descriptors")
-    except Exception as e:
-        logger.warning(f"Could not close file descriptors: {e}")
-
-    try:
-        # Release any remaining network resources
-        import socket
-        import gc
-        gc.collect()  # Force garbage collection
-        logger.info("🧹 Released network resources")
-    except Exception as e:
-        logger.warning(f"Could not release network resources: {e}")
-
 async def main():
     """Main function for web dashboard bot restart"""
     global bot_manager, web_server_running, web_thread
 
-    # Setup logging
     setup_logger()
     logger = logging.getLogger(__name__)
 
-    # Enhanced signal handlers for graceful shutdown
     def enhanced_signal_handler(signum, frame):
         logger.info(f"🛑 Received signal {signum}, starting graceful shutdown...")
         signal_handler(signum, frame)
 
-        # Additional cleanup
         global web_thread
         if web_thread and web_thread.is_alive():
             logger.info("🔄 Waiting for web thread to finish...")
-            web_thread.join(timeout=5)  # Wait up to 5 seconds
+            web_thread.join(timeout=5)
             if web_thread.is_alive():
                 logger.warning("⚠️ Web thread did not finish gracefully")
 
-        cleanup_process_resources()
-
-        # Exit cleanly
         os._exit(0)
 
     signal.signal(signal.SIGINT, enhanced_signal_handler)
     signal.signal(signal.SIGTERM, enhanced_signal_handler)
 
     logger.info("Starting Multi-Strategy Trading Bot with Persistent Web Interface")
-
-    # SINGLE SOURCE WEB DASHBOARD LAUNCH - Only from main.py
     logger.info("🌐 MAIN.PY: Starting web dashboard (single source control)")
-    logger.info("🚫 MAIN.PY: Direct web_dashboard.py launches are disabled")
 
     global web_thread
     web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
-    web_thread.daemon = False  # Explicitly set to non-daemon for proper cleanup
+    web_thread.daemon = False
     web_thread.start()
 
-    # Ensure thread started successfully
     time.sleep(1)
     if not web_thread.is_alive():
         logger.error("❌ Web dashboard thread failed to start")
@@ -704,7 +525,6 @@ async def main():
     else:
         logger.info("✅ Web dashboard thread started successfully")
 
-    # Give web dashboard time to start
     await asyncio.sleep(3)
     logger.info("🌐 Web Dashboard accessible and will remain active")
 
@@ -712,7 +532,7 @@ async def main():
         # Initialize the bot manager
         bot_manager = BotManager()
 
-        # Enhanced bot manager reference sharing with multiple access points
+        # Enhanced bot manager reference sharing
         try:
             sys.modules['__main__'].bot_manager = bot_manager
             logger.info("✅ Bot manager registered in main module")
@@ -727,29 +547,25 @@ async def main():
             logger.warning(f"Could not register in web dashboard: {e}")
 
         try:
-            # Additional reference for stability
             setattr(sys.modules[__name__], 'current_bot_manager', bot_manager)
             logger.info("✅ Bot manager registered with additional reference")
         except Exception as e:
             logger.warning(f"Could not create additional reference: {e}")
 
-        # Start the bot in a task so we can handle shutdown signals
+        # Start the bot in a task
         logger.info("🚀 Starting trading bot main loop...")
         bot_task = asyncio.create_task(bot_manager.start())
         shutdown_task = asyncio.create_task(shutdown_event.wait())
 
-        # Wait for either the bot to complete or shutdown signal
         done, pending = await asyncio.wait(
             [bot_task, shutdown_task],
             return_when=asyncio.FIRST_COMPLETED
         )
 
-        # Check if shutdown was triggered
         if shutdown_task in done:
             logger.info("🛑 Shutdown signal received, stopping bot...")
             await bot_manager.stop("Manual shutdown via Ctrl+C or SIGTERM")
 
-        # Cancel any pending tasks
         for task in pending:
             task.cancel()
             try:
@@ -757,11 +573,9 @@ async def main():
             except asyncio.CancelledError:
                 pass
 
-        # Keep web server running after bot stops
         logger.info("🔴 Bot stopped but web interface remains active for control")
         logger.info("💡 You can restart the bot using the web interface")
 
-        # Keep the main process alive to maintain web interface
         while web_server_running:
             await asyncio.sleep(5)
 
@@ -781,79 +595,27 @@ if __name__ == "__main__":
     setup_logger()
     logger = logging.getLogger(__name__)
 
-    # ENHANCED RESTART LOOP DETECTION with bulletproof validation
+    # FORCE CLEANUP AND RESET on startup
+    logger.info("🧹 PERFORMING STARTUP CLEANUP...")
+
+    # Clean all lock files
+    cleanup_all_locks()
+
+    # Force cleanup any conflicting processes
+    killed_count = force_cleanup_processes()
+
+    if killed_count > 0:
+        logger.info("🕐 Waiting for cleanup to complete...")
+        time.sleep(3)
+
+    # DISABLE RESTART LOOP PROTECTION - always allow startup
     restart_count_file = "/tmp/bot_restart_count"
-    max_restarts = 5
-    restart_window = 300  # 5 minutes
-    
     try:
-        current_time = time.time()
-        restart_count = 0
-        last_restart_time = 0
-        
         if os.path.exists(restart_count_file):
-            try:
-                with open(restart_count_file, 'r') as f:
-                    data = f.read().strip()
-                    
-                # BULLETPROOF PARSING for restart count file
-                if ',' in data:
-                    parts = data.split(',')
-                    if len(parts) >= 2:
-                        # Extract only digits from both parts
-                        clean_count = ''.join(c for c in parts[0] if c.isdigit())
-                        clean_time = ''.join(c for c in parts[1] if c.isdigit())
-                        
-                        if clean_count and clean_time:
-                            restart_count = int(clean_count)
-                            last_restart_time = float(clean_time)
-                            
-                            # Reset counter if outside window
-                            if current_time - last_restart_time > restart_window:
-                                restart_count = 0
-                                logger.info(f"🔄 Restart counter reset - outside {restart_window}s window")
-                        else:
-                            logger.warning(f"Invalid restart count format: {data} - resetting")
-                            restart_count = 0
-                    else:
-                        logger.warning(f"Malformed restart count data: {data} - resetting")
-                        restart_count = 0
-                else:
-                    logger.warning(f"No comma in restart count data: {data} - resetting")
-                    restart_count = 0
-                    
-            except Exception as parse_error:
-                logger.warning(f"Restart count parsing error: {parse_error} - resetting to 0")
-                restart_count = 0
-        
-        # Check for restart loop
-        if restart_count >= max_restarts:
-            logger.error(f"🚨 RESTART LOOP DETECTED: {restart_count} restarts in {restart_window}s")
-            logger.error(f"🛑 EMERGENCY STOP: Preventing infinite restart loop")
-            logger.error(f"💡 SOLUTION: Check logs for root cause, manually restart when ready")
-            
-            # Clean up all lock files to prevent future issues
-            for lock_file in ["/tmp/web_dashboard.lock", "/tmp/bot_restart_lock", restart_count_file]:
-                try:
-                    if os.path.exists(lock_file):
-                        os.remove(lock_file)
-                        logger.info(f"🧹 Cleaned up: {lock_file}")
-                except:
-                    pass
-            
-            # Exit gracefully
-            exit(1)
-        
-        # Update restart counter with consistent format
-        restart_count += 1
-        with open(restart_count_file, 'w') as f:
-            f.write(f"{restart_count},{int(current_time)}")
-        
-        logger.info(f"🔄 Bot start #{restart_count} (window: {restart_window}s)")
-        
+            os.remove(restart_count_file)
+            logger.info("🔄 Cleared restart count - startup allowed")
     except Exception as e:
-        logger.warning(f"Restart detection error: {e}")
-        # Continue anyway - don't let restart detection break the bot
+        logger.warning(f"Could not clear restart count: {e}")
 
     # Check if running in deployment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
@@ -861,36 +623,29 @@ if __name__ == "__main__":
     if is_deployment:
         logger.info("🚀 STARTING IN REPLIT DEPLOYMENT MODE")
 
-        # In deployment, run simplified version
         bot_manager = None
         sys.modules[__name__].bot_manager = None
 
-        # DEPLOYMENT: Single source web dashboard launch
         logger.info("🚀 DEPLOYMENT: Starting web dashboard from main.py only")
         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
 
-        # Wait for web dashboard and keep alive
         time.sleep(2)
         logger.info("🌐 Deployment web dashboard active")
         logger.info("💡 Access your bot via the web interface at your deployment URL")
         logger.info("🔄 Bot can be started/stopped through the web dashboard")
 
         try:
-            # Keep the process alive for web interface
             while True:
                 time.sleep(10)
         except KeyboardInterrupt:
             logger.info("🔴 Deployment shutdown")
     else:
-        # Development mode - start normally without instance detection
         logger.info("🛠️ Development mode: Starting bot normally")
 
-        # Original development mode
         bot_manager = None
         sys.modules[__name__].bot_manager = None
 
-        # DEVELOPMENT: Single source web dashboard launch from main.py
         logger.info("🛠️ DEVELOPMENT: Starting web dashboard from main.py only")
         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
@@ -916,4 +671,3 @@ if __name__ == "__main__":
                     time.sleep(5)
             except KeyboardInterrupt:
                 logger.info("🔴 Final shutdown")
-# Auto-commit permanently removed for stability
