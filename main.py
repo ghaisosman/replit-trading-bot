@@ -69,6 +69,25 @@ def run_web_dashboard():
         logger.info("🌐 Web dashboard already running - skipping duplicate start")
         return
 
+    # Prevent restart loops by checking recent starts
+    restart_lock_file = "/tmp/bot_restart_lock"
+    if os.path.exists(restart_lock_file):
+        try:
+            with open(restart_lock_file, 'r') as f:
+                last_start = float(f.read().strip())
+            if time.time() - last_start < 10:  # 10 second cooldown
+                logger.info("🔄 Restart prevented - too recent")
+                return
+        except:
+            pass
+    
+    # Create restart lock
+    try:
+        with open(restart_lock_file, 'w') as f:
+            f.write(str(time.time()))
+    except:
+        pass
+
     # Check if running in deployment environment
     is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
     if is_deployment:
