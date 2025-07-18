@@ -848,19 +848,19 @@
         function getCachedData(cacheKey) {
             const cache = apiCache[cacheKey];
             const now = Date.now();
-            
+
             if (cache.data && (now - cache.timestamp) < cache.ttl) {
                 // Track cache hits for adaptive behavior
                 cache.consecutiveHits = (cache.consecutiveHits || 0) + 1;
-                
+
                 // If data is stable (many cache hits), extend TTL to reduce polling
                 if (cache.consecutiveHits > 3) {
                     cache.ttl = Math.min(cache.ttl * 1.2, 30000); // Max 30 seconds
                 }
-                
+
                 return cache.data;
             }
-            
+
             // Reset consecutive hits when cache expires
             cache.consecutiveHits = 0;
             return null;
@@ -869,13 +869,13 @@
         function setCachedData(cacheKey, data) {
             const cache = apiCache[cacheKey];
             const previousData = cache.data;
-            
+
             cache.data = data;
             cache.timestamp = Date.now();
-            
+
             // Check if data has changed to adjust adaptive behavior
             const dataChanged = JSON.stringify(previousData) !== JSON.stringify(data);
-            
+
             if (dataChanged) {
                 // Data changed - reset to faster polling
                 cache.consecutiveHits = 0;
@@ -890,30 +890,30 @@
         function canMakeRequest(requestKey) {
             const throttle = requestThrottle[requestKey];
             const now = Date.now();
-            
+
             // Adaptive interval based on activity and connection state
             const adaptiveInterval = calculateAdaptiveInterval(requestKey);
-            
+
             if ((now - throttle.lastRequest) < adaptiveInterval) {
                 return false;
             }
-            
+
             if (activeRequests.has(requestKey)) {
                 return false; // Request already in progress
             }
-            
+
             // Check global rate limiting to prevent API flooding
             if (activeRequests.size >= 2) {
                 return false; // Maximum 2 concurrent requests
             }
-            
+
             return true;
         }
 
         function calculateAdaptiveInterval(requestKey) {
             const throttle = requestThrottle[requestKey];
             let interval = throttle.currentInterval;
-            
+
             // Adjust based on connection state
             switch (connectionState) {
                 case 'degraded':
@@ -930,7 +930,7 @@
                         interval = Math.max(interval * 0.9, throttle.minInterval);
                     }
             }
-            
+
             throttle.currentInterval = Math.max(Math.min(interval, throttle.maxInterval), throttle.minInterval);
             return throttle.currentInterval;
         }
@@ -942,7 +942,7 @@
 
         function markRequestEnd(requestKey, success = true) {
             activeRequests.delete(requestKey);
-            
+
             // Update connection state based on request success
             if (success) {
                 if (connectionState === 'poor') connectionState = 'degraded';
@@ -1223,14 +1223,80 @@
                             <td>${formatNumber(position.current_price)}</td>
                             <td class="${position.pnl >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl)}</td>
                             <td class="${position.pnl_percent >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl_percent)}%</td>
-                            <td>Loading...</td>
+                            <td id="rsi-${data.positions.indexOf(position)}">Loading...</td>
                         </tr>
                     `;
                     positionsTableBody.innerHTML += row;
                 });
+
+                // Fetch RSI values for each position after rendering the table
+                data.positions.forEach((position, index) => {
+                    fetchRSI(position.symbol, index);
+                });
             } else {
                 positionsTableBody.innerHTML = '<tr><td colspan="9" class="text-muted text-center">No active positions.</td></tr>';
             }
+        }
+
+        
+        function fetchRSI(symbol, index) {
+            fetch('/api/rsi/' + symbol)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success && data.rsi !== undefined) {
+                        let rsiValue = data.rsi;
+                        let rsiClass = 'bg-secondary';
+                        let rsiText = 'RSI: ' + rsiValue;
+
+                        // Add note indicator if it's estimated/fallback
+                        if (data.note) {
+                            rsiText += ' (~)';
+                        }
+
+                        // Color code RSI values
+                        if (rsiValue <= 30) {
+                            rsiClass = 'bg-success'; // Oversold - green
+                        } else if (rsiValue >= 70) {
+                            rsiClass = 'bg-danger'; // Overbought - red
+                        } else if (rsiValue <= 40) {
+                            rsiClass = 'bg-info'; // Low - blue
+                        } else if (rsiValue >= 60) {
+                            rsiClass = 'bg-warning'; // High - yellow
+                        }
+
+                        const rsiElement = document.getElementById('rsi-' + index);
+                        if (rsiElement) {
+                            rsiElement.className = 'badge ' + rsiClass;
+                            rsiElement.textContent = rsiText;
+
+                            // Add tooltip if there's a note
+                            if (data.note) {
+                                rsiElement.title = data.note;
+                            }
+                        }
+                    } else {
+                        const rsiElement = document.getElementById('rsi-' + index);
+                        if (rsiElement) {
+                            rsiElement.className = 'badge bg-warning';
+                            rsiElement.textContent = 'RSI: N/A';
+                            rsiElement.title = 'RSI data temporarily unavailable';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.debug('RSI fetch error for ' + symbol + ':', error);
+                    const rsiElement = document.getElementById('rsi-' + index);
+                    if (rsiElement) {
+                        rsiElement.className = 'badge bg-secondary';
+                        rsiElement.textContent = 'RSI: --';
+                        rsiElement.title = 'RSI calculation in progress';
+                    }
+                });
         }
 
         // Initialize dashboard with intelligent adaptive polling system
@@ -1241,9 +1307,9 @@
             // Clear any existing timeouts
             Object.values(updateTimeouts).forEach(timeout => clearTimeout(timeout));
             updateTimeouts = {};
-            
+
             pollingActive = true;
-            
+
             // Start adaptive polling loops
             scheduleAdaptiveUpdate('botStatus', updateBotStatus);
             scheduleAdaptiveUpdate('balance', updateBalance);
@@ -1253,10 +1319,10 @@
 
         function scheduleAdaptiveUpdate(key, updateFunction) {
             if (!pollingActive) return;
-            
+
             const executeUpdate = () => {
                 if (!pollingActive) return;
-                
+
                 // Execute the update function
                 Promise.resolve(updateFunction())
                     .catch(error => {
@@ -1270,7 +1336,7 @@
                         }
                     });
             };
-            
+
             // Start immediately
             executeUpdate();
         }
@@ -1292,20 +1358,20 @@
                                    key === 'balance' ? 30000 : 
                                    key === 'positions' ? 12000 : 5000;
             });
-            
+
             // Reset throttle timers and intervals
             Object.keys(requestThrottle).forEach(key => {
                 requestThrottle[key].lastRequest = 0;
                 requestThrottle[key].currentInterval = requestThrottle[key].minInterval;
             });
-            
+
             // Reset adaptive behavior
             connectionState = 'healthy';
             inactivityCount = 0;
-            
+
             // Clear active requests set
             activeRequests.clear();
-            
+
             // Force immediate updates
             Promise.allSettled([
                 updateBotStatus(),
@@ -1320,7 +1386,7 @@
         // Initialize dashboard with intelligent adaptive system
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Dashboard initialization started with intelligent polling system');
-            
+
             // Initial load with controlled startup
             Promise.allSettled([
                 updateBotStatus(),
@@ -1329,13 +1395,13 @@
                 updatePositions()
             ]).then(() => {
                 console.log('✅ Initial dashboard data loaded');
-                
+
                 // Start intelligent adaptive update system
                 startIntelligentUpdates();
-                
+
                 console.log('🔧 Intelligent polling system active with adaptive intervals');
             });
-            
+
             // Handle visibility changes to optimize resource usage
             document.addEventListener('visibilitychange', function() {
                 if (document.hidden) {
@@ -1353,7 +1419,7 @@
                     refreshData(); // Get fresh data when tab becomes active
                 }
             });
-            
+
             // Cleanup on page unload
             window.addEventListener('beforeunload', function() {
                 stopIntelligentUpdates();
@@ -1585,6 +1651,7 @@
                 newStrategy.rsi_short_entry = 70;
                 newStrategy.rsi_short_exit = 30;
             } else if (name.toLowerCase().includes('macd')) {
+                ```text
                 newStrategy.macd_fast = 12;
                 newStrategy.macd_slow = 26;
                 newStrategy.macd_signal = 9;
