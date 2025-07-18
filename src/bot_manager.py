@@ -202,25 +202,42 @@ For MAINNET:
         # Track if startup notification was sent
         self.startup_notification_sent = False
 
-                # Initialize web log handler for dashboard
-        self.log_handler = WebLogHandler()
-        self.log_handler.setFormatter(logging.Formatter('%(message)s'))  # Simplified format for web
-
-        # Add to root logger to capture all logs
-        root_logger = logging.getLogger()
-
-        # Remove any existing web log handlers to prevent duplicates
-        existing_handlers = [h for h in root_logger.handlers if isinstance(h, WebLogHandler)]
-        for handler in existing_handlers:
-            root_logger.removeHandler(handler)
-
-        # Add the new handler
-        root_logger.addHandler(self.log_handler)
-
-        # Also add to bot manager's own logger
-        self.logger.addHandler(self.log_handler)
+                # Initialize web log handler for dashboard - FIXED: Move to after basic setup
+        # to prevent circular import and logging conflicts during startup
+        self.log_handler = None
+        self._initialize_web_logging()
 
         self.logger.info("🌐 Web log handler initialized for dashboard integration")
+
+    def _initialize_web_logging(self):
+        """Initialize web logging handler safely after basic setup"""
+        try:
+            # Import here to avoid circular imports during startup
+            from src.utils.logger import WebLogHandler
+            
+            self.log_handler = WebLogHandler()
+            self.log_handler.setFormatter(logging.Formatter('%(message)s'))  # Simplified format for web
+
+            # Add to root logger to capture all logs
+            root_logger = logging.getLogger()
+
+            # Remove any existing web log handlers to prevent duplicates
+            existing_handlers = [h for h in root_logger.handlers if isinstance(h, WebLogHandler)]
+            for handler in existing_handlers:
+                root_logger.removeHandler(handler)
+
+            # Add the new handler
+            root_logger.addHandler(self.log_handler)
+
+            # Also add to bot manager's own logger
+            self.logger.addHandler(self.log_handler)
+            
+            self.logger.debug("🔍 Web log handler successfully initialized")
+            
+        except Exception as e:
+            self.logger.warning(f"⚠️ Could not initialize web log handler: {e}")
+            # Continue without web logging if it fails
+            self.log_handler = None
 
     async def start(self):
         """Start the trading bot"""
@@ -1181,6 +1198,22 @@ Interval: every {assessment_interval} seconds
                 'strategies': [],
                 'balance': 0
             }
+
+    def get_recent_logs(self, count=50):
+        """Get recent logs for web dashboard with safe fallback"""
+        try:
+            if self.log_handler and hasattr(self.log_handler, 'get_recent_logs'):
+                return self.log_handler.get_recent_logs(count)
+            else:
+                # Fallback: return some basic status info
+                return [
+                    f"[{datetime.now().strftime('%H:%M:%S')}] Bot manager initialized",
+                    f"[{datetime.now().strftime('%H:%M:%S')}] Running: {self.is_running}",
+                    f"[{datetime.now().strftime('%H:%M:%S')}] Active positions: {len(self.order_manager.active_positions) if hasattr(self, 'order_manager') else 0}"
+                ]
+        except Exception as e:
+            self.logger.error(f"Error getting recent logs: {e}")
+            return [f"[ERROR] Could not retrieve logs: {str(e)}"]
 
     async def _check_misidentified_positions(self):
         """Check for positions that might be incorrectly identified as manual"""

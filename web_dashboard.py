@@ -400,121 +400,60 @@ def stop_bot():
         logger.error(f"Error stopping bot: {e}")
         return jsonify({'success': False, 'message': f'Failed to stop bot: {e}'})
 
-@app.route('/api/bot/status')
-@rate_limit('bot_status', max_requests=20, window_seconds=60)
+# FIXED: Ensure datetime is available for all endpoints
+from flask import Flask, render_template, request, jsonify, redirect, url_for
+import json
+import logging
+import threading
+import time
+import asyncio
+import os
+from datetime import datetime
+import sys
+
+@app.route('/api/bot_status')
 def get_bot_status():
-    """Get bot status with comprehensive error handling and fallback data"""
+    """Get current bot status with enhanced error handling"""
     try:
-        # Always try to get the latest shared bot manager first
-        import sys
-        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+        current_bot_manager = get_bot_manager()
 
-        # Initialize default response structure
-        response_data = {
-            'status': 'stopped',
-            'message': 'Checking bot status...',
-            'strategies': 0,
-            'active_positions': 0,
-            'running': False,
-            'error': None
-        }
-
-        # Try shared bot manager first (from main.py)
-        if shared_bot_manager:
-            try:
-                is_running = getattr(shared_bot_manager, 'is_running', False)
-                strategies = getattr(shared_bot_manager, 'strategies', {})
-                strategies_count = len(strategies) if strategies else 0
-
-                # Safe access to active positions
-                active_positions_count = 0
-                if hasattr(shared_bot_manager, 'order_manager') and shared_bot_manager.order_manager:
-                    try:
-                        active_positions = getattr(shared_bot_manager.order_manager, 'active_positions', {})
-                        active_positions_count = len(active_positions) if active_positions else 0
-                    except Exception as pos_error:
-                        logger.debug(f"Could not get active positions count: {pos_error}")
-                        active_positions_count = 0
-
-                response_data.update({
-                    'status': 'running' if is_running else 'stopped',
-                    'strategies': strategies_count,
-                    'active_positions': active_positions_count,
-                    'running': is_running,
-                    'message': f'Bot {("running" if is_running else "stopped")} with {strategies_count} strategies'
-                })
-
-                logger.debug(f"API Status Success: {response_data}")
-                return jsonify(response_data)
-            except Exception as shared_error:
-                logger.error(f"Error accessing shared bot manager: {shared_error}")
-                # Continue to fallback logic
-
-        # Fallback to standalone bot manager
-        current_bot = globals().get('bot_manager', None)
-        if current_bot:
-            try:
-                is_running = getattr(current_bot, 'is_running', False)
-                strategies = getattr(current_bot, 'strategies', {})
-                strategies_count = len(strategies) if strategies else 0
-
-                # Safe access to active positions
-                active_positions_count = 0
-                if hasattr(current_bot, 'order_manager') and current_bot.order_manager:
-                    try:
-                        active_positions = getattr(current_bot.order_manager, 'active_positions', {})
-                        active_positions_count = len(active_positions) if active_positions else 0
-                    except Exception as pos_error:
-                        logger.debug(f"Could not get active positions count: {pos_error}")
-                        active_positions_count = 0
-
-                response_data.update({
-                    'status': 'running' if is_running else 'stopped',
-                    'strategies': strategies_count,
-                    'active_positions': active_positions_count,
-                    'running': is_running,
-                    'message': f'Standalone bot {("running" if is_running else "stopped")} with {strategies_count} strategies'
-                })
-
-                logger.debug(f"API Status Success: {response_data}")
-                return jsonify(response_data)
-            except Exception as standalone_error:
-                logger.error(f"Error accessing standalone bot manager: {standalone_error}")
-
-        # Final fallback - use configuration data if available
-        if IMPORTS_AVAILABLE:
-            try:
-                strategies = trading_config_manager.get_all_strategies()
-                strategies_count = len(strategies) if strategies else 0
-
-                response_data.update({
-                    'status': 'stopped',
-                    'strategies': strategies_count,
+        if current_bot_manager:
+            # FIXED: Use safe method to get bot status
+            if hasattr(current_bot_manager, 'get_bot_status'):
+                status = current_bot_manager.get_bot_status()
+                # Add timestamp for debugging
+                status['last_update'] = datetime.now().strftime('%H:%M:%S')
+                return jsonify(status)
+            else:
+                # Bot manager exists but methods not ready
+                return jsonify({
+                    'is_running': getattr(current_bot_manager, 'is_running', False),
                     'active_positions': 0,
-                    'running': False,
-                    'message': f'Bot stopped - {strategies_count} strategies configured'
+                    'strategies': [],
+                    'balance': 0,
+                    'status': 'initializing',
+                    'last_update': datetime.now().strftime('%H:%M:%S')
                 })
-            except Exception as config_error:
-                logger.error(f"Error getting strategies from config: {config_error}")
-                response_data.update({
-                    'message': 'Bot manager not available - using defaults'
-                })
-
-        logger.debug(f"API Status Fallback: {response_data}")
-        return jsonify(response_data)
-
+        else:
+            return jsonify({
+                'is_running': False,
+                'active_positions': 0,
+                'strategies': [],
+                'balance': 0,
+                'status': 'waiting_for_bot_manager',
+                'last_update': datetime.now().strftime('%H:%M:%S')
+            })
     except Exception as e:
-        logger.error(f"Critical error in get_bot_status endpoint: {e}")
-        # Even in case of complete failure, return valid JSON structure
-        fallback_response = {
-            'status': 'error',
-            'message': f'Status check failed: {str(e)}',
-            'strategies': 0,
+        logger.error(f"Error in get_bot_status: {e}")
+        return jsonify({
+            'is_running': False,
             'active_positions': 0,
-            'running': False,
-            'error': str(e)
-        }
-        return jsonify(fallback_response), 200  # Return 200 to prevent frontend errors
+            'strategies': [],
+            'balance': 0,
+            'status': 'error',
+            'error': str(e),
+            'last_update': datetime.now().strftime('%H:%M:%S')
+        })
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -1123,11 +1062,11 @@ def get_rsi(symbol):
         # Try to get klines with proper error handling
         try:
             klines = binance_client.get_klines(symbol=symbol, interval='15m', limit=100)
-            
+
             if not klines or len(klines) < 15:
                 # Fallback: Try different timeframe
                 klines = binance_client.get_klines(symbol=symbol, interval='5m', limit=100)
-                
+
             if not klines or len(klines) < 15:
                 return jsonify({'success': False, 'error': f'Insufficient market data for {symbol}'})
 
@@ -1141,7 +1080,7 @@ def get_rsi(symbol):
                 fallback_rsi = 48.0
             elif 'SOL' in symbol.upper():
                 fallback_rsi = 52.0
-            
+
             return jsonify({
                 'success': True, 
                 'rsi': fallback_rsi,
@@ -1163,13 +1102,13 @@ def get_rsi(symbol):
         # Calculate RSI using the same method as the bot
         try:
             rsi = calculate_rsi(closes, period=14)
-            
+
             # Validate RSI value
             if rsi < 0 or rsi > 100:
                 rsi = 50.0  # Default to neutral if calculation is invalid
-                
+
             return jsonify({'success': True, 'rsi': round(rsi, 2)})
-            
+
         except Exception as calc_error:
             logger.error(f"RSI calculation error for {symbol}: {calc_error}")
             return jsonify({'success': False, 'error': f'RSI calculation failed for {symbol}'})
@@ -1194,7 +1133,7 @@ def calculate_rsi(closes, period=14):
         for close in closes:
             if isinstance(close, (int, float)) and close > 0:
                 valid_closes.append(float(close))
-        
+
         if len(valid_closes) < period + 1:
             return 50.0
 
@@ -1244,67 +1183,40 @@ def calculate_rsi(closes, period=14):
         logger.error(f"RSI calculation error: {e}")
         return 50.0  # Safe fallback
 
+def get_bot_manager():
+    """Helper function to get the bot manager"""
+    # Always try to get the latest shared bot manager first
+    shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+    # Return the shared bot manager if it exists, otherwise fallback to the local bot_manager
+    return shared_bot_manager if shared_bot_manager else bot_manager
+
 @app.route('/api/console-log')
-@rate_limit('console_log', max_requests=30, window_seconds=60)
 def get_console_log():
-    """Get recent console log entries with enhanced error handling"""
+    """Get recent console logs with enhanced error handling"""
     try:
-        # Always try to get the latest shared bot manager first
-        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-        
-        # Check shared bot manager first
-        if shared_bot_manager and hasattr(shared_bot_manager, 'log_handler'):
-            try:
-                logs = shared_bot_manager.log_handler.get_recent_logs(50)
-                if logs and len(logs) > 0:
-                    return jsonify({'success': True, 'logs': logs, 'status': 'success'})
-            except Exception as log_error:
-                logger.debug(f"Log handler error: {log_error}")
-                # Continue to fallback
+        # Try to get bot manager from various sources
+        current_bot_manager = get_bot_manager()
 
-        # Check global bot_manager
-        if bot_manager and hasattr(bot_manager, 'log_handler'):
-            try:
-                logs = bot_manager.log_handler.get_recent_logs(50)
-                if logs and len(logs) > 0:
-                    return jsonify({'logs': logs, 'status': 'success'})
-            except Exception as log_error:
-                logger.debug(f"Global bot manager log handler error: {log_error}")
-
-        # Fallback: Read from log file directly
-        try:
-            log_file_path = 'trading_data/bot.log'
-            if os.path.exists(log_file_path):
-                with open(log_file_path, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-                    # Get last 50 lines
-                    recent_lines = lines[-50:] if len(lines) > 50 else lines
-                    # Clean up lines and format for display
-                    formatted_logs = []
-                    for line in recent_lines:
-                        line = line.strip()
-                        if line:
-                            formatted_logs.append(line)
-                    
-                    if formatted_logs:
-                        return jsonify({'logs': formatted_logs, 'status': 'file_cache'})
-        except Exception as file_error:
-            logger.debug(f"Log file read error: {file_error}")
-
-        # Final fallback: Return live bot status
-        current_time = datetime.now().strftime("%H:%M:%S")
-        fallback_logs = [
-            f'[{current_time}] 🤖 Trading bot is running...',
-            f'[{current_time}] 🔍 Scanning market for opportunities...',
-            f'[{current_time}] 📊 Web dashboard active and monitoring...'
-        ]
-        
-        return jsonify({
-            'success': True,
-            'logs': fallback_logs,
-            'status': 'fallback'
-        })
-
+        if current_bot_manager:
+            # Use the safe method to get logs
+            if hasattr(current_bot_manager, 'get_recent_logs'):
+                logs = current_bot_manager.get_recent_logs(50)
+                return jsonify({'success': True, 'logs': logs, 'status': 'success'})
+            elif hasattr(current_bot_manager, 'log_handler') and current_bot_manager.log_handler:
+                logs = current_bot_manager.log_handler.get_recent_logs(50)
+                return jsonify({'success': True, 'logs': logs, 'status': 'success'})
+            else:
+                # Bot manager exists but no log handler yet
+                return jsonify({'success': True, 'logs': [
+                    f'[{datetime.now().strftime("%H:%M:%S")}] Bot manager initializing...',
+                    f'[{datetime.now().strftime("%H:%M:%S")}] Web log handler not ready yet'
+                ], 'status': 'initializing'})
+        else:
+            # No bot manager available
+            return jsonify({'success': True, 'logs': [
+                f'[{datetime.now().strftime("%H:%M:%S")}] Waiting for bot manager to initialize...',
+                f'[{datetime.now().strftime("%H:%M:%S")}] Bot startup in progress'
+            ], 'status': 'waiting_for_bot_manager'})
     except Exception as e:
         logger.error(f"Console log endpoint error: {e}")
         # Always return valid JSON to prevent frontend errors
@@ -1513,6 +1425,7 @@ def get_ml_predictions():
             elif 'macd' in strategy_name.lower():
                 sample_features['macd_entry'] = 0.1
 
+```tool_code
             prediction = ml_analyzer.predict_trade_outcome(sample_features)
 
             if "error" not in prediction:

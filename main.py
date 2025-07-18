@@ -429,10 +429,19 @@ async def main_bot_only():
     logger.info("🌐 Using existing Web Dashboard instance")
 
     try:
-        # Initialize the bot manager
-        bot_manager = BotManager()
+        # Initialize the bot manager with enhanced error handling
+        logger.info("🔧 INITIALIZING BOT MANAGER...")
 
-        # Enhanced bot manager reference sharing
+        try:
+            bot_manager = BotManager()
+            logger.info("✅ Bot manager created successfully")
+        except Exception as e:
+            logger.error(f"❌ CRITICAL: Bot manager initialization failed: {e}")
+            logger.error("🔍 This usually indicates configuration or API connection issues")
+            logger.error("💡 Please check your environment variables and API keys")
+            raise
+
+        # Enhanced bot manager reference sharing with error handling
         try:
             sys.modules['__main__'].bot_manager = bot_manager
             logger.info("✅ Bot manager registered in main module")
@@ -542,10 +551,19 @@ async def main():
     logger.info("🌐 Web Dashboard accessible and will remain active")
 
     try:
-        # Initialize the bot manager
-        bot_manager = BotManager()
+        # Initialize the bot manager with enhanced error handling
+        logger.info("🔧 INITIALIZING BOT MANAGER...")
 
-        # Enhanced bot manager reference sharing
+        try:
+            bot_manager = BotManager()
+            logger.info("✅ Bot manager created successfully")
+        except Exception as e:
+            logger.error(f"❌ CRITICAL: Bot manager initialization failed: {e}")
+            logger.error("🔍 This usually indicates configuration or API connection issues")
+            logger.error("💡 Please check your environment variables and API keys")
+            raise
+
+        # Enhanced bot manager reference sharing with error handling
         try:
             sys.modules['__main__'].bot_manager = bot_manager
             logger.info("✅ Bot manager registered in main module")
@@ -624,12 +642,12 @@ if __name__ == "__main__":
     # ENHANCED RESTART LOOP PROTECTION with PID validation
     restart_count_file = "/tmp/bot_restart_count"
     current_pid = os.getpid()
-    
+
     try:
         if os.path.exists(restart_count_file):
             with open(restart_count_file, 'r') as f:
                 restart_data = f.read().strip()
-            
+
             # Parse restart data (format: count,timestamp,pid)
             if ',' in restart_data:
                 parts = restart_data.split(',')
@@ -638,7 +656,7 @@ if __name__ == "__main__":
                         restart_count = int(parts[0])
                         last_restart_time = float(parts[1])
                         last_pid = int(parts[2])
-                        
+
                         # Check if too many restarts from same PID in short time
                         if (restart_count >= 3 and 
                             time.time() - last_restart_time < 60 and 
@@ -646,31 +664,31 @@ if __name__ == "__main__":
                             logger.error(f"🚫 RESTART LOOP DETECTED: {restart_count} restarts in 60s from PID {current_pid}")
                             logger.error("🔄 Waiting 30 seconds before allowing restart...")
                             time.sleep(30)
-                        
+
                         # Reset counter if enough time has passed or different PID
                         if (time.time() - last_restart_time > 300 or last_pid != current_pid):
                             restart_count = 0
-                        
+
                     except ValueError:
                         restart_count = 0
                 else:
                     restart_count = 0
             else:
                 restart_count = 0
-            
+
             # Update restart count
             restart_count += 1
             with open(restart_count_file, 'w') as f:
                 f.write(f"{restart_count},{time.time()},{current_pid}")
-            
+
             logger.info(f"🔄 Restart count: {restart_count} (PID: {current_pid})")
-            
+
         else:
             # First start
             with open(restart_count_file, 'w') as f:
                 f.write(f"1,{time.time()},{current_pid}")
             logger.info(f"🚀 First startup detected (PID: {current_pid})")
-            
+
     except Exception as e:
         logger.warning(f"Could not manage restart count: {e}")
 
