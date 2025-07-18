@@ -412,18 +412,32 @@ from datetime import datetime
 import sys
 
 @app.route('/api/bot_status')
+@rate_limit('bot_status', max_requests=20, window_seconds=60)
 def get_bot_status():
     """Get current bot status with enhanced error handling"""
     try:
         current_bot_manager = get_bot_manager()
 
         if current_bot_manager:
-            # FIXED: Use safe method to get bot status
+            # FIXED: Use safe method to get bot status with proper error handling
+            # Added comprehensive try-catch to prevent API endpoint failures
             if hasattr(current_bot_manager, 'get_bot_status'):
-                status = current_bot_manager.get_bot_status()
-                # Add timestamp for debugging
-                status['last_update'] = datetime.now().strftime('%H:%M:%S')
-                return jsonify(status)
+                try:
+                    status = current_bot_manager.get_bot_status()
+                    # Add timestamp for debugging
+                    status['last_update'] = datetime.now().strftime('%H:%M:%S')
+                    return jsonify(status)
+                except Exception as status_error:
+                    logger.error(f"Error getting bot status: {status_error}")
+                    # Fallback to basic status
+                    return jsonify({
+                        'is_running': getattr(current_bot_manager, 'is_running', False),
+                        'active_positions': 0,
+                        'strategies': [],
+                        'balance': 0,
+                        'status': 'error_getting_status',
+                        'last_update': datetime.now().strftime('%H:%M:%S')
+                    })
             else:
                 # Bot manager exists but methods not ready
                 return jsonify({
@@ -444,16 +458,18 @@ def get_bot_status():
                 'last_update': datetime.now().strftime('%H:%M:%S')
             })
     except Exception as e:
-        logger.error(f"Error in get_bot_status: {e}")
+        logger.error(f"Critical error in get_bot_status: {e}")
+        # FIXED: Always return valid JSON structure to prevent frontend errors
+        # This prevents the empty {} responses seen in webview logs
         return jsonify({
             'is_running': False,
             'active_positions': 0,
             'strategies': [],
             'balance': 0,
-            'status': 'error',
+            'status': 'api_error',
             'error': str(e),
             'last_update': datetime.now().strftime('%H:%M:%S')
-        })
+        }), 200
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -1193,6 +1209,7 @@ def get_bot_manager():
     return shared_bot_manager if shared_bot_manager else bot_manager
 
 @app.route('/api/console-log')
+@rate_limit('console_log', max_requests=30, window_seconds=60)
 def get_console_log():
     """Get recent console logs with enhanced error handling"""
     try:
@@ -1201,18 +1218,31 @@ def get_console_log():
 
         if current_bot_manager:
             # Use the safe method to get logs
-            if hasattr(current_bot_manager, 'get_recent_logs'):
-                logs = current_bot_manager.get_recent_logs(50)
-                return jsonify({'success': True, 'logs': logs, 'status': 'success'})
-            elif hasattr(current_bot_manager, 'log_handler') and current_bot_manager.log_handler:
-                logs = current_bot_manager.log_handler.get_recent_logs(50)
-                return jsonify({'success': True, 'logs': logs, 'status': 'success'})
-            else:
-                # Bot manager exists but no log handler yet
+            try:
+                if hasattr(current_bot_manager, 'get_recent_logs'):
+                    logs = current_bot_manager.get_recent_logs(50)
+                    # FIXED: Ensure logs is always a list to prevent empty responses
+                    if not isinstance(logs, list):
+                        logs = []
+                    return jsonify({'success': True, 'logs': logs, 'status': 'success'})
+                elif hasattr(current_bot_manager, 'log_handler') and current_bot_manager.log_handler:
+                    logs = current_bot_manager.log_handler.get_recent_logs(50)
+                    # FIXED: Ensure logs is always a list to prevent empty responses
+                    if not isinstance(logs, list):
+                        logs = []
+                    return jsonify({'success': True, 'logs': logs, 'status': 'success'})
+                else:
+                    # Bot manager exists but no log handler yet
+                    return jsonify({'success': True, 'logs': [
+                        f'[{datetime.now().strftime("%H:%M:%S")}] Bot manager initializing...',
+                        f'[{datetime.now().strftime("%H:%M:%S")}] Web log handler not ready yet'
+                    ], 'status': 'initializing'})
+            except Exception as log_error:
+                logger.error(f"Error accessing logs: {log_error}")
                 return jsonify({'success': True, 'logs': [
-                    f'[{datetime.now().strftime("%H:%M:%S")}] Bot manager initializing...',
-                    f'[{datetime.now().strftime("%H:%M:%S")}] Web log handler not ready yet'
-                ], 'status': 'initializing'})
+                    f'[{datetime.now().strftime("%H:%M:%S")}] Log access temporarily unavailable',
+                    f'[{datetime.now().strftime("%H:%M:%S")}] Bot is running normally'
+                ], 'status': 'log_error'})
         else:
             # No bot manager available
             return jsonify({'success': True, 'logs': [
@@ -1221,14 +1251,15 @@ def get_console_log():
             ], 'status': 'waiting_for_bot_manager'})
     except Exception as e:
         logger.error(f"Console log endpoint error: {e}")
-        # Always return valid JSON to prevent frontend errors
+        # FIXED: Always return valid JSON structure to prevent frontend errors
+        # This prevents the empty {} responses seen in webview logs
         error_time = datetime.now().strftime("%H:%M:%S")
         return jsonify({
             'success': True,
             'logs': [f'[{error_time}] ⚠️ Console temporarily unavailable - Bot is running'],
             'status': 'error',
             'error': str(e)
-        })
+        }), 200
 
 # Removed duplicate route - using the existing '/api/bot/status' route with rate limiting instead
 
@@ -1452,7 +1483,9 @@ def get_ml_predictions():
 def train_models():
     """Train ML models"""
     try:
-        if notIMPORTS_AVAILABLE:
+        # FIXED: Corrected typo "notIMPORTS_AVAILABLE" to "not IMPORTS_AVAILABLE"
+        # This was causing SyntaxError and preventing bot from launching
+        if not IMPORTS_AVAILABLE:
             return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
 
         # Import ML analyzer

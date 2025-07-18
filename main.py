@@ -622,6 +622,22 @@ async def main():
         logger.info("🌐 Web interface remains active despite bot error")
 
 if __name__ == "__main__":
+    # SAFETY CHECK: Prevent restart loop on critical import errors
+    # Check if web_dashboard can be imported without errors
+    try:
+        import web_dashboard
+        logger_test = logging.getLogger(__name__)
+        logger_test.info("✅ Import test passed - starting normally")
+    except SyntaxError as syntax_error:
+        print(f"🚫 CRITICAL SYNTAX ERROR DETECTED: {syntax_error}")
+        print("🔧 Please fix the syntax error before starting the bot")
+        print("💡 Check web_dashboard.py for syntax issues")
+        exit(1)
+    except Exception as import_error:
+        print(f"🚫 CRITICAL IMPORT ERROR: {import_error}")
+        print("🔧 Please fix the import error before starting the bot")
+        exit(1)
+
     # Setup logging first
     setup_logger()
     logger = logging.getLogger(__name__)
