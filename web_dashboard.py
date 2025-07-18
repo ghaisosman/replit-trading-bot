@@ -1820,25 +1820,5 @@ def toggle_proxy():
         logger.error(f"Error toggling proxy: {e}")
         return jsonify({'success': False, 'message': f'Failed to toggle proxy: {e}'})
 
-def run_web_dashboard():
-    """Run the web dashboard"""
-    try:
-        # Get port from environment for deployment compatibility
-        port = int(os.environ.get('PORT', 5000))
-        logger.info(f"🌐 Starting web dashboard on 0.0.0.0:{port}")
-
-        # Disable Flask's default request logging
-        import logging as flask_logging
-        werkzeug_logger = flask_logging.getLogger('werkzeug')
-        werkzeug_logger.setLevel(flask_logging.WARNING)
-
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
-    except Exception as e:
-        logger.error(f"Web dashboard error: {e}")
-        if "Address already in use" in str(e):
-            logger.error("🚨 Port 5000 is already in use")
-        else:
-            logger.error(f"🚨 Web dashboard failed to start: {e}")
-
-if __name__ == '__main__':
-    run_web_dashboard()
+# Flask app is configured above - no standalone execution needed
+# Web dashboard is launched from main.py only
