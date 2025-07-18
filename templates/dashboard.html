@@ -828,40 +828,73 @@
 
         // 🔧 INTELLIGENT API POLLING SYSTEM - Prevents excessive requests
         const apiCache = {
-            botStatus: { data: null, timestamp: 0, ttl: 3000 }, // 3 second cache
-            balance: { data: null, timestamp: 0, ttl: 25000 },   // 25 second cache
-            positions: { data: null, timestamp: 0, ttl: 8000 }  // 8 second cache
+            botStatus: { data: null, timestamp: 0, ttl: 8000, consecutiveHits: 0 },     // 8 second cache, track stability
+            balance: { data: null, timestamp: 0, ttl: 30000, consecutiveHits: 0 },      // 30 second cache
+            positions: { data: null, timestamp: 0, ttl: 12000, consecutiveHits: 0 },    // 12 second cache
+            consoleLog: { data: null, timestamp: 0, ttl: 5000, consecutiveHits: 0 }     // 5 second cache for console
         };
 
         const requestThrottle = {
-            botStatus: { lastRequest: 0, minInterval: 4000 },    // Minimum 4 seconds between requests
-            balance: { lastRequest: 0, minInterval: 25000 },     // Minimum 25 seconds between requests
-            positions: { lastRequest: 0, minInterval: 8000 }    // Minimum 8 seconds between requests
+            botStatus: { lastRequest: 0, minInterval: 8000, maxInterval: 20000, currentInterval: 8000 },
+            balance: { lastRequest: 0, minInterval: 30000, maxInterval: 60000, currentInterval: 30000 },
+            positions: { lastRequest: 0, minInterval: 12000, maxInterval: 25000, currentInterval: 12000 },
+            consoleLog: { lastRequest: 0, minInterval: 5000, maxInterval: 15000, currentInterval: 5000 }
         };
 
         let activeRequests = new Set(); // Track active requests to prevent duplicates
+        let connectionState = 'healthy'; // Track connection health: 'healthy', 'degraded', 'poor'
+        let inactivityCount = 0; // Track consecutive inactive periods
 
         function getCachedData(cacheKey) {
             const cache = apiCache[cacheKey];
             const now = Date.now();
             
             if (cache.data && (now - cache.timestamp) < cache.ttl) {
+                // Track cache hits for adaptive behavior
+                cache.consecutiveHits = (cache.consecutiveHits || 0) + 1;
+                
+                // If data is stable (many cache hits), extend TTL to reduce polling
+                if (cache.consecutiveHits > 3) {
+                    cache.ttl = Math.min(cache.ttl * 1.2, 30000); // Max 30 seconds
+                }
+                
                 return cache.data;
             }
+            
+            // Reset consecutive hits when cache expires
+            cache.consecutiveHits = 0;
             return null;
         }
 
         function setCachedData(cacheKey, data) {
             const cache = apiCache[cacheKey];
+            const previousData = cache.data;
+            
             cache.data = data;
             cache.timestamp = Date.now();
+            
+            // Check if data has changed to adjust adaptive behavior
+            const dataChanged = JSON.stringify(previousData) !== JSON.stringify(data);
+            
+            if (dataChanged) {
+                // Data changed - reset to faster polling
+                cache.consecutiveHits = 0;
+                cache.ttl = Math.max(cache.ttl * 0.8, requestThrottle[cacheKey]?.minInterval || 5000);
+                inactivityCount = 0; // Reset global inactivity
+            } else {
+                // Data stable - can slow down polling
+                inactivityCount++;
+            }
         }
 
         function canMakeRequest(requestKey) {
             const throttle = requestThrottle[requestKey];
             const now = Date.now();
             
-            if ((now - throttle.lastRequest) < throttle.minInterval) {
+            // Adaptive interval based on activity and connection state
+            const adaptiveInterval = calculateAdaptiveInterval(requestKey);
+            
+            if ((now - throttle.lastRequest) < adaptiveInterval) {
                 return false;
             }
             
@@ -869,7 +902,37 @@
                 return false; // Request already in progress
             }
             
+            // Check global rate limiting to prevent API flooding
+            if (activeRequests.size >= 2) {
+                return false; // Maximum 2 concurrent requests
+            }
+            
             return true;
+        }
+
+        function calculateAdaptiveInterval(requestKey) {
+            const throttle = requestThrottle[requestKey];
+            let interval = throttle.currentInterval;
+            
+            // Adjust based on connection state
+            switch (connectionState) {
+                case 'degraded':
+                    interval *= 1.5;
+                    break;
+                case 'poor':
+                    interval *= 2;
+                    break;
+                default: // healthy
+                    // Adjust based on inactivity
+                    if (inactivityCount > 5) {
+                        interval = Math.min(interval * 1.3, throttle.maxInterval);
+                    } else if (inactivityCount < 2) {
+                        interval = Math.max(interval * 0.9, throttle.minInterval);
+                    }
+            }
+            
+            throttle.currentInterval = Math.max(Math.min(interval, throttle.maxInterval), throttle.minInterval);
+            return throttle.currentInterval;
         }
 
         function markRequestStart(requestKey) {
@@ -877,8 +940,17 @@
             activeRequests.add(requestKey);
         }
 
-        function markRequestEnd(requestKey) {
+        function markRequestEnd(requestKey, success = true) {
             activeRequests.delete(requestKey);
+            
+            // Update connection state based on request success
+            if (success) {
+                if (connectionState === 'poor') connectionState = 'degraded';
+                else if (connectionState === 'degraded') connectionState = 'healthy';
+            } else {
+                if (connectionState === 'healthy') connectionState = 'degraded';
+                else if (connectionState === 'degraded') connectionState = 'poor';
+            }
         }
 
         // Update bot status with intelligent caching and throttling
@@ -887,17 +959,17 @@
             const cachedData = getCachedData('botStatus');
             if (cachedData) {
                 updateBotStatusUI(cachedData);
-                return;
+                return Promise.resolve(cachedData);
             }
 
             // Check if we can make a new request
             if (!canMakeRequest('botStatus')) {
-                return; // Skip this update cycle
+                return Promise.resolve(null); // Skip this update cycle
             }
 
             markRequestStart('botStatus');
 
-            fetch('/api/bot/status')
+            return fetch('/api/bot/status')
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -907,13 +979,14 @@
                 .then(data => {
                     setCachedData('botStatus', data);
                     updateBotStatusUI(data);
+                    markRequestEnd('botStatus', true);
+                    return data;
                 })
                 .catch(error => {
                     console.error('Error updating bot status:', error);
                     updateBotStatusErrorUI();
-                })
-                .finally(() => {
-                    markRequestEnd('botStatus');
+                    markRequestEnd('botStatus', false);
+                    throw error;
                 });
         }
 
@@ -1049,13 +1122,23 @@
             }
         }
 
-        // Update console log with adaptive throttling
-        let consoleFetchInterval = 3000; // Start with 3 seconds
-        let lastConsoleLogLength = 0;
-        let consoleInactivityCount = 0;
-
+        // Update console log with intelligent caching and adaptive polling
         function updateConsoleLog() {
-            fetch('/api/console-log')
+            // Check cache first
+            const cachedData = getCachedData('consoleLog');
+            if (cachedData) {
+                updateConsoleLogUI(cachedData);
+                return Promise.resolve(cachedData);
+            }
+
+            // Check if we can make a new request
+            if (!canMakeRequest('consoleLog')) {
+                return Promise.resolve(null); // Skip this update cycle
+            }
+
+            markRequestStart('consoleLog');
+
+            return fetch('/api/console-log')
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1063,40 +1146,34 @@
                     return response.json();
                 })
                 .then(data => {
-                    const consoleLog = document.getElementById('consoleLog');
-                    if (consoleLog && data.success && data.logs) {
-                        // Adaptive polling based on activity
-                        if (data.logs.length === lastConsoleLogLength) {
-                            consoleInactivityCount++;
-                            
-                            // Gradually increase interval if no new logs
-                            if (consoleInactivityCount > 3) {
-                                consoleFetchInterval = Math.min(consoleFetchInterval * 1.2, 10000); // Max 10 seconds
-                            }
-                        } else {
-                            // Reset to faster polling when activity detected
-                            consoleInactivityCount = 0;
-                            consoleFetchInterval = 2000; // Back to 2 seconds for active periods
-                        }
-                        
-                        lastConsoleLogLength = data.logs.length;
-
-                        consoleLog.innerHTML = data.logs.join('<br>');
-                        if (autoScroll) {
-                            consoleLog.scrollTop = consoleLog.scrollHeight;
-                        }
-                    }
+                    setCachedData('consoleLog', data);
+                    updateConsoleLogUI(data);
+                    markRequestEnd('consoleLog', true);
+                    return data;
                 })
                 .catch(error => {
                     console.error('Error fetching console log:', error);
-                    const consoleLog = document.getElementById('consoleLog');
-                    if (consoleLog) {
-                        consoleLog.innerHTML = '<div class="text-warning">⚠️ Connection lost - Reconnecting...</div>';
-                    }
-                    
-                    // Increase interval on errors to reduce server load
-                    consoleFetchInterval = Math.min(consoleFetchInterval * 1.5, 15000); // Max 15 seconds on errors
+                    updateConsoleLogErrorUI();
+                    markRequestEnd('consoleLog', false);
+                    throw error;
                 });
+        }
+
+        function updateConsoleLogUI(data) {
+            const consoleLog = document.getElementById('consoleLog');
+            if (consoleLog && data.success && data.logs) {
+                consoleLog.innerHTML = data.logs.join('<br>');
+                if (autoScroll) {
+                    consoleLog.scrollTop = consoleLog.scrollHeight;
+                }
+            }
+        }
+
+        function updateConsoleLogErrorUI() {
+            const consoleLog = document.getElementById('consoleLog');
+            if (consoleLog) {
+                consoleLog.innerHTML = '<div class="text-warning">⚠️ Connection lost - Reconnecting...</div>';
+            }
         }
 
         // Update positions with intelligent caching and throttling
@@ -1156,83 +1233,130 @@
             }
         }
 
-        // Initialize dashboard with intelligent update management
-        let updateIntervals = {};
+        // Initialize dashboard with intelligent adaptive polling system
+        let updateTimeouts = {};
+        let pollingActive = true;
 
         function startIntelligentUpdates() {
-            // Clear any existing intervals
-            Object.values(updateIntervals).forEach(interval => clearInterval(interval));
+            // Clear any existing timeouts
+            Object.values(updateTimeouts).forEach(timeout => clearTimeout(timeout));
+            updateTimeouts = {};
             
-            // Status updates: Adaptive based on bot state
-            updateIntervals.status = setInterval(() => {
-                const cachedStatus = getCachedData('botStatus');
-                
-                // If bot is running, check more frequently
-                const interval = (cachedStatus && cachedStatus.running) ? 6000 : 8000;
-                
-                updateBotStatus();
-            }, 6000); // Base 6 second interval
+            pollingActive = true;
             
-            // Balance updates: Less frequent as balance changes slowly
-            updateIntervals.balance = setInterval(updateBalance, 30000);
-            
-            // Console log updates: Adaptive based on activity
-            function adaptiveConsoleUpdate() {
-                updateConsoleLog();
-                
-                // Schedule next update with current interval
-                setTimeout(adaptiveConsoleUpdate, consoleFetchInterval);
-            }
-            adaptiveConsoleUpdate();
-            
-            // Position updates: Moderate frequency for real-time PnL
-            updateIntervals.positions = setInterval(updatePositions, 12000);
+            // Start adaptive polling loops
+            scheduleAdaptiveUpdate('botStatus', updateBotStatus);
+            scheduleAdaptiveUpdate('balance', updateBalance);
+            scheduleAdaptiveUpdate('consoleLog', updateConsoleLog);
+            scheduleAdaptiveUpdate('positions', updatePositions);
         }
 
-        // Refresh data function with cache invalidation
+        function scheduleAdaptiveUpdate(key, updateFunction) {
+            if (!pollingActive) return;
+            
+            const executeUpdate = () => {
+                if (!pollingActive) return;
+                
+                // Execute the update function
+                Promise.resolve(updateFunction())
+                    .catch(error => {
+                        console.debug(`Update error for ${key}:`, error);
+                    })
+                    .finally(() => {
+                        // Schedule next update with adaptive interval
+                        if (pollingActive) {
+                            const adaptiveInterval = calculateAdaptiveInterval(key);
+                            updateTimeouts[key] = setTimeout(executeUpdate, adaptiveInterval);
+                        }
+                    });
+            };
+            
+            // Start immediately
+            executeUpdate();
+        }
+
+        function stopIntelligentUpdates() {
+            pollingActive = false;
+            Object.values(updateTimeouts).forEach(timeout => clearTimeout(timeout));
+            updateTimeouts = {};
+        }
+
+        // Refresh data function with complete cache invalidation and adaptive reset
         function refreshData() {
             // Clear all caches to force fresh data
             Object.keys(apiCache).forEach(key => {
                 apiCache[key].data = null;
                 apiCache[key].timestamp = 0;
+                apiCache[key].consecutiveHits = 0;
+                apiCache[key].ttl = key === 'botStatus' ? 8000 : 
+                                   key === 'balance' ? 30000 : 
+                                   key === 'positions' ? 12000 : 5000;
             });
             
-            // Reset throttle timers to allow immediate requests
+            // Reset throttle timers and intervals
             Object.keys(requestThrottle).forEach(key => {
                 requestThrottle[key].lastRequest = 0;
+                requestThrottle[key].currentInterval = requestThrottle[key].minInterval;
             });
+            
+            // Reset adaptive behavior
+            connectionState = 'healthy';
+            inactivityCount = 0;
             
             // Clear active requests set
             activeRequests.clear();
             
             // Force immediate updates
-            updateBotStatus();
-            updateBalance();
-            updateConsoleLog();
-            updatePositions();
+            Promise.allSettled([
+                updateBotStatus(),
+                updateBalance(),
+                updateConsoleLog(),
+                updatePositions()
+            ]).then(() => {
+                console.log('🔄 Dashboard refresh completed');
+            });
         }
 
-        // Initialize dashboard
+        // Initialize dashboard with intelligent adaptive system
         document.addEventListener('DOMContentLoaded', function() {
-            // Initial load
-            updateBotStatus();
-            updateBalance();
-            updateConsoleLog();
-            updatePositions();
-
-            // Start intelligent update system
-            startIntelligentUpdates();
+            console.log('🚀 Dashboard initialization started with intelligent polling system');
             
-            // Handle visibility changes to pause updates when tab is not active
+            // Initial load with controlled startup
+            Promise.allSettled([
+                updateBotStatus(),
+                updateBalance(),
+                updateConsoleLog(),
+                updatePositions()
+            ]).then(() => {
+                console.log('✅ Initial dashboard data loaded');
+                
+                // Start intelligent adaptive update system
+                startIntelligentUpdates();
+                
+                console.log('🔧 Intelligent polling system active with adaptive intervals');
+            });
+            
+            // Handle visibility changes to optimize resource usage
             document.addEventListener('visibilitychange', function() {
                 if (document.hidden) {
-                    // Tab is hidden, clear intervals to save resources
-                    Object.values(updateIntervals).forEach(interval => clearInterval(interval));
+                    console.log('👁️ Tab hidden - optimizing polling for background mode');
+                    // Slow down polling when tab is not visible
+                    Object.keys(requestThrottle).forEach(key => {
+                        requestThrottle[key].currentInterval = requestThrottle[key].maxInterval;
+                    });
                 } else {
-                    // Tab is visible again, restart updates
-                    startIntelligentUpdates();
+                    console.log('👁️ Tab visible - resuming normal polling');
+                    // Resume normal polling and refresh data
+                    Object.keys(requestThrottle).forEach(key => {
+                        requestThrottle[key].currentInterval = requestThrottle[key].minInterval;
+                    });
                     refreshData(); // Get fresh data when tab becomes active
                 }
+            });
+            
+            // Cleanup on page unload
+            window.addEventListener('beforeunload', function() {
+                stopIntelligentUpdates();
             });
         });
 
