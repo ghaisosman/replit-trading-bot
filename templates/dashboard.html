@@ -571,7 +571,7 @@
                                         <option value="3m">3 minutes</option>
                                         <option value="5m">5 minutes</option>
                                         <option value="15m" selected>15 minutes</option>
-                                        <option value="30m">30 minutes</option>
+                                        <option value="30m">30 minutes</minutes</option>
                                         <option value="1h">1 hour</option>
                                         <option value="4h">4 hours</option>
                                         <option value="1d">1 day</option>
@@ -746,8 +746,8 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="minHistogramThreshold" class="form-label">Min Histogram Threshold</label>
-                                        <input type="number" class="form-control" id="minHistogramThreshold" step="0.00001"```text
- placeholder="e.g., 0.0001">
+                                        <input type="number" class="form-control" id="minHistogramThreshold"```text
+ step="0.00001" placeholder="e.g., 0.0001">
                                         <div class="form-text">Minimum histogram value for signal</div>
                                     </div>
                                 </div>
@@ -1660,7 +1660,7 @@
                         document.getElementById('macdParameters').style.display = 'none';
 
                         // Show and populate RSI parameters if it's an RSI strategy
-                        if (strategyName.toLowerCase().includes('rsi')) {
+                        if (strategyName.toLowerCase().includes('rsi')){
                             document.getElementById('rsiParameters').style.display = 'block';
                             document.getElementById('rsiLongEntry').value = config.rsi_long_entry || 40;
                             document.getElementById('rsiLongExit').value = config.rsi_long_exit || 70;
@@ -1675,6 +1675,8 @@
                             document.getElementById('macdSlow').value = config.macd_slow || 26;
                             document.getElementById('macdSignal').value = config.macd_signal || 9;
                             document.getElementById('minHistogramThreshold').value = config.min_histogram_threshold || 0.0001;
+                            document.getElementById('macdEntryThreshold').value = config.macd_entry_threshold || 0.05;
+                            document.getElementById('macdExitThreshold').value = config.macd_exit_threshold || 0.02;
                             document.getElementById('histogramDivergenceLookback').value = config.histogram_divergence_lookback || 10;
                             document.getElementById('priceDivergenceLookback').value = config.price_divergence_lookback || 10;
                             document.getElementById('confirmationCandles').value = config.confirmation_candles || 2;
