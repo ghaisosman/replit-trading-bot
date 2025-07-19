@@ -1106,9 +1106,17 @@ def get_positions():
 
         # Try shared bot manager first
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        
+        # Debug logging
+        logger.debug(f"Positions API: current_bot = {current_bot is not None}")
+        if current_bot:
+            logger.debug(f"Positions API: is_running = {getattr(current_bot, 'is_running', 'N/A')}")
+            logger.debug(f"Positions API: has order_manager = {hasattr(current_bot, 'order_manager')}")
+            if hasattr(current_bot, 'order_manager') and current_bot.order_manager:
+                logger.debug(f"Positions API: active_positions count = {len(current_bot.order_manager.active_positions)}")
 
-        # Check if bot is actually running
-        if current_bot and hasattr(current_bot, 'is_running') and not current_bot.is_running:
+        # Check if bot is actually running - only return empty if bot is confirmed stopped
+        if current_bot and hasattr(current_bot, 'is_running') and current_bot.is_running == False:
             # Bot is stopped - return clean "no positions" response
             return jsonify({
                 'success': True,
