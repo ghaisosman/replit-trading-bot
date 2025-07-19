@@ -537,101 +537,63 @@ import sys
 @rate_limit('bot_status', max_requests=20, window_seconds=60)
 def get_bot_status():
     """Get current bot status with bulletproof error handling"""
+    current_time = datetime.now().strftime('%H:%M:%S')
+    
+    # FIXED: Always return complete JSON structure to prevent parsing errors
+    default_response = {
+        'success': True,
+        'running': False,
+        'is_running': False,
+        'active_positions': 0,
+        'strategies': 0,
+        'balance': 0.0,
+        'status': 'checking',
+        'last_update': current_time,
+        'timestamp': current_time
+    }
+
     try:
-        # FIXED: Always guarantee complete, valid JSON structure
-        current_time = datetime.now().strftime('%H:%M:%S')
-
-        # Build response with ALL required fields that frontend expects
-        response = {
-            'success': True,
-            'running': False,
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': 0,
-            'balance': 0.0,
-            'status': 'checking',
-            'last_update': current_time,
-            'timestamp': current_time,
-            'error': None,
-            'message': None
-        }
-
         # Try to get current bot manager
         current_bot_manager = get_bot_manager()
 
         if current_bot_manager:
-            try:
-                # Get running status
-                is_running = getattr(current_bot_manager, 'is_running', False)
-                response.update({
-                    'running': is_running,
-                    'is_running': is_running,
-                    'status': 'running' if is_running else 'stopped'
-                })
-
-                # If bot is stopped, ensure clean response
-                if not is_running:
-                    response.update({
-                        'active_positions': 0,
-                        'status': 'stopped',
-                        'message': 'Bot is offline'
-                    })
-
-                # Get active positions count
-                if hasattr(current_bot_manager, 'order_manager') and current_bot_manager.order_manager:
-                    active_count = len(getattr(current_bot_manager.order_manager, 'active_positions', {}))
-                    response['active_positions'] = active_count
-
-                # Get strategies count
-                if hasattr(current_bot_manager, 'strategies'):
-                    strategies_count = len(current_bot_manager.strategies)
-                    response['strategies'] = strategies_count
-
-                # Try to get balance
-                if hasattr(current_bot_manager, 'balance_fetcher'):
-                    try:
-                        balance = current_bot_manager.balance_fetcher.get_usdt_balance()
-                        if balance is not None:
-                            response['balance'] = float(balance)
-                    except Exception:
-                        pass  # Keep default balance
-
-                logger.debug(f"Bot status API success: {response}")
-                return jsonify(response)
-
-            except Exception as bot_error:
-                logger.error(f"Error accessing bot manager: {bot_error}")
-                response.update({
-                    'status': 'bot_error',
-                    'error': str(bot_error),
-                    'success': False
-                })
-                return jsonify(response)
-        else:
-            # No bot manager available
-            response.update({
-                'status': 'no_bot_manager',
-                'success': True
+            # Get running status
+            is_running = getattr(current_bot_manager, 'is_running', False)
+            default_response.update({
+                'running': is_running,
+                'is_running': is_running,
+                'status': 'running' if is_running else 'stopped'
             })
-            return jsonify(response)
+
+            # Get active positions count
+            if hasattr(current_bot_manager, 'order_manager') and current_bot_manager.order_manager:
+                active_count = len(getattr(current_bot_manager.order_manager, 'active_positions', {}))
+                default_response['active_positions'] = active_count
+
+            # Get strategies count
+            if hasattr(current_bot_manager, 'strategies'):
+                strategies_count = len(current_bot_manager.strategies)
+                default_response['strategies'] = strategies_count
+
+            # Try to get balance
+            try:
+                if hasattr(current_bot_manager, 'balance_fetcher'):
+                    balance = current_bot_manager.balance_fetcher.get_usdt_balance()
+                    if balance is not None:
+                        default_response['balance'] = float(balance)
+            except:
+                pass  # Keep default balance
+
+        return jsonify(default_response)
 
     except Exception as e:
-        logger.error(f"Critical error in bot status API: {e}")
-        # Ultimate fallback - always return valid JSON
-        current_time = datetime.now().strftime('%H:%M:%S')
-        error_response = {
+        logger.error(f"Bot status API error: {e}")
+        default_response.update({
             'success': False,
-            'running': False,
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': 0,
-            'balance': 0.0,
             'status': 'api_error',
-            'error': str(e),
-            'last_update': current_time,
-            'timestamp': current_time
-        }
-        return jsonify(error_response), 200
+            'error': str(e)
+        })
+        return jsonify(default_response)
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -1165,187 +1127,107 @@ def get_balance():
 @rate_limit('positions', max_requests=15, window_seconds=60)
 def get_positions():
     """Get active positions with bulletproof error handling"""
-    # FIXED: Always start with complete, valid response structure
+    current_time = datetime.now().strftime('%H:%M:%S')
+    
+    # FIXED: Always return complete JSON structure
     default_response = {
         'success': True,
         'positions': [],
-        'status': 'bot_offline',
-        'timestamp': datetime.now().strftime('%H:%M:%S')
+        'status': 'checking',
+        'count': 0,
+        'timestamp': current_time
     }
 
     try:
-        positions = []
-
-        # Get the current bot manager using proper getter with startup timing awareness
         current_bot = get_bot_manager()
 
-        # Enhanced debug logging with startup detection
-        logger.debug(f"Positions API: current_bot = {current_bot is not None}")
-        if current_bot:
-            logger.debug(f"Positions API: is_running = {getattr(current_bot, 'is_running', 'N/A')}")
-            logger.debug(f"Positions API: has order_manager = {hasattr(current_bot, 'order_manager')}")
+        if not current_bot:
+            default_response['status'] = 'no_bot'
+            return jsonify(default_response)
 
-            # TIMING FIX: Check if bot is still initializing
-            if hasattr(current_bot, 'startup_notified'):
-                startup_complete = getattr(current_bot, 'startup_notified', False)
-                logger.debug(f"Positions API: startup_complete = {startup_complete}")
+        # Check if bot is running
+        is_running = getattr(current_bot, 'is_running', False)
+        if not is_running:
+            default_response['status'] = 'bot_stopped'
+            return jsonify(default_response)
 
-            if hasattr(current_bot, 'order_manager') and current_bot.order_manager:
-                active_positions = getattr(current_bot.order_manager, 'active_positions', {})
-                logger.debug(f"Positions API: active_positions count = {len(active_positions)}")
-                logger.debug(f"Positions API: active_positions keys = {list(active_positions.keys())}")
-            else:
-                # TIMING FIX: During startup, this is expected
-                if hasattr(current_bot, 'is_running') and current_bot.is_running:
-                    logger.debug("Positions API: Bot is running but order manager not ready yet (startup timing)")
-                else:
-                    logger.warning("Positions API: No order manager or order manager is None")
-        else:
-            logger.warning("Positions API: No bot manager available")
+        # Check for order manager and positions
+        if not hasattr(current_bot, 'order_manager') or not current_bot.order_manager:
+            default_response['status'] = 'initializing'
+            return jsonify(default_response)
 
-        # Check if bot is actually running - only return empty if bot is confirmed stopped
-        if current_bot and hasattr(current_bot, 'is_running') and current_bot.is_running == False:
-            # Bot is stopped - return clean "no positions" response
-            return jsonify({
-                'success': True,
-                'positions': [],
-                'status': 'bot_offline',
-                'count': 0,
-                'timestamp': datetime.now().strftime('%H:%M:%S'),
-                'message': 'Bot is offline - no positions displayed'
-            })
+        # Get active positions
+        active_positions = getattr(current_bot.order_manager, 'active_positions', {})
+        positions = []
 
-        if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
-            # Create a safe copy to prevent "dictionary changed size during iteration" error
+        for strategy_name, position in active_positions.items():
             try:
-                active_positions = dict(current_bot.order_manager.active_positions)
+                if not position or not hasattr(position, 'symbol'):
+                    continue
 
-                for strategy_name, position in active_positions.items():
-                    try:
-                        # FIXED: Ensure all position data is valid before processing
-                        if not position or not hasattr(position, 'symbol'):
-                            continue
+                # Get current price
+                current_price = None
+                try:
+                    if IMPORTS_AVAILABLE and price_fetcher:
+                        current_price = price_fetcher.get_current_price(position.symbol)
+                except:
+                    pass
 
-                        # Check if this position has an anomaly (orphan/ghost trade)
-                        anomaly_status = None
-                        if hasattr(current_bot, 'anomaly_detector'):
-                            try:
-                                anomaly_status = current_bot.anomaly_detector.get_anomaly_status(strategy_name)
-                            except:
-                                anomaly_status = None
+                # Calculate PnL
+                pnl = 0.0
+                pnl_percent = 0.0
+                
+                if current_price and hasattr(position, 'entry_price') and hasattr(position, 'quantity'):
+                    entry_price = float(position.entry_price)
+                    quantity = float(position.quantity)
+                    side = getattr(position, 'side', 'BUY')
 
-                        # Get current price safely
-                        current_price = None
-                        if IMPORTS_AVAILABLE:
-                            try:
-                                current_price = price_fetcher.get_current_price(position.symbol)
-                            except:
-                                current_price = None
+                    if side == 'BUY':
+                        pnl = (current_price - entry_price) * quantity
+                    else:
+                        pnl = (entry_price - current_price) * quantity
 
-                        # Calculate PnL with complete validation
-                        if current_price and hasattr(position, 'entry_price') and hasattr(position, 'quantity'):
-                            entry_price = float(position.entry_price)
-                            quantity = float(position.quantity)
-                            side = getattr(position, 'side', 'BUY')
+                    # Get strategy config for margin calculation
+                    strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
+                    margin_invested = strategy_config.get('margin', 50.0)
+                    
+                    if margin_invested > 0:
+                        pnl_percent = (pnl / margin_invested) * 100
 
-                            # For futures trading, PnL calculation (matches console calculation)
-                            if side == 'BUY':  # Long position
-                                pnl = (current_price - entry_price) * quantity
-                            else:  # Short position (SELL)
-                                pnl = (entry_price - current_price) * quantity
+                position_data = {
+                    'strategy': strategy_name,
+                    'symbol': position.symbol,
+                    'side': getattr(position, 'side', 'BUY'),
+                    'entry_price': float(getattr(position, 'entry_price', 0)),
+                    'current_price': current_price,
+                    'quantity': float(getattr(position, 'quantity', 0)),
+                    'pnl': pnl,
+                    'pnl_percent': pnl_percent
+                }
+                
+                positions.append(position_data)
 
-                            # Calculate position value and get actual margin invested
-                            position_value_usdt = entry_price * quantity
+            except Exception as pos_error:
+                logger.error(f"Error processing position {strategy_name}: {pos_error}")
+                continue
 
-                            # Get leverage and margin from strategy config (default 5x if not found)
-                            strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
-                            leverage = strategy_config.get('leverage', 5)
-
-                            # Use the configured margin as the actual margin invested (matches trading logic)
-                            margin_invested = strategy_config.get('margin', 50.0)
-
-                            # For futures trading, PnL percentage should be calculated against margin invested, not position value
-                            pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
-
-                            # FIXED: Ensure all fields are present and valid
-                            positions.append({
-                                'strategy': getattr(position, 'strategy_name', strategy_name),
-                                'symbol': position.symbol,
-                                'side': side,
-                                'entry_price': entry_price,
-                                'current_price': current_price,
-                                'quantity': quantity,
-                                'position_value_usdt': position_value_usdt,
-                                'margin_invested': margin_invested,
-                                'pnl': pnl,
-                                'pnl_percent': pnl_percent,
-                                'anomaly_status': anomaly_status
-                            })
-                        else:
-                            # Add position without current price/PnL data but with complete structure
-                            positions.append({
-                                'strategy': getattr(position, 'strategy_name', strategy_name),
-                                'symbol': getattr(position, 'symbol', 'UNKNOWN'),
-                                'side': getattr(position, 'side', 'BUY'),
-                                'entry_price': float(getattr(position, 'entry_price', 0)),
-                                'current_price': None,
-                                'quantity': float(getattr(position, 'quantity', 0)),
-                                'position_value_usdt': float(getattr(position, 'entry_price', 0)) * float(getattr(position, 'quantity', 0)),
-                                'margin_invested': 0.0,
-                                'pnl': 0.0,
-                                'pnl_percent': 0.0,
-                                'anomaly_status': anomaly_status
-                            })
-                    except Exception as position_error:
-                        logger.error(f"Error processing position {strategy_name}: {position_error}")
-                        import traceback
-                        logger.error(f"Position processing error traceback: {traceback.format_exc()}")
-                        continue
-
-                logger.info(f"Positions API: Successfully processed {len(positions)} positions")
-                return jsonify({
-                    'success': True,
-                    'positions': positions,
-                    'status': 'active' if positions else 'no_positions',
-                    'count': len(positions),
-                    'timestamp': datetime.now().strftime('%H:%M:%S')
-                })
-
-            except Exception as e:
-                logger.error(f"Error processing active positions: {e}")
-                import traceback
-                logger.error(f"Positions processing error traceback: {traceback.format_exc()}")
-                return jsonify({
-                    'success': False,
-                    'error': str(e),
-                    'positions': [],
-                    'status': 'processing_error',
-                    'count': 0,
-                    'timestamp': datetime.now().strftime('%H:%M:%S')
-                })
-
-        # No bot manager or order manager available
-        logger.warning("Positions API: No bot manager or order manager available")
+        # Return positions
         return jsonify({
             'success': True,
-            'positions': [],
-            'status': 'no_bot_manager',
-            'count': 0,
-            'timestamp': datetime.now().strftime('%H:%M:%S')
+            'positions': positions,
+            'status': 'active' if positions else 'no_positions',
+            'count': len(positions),
+            'timestamp': current_time
         })
 
     except Exception as e:
-        logger.error(f"Critical error in get_positions endpoint: {e}")
-        # FIXED: Error response with complete structure
-        error_response = {
-            'success': False, 
-            'error': str(e),
-            'positions': [],
+        logger.error(f"Positions API error: {e}")
+        default_response.update({
+            'success': False,
             'status': 'api_error',
-            'count': 0,
-            'timestamp': datetime.now().strftime('%H:%M:%S')
-        }
-        return jsonify(error_response), 200
+            'error': str(e)
+        })
+        return jsonify(default_response)
 
 @app.route('/api/rsi/<symbol>')
 def get_rsi(symbol):
@@ -1515,117 +1397,83 @@ def get_bot_manager():
 @rate_limit('console_log', max_requests=30, window_seconds=60)
 def get_console_log():
     """Get recent console logs with bulletproof error handling"""
-    # FIXED: Always guarantee complete JSON structure to prevent parsing errors
     current_time = datetime.now().strftime("%H:%M:%S")
-
-    # FIXED: Default response structure that's always valid
-    default_response = {
-        'success': True,
-        'logs': [
-            f'[{current_time}] 🌐 Web dashboard active',
-            f'[{current_time}] 📊 Bot status checking...'
-        ],
-        'status': 'default',
-        'timestamp': current_time
-    }
+    
+    # FIXED: Always guarantee valid JSON response to prevent parsing errors
+    default_logs = [
+        f'[{current_time}] 🌐 Web dashboard active',
+        f'[{current_time}] 📊 Connecting to bot...'
+    ]
 
     try:
-        # Try to get bot manager from various sources
         current_bot_manager = get_bot_manager()
 
         if current_bot_manager:
-            try:
-                # FIXED: Multiple fallback levels to ensure we always get logs
-                logs = None
-
-                # Try method 1: get_recent_logs
-                if hasattr(current_bot_manager, 'get_recent_logs'):
+            # Try to get logs from various sources
+            logs = None
+            
+            # Method 1: get_recent_logs
+            if hasattr(current_bot_manager, 'get_recent_logs'):
+                try:
                     logs = current_bot_manager.get_recent_logs(50)
                     if isinstance(logs, list) and len(logs) > 0:
                         return jsonify({
-                            'success': True, 
-                            'logs': logs, 
-                            'status': 'bot_manager_logs',
+                            'success': True,
+                            'logs': logs,
+                            'status': 'live_logs',
                             'timestamp': current_time
                         })
+                except:
+                    pass
 
-                # Try method 2: log_handler directly
-                if hasattr(current_bot_manager, 'log_handler') and current_bot_manager.log_handler:
+            # Method 2: log_handler directly
+            if hasattr(current_bot_manager, 'log_handler') and current_bot_manager.log_handler:
+                try:
                     logs = current_bot_manager.log_handler.get_recent_logs(50)
                     if isinstance(logs, list) and len(logs) > 0:
                         return jsonify({
-                            'success': True, 
-                            'logs': logs, 
-                            'status': 'log_handler_direct',
+                            'success': True,
+                            'logs': logs,
+                            'status': 'handler_logs',
                             'timestamp': current_time
                         })
+                except:
+                    pass
 
-                # Try method 3: fallback logs from bot manager
-                if hasattr(current_bot_manager, '_get_fallback_logs'):
-                    logs = current_bot_manager._get_fallback_logs()
-                    if isinstance(logs, list) and len(logs) > 0:
-                        return jsonify({
-                            'success': True, 
-                            'logs': logs, 
-                            'status': 'bot_manager_fallback',
-                            'timestamp': current_time
-                        })
-
-                # Bot manager exists but no logs available
-                return jsonify({
-                    'success': True, 
-                    'logs': [
-                        f'[{current_time}] 🚀 Bot manager detected',
-                        f'[{current_time}] 📊 Running: {getattr(current_bot_manager, "is_running", False)}',
-                        f'[{current_time}] 🔄 Log system initializing...'
-                    ], 
-                    'status': 'bot_manager_no_logs',
-                    'timestamp': current_time
-                })
-
-            except Exception as log_error:
-                logger.error(f"Error accessing logs: {log_error}")
-                # FIXED: Error case still returns complete structure
-                return jsonify({
-                    'success': True, 
-                    'logs': [
-                        f'[{current_time}] ⚠️ Log access temporarily unavailable',
-                        f'[{current_time}] 🚀 Bot manager is active',
-                        f'[{current_time}] 🔄 Logs will be available shortly'
-                    ], 
-                    'status': 'log_access_error',
-                    'error': str(log_error),
-                    'timestamp': current_time
-                })
-        else:
-            # No bot manager available - return waiting state
+            # Fallback for bot manager without logs
+            is_running = getattr(current_bot_manager, 'is_running', False)
+            fallback_logs = [
+                f'[{current_time}] 🚀 Bot detected',
+                f'[{current_time}] 📊 Status: {"Running" if is_running else "Stopped"}',
+                f'[{current_time}] 🔄 Logs initializing...'
+            ]
+            
             return jsonify({
-                'success': True, 
-                'logs': [
-                    f'[{current_time}] 🔄 Waiting for bot manager to initialize...',
-                    f'[{current_time}] 🚀 Bot startup in progress',
-                    f'[{current_time}] 🌐 Web dashboard ready'
-                ], 
-                'status': 'waiting_for_bot_manager',
+                'success': True,
+                'logs': fallback_logs,
+                'status': 'bot_detected',
                 'timestamp': current_time
             })
 
+        # No bot manager - return default
+        return jsonify({
+            'success': True,
+            'logs': default_logs,
+            'status': 'no_bot',
+            'timestamp': current_time
+        })
+
     except Exception as e:
-        logger.error(f"Console log endpoint critical error: {e}")
-        # ULTIMATE FALLBACK - always returns complete, valid JSON structure
-        error_time = datetime.now().strftime("%H:%M:%S")
-        fallback_response = {
+        logger.error(f"Console log API error: {e}")
+        return jsonify({
             'success': True,
             'logs': [
-                f'[{error_time}] ⚠️ Console API temporarily unavailable',
-                f'[{error_time}] 🌐 Web dashboard is active',
-                f'[{error_time}] 🔄 Logs will resume shortly'
+                f'[{current_time}] ⚠️ Console temporarily unavailable',
+                f'[{current_time}] 🔄 Reconnecting...'
             ],
-            'status': 'api_critical_error',
-            'error': str(e),
-            'timestamp': error_time
-        }
-        return jsonify(fallback_response), 200
+            'status': 'error',
+            'timestamp': current_time
+        })
 
 # Proxy management functions
 def updateProxyStatus():

@@ -977,7 +977,7 @@
             }
         }
 
-        // Update bot status with intelligent caching and throttling
+        // Update bot status with safe API handling
         function updateBotStatus() {
             // Check cache first
             const cachedData = getCachedData('botStatus');
@@ -988,55 +988,22 @@
 
             // Check if we can make a new request
             if (!canMakeRequest('botStatus')) {
-                return Promise.resolve(null); // Skip this update cycle
+                return Promise.resolve(null);
             }
 
             markRequestStart('botStatus');
 
-            return fetch('/api/bot/status')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-
-                    // FIXED: Check if response has content
-                    const contentLength = response.headers.get('content-length');
-                    if (contentLength === '0') {
-                        throw new Error('Empty response from server');
-                    }
-
-                    return response.text();
-                })
-                .then(text => {
-                    // FIXED: Validate JSON before parsing
-                    if (!text || text.trim() === '') {
-                        throw new Error('Empty response body');
-                    }
-
-                    let data;
-                    try {
-                        data = JSON.parse(text);
-                    } catch (parseError) {
-                        console.error('JSON parse error:', parseError, 'Response:', text.substring(0, 100));
-                        throw new Error('Invalid JSON response');
-                    }
-
-                    // FIXED: Validate data structure
-                    if (!data || typeof data !== 'object') {
-                        throw new Error('Invalid data structure received');
-                    }
-
+            return safeApiCall('/api/bot/status')
+                .then(data => {
                     setCachedData('botStatus', data);
                     updateBotStatusUI(data);
                     markRequestEnd('botStatus', true);
                     return data;
                 })
                 .catch(error => {
-                    console.error('Update error for botStatus:', error);
-                    console.error('Error updating bot status:', error);
                     updateBotStatusErrorUI();
                     markRequestEnd('botStatus', false);
-                    throw error;
+                    return getDefaultResponse('/api/bot/status');
                 });
         }
 
@@ -1182,7 +1149,7 @@
             }
         }
 
-        // Update console log with intelligent caching and adaptive polling
+        // Update console log with safe API handling
         function updateConsoleLog() {
             // Check cache first
             const cachedData = getCachedData('consoleLog');
@@ -1193,18 +1160,12 @@
 
             // Check if we can make a new request
             if (!canMakeRequest('consoleLog')) {
-                return Promise.resolve(null); // Skip this update cycle
+                return Promise.resolve(null);
             }
 
             markRequestStart('consoleLog');
 
-            return fetch('/api/console-log')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
+            return safeApiCall('/api/console-log')
                 .then(data => {
                     setCachedData('consoleLog', data);
                     updateConsoleLogUI(data);
@@ -1212,10 +1173,9 @@
                     return data;
                 })
                 .catch(error => {
-                    console.error('Error fetching console log:', error);
                     updateConsoleLogErrorUI();
                     markRequestEnd('consoleLog', false);
-                    throw error;
+                    return getDefaultResponse('/api/console-log');
                 });
         }
 
@@ -1363,35 +1323,41 @@
         let updateTimeouts = {};
         let pollingActive = true;
 
-        // FIXED: Safe API response handler to prevent parsing errors
+        // FIXED: Enhanced safe API response handler to prevent parsing errors
         function safeApiCall(url, options = {}) {
             return fetch(url, options)
                 .then(response => {
-                    // Check if response is ok
                     if (!response.ok) {
-                        console.log(`🔧 HTTP Error ${response.status}: ${response.statusText}`);
-                        // Return valid default for this endpoint
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    // Get content type to validate JSON response
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        throw new Error('Invalid content type - expected JSON');
+                    }
+
+                    return response.text();
+                })
+                .then(text => {
+                    if (!text || text.trim() === '') {
                         return getDefaultResponse(url);
                     }
 
-                    return response.text().then(text => {
-                        // Validate that we have actual content
-                        if (!text || text.trim() === '') {
-                            console.log('🔧 Empty response body detected, using fallback');
+                    try {
+                        const data = JSON.parse(text);
+                        // Validate that we got an object
+                        if (!data || typeof data !== 'object') {
                             return getDefaultResponse(url);
                         }
-
-                        try {
-                            const data = JSON.parse(text);
-                            return data || getDefaultResponse(url);
-                        } catch (parseError) {
-                            console.log('🔧 JSON parse error, using fallback');
-                            return getDefaultResponse(url);
-                        }
-                    });
+                        return data;
+                    } catch (parseError) {
+                        console.warn('JSON parse error for', url, ':', parseError.message);
+                        return getDefaultResponse(url);
+                    }
                 })
                 .catch(error => {
-                    console.log('🔧 API call failed:', error.message);
+                    console.warn('API call failed for', url, ':', error.message);
                     return getDefaultResponse(url);
                 });
         }
