@@ -26,7 +26,7 @@
     "macd_signal": 9,
     "min_histogram_threshold": 0.0005,
     "min_distance_threshold": 0.005,
-    "confirmation_candles": 2,
+    "confirmation_candles": 1,
     "min_volume": 1000000,
     "max_loss_pct": 10.0
   },
