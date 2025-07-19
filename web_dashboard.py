@@ -1208,23 +1208,43 @@ def get_positions():
                                 'pnl_percent': 0.0,
                                 'anomaly_status': anomaly_status
                             })
-                    except Exception as pos_error:
-                        logger.error(f"Error processing position {strategy_name}: {pos_error}")
+                    except Exception as position_error:
+                        logger.error(f"Error processing position {strategy_name}: {position_error}")
+                        import traceback
+                        logger.error(f"Position processing error traceback: {traceback.format_exc()}")
                         continue
 
-            except Exception as positions_error:
-                logger.error(f"Error accessing active positions: {positions_error}")
+                logger.info(f"Positions API: Successfully processed {len(positions)} positions")
+                return jsonify({
+                    'success': True,
+                    'positions': positions,
+                    'status': 'active' if positions else 'no_positions',
+                    'count': len(positions),
+                    'timestamp': datetime.now().strftime('%H:%M:%S')
+                })
 
-        # FIXED: Always return complete, valid response structure
-        positions_response = {
-            'success': True, 
-            'positions': positions,
-            'status': 'success',
-            'count': len(positions),
+            except Exception as e:
+                logger.error(f"Error processing active positions: {e}")
+                import traceback
+                logger.error(f"Positions processing error traceback: {traceback.format_exc()}")
+                return jsonify({
+                    'success': False,
+                    'error': str(e),
+                    'positions': [],
+                    'status': 'processing_error',
+                    'count': 0,
+                    'timestamp': datetime.now().strftime('%H:%M:%S')
+                })
+
+        # No bot manager or order manager available
+        logger.warning("Positions API: No bot manager or order manager available")
+        return jsonify({
+            'success': True,
+            'positions': [],
+            'status': 'no_bot_manager',
+            'count': 0,
             'timestamp': datetime.now().strftime('%H:%M:%S')
-        }
-        logger.debug(f"API Positions Success: {len(positions)} positions")
-        return jsonify(positions_response)
+        })
 
     except Exception as e:
         logger.error(f"Critical error in get_positions endpoint: {e}")
@@ -1427,7 +1447,8 @@ def get_console_log():
                 if hasattr(current_bot_manager, 'get_recent_logs'):
                     logs = current_bot_manager.get_recent_logs(50)
                     if isinstance(logs, list) and len(logs) > 0:
-                        return jsonify({
+                        return```python
+ jsonify({
                             'success': True, 
                             'logs': logs, 
                             'status': 'bot_manager_logs',
@@ -1514,14 +1535,23 @@ def get_console_log():
 # Removed duplicate route - using the existing '/api/bot/status' route with rate limiting instead
 
 def get_current_price(symbol):
-    """Get current price for a symbol"""
+    """Get current price for a symbol with error handling"""
     try:
-        if IMPORTS_AVAILABLE:
-            return price_fetcher.get_current_price(symbol)
-        return None
+        if IMPORTS_AVAILABLE and price_fetcher:
+            ticker = price_fetcher.binance_client.get_symbol_ticker(symbol)
+            if ticker and 'price' in ticker:
+                price = float(ticker['price'])
+                logger.debug(f"Price fetch successful for {symbol}: ${price}")
+                return price
+            else:
+                logger.warning(f"Invalid ticker response for {symbol}: {ticker}")
+        else:
+            logger.warning(f"Price fetcher not available for {symbol}")
     except Exception as e:
         logger.error(f"Error getting current price for {symbol}: {e}")
-        return None
+        import traceback
+        logger.error(f"Price fetch error traceback: {traceback.format_exc()}")
+    return None
 
 def calculate_pnl(position, current_price):
     """Calculate PnL for a position"""
