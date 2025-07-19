@@ -1850,5 +1850,6 @@ def toggle_proxy():
         logger.error(f"Error toggling proxy: {e}")
         return jsonify({'success': False, 'message': f'Failed to toggle proxy: {e}'})
 
+
 # Flask app is configured above - no standalone execution needed
 # Web dashboard is launched from main.py only
