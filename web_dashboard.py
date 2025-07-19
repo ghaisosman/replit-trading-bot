@@ -185,6 +185,10 @@ except ImportError as e:
     trading_config_manager = DummyConfigManager()
     balance_fetcher = DummyBalanceFetcher()
 
+@app.route('/healthz')
+def healthz():
+    return 'OK', 200
+
 @app.route('/')
 def dashboard():
     """Main dashboard page"""
