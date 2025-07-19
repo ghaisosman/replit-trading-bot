@@ -739,6 +739,8 @@ def create_strategy():
         }
 
         # Add strategy-specific parameters with validation
+
+        # Add strategy-specific parameters with validation
         if 'rsi' in strategy_name.lower():
             new_config.update({
                 'rsi_period': 14,
@@ -1104,16 +1106,32 @@ def get_positions():
     try:
         positions = []
 
-        # Try shared bot manager first
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        # Get the current bot manager using proper getter with startup timing awareness
+        current_bot = get_bot_manager()
 
-        # Debug logging
+        # Enhanced debug logging with startup detection
         logger.debug(f"Positions API: current_bot = {current_bot is not None}")
         if current_bot:
             logger.debug(f"Positions API: is_running = {getattr(current_bot, 'is_running', 'N/A')}")
             logger.debug(f"Positions API: has order_manager = {hasattr(current_bot, 'order_manager')}")
+
+            # TIMING FIX: Check if bot is still initializing
+            if hasattr(current_bot, 'startup_notified'):
+                startup_complete = getattr(current_bot, 'startup_notified', False)
+                logger.debug(f"Positions API: startup_complete = {startup_complete}")
+
             if hasattr(current_bot, 'order_manager') and current_bot.order_manager:
-                logger.debug(f"Positions API: active_positions count = {len(current_bot.order_manager.active_positions)}")
+                active_positions = getattr(current_bot.order_manager, 'active_positions', {})
+                logger.debug(f"Positions API: active_positions count = {len(active_positions)}")
+                logger.debug(f"Positions API: active_positions keys = {list(active_positions.keys())}")
+            else:
+                # TIMING FIX: During startup, this is expected
+                if hasattr(current_bot, 'is_running') and current_bot.is_running:
+                    logger.debug("Positions API: Bot is running but order manager not ready yet (startup timing)")
+                else:
+                    logger.warning("Positions API: No order manager or order manager is None")
+        else:
+            logger.warning("Positions API: No bot manager available")
 
         # Check if bot is actually running - only return empty if bot is confirmed stopped
         if current_bot and hasattr(current_bot, 'is_running') and current_bot.is_running == False:
@@ -1395,25 +1413,32 @@ def calculate_rsi(closes, period=14):
         return 50.0  # Safe fallback
 
 def get_bot_manager():
-    """Helper function to get the bot manager with proper error handling"""
+    """Get the current bot manager (shared or standalone) with startup timing fix"""
     try:
-        # Try to get shared bot manager from main module
-        main_module = sys.modules.get('__main__')
-        if main_module and hasattr(main_module, 'bot_manager'):
-            shared_manager = getattr(main_module, 'bot_manager')
-            if shared_manager is not None:
-                return shared_manager
+        # Always try to get the latest shared bot manager first
+        current_shared = get_shared_bot_manager()
+        if current_shared:
+            # TIMING FIX: Verify the bot manager is fully initialized
+            if hasattr(current_shared, 'order_manager') and current_shared.order_manager:
+                logger.debug(f"Using shared bot manager: {current_shared}")
+                return current_shared
+            else:
+                logger.debug("Shared bot manager found but not fully initialized yet")
 
         # Fallback to global bot_manager
         global bot_manager
-        if bot_manager is not None:
-            return bot_manager
+        if bot_manager:
+            # TIMING FIX: Verify the bot manager is fully initialized
+            if hasattr(bot_manager, 'order_manager') and bot_manager.order_manager:
+                logger.debug(f"Using global bot manager: {bot_manager}")
+                return bot_manager
+            else:
+                logger.debug("Global bot manager found but not fully initialized yet")
 
-        # No bot manager available
+        logger.debug("No fully initialized bot manager available")
         return None
-
     except Exception as e:
-        logger.error(f"Error getting bot manager: {e}")
+        logger.error(f"Error in get_bot_manager: {e}")
         return None
 
 @app.route('/api/console-log')
