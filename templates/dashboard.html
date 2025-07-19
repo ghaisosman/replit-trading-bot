@@ -744,10 +744,9 @@
                                     </div>
                                 </div>
                                 <div class="col-md-6">
-                                    <div class="mb-3">
+                                    <div class="mb-3{
                                         <label for="minHistogramThreshold" class="form-label">Min Histogram Threshold</label>
-                                        <input type="number" class="form-control" id="minHistogramThreshold"```text
- step="0.00001" placeholder="e.g., 0.0001">
+                                        <input type="number" class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g., 0.0001">
                                         <div class="form-text">Minimum histogram value for signal</div>
                                     </div>
                                 </div>
@@ -1557,7 +1556,7 @@
             // FIXED: Add unhandled promise rejection handler
             window.addEventListener('unhandledrejection', function(event) {
                 if (event.reason && event.reason.message && event.reason.message.includes('Unexpected end of input')) {
-                    console.log('🔧 Detected API parsing promise rejection - likely empty response');
+                    console.log('🔧 Detected API parsing parsing rejection - likely empty response');
                     // Don't log these errors to reduce console noise
                     event.preventDefault();
                     return false;
@@ -1585,16 +1584,31 @@
                   'Auto-scroll keeps the latest messages visible.');
         }
 
-        // Edit strategy function
-        function editStrategy() {
-            alert('Select a strategy from the table below to edit its configuration.');
+        // Load strategies with cache busting
+        function loadStrategiesWithCacheBust() {
+            const timestamp = new Date().getTime();
+            fetch(`/api/strategies?_t=${timestamp}`)
+                .then(response => response.json())
+                .then(strategies => {
+                    // Update global strategies cache
+                    window.strategiesData = strategies;
+                    window.strategiesCache = strategies;
+                    console.log('🔄 Strategies data refreshed with latest configurations');
+                })
+                .catch(error => {
+                    console.error('Error refreshing strategies:', error);
+                });
         }
 
-        // Show anomalies function
-        function showAnomalies() {
-            alert('Anomaly detection monitors for orphan trades and ghost positions.\n\n' +
-                  'Check the console log for anomaly notifications.');
-        }
+        // Edit strategy configuration
+        function editStrategy(strategyName) {
+            // Force fresh data fetch with timestamp to bypass cache
+            const timestamp = new Date().getTime();
+            fetch(`/api/strategies?_t=${timestamp}`)
+                .then(response => response.json())
+                .then(strategies => {
+                    const config = strategies[strategyName];
+                    if (config) {
 
         // View strategy statistics function
         function viewStrategyStats(strategyName) {
@@ -1727,7 +1741,7 @@
                 updates.divergence_strength_min = parseFloat(document.getElementById('divergenceStrengthMin').value);
             }
 
-            fetch('/api/strategies/' + strategyName, {
+            fetch(`/api/strategies/${strategyName}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1737,13 +1751,25 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Close modal using Bootstrap 5 method
+                    alert('Strategy configuration saved successfully!');
+
+                    // Hide modal
                     const modal = bootstrap.Modal.getInstance(document.getElementById('strategyModal'));
                     if (modal) {
                         modal.hide();
                     }
-                    refreshData();
-                    alert('Strategy updated successfully.');
+
+                    // FORCE CLEAR CACHED STRATEGY DATA
+                    delete window.strategiesCache;
+                    delete window.strategiesData;
+
+                    // Refresh dashboard data with cache bust
+                    updateDashboard();
+
+                    // Force reload strategies data for next edit
+                    setTimeout(() => {
+                        loadStrategiesWithCacheBust();
+                    }, 1000);
                 } else {
                     alert('Error updating strategy: ' + data.message);
                 }
@@ -1964,6 +1990,11 @@
         // Utility functions
         function formatNumber(number) {
             return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(number);
+        }
+
+         // Refresh dashboard data
+        function updateDashboard() {
+            refreshData();
         }
     </script>
 </body>

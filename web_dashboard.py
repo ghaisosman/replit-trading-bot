@@ -126,7 +126,7 @@ def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
             # Execute the wrapped function with error handling
             try:
                 result = f(*args, **kwargs)
-                
+
                 # Ensure result is valid JSON response
                 if hasattr(result, 'get_json'):
                     # This is a Flask response - validate it has data
@@ -156,11 +156,11 @@ def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
                                 })
                     except:
                         pass  # If we can't parse JSON, continue with original result
-                
+
                 return result
             except Exception as func_error:
                 logger.error(f"Rate-limited function {endpoint_key} failed: {func_error}")
-                
+
                 # Return appropriate error response based on endpoint
                 current_time = datetime.now().strftime('%H:%M:%S')
                 if endpoint_key == 'bot_status':
@@ -770,7 +770,7 @@ def create_strategy():
         # Check if strategy already exists
         existing_strategies = trading_config_manager.get_all_strategies()
         if strategy_name in existing_strategies:
-            return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" already exists'})
+            return jsonify({'success': False, ''message': f'Strategy "{strategy_name}" already exists'})
 
         # Validate strategy type
         if 'rsi' not in strategy_name.lower() and 'macd' not in strategy_name.lower():
