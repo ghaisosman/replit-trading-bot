@@ -1447,8 +1447,7 @@ def get_console_log():
                 if hasattr(current_bot_manager, 'get_recent_logs'):
                     logs = current_bot_manager.get_recent_logs(50)
                     if isinstance(logs, list) and len(logs) > 0:
-                        return```python
- jsonify({
+                        return jsonify({
                             'success': True, 
                             'logs': logs, 
                             'status': 'bot_manager_logs',
