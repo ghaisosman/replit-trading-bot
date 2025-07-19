@@ -278,8 +278,56 @@ class TradingConfigManager:
 
     def get_all_strategies(self) -> Dict[str, Dict[str, Any]]:
         """Get all strategy configurations from web dashboard"""
-        # ALWAYS start with comprehensive default strategies to ensure all strategies are available
-        strategies = {
+        # WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Start with minimal base configs
+        strategies = {}
+
+        # Build strategies from web dashboard configs FIRST
+        if self.strategy_overrides:
+            for strategy_name, web_config in self.strategy_overrides.items():
+                # Start with base trading parameters
+                strategies[strategy_name] = {**self.default_params.to_dict()}
+                
+                # Add strategy-specific minimal defaults only if not in web config
+                if 'rsi' in strategy_name.lower():
+                    # Only set RSI defaults that web dashboard hasn't specified
+                    if 'rsi_period' not in web_config:
+                        strategies[strategy_name]['rsi_period'] = 14
+                    if 'rsi_long_entry' not in web_config:
+                        strategies[strategy_name]['rsi_long_entry'] = 40
+                    if 'rsi_long_exit' not in web_config:
+                        strategies[strategy_name]['rsi_long_exit'] = 70
+                    if 'rsi_short_entry' not in web_config:
+                        strategies[strategy_name]['rsi_short_entry'] = 60
+                    if 'rsi_short_exit' not in web_config:
+                        strategies[strategy_name]['rsi_short_exit'] = 30
+                elif 'macd' in strategy_name.lower():
+                    # Only set MACD defaults that web dashboard hasn't specified
+                    if 'macd_fast' not in web_config:
+                        strategies[strategy_name]['macd_fast'] = 12
+                    if 'macd_slow' not in web_config:
+                        strategies[strategy_name]['macd_slow'] = 26
+                    if 'macd_signal' not in web_config:
+                        strategies[strategy_name]['macd_signal'] = 9
+                    if 'min_histogram_threshold' not in web_config:
+                        strategies[strategy_name]['min_histogram_threshold'] = 0.0001
+                    if 'min_distance_threshold' not in web_config:
+                        strategies[strategy_name]['min_distance_threshold'] = 0.005
+                    if 'confirmation_candles' not in web_config:
+                        strategies[strategy_name]['confirmation_candles'] = 2
+                
+                # Set common defaults only if not in web config
+                if 'min_volume' not in web_config:
+                    strategies[strategy_name]['min_volume'] = 1000000
+                if 'decimals' not in web_config:
+                    strategies[strategy_name]['decimals'] = 2
+                if 'cooldown_period' not in web_config:
+                    strategies[strategy_name]['cooldown_period'] = 300
+                
+                # WEB DASHBOARD CONFIG OVERRIDES EVERYTHING
+                strategies[strategy_name].update(web_config)
+
+        # Add fallback strategies only if they don't exist from web dashboard
+        fallback_strategies = {
             'rsi_oversold': {
                 **self.default_params.to_dict(),
                 'symbol': 'SOLUSDT',
@@ -289,7 +337,6 @@ class TradingConfigManager:
                 'assessment_interval': 60,
                 'decimals': 2,
                 'cooldown_period': 300,
-                # RSI Strategy Parameters
                 'rsi_period': 14,
                 'rsi_long_entry': 40,
                 'rsi_long_exit': 70,
@@ -306,7 +353,6 @@ class TradingConfigManager:
                 'assessment_interval': 30,
                 'decimals': 2,
                 'cooldown_period': 300,
-                # MACD Strategy Parameters
                 'macd_fast': 12,
                 'macd_slow': 26,
                 'macd_signal': 9,
@@ -317,12 +363,10 @@ class TradingConfigManager:
             },
         }
 
-        # Apply web dashboard overrides on top of defaults
-        if self.strategy_overrides:
-            for strategy_name, config in self.strategy_overrides.items():
-                # If strategy exists in defaults, merge web dashboard config
-                if strategy_name in strategies:
-                    strategies[strategy_name].update(config)
+        # Only add fallback strategies if they don't exist from web dashboard
+        for strategy_name, fallback_config in fallback_strategies.items():
+            if strategy_name not in strategies:
+                strategies[strategy_name] = fallback_config
                 else:
                     # New strategy from web dashboard - create with defaults + overrides
                     full_config = {**self.default_params.to_dict(), **config}

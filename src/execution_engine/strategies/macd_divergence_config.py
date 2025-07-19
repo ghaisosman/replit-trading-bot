@@ -27,16 +27,10 @@ class MACDDivergenceConfig:
             'cooldown_period': 300             # Cooldown in seconds between trades
         }
 
-        # Try to load from file
-        try:
-            if os.path.exists(MACDDivergenceConfig._config_file):
-                with open(MACDDivergenceConfig._config_file, 'r') as f:
-                    saved_config = json.load(f)
-                    default_config.update(saved_config)
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(f"Could not load MACD config from file: {e}")
-
+        # WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - File-based config is deprecated
+        import logging
+        logging.getLogger(__name__).warning("DEPRECATED: File-based MACD config ignored. Use web dashboard to configure strategy.")
+        
         return default_config
 
     @staticmethod
