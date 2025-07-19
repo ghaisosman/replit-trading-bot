@@ -746,8 +746,8 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="minHistogramThreshold" class="form-label">Min Histogram Threshold</label>
-                                        <input type="number```text
-class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g., 0.0001">
+                                        <input type="number" class="form-control" id="minHistogramThreshold" step="0.00001"```text
+ placeholder="e.g., 0.0001">
                                         <div class="form-text">Minimum histogram value for signal</div>
                                     </div>
                                 </div>
@@ -763,8 +763,17 @@ class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g.
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="macdExitThreshold" class="form-label">Exit Threshold</label>
-                                        <input type="number" class="form-control" id="macdExitThreshold" step" placeholder="e.g., 0.02">
+                                        <input type="number" class="form-control" id="macdExitThreshold" step="0.01" placeholder="e.g., 0.02">
                                         <div class="form-text">MACD crossover magnitude to exit</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="divergenceStrengthMin" class="form-label">Divergence Strength Min</label>
+                                        <input type="number" class="form-control" id="divergenceStrengthMin" step="0.1" min="0.1" max="1.0" placeholder="e.g., 0.6">
+                                        <div class="form-text">Minimum divergence strength (0.1-1.0)</div>
                                     </div>
                                 </div>
                             </div>
@@ -990,13 +999,13 @@ class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g.
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
-                    
+
                     // FIXED: Check if response has content
                     const contentLength = response.headers.get('content-length');
                     if (contentLength === '0') {
                         throw new Error('Empty response from server');
                     }
-                    
+
                     return response.text();
                 })
                 .then(text => {
@@ -1004,7 +1013,7 @@ class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g.
                     if (!text || text.trim() === '') {
                         throw new Error('Empty response body');
                     }
-                    
+
                     let data;
                     try {
                         data = JSON.parse(text);
@@ -1012,12 +1021,12 @@ class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g.
                         console.error('JSON parse error:', parseError, 'Response:', text.substring(0, 100));
                         throw new Error('Invalid JSON response');
                     }
-                    
+
                     // FIXED: Validate data structure
                     if (!data || typeof data !== 'object') {
                         throw new Error('Invalid data structure received');
                     }
-                    
+
                     setCachedData('botStatus', data);
                     updateBotStatusUI(data);
                     markRequestEnd('botStatus', true);
@@ -1669,6 +1678,7 @@ class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g.
                             document.getElementById('histogramDivergenceLookback').value = config.histogram_divergence_lookback || 10;
                             document.getElementById('priceDivergenceLookback').value = config.price_divergence_lookback || 10;
                             document.getElementById('confirmationCandles').value = config.confirmation_candles || 2;
+                             document.getElementById('divergenceStrengthMin').value = config.divergence_strength_min || 0.6;
                         }
 
                         // Show modal using Bootstrap 5
@@ -1712,6 +1722,7 @@ class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g.
                 updates.histogram_divergence_lookback = parseInt(document.getElementById('histogramDivergenceLookback').value);
                 updates.price_divergence_lookback = parseInt(document.getElementById('priceDivergenceLookback').value);
                 updates.confirmation_candles = parseInt(document.getElementById('confirmationCandles').value);
+                updates.divergence_strength_min = parseFloat(document.getElementById('divergenceStrengthMin').value);
             }
 
             fetch('/api/strategies/' + strategyName, {
@@ -1789,6 +1800,7 @@ class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g.
                 newStrategy.macd_fast = 12;
                 newStrategy.macd_slow = 26;
                 newStrategy.macd_signal = 9;
+                newStrategy.divergence_strength_min = 0.6;
             }
 
             fetch('/api/strategies', {

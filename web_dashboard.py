@@ -659,7 +659,8 @@ def get_strategies():
                     'take_profit_pct': 15.0, 'trailing_stop_pct': 2.0, 'max_position_time': 3600,
                     # MACD Specific
                     'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
-                    'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2
+                    'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2,
+                    'divergence_strength_min': 0.6
                 }
             })
     except Exception as e:
@@ -902,6 +903,11 @@ def update_strategy(strategy_name):
                 data['confirmation_candles'] = int(data['confirmation_candles'])
                 if data['confirmation_candles'] < 1 or data['confirmation_candles'] > 10:
                     return jsonify({'success': False, 'message': 'Confirmation candles must be between 1 and 10'})
+
+            if 'divergence_strength_min' in data:
+                data['divergence_strength_min'] = float(data['divergence_strength_min'])
+                if data['divergence_strength_min'] < 0.1 or data['divergence_strength_min'] > 1.0:
+                    return jsonify({'success': False, 'message': 'Divergence strength must be between 0.1 and 1.0'})
 
             # Additional Advanced Parameters
             if 'take_profit_pct' in data:
