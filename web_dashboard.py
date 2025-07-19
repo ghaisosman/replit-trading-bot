@@ -538,7 +538,7 @@ import sys
 def get_bot_status():
     """Get current bot status with bulletproof error handling"""
     current_time = datetime.now().strftime('%H:%M:%S')
-    
+
     # FIXED: Always return complete JSON structure to prevent parsing errors
     default_response = {
         'success': True,
@@ -1128,7 +1128,7 @@ def get_balance():
 def get_positions():
     """Get active positions with bulletproof error handling"""
     current_time = datetime.now().strftime('%H:%M:%S')
-    
+
     # FIXED: Always return complete JSON structure
     default_response = {
         'success': True,
@@ -1176,7 +1176,7 @@ def get_positions():
                 # Calculate PnL
                 pnl = 0.0
                 pnl_percent = 0.0
-                
+
                 if current_price and hasattr(position, 'entry_price') and hasattr(position, 'quantity'):
                     entry_price = float(position.entry_price)
                     quantity = float(position.quantity)
@@ -1190,7 +1190,7 @@ def get_positions():
                     # Get strategy config for margin calculation
                     strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
                     margin_invested = strategy_config.get('margin', 50.0)
-                    
+
                     if margin_invested > 0:
                         pnl_percent = (pnl / margin_invested) * 100
 
@@ -1204,7 +1204,7 @@ def get_positions():
                     'pnl': pnl,
                     'pnl_percent': pnl_percent
                 }
-                
+
                 positions.append(position_data)
 
             except Exception as pos_error:
@@ -1398,7 +1398,7 @@ def get_bot_manager():
 def get_console_log():
     """Get recent console logs with bulletproof error handling"""
     current_time = datetime.now().strftime("%H:%M:%S")
-    
+
     # FIXED: Always guarantee valid JSON response to prevent parsing errors
     default_logs = [
         f'[{current_time}] 🌐 Web dashboard active',
@@ -1411,7 +1411,7 @@ def get_console_log():
         if current_bot_manager:
             # Try to get logs from various sources
             logs = None
-            
+
             # Method 1: get_recent_logs
             if hasattr(current_bot_manager, 'get_recent_logs'):
                 try:
@@ -1447,7 +1447,7 @@ def get_console_log():
                 f'[{current_time}] 📊 Status: {"Running" if is_running else "Stopped"}',
                 f'[{current_time}] 🔄 Logs initializing...'
             ]
-            
+
             return jsonify({
                 'success': True,
                 'logs': fallback_logs,
@@ -1475,7 +1475,7 @@ def get_console_log():
             'timestamp': current_time
         })
 
-# Proxy management functions
+# Proxy managementfunctions
 def updateProxyStatus():
     """Update proxy status - placeholder for compatibility"""
     return {'proxy_enabled': False, 'proxy_status': 'disabled'}

@@ -273,6 +273,41 @@ class OrderManager:
             # Calculate profit/loss
             pnl, pnl_percentage = self._calculate_profit_loss(position, current_price)
 
+            # First, check if position still exists on Binance before attempting to close
+            try:
+                if self.binance_client.is_futures:
+                    binance_positions = self.binance_client.client.futures_position_information(symbol=symbol)
+                    position_exists = False
+                    for binance_pos in binance_positions:
+                        pos_amt = float(binance_pos.get('positionAmt', 0))
+                        if abs(pos_amt) > 0.000001:  # Position exists
+                            position_exists = True
+                            break
+                    
+                    if not position_exists:
+                        self.logger.warning(f"Position {symbol} already closed on Binance, updating bot records")
+                        # Position already closed manually, just update records
+                        pnl, pnl_percentage = self._calculate_profit_loss(position, current_price)
+                        
+                        # Update position status and move to history
+                        position.status = "MANUALLY_CLOSED"
+                        self._add_to_history(position)
+                        with self._position_lock:
+                            del self.active_positions[strategy_name]
+                            
+                        self.logger.info(f"✅ Position {symbol} marked as manually closed")
+                        return {
+                            'symbol': symbol,
+                            'pnl_usdt': pnl,
+                            'pnl_percentage': pnl_percentage,
+                            'exit_price': current_price,
+                            'exit_reason': "Already closed manually",
+                            'duration_minutes': (datetime.now() - position.entry_time).total_seconds() / 60 if position.entry_time else 0
+                        }
+                        
+            except Exception as pos_check_error:
+                self.logger.warning(f"Could not verify position existence: {pos_check_error}")
+
             # Create closing order (opposite side) with hedge mode support
             close_side = 'SELL' if position.side == 'BUY' else 'BUY'
 
@@ -284,10 +319,33 @@ class OrderManager:
                 'positionSide': position.position_side  # Use stored position side
             }
 
-            order_result = self.binance_client.create_order(**order_params)
-            if not order_result:
-                self.logger.error("Failed to create closing order")
-                return {}
+            try:
+                order_result = self.binance_client.create_order(**order_params)
+                if not order_result:
+                    self.logger.error("Failed to create closing order")
+                    return {}
+            except Exception as order_error:
+                # Handle ReduceOnly error specifically
+                if "-2022" in str(order_error):
+                    self.logger.warning(f"ReduceOnly order rejected for {symbol} - position likely already closed")
+                    # Position already closed, update records
+                    position.status = "ALREADY_CLOSED"
+                    self._add_to_history(position)
+                    with self._position_lock:
+                        del self.active_positions[strategy_name]
+                    
+                    pnl, pnl_percentage = self._calculate_profit_loss(position, current_price)
+                    return {
+                        'symbol': symbol,
+                        'pnl_usdt': pnl,
+                        'pnl_percentage': pnl_percentage,
+                        'exit_price': current_price,
+                        'exit_reason': "Position already closed",
+                        'duration_minutes': (datetime.now() - position.entry_time).total_seconds() / 60 if position.entry_time else 0
+                    }
+                else:
+                    self.logger.error(f"Error creating closing order: {order_error}")
+                    return {}
 
             # Log trade exit for analytics
             try:
