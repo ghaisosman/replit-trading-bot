@@ -472,7 +472,7 @@ def get_bot_status():
     try:
         # FIXED: Always guarantee complete, valid JSON structure
         current_time = datetime.now().strftime('%H:%M:%S')
-        
+
         # Build response with all required fields
         response = {
             'success': True,
@@ -751,6 +751,7 @@ def create_strategy():
             # Validate RSI parameters
             if not (10 <= new_config['rsi_long_entry'] <= 50):
                 return jsonify({'success': False, 'message': 'RSI Long Entry must be between 10 and 50'})
+```python
             if not (50 <= new_config['rsi_long_exit'] <= 90):
                 return jsonify({'success': False, 'message': 'RSI Long Exit must be between 50 and 90'})
 
@@ -1106,7 +1107,7 @@ def get_positions():
 
         # Try shared bot manager first
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-        
+
         # Debug logging
         logger.debug(f"Positions API: current_bot = {current_bot is not None}")
         if current_bot:
@@ -1383,15 +1384,15 @@ def get_bot_manager():
             shared_manager = getattr(main_module, 'bot_manager')
             if shared_manager is not None:
                 return shared_manager
-        
+
         # Fallback to global bot_manager
         global bot_manager
         if bot_manager is not None:
             return bot_manager
-            
+
         # No bot manager available
         return None
-        
+
     except Exception as e:
         logger.error(f"Error getting bot manager: {e}")
         return None
@@ -1446,7 +1447,8 @@ def get_console_log():
                         })
 
                 # Try method 3: fallback logs from bot manager
-                if hasattr(current_bot_manager, '_get_fallback_logs'):
+                if hasattr(```python
+current_bot_manager, '_get_fallback_logs'):
                     logs = current_bot_manager._get_fallback_logs()
                     if isinstance(logs, list) and len(logs) > 0:
                         return jsonify({
@@ -1519,18 +1521,30 @@ def get_current_price(symbol):
         if IMPORTS_AVAILABLE:
             return price_fetcher.get_current_price(symbol)
         return None
-    except:
+    except Exception as e:
+        logger.error(f"Error getting current price for {symbol}: {e}")
         return None
 
 def calculate_pnl(position, current_price):
-    """Calculate P&L for a position"""
-    if not current_price:
-        return 0
+    """Calculate PnL for a position"""
+    try:
+        if not current_price or not position:
+            return 0.0
 
-    if position.side == 'BUY':  # Long position
-        return (current_price - position.entry_price) * position.quantity
-    else:  # Short position
-        return (position.entry_price - current_price) * position.quantity
+        entry_price = position.entry_price
+        quantity = position.quantity
+        side = position.side
+
+        # Manual PnL calculation (same as bot_manager)
+        if side == 'BUY':  # Long position
+            pnl = (current_price - entry_price) * quantity
+        else:  # Short position (SELL)
+            pnl = (entry_price - current_price) * quantity
+
+        return pnl
+    except Exception as e:
+        logger.error(f"Error calculating PnL: {e}")
+        return 0.0
 
 @app.route('/api/binance/positions', methods=['GET'])
 def get_binance_positions():
