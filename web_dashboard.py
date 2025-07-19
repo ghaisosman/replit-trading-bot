@@ -70,13 +70,15 @@ def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
                         'success': False,
                         'error': 'Rate limit exceeded',
                         'retry_after': int(limit_data['requests'][0] + limit_data['window'] - now),
+                        'running': False,
                         'is_running': False,
                         'active_positions': 0,
-                        'strategies': [],
-                        'balance': 0,
+                        'strategies': 0,
+                        'balance': 0.0,
                         'status': 'rate_limited',
-                        'last_update': datetime.now().strftime('%H:%M:%S')
-                    }), 429
+                        'last_update': datetime.now().strftime('%H:%M:%S'),
+                        'timestamp': datetime.now().strftime('%H:%M:%S')
+                    }), 200  # Changed to 200 to prevent browser errors
                 elif endpoint_key == 'console_log':
                     return jsonify({
                         'success': False,
@@ -85,7 +87,7 @@ def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
                         'logs': [f'[{datetime.now().strftime("%H:%M:%S")}] ⚠️ Rate limit exceeded - please wait'],
                         'status': 'rate_limited',
                         'timestamp': datetime.now().strftime('%H:%M:%S')
-                    }), 429
+                    }), 200  # Changed to 200 to prevent browser errors
                 elif endpoint_key == 'positions':
                     return jsonify({
                         'success': False,
@@ -121,7 +123,73 @@ def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
             limit_data['requests'].append(now)
             rate_limits[endpoint_key] = limit_data
 
-            return f(*args, **kwargs)
+            # Execute the wrapped function with error handling
+            try:
+                result = f(*args, **kwargs)
+                
+                # Ensure result is valid JSON response
+                if hasattr(result, 'get_json'):
+                    # This is a Flask response - validate it has data
+                    try:
+                        json_data = result.get_json()
+                        if not json_data:
+                            # Empty response - return appropriate default
+                            current_time = datetime.now().strftime('%H:%M:%S')
+                            if endpoint_key == 'bot_status':
+                                return jsonify({
+                                    'success': True,
+                                    'running': False,
+                                    'is_running': False,
+                                    'active_positions': 0,
+                                    'strategies': 0,
+                                    'balance': 0.0,
+                                    'status': 'no_data',
+                                    'last_update': current_time,
+                                    'timestamp': current_time
+                                })
+                            elif endpoint_key == 'console_log':
+                                return jsonify({
+                                    'success': True,
+                                    'logs': [f'[{current_time}] 🔄 Loading...'],
+                                    'status': 'loading',
+                                    'timestamp': current_time
+                                })
+                    except:
+                        pass  # If we can't parse JSON, continue with original result
+                
+                return result
+            except Exception as func_error:
+                logger.error(f"Rate-limited function {endpoint_key} failed: {func_error}")
+                
+                # Return appropriate error response based on endpoint
+                current_time = datetime.now().strftime('%H:%M:%S')
+                if endpoint_key == 'bot_status':
+                    return jsonify({
+                        'success': False,
+                        'running': False,
+                        'is_running': False,
+                        'active_positions': 0,
+                        'strategies': 0,
+                        'balance': 0.0,
+                        'status': 'function_error',
+                        'error': str(func_error),
+                        'last_update': current_time,
+                        'timestamp': current_time
+                    }), 200
+                elif endpoint_key == 'console_log':
+                    return jsonify({
+                        'success': False,
+                        'logs': [f'[{current_time}] ⚠️ Error loading logs: {str(func_error)}'],
+                        'status': 'function_error',
+                        'error': str(func_error),
+                        'timestamp': current_time
+                    }), 200
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': str(func_error),
+                        'timestamp': current_time
+                    }), 200
         return decorated_function
     return decorator
 
@@ -473,7 +541,7 @@ def get_bot_status():
         # FIXED: Always guarantee complete, valid JSON structure
         current_time = datetime.now().strftime('%H:%M:%S')
 
-        # Build response with all required fields
+        # Build response with ALL required fields that frontend expects
         response = {
             'success': True,
             'running': False,
@@ -483,7 +551,9 @@ def get_bot_status():
             'balance': 0.0,
             'status': 'checking',
             'last_update': current_time,
-            'timestamp': current_time
+            'timestamp': current_time,
+            'error': None,
+            'message': None
         }
 
         # Try to get current bot manager
@@ -1542,9 +1612,9 @@ def get_console_log():
 
     except Exception as e:
         logger.error(f"Console log endpoint critical error: {e}")
-        # FIXED: Ultimate fallback - always returns valid JSON
+        # ULTIMATE FALLBACK - always returns complete, valid JSON structure
         error_time = datetime.now().strftime("%H:%M:%S")
-        return jsonify({
+        fallback_response = {
             'success': True,
             'logs': [
                 f'[{error_time}] ⚠️ Console API temporarily unavailable',
@@ -1554,7 +1624,8 @@ def get_console_log():
             'status': 'api_critical_error',
             'error': str(e),
             'timestamp': error_time
-        }), 200
+        }
+        return jsonify(fallback_response), 200
 
 # Removed duplicate route - using the existing '/api/bot/status' route with rate limiting instead
 
