@@ -770,7 +770,7 @@ def create_strategy():
         # Check if strategy already exists
         existing_strategies = trading_config_manager.get_all_strategies()
         if strategy_name in existing_strategies:
-            return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" already exists'})
+            return jsonify({'success': False, 'message': f'Strategy "{strategyname}" already exists'})
 
         # Validate strategy type
         if 'rsi' not in strategy_name.lower() and 'macd' not in strategy_name.lower():
@@ -1434,7 +1434,7 @@ def calculate_rsi(closes, period=14):
                 valid_closes.append(float(close))
 
         if len(valid_closes) < period + period + 1:
-            return 50.0
+            return50.0
 
         # Calculate price changes
         deltas = []
@@ -1626,6 +1626,15 @@ def get_console_log():
             'timestamp': error_time
         }
         return jsonify(fallback_response), 200
+
+# Proxy management functions
+def updateProxyStatus():
+    """Update proxy status - placeholder for compatibility"""
+    return {'proxy_enabled': False, 'proxy_status': 'disabled'}
+
+def update_proxy_status():
+    """Update proxy status - placeholder for compatibility"""
+    return {'proxy_enabled': False, 'proxy_status': 'disabled'}
 
 # Removed duplicate route - using the existing '/api/bot/status' route with rate limiting instead
 
@@ -2024,7 +2033,6 @@ def toggle_proxy():
     except Exception as e:
         logger.error(f"Error toggling proxy: {e}")
         return jsonify({'success': False, 'message': f'Failed to toggle proxy: {e}'})
-
 
 # Flask app is configured above - no standalone execution needed
 # Web dashboard is launched from main.py only
