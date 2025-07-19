@@ -751,7 +751,6 @@ def create_strategy():
             # Validate RSI parameters
             if not (10 <= new_config['rsi_long_entry'] <= 50):
                 return jsonify({'success': False, 'message': 'RSI Long Entry must be between 10 and 50'})
-```python
             if not (50 <= new_config['rsi_long_exit'] <= 90):
                 return jsonify({'success': False, 'message': 'RSI Long Exit must be between 50 and 90'})
 
@@ -1447,8 +1446,7 @@ def get_console_log():
                         })
 
                 # Try method 3: fallback logs from bot manager
-                if hasattr(```python
-current_bot_manager, '_get_fallback_logs'):
+                if hasattr(current_bot_manager, '_get_fallback_logs'):
                     logs = current_bot_manager._get_fallback_logs()
                     if isinstance(logs, list) and len(logs) > 0:
                         return jsonify({
