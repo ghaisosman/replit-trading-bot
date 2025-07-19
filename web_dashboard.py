@@ -499,6 +499,14 @@ def get_bot_status():
                     'status': 'running' if is_running else 'stopped'
                 })
 
+                # If bot is stopped, ensure clean response
+                if not is_running:
+                    response.update({
+                        'active_positions': 0,
+                        'status': 'stopped',
+                        'message': 'Bot is offline'
+                    })
+
                 # Get active positions count
                 if hasattr(current_bot_manager, 'order_manager') and current_bot_manager.order_manager:
                     active_count = len(getattr(current_bot_manager.order_manager, 'active_positions', {}))
@@ -1089,7 +1097,7 @@ def get_positions():
     default_response = {
         'success': True,
         'positions': [],
-        'status': 'checking',
+        'status': 'bot_offline',
         'timestamp': datetime.now().strftime('%H:%M:%S')
     }
 
@@ -1098,6 +1106,18 @@ def get_positions():
 
         # Try shared bot manager first
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+
+        # Check if bot is actually running
+        if current_bot and hasattr(current_bot, 'is_running') and not current_bot.is_running:
+            # Bot is stopped - return clean "no positions" response
+            return jsonify({
+                'success': True,
+                'positions': [],
+                'status': 'bot_offline',
+                'count': 0,
+                'timestamp': datetime.now().strftime('%H:%M:%S'),
+                'message': 'Bot is offline - no positions displayed'
+            })
 
         if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
             # Create a safe copy to prevent "dictionary changed size during iteration" error
