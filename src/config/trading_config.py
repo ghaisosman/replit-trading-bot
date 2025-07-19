@@ -284,47 +284,33 @@ class TradingConfigManager:
         # Build strategies from web dashboard configs FIRST
         if self.strategy_overrides:
             for strategy_name, web_config in self.strategy_overrides.items():
-                # Start with base trading parameters
+                # Start with base trading parameters ONLY
                 strategies[strategy_name] = {**self.default_params.to_dict()}
                 
-                # Add strategy-specific minimal defaults only if not in web config
+                # WEB DASHBOARD CONFIG OVERRIDES EVERYTHING FIRST
+                strategies[strategy_name].update(web_config)
+                
+                # ONLY set strategy-specific defaults for parameters NOT in web config
                 if 'rsi' in strategy_name.lower():
                     # Only set RSI defaults that web dashboard hasn't specified
-                    if 'rsi_period' not in web_config:
-                        strategies[strategy_name]['rsi_period'] = 14
-                    if 'rsi_long_entry' not in web_config:
-                        strategies[strategy_name]['rsi_long_entry'] = 40
-                    if 'rsi_long_exit' not in web_config:
-                        strategies[strategy_name]['rsi_long_exit'] = 70
-                    if 'rsi_short_entry' not in web_config:
-                        strategies[strategy_name]['rsi_short_entry'] = 60
-                    if 'rsi_short_exit' not in web_config:
-                        strategies[strategy_name]['rsi_short_exit'] = 30
+                    strategies[strategy_name].setdefault('rsi_period', 14)
+                    strategies[strategy_name].setdefault('rsi_long_entry', 40)
+                    strategies[strategy_name].setdefault('rsi_long_exit', 70)
+                    strategies[strategy_name].setdefault('rsi_short_entry', 60)
+                    strategies[strategy_name].setdefault('rsi_short_exit', 30)
                 elif 'macd' in strategy_name.lower():
                     # Only set MACD defaults that web dashboard hasn't specified
-                    if 'macd_fast' not in web_config:
-                        strategies[strategy_name]['macd_fast'] = 12
-                    if 'macd_slow' not in web_config:
-                        strategies[strategy_name]['macd_slow'] = 26
-                    if 'macd_signal' not in web_config:
-                        strategies[strategy_name]['macd_signal'] = 9
-                    if 'min_histogram_threshold' not in web_config:
-                        strategies[strategy_name]['min_histogram_threshold'] = 0.0001
-                    if 'min_distance_threshold' not in web_config:
-                        strategies[strategy_name]['min_distance_threshold'] = 0.005
-                    if 'confirmation_candles' not in web_config:
-                        strategies[strategy_name]['confirmation_candles'] = 2
+                    strategies[strategy_name].setdefault('macd_fast', 12)
+                    strategies[strategy_name].setdefault('macd_slow', 26)
+                    strategies[strategy_name].setdefault('macd_signal', 9)
+                    strategies[strategy_name].setdefault('min_histogram_threshold', 0.0001)
+                    strategies[strategy_name].setdefault('min_distance_threshold', 0.005)
+                    strategies[strategy_name].setdefault('confirmation_candles', 2)
                 
-                # Set common defaults only if not in web config
-                if 'min_volume' not in web_config:
-                    strategies[strategy_name]['min_volume'] = 1000000
-                if 'decimals' not in web_config:
-                    strategies[strategy_name]['decimals'] = 2
-                if 'cooldown_period' not in web_config:
-                    strategies[strategy_name]['cooldown_period'] = 300
-                
-                # WEB DASHBOARD CONFIG OVERRIDES EVERYTHING
-                strategies[strategy_name].update(web_config)
+                # Set common defaults only if not already set
+                strategies[strategy_name].setdefault('min_volume', 1000000)
+                strategies[strategy_name].setdefault('decimals', 2)
+                strategies[strategy_name].setdefault('cooldown_period', 300)
 
         # Add fallback strategies only if they don't exist from web dashboard
         fallback_strategies = {
