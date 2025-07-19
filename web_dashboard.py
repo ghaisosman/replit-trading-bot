@@ -770,7 +770,7 @@ def create_strategy():
         # Check if strategy already exists
         existing_strategies = trading_config_manager.get_all_strategies()
         if strategy_name in existing_strategies:
-            return jsonify({'success': False, ''message': f'Strategy "{strategy_name}" already exists'})
+            return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" already exists'})
 
         # Validate strategy type
         if 'rsi' not in strategy_name.lower() and 'macd' not in strategy_name.lower():
@@ -1433,7 +1433,7 @@ def calculate_rsi(closes, period=14):
             if isinstance(close, (int, float)) and close > 0:
                 valid_closes.append(float(close))
 
-        if len(valid_closes) < period + 1:
+        if len(valid_closes) < period + period + 1:
             return 50.0
 
         # Calculate price changes
