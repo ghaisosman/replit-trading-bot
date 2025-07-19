@@ -367,50 +367,8 @@ class TradingConfigManager:
         for strategy_name, fallback_config in fallback_strategies.items():
             if strategy_name not in strategies:
                 strategies[strategy_name] = fallback_config
-                else:
-                    # New strategy from web dashboard - create with defaults + overrides
-                    full_config = {**self.default_params.to_dict(), **config}
 
-                    # Add comprehensive strategy-specific defaults based on strategy name/type
-                    if 'rsi' in strategy_name.lower():
-                        # RSI strategy comprehensive defaults
-                        full_config.setdefault('rsi_period', 14)
-                        full_config.setdefault('rsi_long_entry', 40)
-                        full_config.setdefault('rsi_long_exit', 70)
-                        full_config.setdefault('rsi_short_entry', 60)
-                        full_config.setdefault('rsi_short_exit', 30)
-                        full_config.setdefault('min_volume', 1000000)
-                        full_config.setdefault('decimals', 2)
-                        full_config.setdefault('cooldown_period', 300)
-                    elif 'macd' in strategy_name.lower():
-                        # MACD strategy comprehensive defaults
-                        full_config.setdefault('macd_fast', 12)
-                        full_config.setdefault('macd_slow', 26)
-                        full_config.setdefault('macd_signal', 9)
-                        full_config.setdefault('min_histogram_threshold', 0.0001)
-                        full_config.setdefault('min_distance_threshold', 0.005)
-                        full_config.setdefault('confirmation_candles', 2)
-                        full_config.setdefault('min_volume', 1000000)
-                        full_config.setdefault('decimals', 2)
-                        full_config.setdefault('cooldown_period', 300)
-                    else:
-                        # Universal defaults for ANY future strategy type
-                        # This ensures the system is future-proof
-                        full_config.setdefault('decimals', 2)
-                        full_config.setdefault('cooldown_period', 300)
-                        full_config.setdefault('min_volume', 1000000)
-                        
-                        # Add universal strategy parameters with safe defaults
-                        full_config.setdefault('entry_threshold', 0.1)
-                        full_config.setdefault('exit_threshold', 0.05)
-                        full_config.setdefault('signal_period', 14)
-                        full_config.setdefault('confirmation_period', 2)
-
-                    # Ensure all configs have required base parameters
-                    full_config.setdefault('assessment_interval', 60)
-                    full_config.setdefault('max_loss_pct', 10)
-
-                    strategies[strategy_name] = full_config
+                    
 
         return strategies
 
