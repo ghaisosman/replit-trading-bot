@@ -372,62 +372,51 @@ def start_bot():
             if shared_bot_manager.is_running:
                 return jsonify({'success': False, 'message': 'Bot is already running in console'})
 
-            # Use the shared bot manager and start it
-            bot_manager = shared_bot_manager
+            # Create a fresh bot manager instance to avoid connection issues
+            logger.info("🌐 WEB INTERFACE: Creating fresh bot manager for restart")
 
-            # Log the web start action to console
-            logger.info("🌐 WEB INTERFACE: Starting bot via web dashboard")
-
-            # Also log to bot manager's logger if available
-            if hasattr(shared_bot_manager, 'logger'):
-                shared_bot_manager.logger.info("🌐 WEB INTERFACE: Bot started via web dashboard")
-
-            # Start the shared bot in the main event loop
-            def start_shared_bot():
+            # Start the fresh bot in the main event loop
+            def start_fresh_bot():
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    # FORCE reset startup notification flag for restart
-                    shared_bot_manager.startup_notified = False
+                    # Create completely fresh bot manager instance
+                    from src.bot_manager import BotManager
+                    fresh_bot_manager = BotManager()
 
-                    # Set running state
-                    shared_bot_manager.is_running = True
-                    logger.info("🚀 BOT RESTARTED VIA WEB INTERFACE")
+                    # Update the global reference
+                    sys.modules['__main__'].bot_manager = fresh_bot_manager
+                    globals()['bot_manager'] = fresh_bot_manager
 
-                    # Force debug logging for notification state
-                    logger.info(f"🔍 DEBUG: startup_notified reset to: {shared_bot_manager.startup_notified}")
+                    logger.info("🚀 FRESH BOT INSTANCE CREATED VIA WEB INTERFACE")
 
-                    # Start the bot's start method (this will handle startup notifications properly)
-                    loop.run_until_complete(shared_bot_manager.start())
+                    # Start the fresh bot's start method
+                    loop.run_until_complete(fresh_bot_manager.start())
                 except Exception as e:
-                    logger.error(f"Bot error during restart: {e}")
+                    logger.error(f"Fresh bot error during restart: {e}")
                     # Send error notification
                     try:
-                        shared_bot_manager.telegram_reporter.report_bot_stopped(f"Restart failed: {str(e)}")
+                        if 'fresh_bot_manager' in locals():
+                            fresh_bot_manager.telegram_reporter.report_bot_stopped(f"Restart failed: {str(e)}")
                     except:
                         pass
                 finally:
-                    shared_bot_manager.is_running = False
+                    if 'fresh_bot_manager' in locals():
+                        fresh_bot_manager.is_running = False
                     logger.info("🔴 BOT STOPPED - Web interface remains active")
                     loop.close()
 
-            bot_thread = threading.Thread(target=start_shared_bot, daemon=True)
+            bot_thread = threading.Thread(target=start_fresh_bot, daemon=True)
             bot_thread.start()
             bot_running = True
 
-            return jsonify({'success': True, 'message': 'Bot restarted successfully from web interface'})
+            return jsonify({'success': True, 'message': 'Fresh bot instance started successfully from web interface'})
 
         # Fallback: create new bot instance if no shared manager exists
         if bot_running:
             return jsonify({'success': False, 'message': 'Bot is already running'})
 
         logger.info("🌐 WEB INTERFACE: Creating new bot instance via web dashboard")
-
-        # Create fresh bot manager instance
-        bot_manager = BotManager()
-
-        # Update the global reference
-        sys.modules['__main__'].bot_manager = bot_manager
 
         bot_running = True
 
@@ -437,13 +426,22 @@ def start_bot():
             asyncio.set_event_loop(loop)
             logger = logging.getLogger(__name__)
             try:
+                # Create fresh bot manager instance inside the thread
+                from src.bot_manager import BotManager
+                new_bot_manager = BotManager()
+
+                # Update the global reference
+                sys.modules['__main__'].bot_manager = new_bot_manager
+                globals()['bot_manager'] = new_bot_manager
+
                 logger.info("🚀 STARTING NEW BOT INSTANCE FROM WEB INTERFACE")
-                loop.run_until_complete(bot_manager.start())
+                loop.run_until_complete(new_bot_manager.start())
             except Exception as e:
                 logger.error(f"Bot error: {e}")
                 # Send error notification
                 try:
-                    bot_manager.telegram_reporter.report_bot_stopped(f"Startup failed: {str(e)}")
+                    if 'new_bot_manager' in locals():
+                        new_bot_manager.telegram_reporter.report_bot_stopped(f"Startup failed: {str(e)}")
                 except:
                     pass
             finally:
