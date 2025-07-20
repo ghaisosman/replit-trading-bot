@@ -375,6 +375,7 @@ def start_bot():
         logger.info("🌐 WEB INTERFACE: Starting bot from dashboard")
 
         # Set running state immediately
+        global bot_running
         bot_running = True
 
         # Start bot in separate thread with proper cleanup
@@ -427,6 +428,7 @@ def start_bot():
         return jsonify({'success': True, 'message': 'Bot started successfully from web interface'})
 
     except Exception as e:
+        global bot_running
         bot_running = False
         logger.error(f"Failed to start bot: {e}")
         return jsonify({'success': False, 'message': f'Failed to start bot: {e}'})
@@ -483,6 +485,7 @@ def stop_bot():
             stopped = True
 
         # Update global state
+        global bot_running
         bot_running = False
 
         # Wait for bot thread to finish
@@ -505,6 +508,7 @@ def stop_bot():
     except Exception as e:
         logger.error(f"Error stopping bot: {e}")
         # Force cleanup
+        global bot_running
         bot_running = False
         if shared_bot_manager:
             shared_bot_manager.is_running = False
