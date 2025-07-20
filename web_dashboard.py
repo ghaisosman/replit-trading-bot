@@ -2010,4 +2010,24 @@ def enable_strategy(strategy_name):
         logger.error(f"Error enabling strategy {strategy_name}: {e}")
         return jsonify({'success': False, 'message': f'Failed to enable strategy: {str(e)}'})
 
-Add missing global bot_running declaration in update_trading_environment function
+# Add missing global bot_running declaration in update_trading_environment function
+
+@app.route('/api/trading/environment', methods=['POST'])
+def update_trading_environment():
+    """Update trading environment (testnet/mainnet)"""
+    global bot_running
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'message': 'Configuration update not available in demo mode'})
+
+        data = request.get_json()
+
+        if not data or 'is_testnet' not in data:
+            return jsonify({'success': False, 'message': 'Missing is_testnet parameter'})
+
+        is_testnet = bool(data['is_testnet'])
+
+        # Update the global config in memory
+        global_config.BINANCE_TESTNET = is_testnet
+
+        # Save to environment configuration file for persistence
