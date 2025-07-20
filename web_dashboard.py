@@ -757,8 +757,7 @@ def get_strategies():
                     'symbol': 'BTCUSDT', 'timeframe': '15m', 'margin': 50.0, 'leverage': 5,
                     'stop_loss_pct': 10.0, 'max_loss_pct': 10.0, 'assessment_interval': 30,
                     # Position Management
-                    'cooldown```python
-period': 300, 'min_volume': 1000.0, 'decimals': 3,
+                    'cooldown_period': 300, 'min_volume': 1000.0, 'decimals': 3,
                     'take_profit_pct': 15.0, 'trailing_stop_pct': 2.0, 'max_position_time': 3600,
                     # MACD Specific
                     'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
@@ -1434,9 +1433,7 @@ def get_rsi(symbol):
         # Convert to closes
         closes = []
         for kline in klines:
-            This fix addresses a syntax error by correcting a duplicated exception handling block in the stop_bot function.
-```python
-try:
+            try:
                 close_price = float(kline[4])
                 closes.append(close_price)
             except (ValueError, IndexError):
