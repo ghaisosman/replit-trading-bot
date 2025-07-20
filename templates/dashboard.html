@@ -1014,24 +1014,24 @@
 
         // Update bot status with safe API handling
         async function updateBotStatus() {
-            const debugId = `status_${Date.now()}`;
-            console.log(`🔍 DEBUG [${debugId}]: updateBotStatus called`);
+            const debugId = 'status_' + Date.now();
+            console.log('🔍 DEBUG [' + debugId + ']: updateBotStatus called');
 
             if (!shouldUpdate('botStatus')) {
-                console.log(`🔍 DEBUG [${debugId}]: shouldUpdate returned false, skipping`);
+                console.log('🔍 DEBUG [' + debugId + ']: shouldUpdate returned false, skipping');
                 return;
             }
 
             try {
-                console.log(`🔍 DEBUG [${debugId}]: Calling cachedApiRequest for bot status`);
+                console.log('🔍 DEBUG [' + debugId + ']: Calling cachedApiRequest for bot status');
                 const data = await cachedApiRequest('/api/bot/status', 'botStatus');
 
                 if (!data) {
-                    console.log(`🔍 DEBUG [${debugId}]: No data returned from API`);
+                    console.log('🔍 DEBUG [' + debugId + ']: No data returned from API');
                     return;
                 }
 
-                console.log(`🔍 DEBUG [${debugId}]: Bot status data received:`, data);
+                console.log('🔍 DEBUG [' + debugId + ']: Bot status data received:', data);
 
                 const statusElement = document.getElementById('botStatus');
                 const botToggle = document.getElementById('botToggle');
@@ -1050,7 +1050,7 @@
 
                 if (isRunning) {
                     if (statusElement) {
-                        statusElement.textContent = `RUNNING (${data.strategies || 0} strategies)`;
+                        statusElement.textContent = 'RUNNING (' + (data.strategies || 0) + ' strategies)';
                         statusElement.className = 'badge bg-success me-2';
                     }
                     if (botToggle) {
@@ -1063,7 +1063,7 @@
                     }
                 } else {
                     if (statusElement) {
-                        statusElement.textContent = `STOPPED (${data.strategies || 0} strategies)`;
+                        statusElement.textContent = 'STOPPED (' + (data.strategies || 0) + ' strategies)';
                         statusElement.className = 'badge bg-danger me-2';
                     }
                     if (botToggle) {
@@ -1088,17 +1088,17 @@
                 // Update balance if provided in status
                 if (balanceElement && data.balance !== undefined) {
                     const balance = data.balance || 0;
-                    console.log(`🔍 DEBUG [${debugId}]: Balance from status: ${balance}`);
-                    balanceElement.textContent = `${balance.toFixed(2)}`;
+                    console.log('🔍 DEBUG [' + debugId + ']: Balance from status: ' + balance);
+                    balanceElement.textContent = balance.toFixed(2);
                 }
                 recordApiSuccess('botStatus');
-                console.log(`✅ DEBUG [${debugId}]: Bot status update completed successfully`);
+                console.log('✅ DEBUG [' + debugId + ']: Bot status update completed successfully');
 
             } catch (error) {
-                console.error(`❌ DEBUG [${debugId}]: Error updating bot status:`, error);
-                console.error(`❌ DEBUG [${debugId}]: Error type: ${error.constructor.name}`);
-                console.error(`❌ DEBUG [${debugId}]: Error message: ${error.message}`);
-                console.error(`❌ DEBUG [${debugId}]: Error stack:`, error.stack);
+                console.error('❌ DEBUG [' + debugId + ']: Error updating bot status:', error);
+                console.error('❌ DEBUG [' + debugId + ']: Error type: ' + error.constructor.name);
+                console.error('❌ DEBUG [' + debugId + ']: Error message: ' + error.message);
+                console.error('❌ DEBUG [' + debugId + ']: Error stack:', error.stack);
 
                 recordApiError('botStatus');
 
@@ -1174,7 +1174,7 @@
             fetch('/api/balance')
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        throw new Error('HTTP ' + response.status + ': ' + response.statusText);
                     }
                     return response.json();
                 })
@@ -1285,19 +1285,17 @@
 
             if (data.success && data.positions && data.positions.length > 0) {
                 data.positions.forEach(position => {
-                    const row = `
-                        <tr>
-                            <td>${position.strategy}</td>
-                            <td>${position.symbol}</td>
-                            <td>${position.side}</td>
-                            <td>${formatNumber(position.entry_price)}</td>
-                            <td>${formatNumber(position.position_value_usdt)}</td>
-                            <td>${formatNumber(position.current_price)}</td>
-                            <td class="${position.pnl >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl)}</td>
-                            <td class="${position.pnl_percent >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(position.pnl_percent)}%</td>
-                            <td id="rsi-${data.positions.indexOf(position)}">Loading...</td>
-                        </tr>
-                    `;
+                    const row = '<tr>' +
+                            '<td>' + position.strategy + '</td>' +
+                            '<td>' + position.symbol + '</td>' +
+                            '<td>' + position.side + '</td>' +
+                            '<td>' + formatNumber(position.entry_price) + '</td>' +
+                            '<td>' + formatNumber(position.position_value_usdt) + '</td>' +
+                            '<td>' + formatNumber(position.current_price) + '</td>' +
+                            '<td class="' + (position.pnl >= 0 ? 'text-success' : 'text-danger') + '">' + formatNumber(position.pnl) + '</td>' +
+                            '<td class="' + (position.pnl_percent >= 0 ? 'text-success' : 'text-danger') + '">' + formatNumber(position.pnl_percent) + '%</td>' +
+                            '<td id="rsi-' + data.positions.indexOf(position) + '">Loading...</td>' +
+                        '</tr>';
                     positionsTableBody.innerHTML += row;
                 });
 
@@ -1315,7 +1313,7 @@
             fetch('/api/rsi/' + symbol)
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
+                        throw new Error('HTTP ' + response.status);
                     }
                     return response.json();
                 })
@@ -1376,21 +1374,21 @@
         let pollingActive = true;
 
          async function apiRequest(url, options = {}) {
-            const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            const requestId = 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
-            console.log(`🔍 DEBUG [${requestId}]: Starting API request to ${url}`);
+            console.log('🔍 DEBUG [' + requestId + ']: Starting API request to ' + url);
 
             try {
                 // Check if this request is already active to prevent duplicates
                 if (activeRequests.has(url)) {
-                    console.log(`⏸️ Request already active for ${url}, skipping duplicate`);
+                    console.log('⏸️ Request already active for ' + url + ', skipping duplicate');
                     return null;
                 }
 
                 activeRequests.add(url);
 
                 const startTime = performance.now();
-                console.log(`📤 DEBUG [${requestId}]: Sending request...`);
+                console.log('📤 DEBUG [' + requestId + ']: Sending request...');
 
                 const response = await fetch(url, {
                     method: 'GET',
@@ -1405,19 +1403,19 @@
                 });
 
                 const requestDuration = performance.now() - startTime;
-                console.log(`📥 DEBUG [${requestId}]: Response received in ${requestDuration.toFixed(2)}ms`);
-                console.log(`📊 DEBUG [${requestId}]: Status: ${response.status}, Content-Type: ${response.headers.get('content-type')}`);
+                console.log('📥 DEBUG [' + requestId + ']: Response received in ' + requestDuration.toFixed(2) + 'ms');
+                console.log('📊 DEBUG [' + requestId + ']: Status: ' + response.status + ', Content-Type: ' + response.headers.get('content-type'));
 
                 // Handle initialization status specifically
                 if (response.status === 202) {
-                    console.log(`⏳ DEBUG [${requestId}]: Backend still initializing (202)`);
+                    console.log('⏳ DEBUG [' + requestId + ']: Backend still initializing (202)');
                     const responseText = await response.text();
                     try {
                         const data = JSON.parse(responseText);
-                        console.log(`🔄 DEBUG [${requestId}]: Initialization response:`, data);
+                        console.log('🔄 DEBUG [' + requestId + ']: Initialization response:', data);
                         return data;
                     } catch (parseError) {
-                        console.log(`⏳ DEBUG [${requestId}]: Initialization response not JSON, continuing...`);
+                        console.log('⏳ DEBUG [' + requestId + ']: Initialization response not JSON, continuing...');
                         return {
                             success: false,
                             status: 'initializing',
@@ -1428,59 +1426,59 @@
                 }
 
                 if (!response.ok) {
-                    console.error(`❌ DEBUG [${requestId}]: HTTP error ${response.status}: ${response.statusText}`);
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    console.error('❌ DEBUG [' + requestId + ']: HTTP error ' + response.status + ': ' + response.statusText);
+                    throw new Error('HTTP ' + response.status + ': ' + response.statusText);
                 }
 
                 // Check content type
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
-                    console.error(`❌ DEBUG [${requestId}]: Invalid content type: ${contentType}`);
-                    throw new Error(`Invalid content type: ${contentType}`);
+                    console.error('❌ DEBUG [' + requestId + ']: Invalid content type: ' + contentType);
+                    throw new Error('Invalid content type: ' + contentType);
                 }
 
                 // Clone response to read as text first for debugging
                 const responseClone = response.clone();
                 const responseText = await responseClone.text();
 
-                console.log(`📄 DEBUG [${requestId}]: Raw response (${responseText.length} chars):`, responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
+                console.log('📄 DEBUG [' + requestId + ']: Raw response (' + responseText.length + ' chars):', responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
 
                 // Validate JSON before parsing
                 if (!responseText.trim()) {
-                    console.error(`❌ DEBUG [${requestId}]: Empty response body!`);
+                    console.error('❌ DEBUG [' + requestId + ']: Empty response body!');
                     throw new Error('Empty response body');
                 }
 
                 if (!responseText.startsWith('{') && !responseText.startsWith('[')) {
-                    console.error(`❌ DEBUG [${requestId}]: Response does not start with JSON character: "${responseText.charAt(0)}"`);
-                    throw new Error(`Invalid JSON start character: "${responseText.charAt(0)}"`);
+                    console.error('❌ DEBUG [' + requestId + ']: Response does not start with JSON character: "' + responseText.charAt(0) + '"');
+                    throw new Error('Invalid JSON start character: "' + responseText.charAt(0) + '"');
                 }
 
                 try {
                     const data = JSON.parse(responseText);
-                    console.log(`✅ DEBUG [${requestId}]: JSON parsed successfully`);
-                    console.log(`📋 DEBUG [${requestId}]: Response data keys:`, Object.keys(data));
+                    console.log('✅ DEBUG [' + requestId + ']: JSON parsed successfully');
+                    console.log('📋 DEBUG [' + requestId + ']: Response data keys:', Object.keys(data));
                     return data;
                 } catch (parseError) {
-                    console.error(`❌ DEBUG [${requestId}]: JSON parse error:`, parseError);
-                    console.error(`❌ DEBUG [${requestId}]: Problematic text:`, responseText);
-                    throw new Error(`JSON parse error: ${parseError.message}`);
+                    console.error('❌ DEBUG [' + requestId + ']: JSON parse error:', parseError);
+                    console.error('❌ DEBUG [' + requestId + ']: Problematic text:', responseText);
+                    throw new Error('JSON parse error: ' + parseError.message);
                 }
 
             } catch (error) {
-                console.error(`❌ DEBUG [${requestId}]: API request failed for ${url}`);
-                console.error(`❌ DEBUG [${requestId}]: Error type: ${error.constructor.name}`);
-                console.error(`❌ DEBUG [${requestId}]: Error message: ${error.message}`);
-                console.error(`❌ DEBUG [${requestId}]: Full error:`, error);
+                console.error('❌ DEBUG [' + requestId + ']: API request failed for ' + url);
+                console.error('❌ DEBUG [' + requestId + ']: Error type: ' + error.constructor.name);
+                console.error('❌ DEBUG [' + requestId + ']: Error message: ' + error.message);
+                console.error('❌ DEBUG [' + requestId + ']: Full error:', error);
 
                 // Log additional context
-                console.error(`❌ DEBUG [${requestId}]: URL: ${url}`);
-                console.error(`❌ DEBUG [${requestId}]: Options:`, options);
+                console.error('❌ DEBUG [' + requestId + ']: URL: ' + url);
+                console.error('❌ DEBUG [' + requestId + ']: Options:', options);
 
                 return null;
             } finally {
                 activeRequests.delete(url);
-                console.log(`🧹 DEBUG [${requestId}]: Request cleanup completed`);
+                console.log('🧹 DEBUG [' + requestId + ']: Request cleanup completed');
             }
         }
 
@@ -1489,7 +1487,7 @@
             return fetch(url, options)
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        throw new Error('HTTP ' + response.status + ': ' + response.statusText);
                     }
 
                     // Get content type to validate JSON response
@@ -1541,7 +1539,7 @@
             } else if (url.includes('/api/console-log')) {
                 return {
                     success: true,
-                    logs: [`[${currentTime}] 🔄 API temporarily unavailable`],
+                    logs: ['[' + currentTime + '] 🔄 API temporarily unavailable'],
                     status: 'api_fallback',
                     timestamp: currentTime
                 };
@@ -1634,8 +1632,7 @@
                 apiCache[key].timestamp = 0;
                 apiCache[key].consecutiveHits = 0;
                 apiCache[key].ttl = key === 'botStatus' ? 8000 :
-                                   key === 'balance'```text
- ? 30000 :
+                                   key === 'balance' ? 30000 :
                                    key === 'positions' ? 12000 : 5000;
             });
 
@@ -1676,8 +1673,11 @@
             }, 2000); // 2 second delay to allow backend initialization
         });
 
-        function initializeDashboardWithRetry(attempt = 1, maxAttempts = 5) {
-            console.log(`🔄 Dashboard initialization attempt ${attempt}/${maxAttempts}`);
+function initializeDashboardWithRetry(attempt, maxAttempts) {
+            if (!attempt) attempt = 1;
+            if (!maxAttempts) maxAttempts = 5;
+
+            console.log('🔄 Dashboard initialization attempt ' + attempt + '/' + maxAttempts);
 
             Promise.allSettled([
                 updateBotStatus(),
@@ -1697,7 +1697,7 @@
                 });
 
                 if (stillInitializing && attempt < maxAttempts) {
-                    console.log(`⏳ Backend still initializing, retrying in 3 seconds... (${attempt}/${maxAttempts})`);
+                    console.log('⏳ Backend still initializing, retrying in 3 seconds... (' + attempt + '/' + maxAttempts + ')');
                     setTimeout(() => {
                         initializeDashboardWithRetry(attempt + 1, maxAttempts);
                     }, 3000);
@@ -1714,7 +1714,7 @@
                 console.error('❌ Dashboard initialization error:', error);
 
                 if (attempt < maxAttempts) {
-                    console.log(`🔄 Retrying dashboard initialization in 5 seconds... (${attempt}/${maxAttempts})`);
+                    console.log('🔄 Retrying dashboard initialization in 5 seconds... (' + attempt + '/' + maxAttempts + ')');
                     setTimeout(() => {
                         initializeDashboardWithRetry(attempt + 1, maxAttempts);
                     }, 5000);
@@ -1728,6 +1728,7 @@
                     }
                 }
             });
+        }
 
             // Handle visibility changes to optimize resource usage
             document.addEventListener('visibilitychange', function() {
@@ -1781,7 +1782,7 @@
             window.addEventListener('beforeunload', function() {
                 stopIntelligentUpdates();
             });
-        }
+        
 
         // Show strategies info
         function showStrategiesInfo() {
@@ -1801,7 +1802,7 @@
         // Load strategies with cache busting
         function loadStrategiesWithCacheBust() {
             const timestamp = new Date().getTime();
-            fetch(`/api/strategies?_t=${timestamp}`)
+            fetch('/api/strategies?_t=' + timestamp)
                 .then(response => response.json())
                 .then(strategies => {
                     // Update global strategies cache
@@ -1818,7 +1819,7 @@
         function editStrategy(strategyName) {
             // Force fresh data fetch with timestamp to bypass cache
             const timestamp = new Date().getTime();
-            fetch(`/api/strategies?_t=${timestamp}`)
+            fetch('/api/strategies?_t=' + timestamp)
                 .then(response => response.json())
                 .then(strategies => {
                     const config = strategies[strategyName];
@@ -1836,7 +1837,7 @@
 
         // View strategy statistics function
         function viewStrategyStats(strategyName) {
-            alert(`📊 Strategy Statistics for ${strategyName.replace('_', ' ').toUpperCase()}\n\n` +
+            alert('📊 Strategy Statistics for ' + strategyName.replace('_', ' ').toUpperCase() + '\n\n' +
                   'Feature coming soon!\n\n' +
                   '• Trade success rate\n' +
                   '• Average profit/loss\n' +
@@ -1846,10 +1847,10 @@
 
         // Disable strategy function
         function disableStrategy(strategyName) {
-            if (confirm(`Are you sure you want to disable ${strategyName.replace('_', ' ').toUpperCase()}?\n\n` +
+            if (confirm('Are you sure you want to disable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n' +
                        'This will stop the bot from executing trades for this strategy.')) {
 
-                fetch(`/api/strategies/${strategyName}/disable`, {
+                fetch('/api/strategies/' + strategyName + '/disable', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -1985,7 +1986,7 @@
                 updates.divergence_strength_min = parseFloat(document.getElementById('divergenceStrengthMin').value);
             }
 
-            fetch(`/api/strategies/${strategyName}`, {
+            fetch('/api/strategies/' + strategyName, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -2147,6 +2148,7 @@
                   '• Risk management alerts\n\n' +
                   'Check console logs for detailed anomaly reports.');
         }
-    </script>
+    
+</script>
 </body>
 </html>
