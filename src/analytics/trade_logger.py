@@ -98,10 +98,12 @@ class TradeLogger:
     def log_trade_entry(self, strategy_name: str, symbol: str, side: str, 
                        entry_price: float, quantity: float, margin_used: float, 
                        leverage: int, technical_indicators: Dict[str, float] = None,
-                       market_conditions: Dict[str, Any] = None) -> str:
+                       market_conditions: Dict[str, Any] = None, trade_id: str = None) -> str:
         """Log trade entry with comprehensive data"""
 
-        trade_id = f"{strategy_name}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        # Use provided trade_id or generate unique one
+        if trade_id is None:
+            trade_id = f"{strategy_name}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         # Calculate position value
         position_value_usdt = entry_price * quantity

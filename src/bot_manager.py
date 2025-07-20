@@ -824,7 +824,7 @@ Interval: every {assessment_interval} seconds
 
                         # Close position
                         if self.order_manager.close_position(strategy_name, exit_reason):
-                            self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:,.1f} | Exit: ${current_price:,.1f} | Final PnL: ${pnl:.1f}")
+                            self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:.1f} | Exit: ${current_price:.1f} | Final PnL: ${pnl:.1f}")
 
                             # Send Telegram notification for position closed
                             try:
@@ -1008,12 +1008,67 @@ Interval: every {assessment_interval} seconds
                                     from src.execution_engine.trade_database import TradeDatabase
                                     trade_db = TradeDatabase()
                                     trade_id = trade_db.find_trade_by_position(strategy_name, symbol, side, quantity, entry_price, tolerance=0.01)
-                                    if trade_id:
-                                        self.logger.info(f"🔍 FOUND MATCHING TRADE ID: {trade_id}")
-                                    else:
-                                        self.logger.info(f"🔍 NO MATCHING TRADE ID FOUND in database")
-                                except Exception as e:
-                                    self.logger.error(f"Error checking trade database: {e}")
+                                except Exception as db_error:
+                                    self.logger.warning(f"Could not check trade database: {db_error}")
+
+                                if trade_id:
+                                    self.logger.info(f"🔍 FOUND MATCHING TRADE ID: {trade_id}")
+                                else:
+                                    self.logger.info(f"🔍 NO MATCHING TRADE ID FOUND in database")
+
+                                    # CRITICAL FIX: Create missing trade record for recovered position
+                                    try:
+                                        from src.analytics.trade_logger import trade_logger
+                                        from datetime import datetime
+
+                                        # Generate a trade ID for the recovered position
+                                        recovered_trade_id = f"{strategy_name}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_RECOVERED"
+
+                                        # Calculate margin used (estimate from position value and typical leverage)
+                                        position_value = entry_price * quantity
+                                        estimated_leverage = strategy_config.get('leverage', 5)
+                                        estimated_margin = position_value / estimated_leverage
+
+                                        # Record in trade logger
+                                        trade_logger.log_trade_entry(
+                                            strategy_name=strategy_name,
+                                            symbol=symbol,
+                                            side=side,
+                                            entry_price=entry_price,
+                                            quantity=quantity,
+                                            margin_used=estimated_margin,
+                                            leverage=estimated_leverage,
+                                            trade_id=recovered_trade_id
+                                        )
+
+                                        # Record in database
+                                        trade_data = {
+                                            'trade_id': recovered_trade_id,
+                                            'strategy_name': strategy_name,
+                                            'symbol': symbol,
+                                            'side': side,
+                                            'entry_price': entry_price,
+                                            'quantity': quantity,
+                                            'stop_loss': 0.0,  # Unknown for recovered position
+                                            'take_profit': 0.0,  # Unknown for recovered position
+                                            'position_side': 'LONG' if side == 'BUY' else 'SHORT',
+                                            'order_id': None,  # Unknown for recovered position
+                                            'entry_time': datetime.now().isoformat(),
+                                            'timestamp': datetime.now().isoformat(),
+                                            'trade_status': 'OPEN',
+                                            'margin_used': estimated_margin,
+                                            'leverage': estimated_leverage,
+                                            'position_value_usdt': position_value,
+                                            'recovery_note': 'Position recovered on bot restart'
+                                        }
+
+                                        trade_db.add_trade(recovered_trade_id, trade_data)
+                                        trade_id = recovered_trade_id
+
+                                        self.logger.info(f"✅ CREATED MISSING TRADE RECORD: {recovered_trade_id}")
+
+                                    except Exception as recovery_error:
+                                        self.logger.error(f"❌ Error creating trade record for recovered position: {recovery_error}")
 
                                 # IMPROVED RECOVERY LOGIC: Always recover valid positions to prevent ghost detection
                                 should_recover = True  # Default to recovery for valid positions
@@ -1368,7 +1423,8 @@ Interval: every {assessment_interval} seconds
 
             # Trigger stop loss if loss percentage exceeds threshold
             if pnl_percentage <= -max_loss_pct:
-                self.logger.info(f"💥 STOP LOSS TRIGGERED | {strategy_name} | PnL: ${pnl:.2f} ({pnl_percentage:.1f}%) >= -{max_loss_pct}% threshold")
+                ```python
+self.logger.info(f"💥 STOP LOSS TRIGGERED | {strategy_name} | PnL: ${pnl:.2f} ({pnl_percentage:.1f}%) >= -{max_loss_pct}% threshold")
                 result = self.order_manager.close_position(strategy_name, "Stop Loss")
                 if result:
                     self._notify_position_closed(strategy_name, result)
@@ -1505,7 +1561,7 @@ Interval: every {assessment_interval} seconds
 
                         # Close position
                         if self.order_manager.close_position(strategy_name, exit_reason):
-                            self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:.1f} | Exit: ${current_price:,.1f} | Final PnL: ${pnl:.1f}")
+                            self.logger.info(f"✅ POSITION CLOSED | {strategy_name.upper()} | {strategy_config['symbol']} | {exit_reason} | Entry: ${position.entry_price:.1f} | Exit: ${current_price:.1f} | Final PnL: ${pnl:.1f}")
 
                             from dataclasses import asdict
                             position_data = asdict(position)

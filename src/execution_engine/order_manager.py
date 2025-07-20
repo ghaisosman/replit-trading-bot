@@ -721,6 +721,40 @@ class OrderManager:
             # Store the generated trade ID in the position
             position.trade_id = generated_trade_id
 
+            # CRITICAL FIX: Also record trade in database for position validation
+            try:
+                from src.execution_engine.trade_database import TradeDatabase
+                trade_db = TradeDatabase()
+                
+                # Create comprehensive trade data for database
+                trade_data = {
+                    'trade_id': generated_trade_id,
+                    'strategy_name': position.strategy_name,
+                    'symbol': position.symbol,
+                    'side': position.side,
+                    'entry_price': position.entry_price,
+                    'quantity': position.quantity,
+                    'stop_loss': position.stop_loss,
+                    'take_profit': position.take_profit,
+                    'position_side': position.position_side,
+                    'order_id': position.order_id,
+                    'entry_time': position.entry_time.isoformat() if position.entry_time else None,
+                    'timestamp': position.entry_time.isoformat() if position.entry_time else datetime.now().isoformat(),
+                    'trade_status': 'OPEN',
+                    'margin_used': margin_used,
+                    'leverage': actual_leverage,
+                    'position_value_usdt': position.entry_price * position.quantity
+                }
+                
+                # Add trade to database
+                trade_db.add_trade(generated_trade_id, trade_data)
+                
+                self.logger.debug(f"✅ Trade recorded in database: {generated_trade_id}")
+                
+            except Exception as db_error:
+                self.logger.error(f"❌ Error recording trade in database: {db_error}")
+                # Don't fail the entire trade entry if database fails
+
             self.logger.info(f"📊 TRADE ENTRY LOGGED | ID: {generated_trade_id} | {position.strategy_name} | {position.symbol}")
 
         except Exception as e:
