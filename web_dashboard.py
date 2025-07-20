@@ -209,7 +209,7 @@ shared_bot_manager = None
 def init_globals():
     """Initialize global variables safely"""
     global bot_manager, bot_thread, bot_running, shared_bot_manager
-    
+
     # Initialize all variables to safe defaults
     if 'bot_running' not in globals() or bot_running is None:
         bot_running = False
@@ -453,7 +453,7 @@ def start_bot():
 def stop_bot():
     """Stop the trading bot completely"""
     global bot_manager, bot_running, shared_bot_manager, bot_thread
-    
+
     try:
         logger = logging.getLogger(__name__)
         logger.info("🌐 WEB INTERFACE: Stop request received")
@@ -1433,7 +1433,7 @@ def get_rsi(symbol):
             logger.error(f"Binance API error for {symbol}: {api_error}")
             # Return a reasonable fallback RSI value based on symbol
             fallback_rsi = 50.0  # Neutral RSI
-            if 'BTC' in symbol.upper():
+            if 'BTCin symbol.upper():
                 fallback_rsi = 45.0
             elif 'ETH' in symbol.upper():
                 fallback_rsi = 48.0
@@ -2037,7 +2037,7 @@ def enable_strategy(strategy_name):
 def update_trading_environment():
     """Update trading environment (testnet/mainnet)"""
     global bot_running, shared_bot_manager, bot_manager
-    
+
     try:
         if not IMPORTS_AVAILABLE:
             return jsonify({'success': False, 'message': 'Configuration update not available in demo mode'})
@@ -2096,5 +2096,35 @@ def update_trading_environment():
         return jsonify({'success': False, 'message': f'Failed to update environment: {str(e)}'})
 
 # Add other required imports at the top if not already present
+def run_web_dashboard():
+    """Run web dashboard in separate thread with enhanced error handling"""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Import here to avoid circular imports
+        from web_dashboard import app
+
+        # Get port from environment
+        port = int(os.environ.get('PORT', 5000))
+
+        logger.info(f"🌐 Starting web dashboard on port {port}")
+
+        # Run Flask app with enhanced error handling
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
+
+    except Exception as e:
+        logger.error(f"❌ Web dashboard critical error: {e}")
+        import traceback
+        logger.error(f"❌ Web dashboard traceback: {traceback.format_exc()}")
+
+        # Don't let the web dashboard crash completely - try to restart it
+        import time
+        time.sleep(5)  # Wait before potential restart
+        logger.info("🔄 Web dashboard attempting restart after error...")
+
+        # Return instead of crashing to allow main.py to handle restart
+        return
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)

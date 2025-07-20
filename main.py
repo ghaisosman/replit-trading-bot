@@ -77,12 +77,32 @@ async def main():
 
         # Keep the process alive indefinitely - web dashboard controls everything
         try:
+            restart_attempts = 0
+            max_restart_attempts = 3
+            
             while True:
                 # Check if web thread is still alive
                 if not web_thread.is_alive():
-                    logger.error("🚨 Web dashboard thread died! Restarting...")
-                    web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
-                    web_thread.start()
+                    restart_attempts += 1
+                    
+                    if restart_attempts <= max_restart_attempts:
+                        logger.error(f"🚨 Web dashboard thread died! Restarting... (Attempt {restart_attempts}/{max_restart_attempts})")
+                        
+                        # Wait a bit before restarting to avoid rapid restart loops
+                        await asyncio.sleep(2)
+                        
+                        web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
+                        web_thread.start()
+                        
+                        # Give it time to start
+                        await asyncio.sleep(3)
+                    else:
+                        logger.error(f"🚫 Web dashboard failed {max_restart_attempts} times. Stopping restart attempts.")
+                        logger.error("💡 Check the error logs above and fix the underlying issue.")
+                        break
+                else:
+                    # Reset restart counter if web dashboard is running fine
+                    restart_attempts = 0
                 
                 await asyncio.sleep(10)
                 
