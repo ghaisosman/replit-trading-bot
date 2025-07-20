@@ -234,7 +234,8 @@ class TradeDatabase:
                                     'quantity': abs(position_amt)
                                 }
                         
-                        self.logger.debug(f"🔄 CLEANUP: Found {len(actual_binance_positions)} active Binance positions")
+                        self.logger.info(f"🔄 AGGRESSIVE CLEANUP: Found {len(actual_binance_positions)} active Binance positions")
+                        self.logger.info(f"🔄 AGGRESSIVE CLEANUP: Binance positions: {list(actual_binance_positions.keys())}")
                 except Exception as e:
                     self.logger.warning(f"Could not sync with Binance during cleanup: {e}")
                     sync_with_binance = False
@@ -245,11 +246,12 @@ class TradeDatabase:
                     symbol = trade_data.get('symbol')
                     db_side = trade_data.get('side')
                     db_quantity = trade_data.get('quantity', 0)
+                    strategy_name = trade_data.get('strategy_name', 'UNKNOWN')
                     
                     should_close = False
                     close_reason = 'Stale Trade - Auto Closed'
                     
-                    # Method 1: Check if position exists on Binance (if sync enabled)
+                    # AGGRESSIVE METHOD 1: Check if position exists on Binance (PRIMARY METHOD)
                     if sync_with_binance and symbol:
                         position_exists_on_binance = False
                         
@@ -261,14 +263,35 @@ class TradeDatabase:
                             
                             if quantity_match and side_match:
                                 position_exists_on_binance = True
-                                self.logger.debug(f"🔄 CLEANUP: {trade_id} - Position confirmed on Binance")
+                                self.logger.debug(f"🔄 AGGRESSIVE CLEANUP: {trade_id} - Position confirmed on Binance")
+                            else:
+                                self.logger.info(f"🔄 AGGRESSIVE CLEANUP: {trade_id} - Position mismatch on Binance (Qty: {binance_pos['quantity']} vs {db_quantity}, Side: {binance_pos['side']} vs {db_side})")
+                        else:
+                            self.logger.info(f"🔄 AGGRESSIVE CLEANUP: {trade_id} - Symbol {symbol} not found on Binance")
                         
                         if not position_exists_on_binance:
                             should_close = True
-                            close_reason = 'Position closed externally - Binance sync'
-                            self.logger.info(f"🔄 CLEANUP: {trade_id} - No matching position on Binance")
+                            close_reason = 'Position not found on Binance - Aggressive cleanup'
+                            self.logger.warning(f"🔄 AGGRESSIVE CLEANUP: {trade_id} ({strategy_name}) - No matching position on Binance, marking as CLOSED")
                     
-                    # Method 2: Check if trade is old (fallback or additional check)
+                    # AGGRESSIVE METHOD 2: Recovery trades older than 1 hour (SUPER AGGRESSIVE)
+                    if not should_close and strategy_name == 'RECOVERY':
+                        entry_time_str = trade_data.get('timestamp')
+                        if entry_time_str:
+                            try:
+                                entry_time = datetime.fromisoformat(entry_time_str.replace('Z', '+00:00'))
+                                hours_old = (current_time - entry_time).total_seconds() / 3600
+
+                                if hours_old > 1:  # Only 1 hour for RECOVERY trades
+                                    should_close = True
+                                    close_reason = f'RECOVERY trade expired - Open for {hours_old:.1f} hours'
+                                    self.logger.warning(f"🔄 AGGRESSIVE CLEANUP: {trade_id} - RECOVERY trade is {hours_old:.1f} hours old, forcing closure")
+                            except ValueError:
+                                # If timestamp parsing fails, consider it stale
+                                should_close = True
+                                close_reason = 'RECOVERY trade - Invalid timestamp'
+                    
+                    # AGGRESSIVE METHOD 3: Standard trades older than specified hours
                     if not should_close:
                         entry_time_str = trade_data.get('timestamp')
                         if entry_time_str:
@@ -279,13 +302,46 @@ class TradeDatabase:
                                 if hours_old > hours:
                                     should_close = True
                                     close_reason = f'Stale Trade - Open for {hours_old:.1f} hours'
-                                    self.logger.info(f"🔄 CLEANUP: {trade_id} - Trade is {hours_old:.1f} hours old")
+                                    self.logger.warning(f"🔄 AGGRESSIVE CLEANUP: {trade_id} - Trade is {hours_old:.1f} hours old, forcing closure")
                             except ValueError:
                                 # If timestamp parsing fails, consider it stale
                                 should_close = True
                                 close_reason = 'Stale Trade - Invalid timestamp'
                     
-                    # Close the trade if criteria met
+                    # AGGRESSIVE METHOD 4: Duplicate RECOVERY entries for same symbol
+                    if not should_close and strategy_name == 'RECOVERY':
+                        # Count how many RECOVERY entries exist for this symbol
+                        recovery_count_for_symbol = 0
+                        for other_trade_id, other_trade_data in self.trades.items():
+                            if (other_trade_data.get('symbol') == symbol and 
+                                other_trade_data.get('strategy_name') == 'RECOVERY' and
+                                other_trade_data.get('trade_status') == 'OPEN'):
+                                recovery_count_for_symbol += 1
+                        
+                        if recovery_count_for_symbol > 1:
+                            # Keep only the newest RECOVERY entry for each symbol
+                            recovery_trades_for_symbol = []
+                            for other_trade_id, other_trade_data in self.trades.items():
+                                if (other_trade_data.get('symbol') == symbol and 
+                                    other_trade_data.get('strategy_name') == 'RECOVERY' and
+                                    other_trade_data.get('trade_status') == 'OPEN'):
+                                    timestamp_str = other_trade_data.get('timestamp', '')
+                                    try:
+                                        timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                                        recovery_trades_for_symbol.append((other_trade_id, timestamp))
+                                    except:
+                                        recovery_trades_for_symbol.append((other_trade_id, datetime.min))
+                            
+                            # Sort by timestamp (newest first)
+                            recovery_trades_for_symbol.sort(key=lambda x: x[1], reverse=True)
+                            
+                            # If this trade is not the newest, mark it for closure
+                            if trade_id != recovery_trades_for_symbol[0][0]:
+                                should_close = True
+                                close_reason = f'Duplicate RECOVERY entry - Keeping newest only ({recovery_count_for_symbol} found)'
+                                self.logger.warning(f"🔄 AGGRESSIVE CLEANUP: {trade_id} - Duplicate RECOVERY for {symbol}, keeping only newest")
+                    
+                    # Close the trade if any criteria met
                     if should_close:
                         trades_to_close.append((trade_id, close_reason))
 
