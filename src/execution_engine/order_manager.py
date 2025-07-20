@@ -22,6 +22,13 @@ class Position:
     status: str = "OPEN"
     trade_id: Optional[str] = None
     strategy_config: Optional[Dict] = None
+    
+    # Partial Take Profit Support
+    original_quantity: Optional[float] = None  # Track original quantity
+    remaining_quantity: Optional[float] = None  # Track remaining quantity
+    partial_tp_taken: bool = False  # Track if partial TP was taken
+    partial_tp_amount: float = 0.0  # Track partial TP profit in USDT
+    partial_tp_percentage: float = 0.0  # Track partial TP profit as %
 
 class OrderManager:
     """Manages order execution and position tracking"""
@@ -150,7 +157,13 @@ class OrderManager:
                 position_side=position_side,
                 order_id=order_result.get('orderId'),
                 entry_time=datetime.now(),
-                status="OPEN"
+                status="OPEN",
+                # Initialize partial TP fields
+                original_quantity=quantity,
+                remaining_quantity=quantity,
+                partial_tp_taken=False,
+                partial_tp_amount=0.0,
+                partial_tp_percentage=0.0
             )
 
             # Store strategy config reference for exit condition evaluation
@@ -270,8 +283,18 @@ class OrderManager:
                 self.logger.error(f"❌ Could not fetch current price for {symbol}")
                 return {}
 
-            # Calculate profit/loss
-            pnl, pnl_percentage = self._calculate_profit_loss(position, current_price)
+            # Calculate profit/loss for remaining position
+            remaining_pnl, remaining_pnl_percentage = self._calculate_profit_loss(position, current_price)
+            
+            # Calculate total combined PnL (partial + remaining)
+            total_pnl = remaining_pnl + position.partial_tp_amount
+            
+            # Calculate total PnL percentage against original margin invested
+            margin_invested = 50.0  # Default margin
+            if hasattr(position, 'strategy_config') and position.strategy_config:
+                margin_invested = position.strategy_config.get('margin', 50.0)
+            
+            total_pnl_percentage = (total_pnl / margin_invested) * 100 if margin_invested > 0 else 0
 
             # First, check if position still exists on Binance before attempting to close
             try:
@@ -298,11 +321,13 @@ class OrderManager:
                         self.logger.info(f"✅ Position {symbol} marked as manually closed")
                         return {
                             'symbol': symbol,
-                            'pnl_usdt': pnl,
-                            'pnl_percentage': pnl_percentage,
+                            'pnl_usdt': total_pnl,
+                            'pnl_percentage': total_pnl_percentage,
                             'exit_price': current_price,
                             'exit_reason': "Already closed manually",
-                            'duration_minutes': (datetime.now() - position.entry_time).total_seconds() / 60 if position.entry_time else 0
+                            'duration_minutes': (datetime.now() - position.entry_time).total_seconds() / 60 if position.entry_time else 0,
+                            'partial_tp_taken': position.partial_tp_taken,
+                            'partial_tp_amount': position.partial_tp_amount
                         }
                         
             except Exception as pos_check_error:
@@ -337,11 +362,13 @@ class OrderManager:
                     pnl, pnl_percentage = self._calculate_profit_loss(position, current_price)
                     return {
                         'symbol': symbol,
-                        'pnl_usdt': pnl,
-                        'pnl_percentage': pnl_percentage,
+                        'pnl_usdt': total_pnl,
+                        'pnl_percentage': total_pnl_percentage,
                         'exit_price': current_price,
                         'exit_reason': "Position already closed",
-                        'duration_minutes': (datetime.now() - position.entry_time).total_seconds() / 60 if position.entry_time else 0
+                        'duration_minutes': (datetime.now() - position.entry_time).total_seconds() / 60 if position.entry_time else 0,
+                        'partial_tp_taken': position.partial_tp_taken,
+                        'partial_tp_amount': position.partial_tp_amount
                     }
                 else:
                     self.logger.error(f"Error creating closing order: {order_error}")
@@ -390,7 +417,12 @@ class OrderManager:
             with self._position_lock:
                 del self.active_positions[strategy_name]
 
-            # Position closed format
+            # Position closed format with partial TP info
+            partial_tp_info = ""
+            if position.partial_tp_taken:
+                partial_tp_info = f"""║ 🎯 Partial TP: ${position.partial_tp_amount:.2f} USDT ({position.partial_tp_percentage:+.1f}%)        ║
+║ 🔄 Remaining TP: ${remaining_pnl:.2f} USDT ({remaining_pnl_percentage:+.1f}%)       ║"""
+            
             position_closed_message = f"""╔═══════════════════════════════════════════════════╗
 ║ 🔴 POSITION CLOSED                               ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
@@ -399,8 +431,8 @@ class OrderManager:
 ║ 💱 Symbol: {symbol}                              ║
 ║ 📊 Side: {position.side}                                   ║
 ║ 💵 Entry: ${position.entry_price:.4f}                                ║
-║ 🚪 Exit: ${current_price:.4f}                                 ║
-║ 💰 PnL: ${pnl:.2f} USDT ({pnl_percentage:+.2f}%)                     ║
+║ 🚪 Exit: ${current_price:.4f}                                 ║{partial_tp_info}
+║ 💰 Total PnL: ${total_pnl:.2f} USDT ({total_pnl_percentage:+.2f}%)               ║
 ║ 📝 Exit Reason: {reason}                 ║
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝"""
@@ -443,11 +475,14 @@ class OrderManager:
 
             return {
                 'symbol': symbol,
-                'pnl_usdt': pnl,
-                'pnl_percentage': pnl_percentage,
+                'pnl_usdt': total_pnl,
+                'pnl_percentage': total_pnl_percentage,
                 'exit_price': current_price,
                 'exit_reason': reason,
-                'duration_minutes': duration_minutes
+                'duration_minutes': duration_minutes,
+                'partial_tp_taken': position.partial_tp_taken,
+                'partial_tp_amount': position.partial_tp_amount,
+                'remaining_pnl': remaining_pnl  # For logging purposes
             }
 
         except Exception as e:
@@ -759,6 +794,146 @@ class OrderManager:
 
         except Exception as e:
             self.logger.error(f"❌ Error logging trade entry: {e}")
+
+    def check_partial_take_profit(self, strategy_name: str, current_price: float) -> bool:
+        """Check and execute partial take profit if conditions are met"""
+        try:
+            if strategy_name not in self.active_positions:
+                return False
+                
+            position = self.active_positions[strategy_name]
+            
+            # Skip if partial TP already taken
+            if position.partial_tp_taken:
+                return False
+                
+            # Get strategy config for partial TP settings
+            strategy_config = position.strategy_config
+            if not strategy_config:
+                return False
+                
+            # Get partial TP configuration
+            partial_tp_pnl_threshold = strategy_config.get('partial_tp_pnl_threshold', 50.0)  # % of margin
+            partial_tp_position_percentage = strategy_config.get('partial_tp_position_percentage', 50.0)  # % of position
+            
+            # Calculate current PnL and PnL percentage against margin invested
+            pnl, pnl_percentage = self._calculate_profit_loss(position, current_price)
+            
+            # Check if partial TP threshold is reached
+            if pnl_percentage >= partial_tp_pnl_threshold:
+                self.logger.info(f"🎯 PARTIAL TAKE PROFIT TRIGGERED | {strategy_name} | PnL: {pnl_percentage:.1f}% >= {partial_tp_pnl_threshold}%")
+                
+                # Calculate quantity to close (percentage of original position)
+                close_quantity = (position.original_quantity * partial_tp_position_percentage) / 100.0
+                
+                # Apply symbol precision
+                symbol_info = self._get_symbol_info(position.symbol)
+                precision = strategy_config.get('decimals', symbol_info['precision'])
+                close_quantity = round(close_quantity, precision)
+                
+                # Ensure minimum quantity
+                if close_quantity < symbol_info['min_qty']:
+                    close_quantity = symbol_info['min_qty']
+                    
+                # Ensure we don't close more than remaining quantity
+                if close_quantity > position.remaining_quantity:
+                    close_quantity = position.remaining_quantity
+                    
+                # Execute partial close
+                success = self._execute_partial_close(position, close_quantity, current_price)
+                
+                if success:
+                    # Calculate partial profit
+                    if position.side == 'BUY':
+                        partial_profit = (current_price - position.entry_price) * close_quantity
+                    else:
+                        partial_profit = (position.entry_price - current_price) * close_quantity
+                        
+                    # Get margin invested for percentage calculation
+                    margin_invested = strategy_config.get('margin', 50.0)
+                    partial_profit_percentage = (partial_profit / margin_invested) * 100
+                    
+                    # Update position with partial TP data
+                    position.partial_tp_taken = True
+                    position.partial_tp_amount = partial_profit
+                    position.partial_tp_percentage = partial_profit_percentage
+                    position.remaining_quantity = position.quantity - close_quantity
+                    position.quantity = position.remaining_quantity  # Update current quantity
+                    
+                    # Send Telegram notification
+                    self._send_partial_tp_notification(position, current_price, partial_profit, partial_profit_percentage)
+                    
+                    self.logger.info(f"✅ PARTIAL TAKE PROFIT EXECUTED | {strategy_name} | Closed: {close_quantity} | Profit: ${partial_profit:.2f} ({partial_profit_percentage:+.1f}%) | Remaining: {position.remaining_quantity}")
+                    
+                    return True
+                    
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Error checking partial take profit: {e}")
+            return False
+
+    def _execute_partial_close(self, position: Position, close_quantity: float, current_price: float) -> bool:
+        """Execute partial position close"""
+        try:
+            # Create closing order (opposite side)
+            close_side = 'SELL' if position.side == 'BUY' else 'BUY'
+            
+            order_params = {
+                'symbol': position.symbol,
+                'side': close_side,
+                'type': 'MARKET',
+                'quantity': close_quantity,
+                'positionSide': position.position_side,
+                'reduceOnly': True  # Ensure this is a reduce-only order
+            }
+            
+            order_result = self.binance_client.create_order(**order_params)
+            if order_result:
+                self.logger.info(f"✅ PARTIAL CLOSE ORDER EXECUTED | {position.symbol} | Quantity: {close_quantity} | Price: ${current_price:.4f}")
+                return True
+            else:
+                self.logger.error(f"❌ PARTIAL CLOSE ORDER FAILED | {position.symbol}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error executing partial close: {e}")
+            return False
+
+    def _send_partial_tp_notification(self, position: Position, current_price: float, partial_profit: float, partial_profit_percentage: float):
+        """Send Telegram notification for partial take profit"""
+        try:
+            if hasattr(self, 'telegram_reporter') and self.telegram_reporter:
+                # Get current indicator value based on strategy
+                current_indicator = "N/A"
+                strategy_config = position.strategy_config
+                
+                if strategy_config and 'rsi' in position.strategy_name.lower():
+                    # Try to get current RSI value - simplified for now
+                    current_indicator = "RSI: N/A"  # Could be enhanced with actual RSI
+                elif strategy_config and 'macd' in position.strategy_name.lower():
+                    current_indicator = "MACD: N/A"  # Could be enhanced with actual MACD
+                
+                message = f"""🎯 **Partial Take Profit Taken**
+
+Strategy: {position.strategy_name.upper()}
+Symbol: {position.symbol}
+Side: {position.side}
+Entry: ${position.entry_price:.4f}
+Current Price: ${current_price:.4f}
+{current_indicator}
+
+💰 Partial Take Profit: ${partial_profit:.2f} USDT ({partial_profit_percentage:+.1f}%)
+📊 Rest of trade is ongoing
+
+Remaining Position: {position.remaining_quantity} {position.symbol.replace('USDT', '')}"""
+
+                # Send via Telegram
+                self.telegram_reporter.send_message(message)
+                self.logger.info(f"📱 TELEGRAM: Partial TP notification sent for {position.strategy_name}")
+                
+        except Exception as e:
+            self.logger.error(f"❌ TELEGRAM: Failed to send partial TP notification: {e}")
 
     def _log_trade_for_validation(self, position: Position) -> None:
         """Log trade details for validation purposes with error handling"""

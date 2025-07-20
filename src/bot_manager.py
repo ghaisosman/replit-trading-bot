@@ -1348,6 +1348,12 @@ Interval: every {assessment_interval} seconds
                     self.logger.info(f"💸 Margin: ${margin_invested:.1f} USDT")
                     self.logger.info(f"💰 PnL: ${pnl:.1f} USDT ({pnl_percent:+.1f}%)")
 
+                    # Check for partial take profit first (if not already taken)
+                    if not getattr(position, 'partial_tp_taken', False):
+                        partial_tp_executed = self.order_manager.check_partial_take_profit(strategy_name, current_price)
+                        if partial_tp_executed:
+                            self.logger.info(f"🎯 PARTIAL TAKE PROFIT EXECUTED | {strategy_name} | Continuing with remaining position")
+
                     # Check exit conditions
                     position_dict = {
                         'entry_price': position.entry_price,

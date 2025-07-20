@@ -34,7 +34,7 @@ class TradingConfigManager:
 
         # WEB DASHBOARD IS THE ONLY SOURCE OF TRUTH
         # All configurations come from web dashboard updates
-        
+
 
         # Load any existing web dashboard configurations
         self._load_web_dashboard_configs()
@@ -250,9 +250,19 @@ class TradingConfigManager:
             if validated_updates['macd_exit_threshold'] < 0.001 or validated_updates['macd_exit_threshold'] > 1.0:
                 validated_updates['macd_exit_threshold'] = 0.02
 
+        # Partial Take Profit Parameters - NEW FEATURE
+        if 'partial_tp_pnl_threshold' in updates:
+            validated_updates['partial_tp_pnl_threshold'] = float(updates['partial_tp_pnl_threshold'])
+            if validated_updates['partial_tp_pnl_threshold'] < 1.0 or validated_updates['partial_tp_pnl_threshold'] > 1000.0:
+                validated_updates['partial_tp_pnl_threshold'] = 50.0  # Default 50% PnL target
+
+        if 'partial_tp_position_percentage' in updates:
+            validated_updates['partial_tp_position_percentage'] = float(updates['partial_tp_position_percentage'])
+            if validated_updates['partial_tp_position_percentage'] < 1.0 or validated_updates['partial_tp_position_percentage'] > 99.0:
+                validated_updates['partial_tp_position_percentage'] = 50.0  # Default 50% of position
 
 
-        # Universal Strategy Parameters (for any future strategy)
+        # Universal Strategy Parameters (for any future strategy type)
         # This makes the system future-proof for any new strategy type
         universal_float_params = [
             'entry_threshold', 'exit_threshold', 'volatility_filter', 'volume_filter',

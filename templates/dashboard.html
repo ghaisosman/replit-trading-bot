@@ -677,6 +677,16 @@
                             <input type="number" class="form-control" id="cooldownPeriod" step="1" min="30" max="3600" placeholder="e.g., 300">
                             <div class="form-text">Time to wait before allowing another trade on the same symbol/strategy (30-3600 seconds)</div>
                         </div>
+						<div class="mb-3">
+                            <label for="partialTpPnlThreshold" class="form-label">Partial TP PnL Threshold %</label>
+                            <input type="number" class="form-control" id="partialTpPnlThreshold" step="0.1" min="1" max="100" placeholder="e.g., 50">
+                            <div class="form-text">Percentage of unrealized PNL target for partial TP</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="partialTpPositionPercentage" class="form-label">Partial TP Position Size %</label>
+                            <input type="number" class="form-control" id="partialTpPositionPercentage" step="0.1" min="1" max="100" placeholder="e.g., 25">
+                            <div class="form-text">Percentage of the invested margin to take profit on</div>
+                        </div>
 
                         <!-- RSI Strategy Parameters (shown only for RSI strategies) -->
                         <div id="rsiParameters" style="display: none;">
@@ -735,7 +745,7 @@
                                     <div class="mb-3">
                                         <label for="minHistogramThreshold" class="form-label">Min HistogramThreshold</label>
 <input type="number" class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g., 0.0001">
-                                        <div class="form-text">Minimum histogram value for signal</div>
+                                        <div class="form-text">Minimum histogram valuefor signal</div>
                                     </div>
                                 </div>
                             </div>
@@ -1623,7 +1633,8 @@
                 apiCache[key].timestamp = 0;
                 apiCache[key].consecutiveHits = 0;
                 apiCache[key].ttl = key === 'botStatus' ? 8000 :
-                                   key === 'balance' ? 30000 :
+                                   key === 'balance'```text
+ ? 30000 :
                                    key === 'positions' ? 12000 : 5000;
             });
 
@@ -1651,7 +1662,7 @@
             });
         }
 
-        // Initialize dashboard with intelligent adaptive system
+        // Initialize dashboard with intelligent adaptive polling system
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Dashboard initialization started with intelligent polling system');
 
@@ -1879,7 +1890,17 @@
                         document.getElementById('strategyTimeframe').value = config.timeframe || '';
                         document.getElementById('strategyMaxLoss').value = config.max_loss_pct || 10;
                         document.getElementById('assessmentInterval').value = config.assessment_interval || 300;
-                        document.getElementById('cooldownPeriod').value = config.cooldown_period || 300;
+                        if (config.cooldown_period !== undefined) {
+                                document.getElementById('cooldownPeriod').value = config.cooldown_period;
+                            }
+
+                            // Partial Take Profit Configuration
+                            if (config.partial_tp_pnl_threshold !== undefined) {
+                                document.getElementById('partialTpPnlThreshold').value = config.partial_tp_pnl_threshold;
+                            }
+                            if (config.partial_tp_position_percentage !== undefined) {
+                                document.getElementById('partialTpPositionPercentage').value = config.partial_tp_position_percentage;
+                            }
 
                         // Hide all strategy-specific sections first
                         document.getElementById('rsiParameters').style.display = 'none';
@@ -1933,6 +1954,14 @@
                 assessment_interval: parseInt(document.getElementById('assessmentInterval').value),
                 cooldown_period: parseInt(document.getElementById('cooldownPeriod').value)
             };
+
+            // Partial Take Profit Configuration
+            if (document.getElementById('partialTpPnlThreshold').value) {
+                updates.partial_tp_pnl_threshold = parseFloat(document.getElementById('partialTpPnlThreshold').value);
+            }
+            if (document.getElementById('partialTpPositionPercentage').value) {
+                updates.partial_tp_position_percentage = parseFloat(document.getElementById('partialTpPositionPercentage').value);
+            }
 
             // Add strategy-specific parameters
             if (strategyName.toLowerCase().includes('rsi')) {
