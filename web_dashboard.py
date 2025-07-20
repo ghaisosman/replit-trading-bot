@@ -650,6 +650,9 @@ def get_strategies():
     """Get all strategy configurations - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
     try:
         if IMPORTS_AVAILABLE:
+            # FORCE FRESH LOAD - Clear any cached configurations
+            trading_config_manager._clear_cache() if hasattr(trading_config_manager, '_clear_cache') else None
+            
             # Get all strategies from web dashboard configuration manager
             strategies = trading_config_manager.get_all_strategies()
 
@@ -1022,6 +1025,26 @@ def update_strategy(strategy_name):
 
         # 🎯 WEB DASHBOARD IS THE SINGLE SOURCE OF TRUTH - Save to persistent config
         trading_config_manager.update_strategy_params(strategy_name, data)
+        
+        # CRITICAL: Force immediate cache invalidation to prevent stale data
+        if hasattr(trading_config_manager, '_clear_cache'):
+            trading_config_manager._clear_cache()
+        
+        # CRITICAL: Verify the update was actually saved
+        updated_strategies = trading_config_manager.get_all_strategies()
+        saved_config = updated_strategies.get(strategy_name, {})
+        
+        # Validate that our changes were actually persisted
+        validation_passed = True
+        for key, value in data.items():
+            if saved_config.get(key) != value:
+                validation_passed = False
+                logger.error(f"❌ VALIDATION FAILED: {key} = {saved_config.get(key)} (expected {value})")
+        
+        if validation_passed:
+            logger.info(f"✅ VALIDATION PASSED: All {len(data)} parameters correctly saved")
+        else:
+            logger.error(f"❌ VALIDATION FAILED: Some parameters not saved correctly")
 
         logger.info(f"🌐 WEB DASHBOARD: SINGLE SOURCE OF TRUTH UPDATE for {strategy_name}")
         logger.info(f"📝 ALL PARAMETERS UPDATED: {list(data.keys())}")

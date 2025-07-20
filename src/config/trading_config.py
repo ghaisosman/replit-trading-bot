@@ -1,4 +1,3 @@
-
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
@@ -26,12 +25,16 @@ class TradingConfigManager:
     """Manages trading configurations for all strategies - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
 
     def __init__(self):
+        """Initialize trading configuration manager"""
+        self.strategy_overrides = {}
+        self._config_cache = {}  # Internal cache for strategies
+
         # Default parameters only as fallback - WEB DASHBOARD OVERRIDES EVERYTHING
         self.default_params = TradingParameters()
 
         # WEB DASHBOARD IS THE ONLY SOURCE OF TRUTH
         # All configurations come from web dashboard updates
-        self.strategy_overrides = {}
+        
 
         # Load any existing web dashboard configurations
         self._load_web_dashboard_configs()
@@ -73,6 +76,12 @@ class TradingConfigManager:
 
     def get_strategy_config(self, strategy_name: str, base_config: Dict[str, Any]) -> Dict[str, Any]:
         """Get strategy config - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
+        # Check cache first
+        if strategy_name in self._config_cache:
+            import logging
+            logging.getLogger(__name__).info(f"🌐 WEB DASHBOARD: Using cached config for {strategy_name}")
+            return self._config_cache[strategy_name]
+
         # Start with minimal base strategy config (only technical parameters)
         config = {
             'name': strategy_name,
@@ -98,6 +107,8 @@ class TradingConfigManager:
         import logging
         logging.getLogger(__name__).info(f"🎯 FINAL CONFIG for {strategy_name}: {config}")
 
+        # Update the cache
+        self._config_cache[strategy_name] = config
         return config
 
     def update_strategy_params(self, strategy_name: str, updates: Dict[str, Any]):
@@ -213,7 +224,7 @@ class TradingConfigManager:
             if validated_updates['confirmation_candles'] < 1 or validated_updates['confirmation_candles'] > 5:
                 validated_updates['confirmation_candles'] = 2
 
-        
+
 
         # Universal Strategy Parameters (for any future strategy)
         # This makes the system future-proof for any new strategy type
@@ -222,19 +233,19 @@ class TradingConfigManager:
             'momentum_threshold', 'trend_strength', 'signal_confidence', 'risk_multiplier',
             'profit_multiplier', 'drawdown_limit', 'correlation_threshold', 'spread_threshold'
         ]
-        
+
         universal_int_params = [
             'lookback_period', 'confirmation_period', 'signal_period', 'trend_period',
             'volume_period', 'momentum_period', 'filter_period', 'threshold_period'
         ]
-        
+
         # Validate universal float parameters (0.001 to 10.0)
         for param in universal_float_params:
             if param in updates:
                 validated_updates[param] = float(updates[param])
                 if validated_updates[param] < 0.001 or validated_updates[param] > 10.0:
                     validated_updates[param] = 0.1  # Safe default
-        
+
         # Validate universal int parameters (1 to 100)
         for param in universal_int_params:
             if param in updates:
@@ -250,6 +261,9 @@ class TradingConfigManager:
 
         # Force update any running bot instance immediately
         self._force_update_running_bot(strategy_name, validated_updates)
+
+        # Clear the cache so the bot instance reloads the config
+        self.clear_config_cache(strategy_name)
 
         # Log the update for debugging
         import logging
@@ -286,10 +300,10 @@ class TradingConfigManager:
             for strategy_name, web_config in self.strategy_overrides.items():
                 # Start with base trading parameters ONLY
                 strategies[strategy_name] = {**self.default_params.to_dict()}
-                
+
                 # WEB DASHBOARD CONFIG OVERRIDES EVERYTHING FIRST
                 strategies[strategy_name].update(web_config)
-                
+
                 # ONLY set strategy-specific defaults for parameters NOT in web config
                 if 'rsi' in strategy_name.lower():
                     # Only set RSI defaults that web dashboard hasn't specified
@@ -306,7 +320,7 @@ class TradingConfigManager:
                     strategies[strategy_name].setdefault('min_histogram_threshold', 0.0001)
                     strategies[strategy_name].setdefault('min_distance_threshold', 0.005)
                     strategies[strategy_name].setdefault('confirmation_candles', 2)
-                
+
                 # Set common defaults only if not already set
                 strategies[strategy_name].setdefault('min_volume', 1000000)
                 strategies[strategy_name].setdefault('decimals', 2)
@@ -354,7 +368,7 @@ class TradingConfigManager:
             if strategy_name not in strategies:
                 strategies[strategy_name] = fallback_config
 
-                    
+
 
         return strategies
 
@@ -363,6 +377,19 @@ class TradingConfigManager:
         for key, value in updates.items():
             if hasattr(self.default_params, key):
                 setattr(self.default_params, key, value)
+
+    def clear_config_cache(self, strategy_name: Optional[str] = None):
+        """Clear the config cache for a specific strategy or all strategies"""
+        if strategy_name:
+            if strategy_name in self._config_cache:
+                del self._config_cache[strategy_name]
+                import logging
+                logging.getLogger(__name__).info(f"🧹 WEB DASHBOARD: Cleared config cache for {strategy_name}")
+        else:
+            self._config_cache = {}
+            import logging
+            logging.getLogger(__name__).info("🧹 WEB DASHBOARD: Cleared all config caches")
+
 
 # Global config manager instance
 trading_config_manager = TradingConfigManager()
