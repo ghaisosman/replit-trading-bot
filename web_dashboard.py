@@ -2031,3 +2031,48 @@ def update_trading_environment():
         global_config.BINANCE_TESTNET = is_testnet
 
         # Save to environment configuration file for persistence
+        try:
+            env_file = "trading_data/environment.json"
+            os.makedirs(os.path.dirname(env_file), exist_ok=True)
+            
+            env_data = {
+                'BINANCE_TESTNET': is_testnet,
+                'BINANCE_FUTURES': global_config.BINANCE_FUTURES,
+                'updated_at': datetime.now().isoformat()
+            }
+            
+            with open(env_file, 'w') as f:
+                json.dump(env_data, f, indent=2)
+                
+            logger.info(f"Environment config saved to {env_file}")
+            
+        except Exception as save_error:
+            logger.warning(f"Could not save environment config: {save_error}")
+
+        # Check if bot is running and warn about restart requirement
+        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
+        is_bot_running = current_bot and getattr(current_bot, 'is_running', False)
+
+        message = f'Trading environment updated to {"TESTNET" if is_testnet else "MAINNET"}'
+        if is_bot_running:
+            message += ' (Bot restart required to apply changes)'
+            logger.warning("⚠️ Bot restart required for environment change to take effect")
+
+        return jsonify({
+            'success': True,
+            'message': message,
+            'environment': {
+                'is_testnet': is_testnet,
+                'is_futures': global_config.BINANCE_FUTURES,
+                'mode': "TESTNET" if is_testnet else "MAINNET",
+                'restart_required': is_bot_running
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Error updating trading environment: {e}")
+        return jsonify({'success': False, 'message': f'Failed to update environment: {str(e)}'})
+
+# Add other required imports at the top if not already present
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
