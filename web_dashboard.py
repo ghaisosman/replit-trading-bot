@@ -498,9 +498,8 @@ def stop_bot():
 
         stopped = False
         
-        # Debug current state - ensure bot_running is properly initialized
-        current_bot_running = bot_running if 'bot_running' in globals() and bot_running is not None else False
-        logger.info(f"🔍 DEBUG: Current state - bot_running: {current_bot_running}")
+        # Debug current state - safely access bot_running after global declaration
+        logger.info(f"🔍 DEBUG: Current state - bot_running: {bot_running}")
         logger.info(f"🔍 DEBUG: Bot thread alive: {bot_thread.is_alive() if bot_thread else 'No thread'}")
         logger.info(f"🔍 DEBUG: Shared bot manager exists: {shared_bot_manager is not None}")
         logger.info(f"🔍 DEBUG: Local bot manager exists: {bot_manager is not None}")
