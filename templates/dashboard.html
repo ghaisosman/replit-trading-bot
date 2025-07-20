@@ -747,7 +747,7 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="minHistogramThreshold" class="form-label">Min Histogram Threshold</label>
-                                        <input type="number" class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g., 0.0001">
+<input type="number" class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g., 0.0001">
                                         <div class="form-text">Minimum histogram value for signal</div>
                                     </div>
                                 </div>
@@ -842,12 +842,6 @@
         });
 
         // Refresh data
-        function refreshData() {
-            updateBotStatus();
-            updateBalance();
-            updateConsoleLog();
-            updatePositions();
-        }
 
         // 🔧 INTELLIGENT API POLLING SYSTEM - Prevents excessive requests
         const apiCache = {
@@ -1636,14 +1630,14 @@
         }
 
         // Refresh data function with complete cache invalidation and adaptive reset
-        function refreshData() {
+
             // Clear all caches to force fresh data
             Object.keys(apiCache).forEach(key => {
                 apiCache[key].data = null;
                 apiCache[key].timestamp = 0;
                 apiCache[key].consecutiveHits = 0;
-                apiCache[key].ttl = key === 'botStatus' ? 8000 : 
-                                   key === 'balance' ? 30000 : 
+                apiCache[key].ttl = key === 'botStatus' ? 8000 :
+                                   key === 'balance' ? 30000 :
                                    key === 'positions' ? 12000 : 5000;
             });
 
@@ -1698,7 +1692,7 @@
                 const stillInitializing = results.some(result => {
                     if (result.status === 'fulfilled' && result.value) {
                         const response = result.value;
-                        return response.status === 202 || 
+                        return response.status === 202 ||
                                (response.response && response.response.status === 202) ||
                                (response.responseText && response.responseText.includes('initializing'));
                     }
@@ -1790,7 +1784,7 @@
             window.addEventListener('beforeunload', function() {
                 stopIntelligentUpdates();
             });
-        });
+        }
 
         // Show strategies info
         function showStrategiesInfo() {
@@ -2080,7 +2074,7 @@
                         modal.hide();
                     }
 
-                    alert('✅ Strategy created successfully!\n\n' + 
+                    alert('✅ Strategy created successfully!\n\n' +
                           '• Strategy: ' + data.strategy.symbol + '\n' +
                           '• Margin: $' + data.strategy.margin + ' USDT\n' +
                           '• Leverage: ' + data.strategy.leverage + 'x\n\n' +
@@ -2110,8 +2104,8 @@
             autoScroll = !autoScroll;
             const btn = document.getElementById('autoScrollBtn');
             if (btn) {
-                btn.innerHTML = autoScroll ? 
-                    '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: ON' : 
+                btn.innerHTML = autoScroll ?
+                    '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: ON' :
                     '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: OFF';
             }
         }
@@ -2183,7 +2177,7 @@
                             updateProxyStatus();
 
                             // Show success message
-                            const message = enabled ? 
+                            const message = enabled ?
                                 '✅ Proxy service enabled! Geographic restrictions bypassed.' :
                                 '✅ Proxy service disabled! Using direct connection.';
 
