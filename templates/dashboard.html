@@ -115,6 +115,7 @@
             margin-top: 10px;
         }
 
+        /* Environment Controls */
         .environment-controls {
             display: flex;
             flex-direction: column;
@@ -1619,8 +1620,7 @@
         }
 
         function stopIntelligentUpdates() {
-            pollingActive = false;
-            Object.values(updateTimeouts).forEach(timeout => clearTimeout(timeout));
+            pollingActive = false;            Object.values(updateTimeouts).forEach(timeout => clearTimeout(timeout));
             updateTimeouts = {};
         }
 
@@ -1782,7 +1782,7 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
             window.addEventListener('beforeunload', function() {
                 stopIntelligentUpdates();
             });
-        
+
 
         // Show strategies info
         function showStrategiesInfo() {
@@ -2148,7 +2148,61 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                   '• Risk management alerts\n\n' +
                   'Check console logs for detailed anomaly reports.');
         }
-    
+
+        function displayInsights(insights) {
+            const container = document.getElementById('insights-content');
+
+            if (!insights || Object.keys(insights).length === 0) {
+                container.innerHTML = '<div class="text-muted">No insights available yet.</div>';
+                return;
+            }
+
+            let html = '';
+            for (const [key, value] of Object.entries(insights)) {
+                html += `
+                    <div class="insight-item">
+                        <span class="insight-label">${key}:</span>
+                        <span class="insight-value">${value}</span>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        function displayPredictions(predictions) {
+            const container = document.getElementById('predictions-content');
+
+            if (!predictions || predictions.length === 0) {
+                container.innerHTML = '<div class="text-muted">No predictions available yet.</div>';
+                return;
+            }
+
+            let html = '';
+            predictions.forEach(prediction => {
+                const statusClass = prediction.confidence > 0.7 ? 'profitable' : 
+                                  prediction.confidence < 0.3 ? 'unprofitable' : 'neutral';
+
+                html += `
+                    <div class="prediction-item">
+                        <strong>${prediction.symbol}</strong> - ${prediction.direction}
+                        <span class="status ${statusClass}">${(prediction.confidence * 100).toFixed(1)}% confidence</span>
+                        <small>${prediction.timeframe}</small>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function showSuccess(containerId, message) {
+            const container = document.getElementById(containerId);
+            const existingContent = container.innerHTML;
+            container.innerHTML = `<div class="success">✅ ${message}</div><br>${existingContent}`;
+
+            // Remove success message after 5 seconds
+            setTimeout(() => {
+                container.innerHTML = existingContent;
+            }, 5000);
+        }
 </script>
 </body>
 </html>
