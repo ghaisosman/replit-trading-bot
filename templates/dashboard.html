@@ -1323,15 +1323,22 @@
 
             if (data.success && data.positions && data.positions.length > 0) {
                 data.positions.forEach(position => {
+                    // Validate and sanitize position data
+                    const entryPrice = position.entry_price || 0;
+                    const positionValueUsdt = position.position_value_usdt || 0;
+                    const currentPrice = position.current_price || 0;
+                    const pnl = position.pnl || 0;
+                    const pnlPercent = position.pnl_percent || 0;
+
                     const row = '<tr>' +
-                            '<td>' + position.strategy + '</td>' +
-                            '<td>' + position.symbol + '</td>' +
-                            '<td>' + position.side + '</td>' +
-                            '<td>' + formatNumber(position.entry_price) + '</td>' +
-                            '<td>' + formatNumber(position.position_value_usdt) + '</td>' +
-                            '<td>' + formatNumber(position.current_price) + '</td>' +
-                            '<td class="' + (position.pnl >= 0 ? 'text-success' : 'text-danger') + '">' + formatNumber(position.pnl) + '</td>' +
-                            '<td class="' + (position.pnl_percent >= 0 ? 'text-success' : 'text-danger') + '">' + formatNumber(position.pnl_percent) + '%</td>' +
+                            '<td>' + (position.strategy || 'Unknown') + '</td>' +
+                            '<td>' + (position.symbol || 'Unknown') + '</td>' +
+                            '<td>' + (position.side || 'Unknown') + '</td>' +
+                            '<td>' + formatNumber(entryPrice) + '</td>' +
+                            '<td>' + formatNumber(positionValueUsdt) + '</td>' +
+                            '<td>' + formatNumber(currentPrice) + '</td>' +
+                            '<td class="' + (pnl >= 0 ? 'text-success' : 'text-danger') + '">' + formatNumber(pnl) + '</td>' +
+                            '<td class="' + (pnlPercent >= 0 ? 'text-success' : 'text-danger') + '">' + formatNumber(pnlPercent) + '%</td>' +
                             '<td id="rsi-' + data.positions.indexOf(position) + '">Loading...</td>' +
                         '</tr>';
                     positionsTableBody.innerHTML += row;
@@ -2284,6 +2291,10 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
 
         // Utility functions
         function formatNumber(number) {
+            // Handle NaN, null, undefined, and infinite values
+            if (number === null || number === undefined || isNaN(number) || !isFinite(number)) {
+                return '0.00';
+            }
             return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(number);
         }
 

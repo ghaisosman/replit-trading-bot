@@ -755,7 +755,7 @@ def get_strategies():
                 'macd_divergence': {
                     # Core Parameters
                     'symbol': 'BTCUSDT', 'timeframe': '15m', 'margin': 50.0, 'leverage': 5,
-                    'stop_loss_pct': 10.0, 'max_loss_pct': 10.0, 'assessment_interval': 30,
+                    'stop_loss_pct': 10.0, 'max_loss_pct': 10.0, 'assessment_interval': 30,```python
                     # Position Management
                     'cooldown_period': 300, 'min_volume': 1000.0, 'decimals': 3,
                     'take_profit_pct': 15.0, 'trailing_stop_pct': 2.0, 'max_position_time': 3600,
@@ -1356,16 +1356,21 @@ def get_positions():
                     if margin_invested > 0:
                         pnl_percent = (pnl / margin_invested) * 100
 
-                position_data = {
+                # Ensure position_value is calculated and handled correctly
+                position_value_usdt = float(position.entry_price) * float(position.quantity) if hasattr(position, 'entry_price') and hasattr(position, 'quantity') else 0.0
+
+                active_positions.append({
                     'strategy': strategy_name,
                     'symbol': position.symbol,
-                    'side': getattr(position, 'side', 'BUY'),
-                    'entry_price': float(getattr(position, 'entry_price', 0)),
-                    'current_price': current_price,
-                    'quantity': float(getattr(position, 'quantity', 0)),
+                    'side': position.side,
+                    'entry_price': position.entry_price,
+                    'quantity': position.quantity,
+                    'position_value_usdt': position_value_usdt,
+                    'margin_invested': margin_invested,
+                    'current_price': current_price or 0,
                     'pnl': pnl,
                     'pnl_percent': pnl_percent
-                }
+                })
 
                 positions.append(position_data)
 
@@ -1421,6 +1426,7 @@ def get_rsi(symbol):
                 fallback_rsi = 45.0
             elif 'ETH' in symbol.upper():
                 fallback_rsi = 48.0
+```python
             elif 'SOL' in symbol.upper():
                 fallback_rsi = 52.0
 
