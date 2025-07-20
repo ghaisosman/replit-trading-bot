@@ -1365,12 +1365,32 @@
                         'Cache-Control': 'no-cache',
                         'X-Request-ID': requestId
                     },
+                    timeout: 10000, // 10 second timeout
                     ...options
                 });
 
                 const requestDuration = performance.now() - startTime;
                 console.log(`📥 DEBUG [${requestId}]: Response received in ${requestDuration.toFixed(2)}ms`);
                 console.log(`📊 DEBUG [${requestId}]: Status: ${response.status}, Content-Type: ${response.headers.get('content-type')}`);
+
+                // Handle initialization status specifically
+                if (response.status === 202) {
+                    console.log(`⏳ DEBUG [${requestId}]: Backend still initializing (202)`);
+                    const responseText = await response.text();
+                    try {
+                        const data = JSON.parse(responseText);
+                        console.log(`🔄 DEBUG [${requestId}]: Initialization response:`, data);
+                        return data;
+                    } catch (parseError) {
+                        console.log(`⏳ DEBUG [${requestId}]: Initialization response not JSON, continuing...`);
+                        return {
+                            success: false,
+                            status: 'initializing',
+                            message: 'Backend initializing...',
+                            timestamp: new Date().toLocaleTimeString()
+                        };
+                    }
+                }
 
                 if (!response.ok) {
                     console.error(`❌ DEBUG [${requestId}]: HTTP error ${response.status}: ${response.statusText}`);
@@ -1611,20 +1631,67 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Dashboard initialization started with intelligent polling system');
 
-            // Initial load with controlled startup
+            // Add initialization delay to prevent premature API calls
+            setTimeout(() => {
+                console.log('⏳ Starting dashboard initialization after delay...');
+                
+                // Initial load with controlled startup and retry logic
+                initializeDashboardWithRetry();
+            }, 2000); // 2 second delay to allow backend initialization
+        });
+
+        function initializeDashboardWithRetry(attempt = 1, maxAttempts = 5) {
+            console.log(`🔄 Dashboard initialization attempt ${attempt}/${maxAttempts}`);
+
             Promise.allSettled([
                 updateBotStatus(),
                 updateBalance(),
                 updateConsoleLog(),
                 updatePositions(),
                 updateProxyStatus()
-            ]).then(() => {
+            ]).then((results) => {
+                // Check if any critical APIs are still initializing
+                const stillInitializing = results.some(result => {
+                    if (result.status === 'fulfilled' && result.value) {
+                        const response = result.value;
+                        return response.status === 202 || 
+                               (response.response && response.response.status === 202) ||
+                               (response.responseText && response.responseText.includes('initializing'));
+                    }
+                    return false;
+                });
+
+                if (stillInitializing && attempt < maxAttempts) {
+                    console.log(`⏳ Backend still initializing, retrying in 3 seconds... (${attempt}/${maxAttempts})`);
+                    setTimeout(() => {
+                        initializeDashboardWithRetry(attempt + 1, maxAttempts);
+                    }, 3000);
+                    return;
+                }
+
                 console.log('✅ Initial dashboard data loaded');
 
                 // Start intelligent adaptive update system
                 startIntelligentUpdates();
 
                 console.log('🔧 Intelligent polling system active with adaptive intervals');
+            }).catch(error => {
+                console.error('❌ Dashboard initialization error:', error);
+                
+                if (attempt < maxAttempts) {
+                    console.log(`🔄 Retrying dashboard initialization in 5 seconds... (${attempt}/${maxAttempts})`);
+                    setTimeout(() => {
+                        initializeDashboardWithRetry(attempt + 1, maxAttempts);
+                    }, 5000);
+                } else {
+                    console.error('❌ Dashboard initialization failed after all attempts');
+                    // Show error message in UI
+                    const statusElement = document.getElementById('botStatus');
+                    if (statusElement) {
+                        statusElement.textContent = 'Initialization Failed';
+                        statusElement.className = 'badge bg-danger me-2';
+                    }
+                }
             });
 
             // Handle visibility changes to optimize resource usage

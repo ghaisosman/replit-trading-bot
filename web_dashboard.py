@@ -1985,5 +1985,71 @@ def toggle_proxy():
         logger.error(f"Error toggling proxy: {e}")
         return jsonify({'success': False, 'message': f'Failed to toggle proxy: {e}'})
 
+# Add startup coordination and initialization delay
+import threading
+import time
+
+def wait_for_bot_initialization():
+    """Wait for bot to be fully initialized before serving API requests"""
+    max_wait = 30  # Maximum 30 seconds wait
+    wait_time = 0
+    
+    while wait_time < max_wait:
+        try:
+            # Check if bot manager exists and is properly initialized
+            current_bot = get_bot_manager()
+            if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
+                logger.info("✅ Bot initialization detected - Web dashboard ready")
+                return True
+        except:
+            pass
+        
+        time.sleep(1)
+        wait_time += 1
+        
+        if wait_time % 5 == 0:
+            logger.info(f"⏳ Waiting for bot initialization... ({wait_time}s)")
+    
+    logger.warning("⚠️ Bot initialization timeout - Dashboard will serve with limited functionality")
+    return False
+
+# Global initialization flag
+_dashboard_ready = False
+
+def initialize_dashboard():
+    """Initialize dashboard with proper timing"""
+    global _dashboard_ready
+    
+    logger.info("🌐 Web dashboard initializing...")
+    
+    # Wait a minimum time for basic setup
+    time.sleep(3)
+    
+    # Wait for bot to be ready
+    wait_for_bot_initialization()
+    
+    # Additional buffer for safety
+    time.sleep(2)
+    
+    _dashboard_ready = True
+    logger.info("✅ Web dashboard fully initialized and ready")
+
+# Start initialization in background thread
+initialization_thread = threading.Thread(target=initialize_dashboard, daemon=True)
+initialization_thread.start()
+
+# Middleware to check initialization status
+@app.before_request
+def check_initialization():
+    """Ensure dashboard is initialized before processing API requests"""
+    if not _dashboard_ready and request.path.startswith('/api/'):
+        # Return loading response instead of empty response
+        return jsonify({
+            'success': False,
+            'status': 'initializing',
+            'message': 'Dashboard initializing, please wait...',
+            'timestamp': datetime.now().strftime('%H:%M:%S')
+        }), 202  # 202 Accepted (processing)
+
 # Flask app is configured above - no standalone execution needed
 # Web dashboard is launched from main.py only
