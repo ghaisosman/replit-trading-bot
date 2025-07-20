@@ -503,7 +503,6 @@ def stop_bot():
     except Exception as e:
         logger.error(f"Error stopping bot: {e}")
         # Force cleanup
-        global bot_running, bot_manager, shared_bot_manager
         bot_running = False
         if shared_bot_manager:
             shared_bot_manager.is_running = False
