@@ -504,11 +504,11 @@
                             </button>
                             {% set is_disabled = config.get('assessment_interval', 60) == 0 or config.get('enabled', True) == False %}
                             {% if is_disabled %}
-                            <button class="btn btn-outline-success btn-sm" onclick="enableStrategy('{{ strategy_name }}')">
+                            <button class="btn btn-outline-success btn-sm strategy-toggle-btn" data-strategy="{{ strategy_name }}" data-state="disabled" onclick="enableStrategy('{{ strategy_name }}')">
                                 <i class="fas fa-play"></i> Enable
                             </button>
                             {% else %}
-                            <button class="btn btn-outline-danger btn-sm" onclick="disableStrategy('{{ strategy_name }}')">
+                            <button class="btn btn-outline-danger btn-sm strategy-toggle-btn" data-strategy="{{ strategy_name }}" data-state="enabled" onclick="disableStrategy('{{ strategy_name }}')">
                                 <i class="fas fa-pause"></i> Disable
                             </button>
                             {% endif %}
@@ -1805,13 +1805,19 @@
                        'This will stop the bot from scanning for new trades for this strategy.\n' +
                        'Existing positions will remain active.')) {
 
+                // Find the specific button for this strategy
+                const button = document.querySelector(`button[data-strategy="${strategyName}"]`);
+                if (!button) return;
+
+                // Store original state for rollback
+                const originalHTML = button.innerHTML;
+                const originalClass = button.className;
+                const originalOnclick = button.getAttribute('onclick');
+
                 // Immediately update button state to show feedback
-                const buttons = document.querySelectorAll(`[onclick="disableStrategy('${strategyName}')"]`);
-                buttons.forEach(btn => {
-                    btn.textContent = 'Disabling...';
-                    btn.disabled = true;
-                    btn.className = 'btn btn-warning btn-sm';
-                });
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Disabling...';
+                button.disabled = true;
+                button.className = 'btn btn-warning btn-sm strategy-toggle-btn';
 
                 fetch('/api/strategies/' + strategyName + '/disable', {
                     method: 'POST',
@@ -1822,43 +1828,37 @@
                 .then(response => response.json())
                 .then(result => {
                     if (result.success) {
-                        // Update button to enable state
-                        buttons.forEach(btn => {
-                            btn.innerHTML = '<i class="fas fa-play"></i> Enable';
-                            btn.disabled = false;
-                            btn.className = 'btn btn-outline-success btn-sm';
-                            btn.setAttribute('onclick', `enableStrategy('${strategyName}')`);
-                        });
+                        // Update button to enable state and store the new state
+                        button.innerHTML = '<i class="fas fa-play"></i> Enable';
+                        button.disabled = false;
+                        button.className = 'btn btn-outline-success btn-sm strategy-toggle-btn';
+                        button.setAttribute('onclick', `enableStrategy('${strategyName}')`);
+                        button.setAttribute('data-state', 'disabled');
+                        
+                        // Store state in localStorage for persistence across page reloads
+                        localStorage.setItem(`strategy_${strategyName}_state`, 'disabled');
                         
                         // Show success message
                         showAlert('Strategy disabled successfully!', 'success');
                         
-                        // Update strategy status badge if exists
-                        const statusBadges = document.querySelectorAll('.badge');
-                        statusBadges.forEach(badge => {
-                            if (badge.textContent.includes('Active')) {
-                                badge.innerHTML = '<i class="fas fa-pause"></i> Disabled';
-                                badge.className = 'badge bg-secondary';
-                            }
-                        });
+                        // Update strategy status badge
+                        updateStrategyStatusBadge(strategyName, 'disabled');
                     } else {
                         // Revert button state on error
-                        buttons.forEach(btn => {
-                            btn.innerHTML = '<i class="fas fa-pause"></i> Disable';
-                            btn.disabled = false;
-                            btn.className = 'btn btn-outline-danger btn-sm';
-                        });
+                        button.innerHTML = originalHTML;
+                        button.disabled = false;
+                        button.className = originalClass;
+                        button.setAttribute('onclick', originalOnclick);
                         showAlert('Error disabling strategy: ' + result.message, 'error');
                     }
                 })
                 .catch(error => {
                     console.error('Error disabling strategy:', error);
                     // Revert button state on error
-                    buttons.forEach(btn => {
-                        btn.innerHTML = '<i class="fas fa-pause"></i> Disable';
-                        btn.disabled = false;
-                        btn.className = 'btn btn-outline-danger btn-sm';
-                    });
+                    button.innerHTML = originalHTML;
+                    button.disabled = false;
+                    button.className = originalClass;
+                    button.setAttribute('onclick', originalOnclick);
                     showAlert('Error disabling strategy: ' + error.message, 'error');
                 });
             }
@@ -1869,13 +1869,19 @@
             if (confirm('Are you sure you want to enable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n' +
                        'This will resume scanning for new trades for this strategy.')) {
 
+                // Find the specific button for this strategy
+                const button = document.querySelector(`button[data-strategy="${strategyName}"]`);
+                if (!button) return;
+
+                // Store original state for rollback
+                const originalHTML = button.innerHTML;
+                const originalClass = button.className;
+                const originalOnclick = button.getAttribute('onclick');
+
                 // Immediately update button state to show feedback
-                const buttons = document.querySelectorAll(`[onclick="enableStrategy('${strategyName}')"]`);
-                buttons.forEach(btn => {
-                    btn.textContent = 'Enabling...';
-                    btn.disabled = true;
-                    btn.className = 'btn btn-warning btn-sm';
-                });
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enabling...';
+                button.disabled = true;
+                button.className = 'btn btn-warning btn-sm strategy-toggle-btn';
 
                 fetch('/api/strategies/' + strategyName + '/enable', {
                     method: 'POST',
@@ -1886,47 +1892,89 @@
                 .then(response => response.json())
                 .then(result => {
                     if (result.success) {
-                        // Update button to disable state
-                        buttons.forEach(btn => {
-                            btn.innerHTML = '<i class="fas fa-pause"></i> Disable';
-                            btn.disabled = false;
-                            btn.className = 'btn btn-outline-danger btn-sm';
-                            btn.setAttribute('onclick', `disableStrategy('${strategyName}')`);
-                        });
+                        // Update button to disable state and store the new state
+                        button.innerHTML = '<i class="fas fa-pause"></i> Disable';
+                        button.disabled = false;
+                        button.className = 'btn btn-outline-danger btn-sm strategy-toggle-btn';
+                        button.setAttribute('onclick', `disableStrategy('${strategyName}')`);
+                        button.setAttribute('data-state', 'enabled');
+                        
+                        // Store state in localStorage for persistence across page reloads
+                        localStorage.setItem(`strategy_${strategyName}_state`, 'enabled');
                         
                         // Show success message
                         showAlert('Strategy enabled successfully!', 'success');
                         
-                        // Update strategy status badge if exists
-                        const statusBadges = document.querySelectorAll('.badge');
-                        statusBadges.forEach(badge => {
-                            if (badge.textContent.includes('Disabled')) {
-                                badge.innerHTML = '<i class="fas fa-play"></i> Active';
-                                badge.className = 'badge bg-success';
-                            }
-                        });
+                        // Update strategy status badge
+                        updateStrategyStatusBadge(strategyName, 'enabled');
                     } else {
                         // Revert button state on error
-                        buttons.forEach(btn => {
-                            btn.innerHTML = '<i class="fas fa-play"></i> Enable';
-                            btn.disabled = false;
-                            btn.className = 'btn btn-outline-success btn-sm';
-                        });
+                        button.innerHTML = originalHTML;
+                        button.disabled = false;
+                        button.className = originalClass;
+                        button.setAttribute('onclick', originalOnclick);
                         showAlert('Error enabling strategy: ' + result.message, 'error');
                     }
                 })
                 .catch(error => {
                     console.error('Error enabling strategy:', error);
                     // Revert button state on error
-                    buttons.forEach(btn => {
-                        btn.innerHTML = '<i class="fas fa-play"></i> Enable';
-                        btn.disabled = false;
-                        btn.className = 'btn btn-outline-success btn-sm';
-                    });
+                    button.innerHTML = originalHTML;
+                    button.disabled = false;
+                    button.className = originalClass;
+                    button.setAttribute('onclick', originalOnclick);
                     showAlert('Error enabling strategy: ' + error.message, 'error');
                 });
             }
         }
+
+        // Helper function to update strategy status badge
+        function updateStrategyStatusBadge(strategyName, state) {
+            // Find strategy card and update badge
+            const strategyCards = document.querySelectorAll('.card');
+            strategyCards.forEach(card => {
+                const strategyTitle = card.querySelector('h5');
+                if (strategyTitle && strategyTitle.textContent.toLowerCase().includes(strategyName.replace('_', ' ').toLowerCase())) {
+                    const badge = card.querySelector('.badge');
+                    if (badge) {
+                        if (state === 'disabled') {
+                            badge.innerHTML = '<i class="fas fa-pause"></i> Disabled';
+                            badge.className = 'badge bg-secondary';
+                        } else {
+                            badge.innerHTML = '<i class="fas fa-play"></i> Active';
+                            badge.className = 'badge bg-success';
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize button states on page load using localStorage
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check localStorage for any overridden button states
+            const buttons = document.querySelectorAll('.strategy-toggle-btn');
+            buttons.forEach(button => {
+                const strategyName = button.getAttribute('data-strategy');
+                const storedState = localStorage.getItem(`strategy_${strategyName}_state`);
+                
+                if (storedState) {
+                    // Override server-side state with client-side stored state
+                    if (storedState === 'disabled') {
+                        button.innerHTML = '<i class="fas fa-play"></i> Enable';
+                        button.className = 'btn btn-outline-success btn-sm strategy-toggle-btn';
+                        button.setAttribute('onclick', `enableStrategy('${strategyName}')`);
+                        button.setAttribute('data-state', 'disabled');
+                        updateStrategyStatusBadge(strategyName, 'disabled');
+                    } else {
+                        button.innerHTML = '<i class="fas fa-pause"></i> Disable';
+                        button.className = 'btn btn-outline-danger btn-sm strategy-toggle-btn';
+                        button.setAttribute('onclick', `disableStrategy('${strategyName}')`);
+                        button.setAttribute('data-state', 'enabled');
+                        updateStrategyStatusBadge(strategyName, 'enabled');
+                    }
+                }
+            });
+        });
 
         // Strategy management functions
         let currentStrategyName = '';
