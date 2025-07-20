@@ -15,7 +15,7 @@ class BinanceClientWrapper:
         self.is_futures = global_config.BINANCE_FUTURES
         self._last_request_time = 0
         self._min_request_interval = 0.1  # Minimum 100ms between requests
-        self._use_proxy = False  # Initially, don't use proxy
+          # Initially, don't use proxy
         self._initialize_client()
 
     def _initialize_client(self):
@@ -368,14 +368,5 @@ class BinanceClientWrapper:
             self.logger.error(f"Unexpected error setting margin type for {symbol}: {e}")
             return None
 
-    def enable_vpn(self):
-        """Enable the VPN proxy."""
-        self._use_proxy = True
-        self._initialize_client()  # Reinitialize the client to apply proxy settings
-        self.logger.info("VPN proxy enabled.")
-
-    def disable_vpn(self):
-        """Disable the VPN proxy."""
-        self._use_proxy = False
-        self._initialize_client()  # Reinitialize the client to remove proxy settings
+    ient to remove proxy settings
         self.logger.info("VPN proxy disabled.")

@@ -329,7 +329,7 @@
                                 <small>Trading with real funds</small>
                             </div>
 
-                            
+
                         </div>
                     </div>
                 </div>
@@ -750,8 +750,7 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="macdExitThreshold" class="form-label">Exit Threshold</label>
-                                        <input type="number" class="form-control" id="macdExitThreshold" step="0.01" placeholder="e.g., 0.02">
-                                        <div class="form-text">MACD crossover magnitude to exit</div>
+                                        <input type="number" class="form-control" id="macdExitThreshold" step="0.01" placeholder="e.g., 0.02                                        <div class="form-text">MACD crossover magnitude to exit</div>
                                     </div>
                                 </div>
                             </div>
@@ -1672,8 +1671,7 @@
                 updateBotStatus(),
                 updateBalance(),
                 updateConsoleLog(),
-                updatePositions(),
-                updateProxyStatus()
+                updatePositions()
             ]).then((results) => {
                 // Check if any critical APIs are still initializing
                 const stillInitializing = results.some(result => {
@@ -2099,7 +2097,7 @@
             }
         }
 
-        
+
 
         // Utility functions
         function formatNumber(number) {
