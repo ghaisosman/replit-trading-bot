@@ -1139,117 +1139,69 @@
             }
         }
 
-        // Update bot status with safe API handling
-        async function updateBotStatus() {
-            const debugId = 'status_' + Date.now();
-            console.log('🔍 DEBUG [' + debugId + ']: updateBotStatus called');
+        // Simple bot status update
+        function updateBotStatus() {
+            apiRequest('/api/bot/status')
+                .then(data => {
+                    if (data && data.success !== false) {
+                        const statusElement = document.getElementById('statusBadge');
+                        const botToggle = document.getElementById('botToggle');
+                        const botStatus = document.getElementById('botStatus');
+                        const activePositions = document.getElementById('activePositions');
+                        const activeStrategies = document.getElementById('activeStrategies');
+                        const balanceElement = document.getElementById('balance');
 
-            if (!shouldUpdate('botStatus')) {
-                console.log('🔍 DEBUG [' + debugId + ']: shouldUpdate returned false, skipping');
-                return;
-            }
+                        const isRunning = data.running || data.is_running || false;
 
-            try {
-                console.log('🔍 DEBUG [' + debugId + ']: Calling cachedApiRequest for bot status');
-                const data = await cachedApiRequest('/api/bot/status', 'botStatus');
+                        // Update button
+                        if (botToggle) {
+                            botToggle.disabled = false;
+                            if (isRunning) {
+                                botToggle.textContent = 'Stop Bot';
+                                botToggle.className = 'btn btn-danger btn-sm';
+                            } else {
+                                botToggle.textContent = 'Start Bot';
+                                botToggle.className = 'btn btn-success btn-sm';
+                            }
+                        }
 
-                if (!data) {
-                    console.log('🔍 DEBUG [' + debugId + ']: No data returned from API');
-                    return;
-                }
+                        // Update status
+                        if (statusElement) {
+                            if (isRunning) {
+                                statusElement.textContent = 'RUNNING';
+                                statusElement.className = 'badge bg-success me-2';
+                            } else {
+                                statusElement.textContent = 'STOPPED';
+                                statusElement.className = 'badge bg-danger me-2';
+                            }
+                        }
 
-                console.log('🔍 DEBUG [' + debugId + ']: Bot status data received:', data);
+                        if (botStatus) {
+                            if (isRunning) {
+                                botStatus.textContent = 'RUNNING';
+                                botStatus.className = 'badge bg-success';
+                            } else {
+                                botStatus.textContent = 'STOPPED';
+                                botStatus.className = 'badge bg-danger';
+                            }
+                        }
 
-                const statusElement = document.getElementById('botStatus');
-                const botToggle = document.getElementById('botToggle');
-                const botStatus = document.getElementById('botStatus');
-                const activePositions = document.getElementById('activePositions');
-                const activeStrategies = document.getElementById('activeStrategies');
-                const balanceElement = document.getElementById('balance');
+                        if (activePositions) {
+                            activePositions.textContent = data.active_positions || 0;
+                        }
 
-                // Check if bot is running (handle both 'running' and 'is_running' properties)
-                const isRunning = data.running || data.is_running || false;
+                        if (activeStrategies) {
+                            activeStrategies.textContent = data.strategies || 0;
+                        }
 
-                // Always update button state based on running status
-                if (botToggle) {
-                    botToggle.disabled = false; // Re-enable button
-
-                    if (isRunning) {
-                        botToggle.textContent = 'Stop Bot';
-                        botToggle.className = 'btn btn-danger btn-sm';
-                        console.log('✅ DEBUG: Button set to "Stop Bot" - bot is running');
-                    } else {
-                        botToggle.textContent = 'Start Bot';
-                        botToggle.className = 'btn btn-success btn-sm';
-                        console.log('✅ DEBUG: Button set to "Start Bot" - bot is stopped');
+                        if (balanceElement && data.balance !== undefined) {
+                            balanceElement.textContent = data.balance.toFixed(2);
+                        }
                     }
-                }
-
-                // Update status badge
-                if (statusElement) {
-                    if (isRunning) {
-                        statusElement.textContent = 'RUNNING (' + (data.strategies || 0) + ' strategies)';
-                        statusElement.className = 'badge bg-success me-2';
-                    } else {
-                        statusElement.textContent = 'STOPPED (' + (data.strategies || 0) + ' strategies)';
-                        statusElement.className = 'badge bg-danger me-2';
-                    }
-                }
-
-                // Update bot status in the main status section
-                if (botStatus) {
-                    if (isRunning) {
-                        botStatus.textContent = 'RUNNING';
-                        botStatus.className = 'badge bg-success';
-                    } else {
-                        botStatus.textContent = 'STOPPED';
-                        botStatus.className = 'badge bg-danger';
-                    }
-                }
-
-                 // Update active positions count
-                if (activePositions) {
-                    activePositions.textContent = data.active_positions || 0;
-                }
-
-                 // Update active strategies count
-                if (activeStrategies) {
-                    activeStrategies.textContent = data.strategies || 0;
-                }
-                // Update balance if provided in status
-                if (balanceElement && data.balance !== undefined) {
-                    const balance = data.balance || 0;
-                    console.log('🔍 DEBUG [' + debugId + ']: Balance from status: ' + balance);
-                    balanceElement.textContent = balance.toFixed(2);
-                }
-                recordApiSuccess('botStatus');
-                console.log('✅ DEBUG [' + debugId + ']: Bot status update completed successfully');
-
-            } catch (error) {
-                console.error('❌ DEBUG [' + debugId + ']: Error updating bot status:', error);
-                console.error('❌ DEBUG [' + debugId + ']: Error type: ' + error.constructor.name);
-                console.error('❌ DEBUG [' + debugId + ']: Error message: ' + error.message);
-                console.error('❌ DEBUG [' + debugId + ']: Error stack:', error.stack);
-
-                recordApiError('botStatus');
-
-                // Show error state in UI
-                const statusElement = document.getElementById('botStatus');
-                if (statusElement) {
-                    statusElement.textContent = 'Error';
-                    statusElement.className = 'badge bg-warning me-2';
-                }
-                 const botToggle = document.getElementById('botToggle');
-                if (botToggle) {
-                        botToggle.textContent = 'Error';
-                        botToggle.className = 'btn btn-warning btn-sm';
-                    }
-                const botStatus = document.getElementById('botStatus');
-                if (botStatus) {
-                    botStatus.textContent = 'Error';
-                    botStatus.className = 'badge bg-warning';
-                }
-            }
+                })
+                .catch(error => {
+                    console.error('Error updating bot status:', error);
+                });
         }
 
          function updateBotStatusErrorUI(errorData) {
@@ -1322,50 +1274,20 @@
                 activePositions.textContent = '?';
             }
         }
-        // Update balance with intelligent caching and throttling
+        // Simple balance update
         function updateBalance() {
-            // Check cache first
-            const cachedData = getCachedData('balance');
-            if (cachedData) {
-                updateBalanceUI(cachedData);
-                return;
-            }
-
-            // Check if we can make a new request
-            if (!canMakeRequest('balance')) {
-                return; // Skip this update cycle
-            }
-
-            markRequestStart('balance');
-
-            fetch('/api/balance')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('HTTP ' + response.status + ': ' + response.statusText);
-                    }
-                    return response.json();
-                })
+            apiRequest('/api/balance')
                 .then(data => {
-                    setCachedData('balance', data);
-                    updateBalanceUI(data);
+                    if (data && data.success !== false) {
+                        const balance = document.getElementById('balance');
+                        if (balance) {
+                            balance.textContent = (data.total_balance || 0).toFixed(2);
+                        }
+                    }
                 })
                 .catch(error => {
                     console.error('Error updating balance:', error);
-                    const balance = document.getElementById('balance');
-                    if (balance) {
-                        balance.textContent = 'N/A';
-                    }
-                })
-                .finally(() => {
-                    markRequestEnd('balance');
                 });
-        }
-
-        function updateBalanceUI(data) {
-            const balance = document.getElementById('balance');
-            if (balance) {
-                balance.textContent = (data.total_balance || 0).toFixed(2);
-            }
         }
 
         // Update console log with safe API handling
@@ -1547,123 +1469,19 @@
         let updateTimeouts = {};
         let pollingActive = true;
 
-         async function apiRequest(url, options = {}) {
-            const requestId = 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-
-            console.log('🔍 DEBUG [' + requestId + ']: Starting API request to ' + url);
-
-            try {
-                // Check if this request is already active to prevent duplicates
-                if (activeRequests.has(url)) {
-                    console.log('⏸️ Request already active for ' + url + ', skipping duplicate');
-                    return null;
-                }
-
-                activeRequests.add(url);
-
-                const startTime = performance.now();
-                console.log('📤 DEBUG [' + requestId + ']: Sending request...');
-
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'Cache-Control': 'no-cache',
-                        'X-Request-ID': requestId
-                    },
-                    ...options
-                });
-
-                const requestDuration = performance.now() - startTime;
-                console.log('📥 DEBUG [' + requestId + ']: Response received in ' + requestDuration.toFixed(2) + 'ms');
-                console.log('📊 DEBUG [' + requestId + ']: Status: ' + response.status + ', Content-Type: ' + response.headers.get('content-type'));
-
-                // Always read response as text first to safely handle any content type
-                const responseText = await response.text();
-                console.log('📄 DEBUG [' + requestId + ']: Raw response (' + responseText.length + ' chars):', responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
-
-                // Handle non-OK responses
-                if (!response.ok) {
-                    console.error('❌ DEBUG [' + requestId + ']: HTTP error ' + response.status + ': ' + response.statusText);
-                    
-                    // Try to parse as JSON even for error responses
-                    try {
-                        if (responseText.trim() && responseText.startsWith('{')) {
-                            const errorData = JSON.parse(responseText);
-                            console.log('📋 DEBUG [' + requestId + ']: Error response parsed as JSON:', errorData);
-                            return errorData; // Return the error JSON instead of throwing
-                        }
-                    } catch (parseError) {
-                        console.error('❌ DEBUG [' + requestId + ']: Error response not valid JSON');
+         // Simple API request function without complex error handling
+        function apiRequest(url) {
+            return fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
                     }
-
-                    // Return structured error response
-                    return {
-                        success: false,
-                        status: 'http_error',
-                        error: 'HTTP ' + response.status + ': ' + response.statusText,
-                        timestamp: new Date().toLocaleTimeString()
-                    };
-                }
-
-                // Validate and parse response text
-                if (!responseText.trim()) {
-                    console.error('❌ DEBUG [' + requestId + ']: Empty response body');
-                    return {
-                        success: false,
-                        status: 'empty_response',
-                        error: 'Empty response body',
-                        timestamp: new Date().toLocaleTimeString()
-                    };
-                }
-
-                // Check if response is HTML (error page)
-                if (responseText.trim().startsWith('<')) {
-                    console.error('❌ DEBUG [' + requestId + ']: Server returned HTML instead of JSON');
-                    return {
-                        success: false,
-                        status: 'html_response',
-                        error: 'Server returned HTML instead of JSON',
-                        timestamp: new Date().toLocaleTimeString()
-                    };
-                }
-
-                // Try to parse as JSON
-                try {
-                    const data = JSON.parse(responseText);
-                    console.log('✅ DEBUG [' + requestId + ']: JSON parsed successfully');
-                    console.log('📋 DEBUG [' + requestId + ']: Response data keys:', Object.keys(data || {}));
-                    return data;
-                } catch (parseError) {
-                    console.error('❌ DEBUG [' + requestId + ']: JSON parse error:', parseError);
-                    console.error('❌ DEBUG [' + requestId + ']: Problematic text (first 200 chars):', responseText.substring(0, 200));
-                    
-                    // Return structured error instead of throwing
-                    return {
-                        success: false,
-                        status: 'json_parse_error',
-                        error: 'JSON parse error: ' + parseError.message,
-                        timestamp: new Date().toLocaleTimeString()
-                    };
-                }
-
-            } catch (error) {
-                console.error('❌ DEBUG [' + requestId + ']: API request failed for ' + url);
-                console.error('❌ DEBUG [' + requestId + ']: Error type: ' + error.constructor.name);
-                console.error('❌ DEBUG [' + requestId + ']: Error message: ' + error.message);
-
-                // Return structured error response instead of null
-                return {
-                    success: false,
-                    status: 'network_error',
-                    error: error.message || 'Network request failed',
-                    timestamp: new Date().toLocaleTimeString()
-                };
-            } finally {
-                activeRequests.delete(url);
-                console.log('🧹 DEBUG [' + requestId + ']: Request cleanup completed');
-            }
+                    return response.json();
+                })
+                .catch(error => {
+                    console.error('API request failed:', error);
+                    return { success: false, error: error.message };
+                });
         }
 
         // FIXED: Enhanced safe API response handler to prevent parsing errors
@@ -1843,75 +1661,24 @@
             });
         }
 
-        // Initialize dashboard with intelligent adaptive polling system
+        // Simple dashboard initialization
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Dashboard initialization started with intelligent polling system');
+            console.log('🚀 Dashboard initialization started');
 
-            // Add initialization delay to prevent premature API calls
-            setTimeout(() => {
-                console.log('⏳ Starting dashboard initialization after delay...');
+            // Initial data load
+            updateBotStatus();
+            updateBalance();
+            updateConsoleLog();
+            updatePositions();
 
-                // Initial load with controlled startup and retry logic
-                initializeDashboardWithRetry();
-            }, 2000); // 2 second delay to allow backend initialization
+            // Set up regular updates
+            setInterval(updateBotStatus, 8000);    // 8 seconds
+            setInterval(updateBalance, 30000);     // 30 seconds
+            setInterval(updateConsoleLog, 5000);   // 5 seconds
+            setInterval(updatePositions, 12000);   // 12 seconds
+
+            console.log('✅ Dashboard initialized with simple polling');
         });
-
-function initializeDashboardWithRetry(attempt, maxAttempts) {
-            if (!attempt) attempt = 1;
-            if (!maxAttempts) maxAttempts = 5;
-
-            console.log('🔄 Dashboard initialization attempt ' + attempt + '/' + maxAttempts);
-
-            Promise.allSettled([
-                updateBotStatus(),
-                updateBalance(),
-                updateConsoleLog(),
-                updatePositions()
-            ]).then((results) => {
-                // Check if any critical APIs are still initializing
-                const stillInitializing = results.some(result => {
-                    if (result.status === 'fulfilled' && result.value) {
-                        const response = result.value;
-                        return response.status === 202 ||
-                               (response.response && response.response.status === 202) ||
-                               (response.responseText && response.responseText.includes('initializing'));
-                    }
-                    return false;
-                });
-
-                if (stillInitializing && attempt < maxAttempts) {
-                    console.log('⏳ Backend still initializing, retrying in 3 seconds... (' + attempt + '/' + maxAttempts + ')');
-                    setTimeout(() => {
-                        initializeDashboardWithRetry(attempt + 1, maxAttempts);
-                    }, 3000);
-                    return;
-                }
-
-                console.log('✅ Initial dashboard data loaded');
-
-                // Start intelligent adaptive update system
-                startIntelligentUpdates();
-
-                console.log('🔧 Intelligent polling system active with adaptive intervals');
-            }).catch(error => {
-                console.error('❌ Dashboard initialization error:', error);
-
-                if (attempt < maxAttempts) {
-                    console.log('🔄 Retrying dashboard initialization in 5 seconds... (' + attempt + '/' + maxAttempts + ')');
-                    setTimeout(() => {
-                        initializeDashboardWithRetry(attempt + 1, maxAttempts);
-                    }, 5000);
-                } else {
-                    console.error('❌ Dashboard initialization failed after all attempts');
-                    // Show error message in UI
-                    const statusElement = document.getElementById('botStatus');
-                    if (statusElement) {
-                        statusElement.textContent = 'Initialization Failed';
-                        statusElement.className = 'badge bg-danger me-2';
-                    }
-                }
-            });
-        }
 
             // Handle visibility changes to optimize resource usage
             document.addEventListener('visibilitychange', function() {
@@ -2039,52 +1806,24 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                        'This will stop the bot from scanning for new trades for this strategy.\n' +
                        'Existing positions will remain active.')) {
 
-                // Show loading state
-                const button = event.target;
-                const originalText = button.innerHTML;
-                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Disabling...';
-                button.disabled = true;
-
                 fetch('/api/strategies/' + strategyName + '/disable', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     }
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('HTTP ' + response.status);
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(result => {
                     if (result.success) {
-                        showAlert('✅ Strategy disabled successfully!\n\n' + (result.note || ''), 'success');
-
-                        // Update button immediately to show enabled state
-                        button.innerHTML = '<i class="fas fa-play"></i> Enable';
-                        button.className = 'btn btn-outline-success btn-sm';
-                        button.disabled = false;
-                        button.onclick = function() { enableStrategy(strategyName); };
-
-                        // Force refresh strategies data and update button state
-                        setTimeout(() => {
-                            // Force reload the entire page to refresh all data including strategy cards
-                            location.reload();
-                        }, 1500);
+                        alert('✅ Strategy disabled successfully!');
+                        location.reload();
                     } else {
-                        showAlert('❌ Error disabling strategy:\n\n' + result.message, 'danger');
-                        // Restore button state
-                        button.innerHTML = originalText;
-                        button.disabled = false;
+                        alert('❌ Error disabling strategy: ' + result.message);
                     }
                 })
                 .catch(error => {
                     console.error('Error disabling strategy:', error);
-                    showAlert('❌ Error disabling strategy: ' + (error.message || 'Unknown error'), 'danger');
-                    // Restore button state
-                    button.innerHTML = originalText;
-                    button.disabled = false;
+                    alert('❌ Error disabling strategy: ' + error.message);
                 });
             }
         }
@@ -2094,52 +1833,24 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
             if (confirm('Are you sure you want to enable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n' +
                        'This will resume scanning for new trades for this strategy.')) {
 
-                // Show loading state
-                const button = event.target;
-                const originalText = button.innerHTML;
-                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enabling...';
-                button.disabled = true;
-
                 fetch('/api/strategies/' + strategyName + '/enable', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     }
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('HTTP ' + response.status);
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(result => {
                     if (result.success) {
-                        showAlert('✅ Strategy enabled successfully!', 'success');
-
-                        // Update button immediately to show disabled state
-                        button.innerHTML = '<i class="fas fa-pause"></i> Disable';
-                        button.className = 'btn btn-outline-danger btn-sm';
-                        button.disabled = false;
-                        button.onclick = function() { disableStrategy(strategyName); };
-
-                        // Force refresh strategies data and update button state
-                        setTimeout(() => {
-                            // Force reload the entire page to refresh all data including strategy cards
-                            location.reload();
-                        }, 1500);
+                        alert('✅ Strategy enabled successfully!');
+                        location.reload();
                     } else {
-                        showAlert('❌ Error enabling strategy:\n\n' + result.message, 'danger');
-                        // Restore button state
-                        button.innerHTML = originalText;
-                        button.disabled = false;
+                        alert('❌ Error enabling strategy: ' + result.message);
                     }
                 })
                 .catch(error => {
                     console.error('Error enabling strategy:', error);
-                    showAlert('❌ Error enabling strategy: ' + (error.message || 'Unknown error'), 'danger');
-                    // Restore button state
-                    button.innerHTML = originalText;
-                    button.disabled = false;
+                    alert('❌ Error enabling strategy: ' + error.message);
                 });
             }
         }
