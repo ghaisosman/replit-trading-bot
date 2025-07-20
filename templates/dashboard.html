@@ -746,7 +746,7 @@
                                 </div>
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="minHistogramThreshold" class="form-label">Min Histogram Threshold</label>
+                                        <label for="minHistogramThreshold" class="form-label">Min HistogramThreshold</label>
 <input type="number" class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g., 0.0001">
                                         <div class="form-text">Minimum histogram value for signal</div>
                                     </div>
@@ -1630,7 +1630,7 @@
         }
 
         // Refresh data function with complete cache invalidation and adaptive reset
-
+        function refreshData() {
             // Clear all caches to force fresh data
             Object.keys(apiCache).forEach(key => {
                 apiCache[key].data = null;
