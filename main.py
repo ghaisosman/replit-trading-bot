@@ -52,22 +52,38 @@ async def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    # Check if running in deployment
-    is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
+    # Check if running on Render (or any deployment)
+    is_deployment = os.environ.get('RENDER') == 'true' or os.environ.get('REPLIT_DEPLOYMENT') == '1'
 
     if is_deployment:
-        logger.info("🚀 DEPLOYMENT MODE: Starting web dashboard only")
+        logger.info("🚀 RENDER DEPLOYMENT MODE: Starting web dashboard + bot with independent control")
 
-        # Start web dashboard in main thread for deployment
-        web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
+        # Start web dashboard in background thread (always running)
+        web_thread = threading.Thread(target=run_web_dashboard, daemon=True)
         web_thread.start()
 
-        # Keep deployment running
+        # Give web dashboard time to start
+        await asyncio.sleep(2)
+
+        # The bot can be controlled via the web dashboard
+        # But the web dashboard stays alive even if bot stops
         try:
+            # Initialize bot manager but don't start it automatically
+            bot_manager = BotManager()
+
+            # Make bot manager available to web dashboard
+            sys.modules['__main__'].bot_manager = bot_manager
+            globals()['bot_manager'] = bot_manager
+
+            logger.info("🌐 RENDER DEPLOYMENT: Web dashboard active - Bot can be controlled via web interface")
+            logger.info("🎯 RENDER DEPLOYMENT: Access your dashboard to start/stop the bot")
+
+            # Keep the process alive but let the web dashboard control the bot
             while True:
                 await asyncio.sleep(10)
+                
         except KeyboardInterrupt:
-            logger.info("🔴 Deployment shutdown")
+            logger.info("🔴 Render deployment shutdown")
 
     else:
         logger.info("🛠️ DEVELOPMENT MODE: Starting bot + web dashboard")
