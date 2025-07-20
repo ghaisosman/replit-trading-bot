@@ -481,7 +481,6 @@ def stop_bot():
             stopped = True
 
         # Update global state
-        global bot_running
         bot_running = False
 
         # Wait for bot thread to finish
