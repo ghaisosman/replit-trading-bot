@@ -2018,10 +2018,13 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                         button.disabled = false;
                         button.onclick = function() { enableStrategy(strategyName); };
                         
-                        // Also reload after longer delay to refresh all data
+                        // Force refresh strategies data and reload page after longer delay
                         setTimeout(() => {
-                            location.reload();
-                        }, 3000);
+                            loadStrategiesWithCacheBust();
+                            setTimeout(() => {
+                                location.reload();
+                            }, 1000);
+                        }, 2000);
                     } else {
                         showAlert('❌ Error disabling strategy:\n\n' + result.message, 'danger');
                         // Restore button state
@@ -2067,10 +2070,13 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                         button.disabled = false;
                         button.onclick = function() { disableStrategy(strategyName); };
                         
-                        // Also reload after longer delay to refresh all data
+                        // Force refresh strategies data and reload page after longer delay
                         setTimeout(() => {
-                            location.reload();
-                        }, 3000);
+                            loadStrategiesWithCacheBust();
+                            setTimeout(() => {
+                                location.reload();
+                            }, 1000);
+                        }, 2000);
                     } else {
                         showAlert('❌ Error enabling strategy:\n\n' + result.message, 'danger');
                         // Restore button state
