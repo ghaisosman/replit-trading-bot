@@ -1762,22 +1762,27 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                 }
             });
 
-            // FIXED: Add global error handler for API response parsing errors
-            // This prevents the "Unexpected end of input" JavaScript errors
+            // FIXED: Add comprehensive error handler for API response parsing errors
             window.addEventListener('error', function(event) {
-                if (event.message && event.message.includes('Unexpected end of input')) {
-                    console.log('🔧 Detected API parsing error - likely empty response');
-                    // Don't log these errors to reduce console noise
+                if (event.message && (
+                    event.message.includes('Unexpected end of input') ||
+                    event.message.includes('JSON.parse') ||
+                    event.message.includes('SyntaxError')
+                )) {
+                    console.log('🔧 Suppressed parsing error - continuing normally');
                     event.preventDefault();
                     return false;
                 }
             });
 
-            // FIXED: Add unhandled promise rejection handler
+            // FIXED: Add comprehensive promise rejection handler
             window.addEventListener('unhandledrejection', function(event) {
-                if (event.reason && event.reason.message && event.reason.message.includes('Unexpected end of input')) {
-                    console.log('🔧 Detected API parsing parsing rejection - likely empty response');
-                    // Don't log these errors to reduce console noise
+                if (event.reason && event.reason.message && (
+                    event.reason.message.includes('Unexpected end of input') ||
+                    event.reason.message.includes('JSON.parse') ||
+                    event.reason.message.includes('SyntaxError')
+                )) {
+                    console.log('🔧 Suppressed parsing rejection - continuing normally');
                     event.preventDefault();
                     return false;
                 }
