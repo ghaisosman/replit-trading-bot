@@ -1437,7 +1437,7 @@ def calculate_rsi(closes, period=14):
             return 50.0  # Default RSI if not enough data
 
         # Validate closes data
-        valid_closes = []```python
+        valid_closes = []
         for close in closes:
             if isinstance(close, (int, float)) and close > 0:
                 valid_closes.append(float(close))
