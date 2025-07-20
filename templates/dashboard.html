@@ -1051,9 +1051,11 @@
                     if (isRunning) {
                         botToggle.textContent = 'Stop Bot';
                         botToggle.className = 'btn btn-danger btn-sm';
+                        console.log('✅ DEBUG: Button set to "Stop Bot" - bot is running');
                     } else {
                         botToggle.textContent = 'Start Bot';
                         botToggle.className = 'btn btn-success btn-sm';
+                        console.log('✅ DEBUG: Button set to "Start Bot" - bot is stopped');
                     }
                 }
 
