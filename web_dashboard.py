@@ -481,7 +481,6 @@ def start_bot():
         return jsonify({'success': True, 'message': 'Bot started successfully from web interface'})
 
     except Exception as e:
-        global bot_running
         bot_running = False
         logger.error(f"Failed to start bot: {e}")
         return jsonify({'success': False, 'message': f'Failed to start bot: {e}'})
@@ -2160,9 +2159,6 @@ def run_web_dashboard():
     try:
         logger.info("🔍 DEBUG: Starting web dashboard initialization...")
         
-        # Import here to avoid circular imports
-        from web_dashboard import app
-
         # Get port from environment
         port = int(os.environ.get('PORT', 5000))
         
