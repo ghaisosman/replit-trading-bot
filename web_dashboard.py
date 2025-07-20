@@ -754,8 +754,7 @@ def get_strategies():
                     'stop_loss_pct': 10.0, 'max_loss_pct': 10.0, 'assessment_interval': 30,
                     # Position Management
                     'cooldown_period': 300, 'min_volume': 1000.0, 'decimals': 3,
-                    'take_profit_pct': 1```python
-5.0, 'trailing_stop_pct': 2.0, 'max_position_time': 3600,
+                    'take_profit_pct': 15.0, 'trailing_stop_pct': 2.0, 'max_position_time': 3600,
                     # MACD Specific
                     'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
                     'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2,
