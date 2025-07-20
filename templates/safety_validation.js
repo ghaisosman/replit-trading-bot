@@ -1,4 +1,5 @@
 
+
 // Safety Validation UI Handler
 function handleSafetyValidation(response) {
     if (response.safety_warnings && Object.keys(response.safety_warnings).length > 0) {
@@ -52,29 +53,91 @@ function addSafetyTooltips() {
         }
     });
     
-    // Initialize Bootstrap tooltips
-    $('[data-toggle="tooltip"]').tooltip();
+    // Initialize Bootstrap tooltips if available
+    if (typeof $ !== 'undefined' && $.fn.tooltip) {
+        $('[data-toggle="tooltip"]').tooltip();
+    }
 }
 
 // Prevent zero entry on critical fields
 function preventZeroEntry(fieldId) {
     const field = document.getElementById(fieldId);
     if (field) {
+        let hasError = false;
+        let errorMessage = null;
+        
         field.addEventListener('blur', function() {
             if (this.value === '0' || this.value === '') {
+                hasError = true;
                 this.style.borderColor = '#dc3545';
                 this.style.backgroundColor = '#fff5f5';
                 
-                // Show warning tooltip
-                this.setAttribute('title', 'This field cannot be zero - it would cause trading errors');
-                $(this).tooltip('show');
+                // Show warning
+                errorMessage = document.createElement('small');
+                errorMessage.className = 'text-danger';
+                errorMessage.textContent = 'This field cannot be zero - it would cause trading errors';
                 
-                setTimeout(() => {
-                    this.style.borderColor = '';
-                    this.style.backgroundColor = '';
-                    $(this).tooltip('dispose');
-                }, 3000);
+                if (!this.nextElementSibling || !this.nextElementSibling.classList.contains('text-danger')) {
+                    this.parentNode.insertBefore(errorMessage, this.nextSibling);
+                }
+                
+                // Disable save button
+                disableSaveButton();
+                
+            } else if (hasError) {
+                // Clear error state when valid value is entered
+                hasError = false;
+                this.style.borderColor = '';
+                this.style.backgroundColor = '';
+                
+                if (errorMessage && errorMessage.parentNode) {
+                    errorMessage.parentNode.removeChild(errorMessage);
+                    errorMessage = null;
+                }
+                
+                // Re-enable save button if no other errors exist
+                enableSaveButtonIfValid();
             }
+        });
+        
+        // Also check on input change for immediate feedback
+        field.addEventListener('input', function() {
+            if (hasError && this.value !== '0' && this.value !== '') {
+                hasError = false;
+                this.style.borderColor = '';
+                this.style.backgroundColor = '';
+                
+                if (errorMessage && errorMessage.parentNode) {
+                    errorMessage.parentNode.removeChild(errorMessage);
+                    errorMessage = null;
+                }
+                
+                enableSaveButtonIfValid();
+            }
+        });
+    }
+}
+
+// Function to disable save button
+function disableSaveButton() {
+    const saveButtons = document.querySelectorAll('button[type="submit"], .btn-success, .save-btn');
+    saveButtons.forEach(btn => {
+        btn.disabled = true;
+        btn.classList.add('disabled');
+    });
+}
+
+// Function to enable save button if no validation errors exist
+function enableSaveButtonIfValid() {
+    // Check if there are any remaining validation errors
+    const errorElements = document.querySelectorAll('.text-danger');
+    const fieldsWithErrors = document.querySelectorAll('input[style*="border-color: rgb(220, 53, 69)"]');
+    
+    if (errorElements.length === 0 && fieldsWithErrors.length === 0) {
+        const saveButtons = document.querySelectorAll('button[type="submit"], .btn-success, .save-btn');
+        saveButtons.forEach(btn => {
+            btn.disabled = false;
+            btn.classList.remove('disabled');
         });
     }
 }
@@ -86,4 +149,63 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add zero prevention to critical fields
     const criticalFields = ['margin', 'leverage', 'rsiPeriod', 'macdFast', 'macdSlow', 'assessmentInterval'];
     criticalFields.forEach(fieldId => preventZeroEntry(fieldId));
+    
+    // Add form submission handler to validate before submit
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const hasErrors = validateFormBeforeSubmit();
+            if (hasErrors) {
+                e.preventDefault();
+                showValidationAlert('Please fix the validation errors before saving.');
+                return false;
+            }
+        });
+    });
 });
+
+// Validate entire form before submission
+function validateFormBeforeSubmit() {
+    const criticalFields = ['margin', 'leverage', 'rsiPeriod', 'macdFast', 'macdSlow', 'assessmentInterval'];
+    let hasErrors = false;
+    
+    criticalFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field && (field.value === '0' || field.value === '')) {
+            hasErrors = true;
+            // Trigger the validation display
+            field.dispatchEvent(new Event('blur'));
+        }
+    });
+    
+    return hasErrors;
+}
+
+// Show validation alert
+function showValidationAlert(message) {
+    // Remove existing alerts
+    const existingAlerts = document.querySelectorAll('.validation-alert');
+    existingAlerts.forEach(alert => alert.remove());
+    
+    // Create new alert
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-danger validation-alert mt-3';
+    alert.innerHTML = `
+        <i class="fas fa-exclamation-triangle"></i>
+        <strong>Validation Error:</strong> ${message}
+    `;
+    
+    // Insert at top of form
+    const form = document.querySelector('form');
+    if (form) {
+        form.insertBefore(alert, form.firstChild);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (alert.parentNode) {
+                alert.remove();
+            }
+        }, 5000);
+    }
+}
+
