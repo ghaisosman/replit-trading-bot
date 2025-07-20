@@ -318,19 +318,18 @@ def dashboard():
                 # Calculate position value and get actual margin invested
                 position_value = position.entry_price * position.quantity
 
-                # Get leverage from strategy config
-                strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
-                leverage = strategy_config.get('leverage', 5)  # Default 5x leverage
-
-                # FIXED: Prioritize actual margin used for this specific position
+                # Get actual margin used for this specific position, fallback to strategy config
                 margin_invested = getattr(position, 'actual_margin_used', None)
                 if margin_invested is None:
                     # Fallback: calculate from position data if actual_margin_used not available
+                    strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
+                    leverage = strategy_config.get('leverage', 5)
                     position_value = position.entry_price * position.quantity
                     margin_invested = position_value / leverage
-                    
+
                 # Ensure margin_invested is valid
                 if margin_invested <= 0:
+                    strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
                     margin_invested = strategy_config.get('margin', 50.0)  # Last resort fallback
 
                 # Calculate PnL percentage against margin invested (correct for futures)
@@ -757,6 +756,7 @@ def get_strategies():
                     'rsi_short_entry': 70, 'rsi_short_exit': 30
                 },
                 'macd_divergence': {
+                    ```python
                     # Core Parameters
                     'symbol': 'BTCUSDT', 'timeframe': '15m', 'margin': 50.0, 'leverage': 5,
                     'stop_loss_pct': 10.0, 'max_loss_pct': 10.0, 'assessment_interval': 30,
@@ -1353,9 +1353,19 @@ def get_positions():
                     else:
                         pnl = (entry_price - current_price) * quantity
 
-                    # Get strategy config for margin calculation
-                    strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
-                    margin_invested = strategy_config.get('margin', 50.0)
+                    # Get actual margin used for this specific position, fallback to strategy config
+                    margin_invested = getattr(position, 'actual_margin_used', None)
+                    if margin_invested is None:
+                        # Fallback: calculate from position data if actual_margin_used not available
+                        strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
+                        leverage = strategy_config.get('leverage', 5)
+                        position_value = position.entry_price * position.quantity
+                        margin_invested = position_value / leverage
+
+                    # Ensure margin_invested is valid
+                    if margin_invested <= 0:
+                        strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
+                        margin_invested = strategy_config.get('margin', 50.0)  # Last resort fallback
 
                     if margin_invested > 0:
                         pnl_percent = (pnl / margin_invested) * 100
@@ -1411,7 +1421,7 @@ def get_rsi(symbol):
         if not symbol or len(symbol) < 6:
             return jsonify({'success': False, 'error': 'Invalid symbol'})
 
-        # Try to get klines with proper error handling
+        # Try to get klines with proper error handling```python
         try:
             klines = binance_client.get_klines(symbol=symbol, interval='15m', limit=100)
 
