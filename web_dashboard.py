@@ -536,8 +536,11 @@ import sys
 @app.route('/api/bot_status')
 @rate_limit('bot_status', max_requests=20, window_seconds=60)
 def get_bot_status():
-    """Get current bot status with bulletproof error handling"""
+    """Get current bot status with bulletproof error handling and comprehensive debugging"""
     current_time = datetime.now().strftime('%H:%M:%S')
+    request_id = f"status_{int(time.time() * 1000)}"
+    
+    logger.debug(f"🔍 DEBUG [{request_id}]: Bot status API called")
 
     # FIXED: Always return complete JSON structure to prevent parsing errors
     default_response = {
@@ -549,14 +552,23 @@ def get_bot_status():
         'balance': 0.0,
         'status': 'checking',
         'last_update': current_time,
-        'timestamp': current_time
+        'timestamp': current_time,
+        'debug_info': {
+            'request_id': request_id,
+            'endpoint': 'bot_status',
+            'response_size': 0
+        }
     }
 
     try:
+        logger.debug(f"🔍 DEBUG [{request_id}]: Getting bot manager...")
+        
         # Try to get current bot manager
         current_bot_manager = get_bot_manager()
 
         if current_bot_manager:
+            logger.debug(f"🔍 DEBUG [{request_id}]: Bot manager found")
+            
             # Get running status
             is_running = getattr(current_bot_manager, 'is_running', False)
             default_response.update({
@@ -564,16 +576,19 @@ def get_bot_status():
                 'is_running': is_running,
                 'status': 'running' if is_running else 'stopped'
             })
+            logger.debug(f"🔍 DEBUG [{request_id}]: Bot running status: {is_running}")
 
             # Get active positions count
             if hasattr(current_bot_manager, 'order_manager') and current_bot_manager.order_manager:
                 active_count = len(getattr(current_bot_manager.order_manager, 'active_positions', {}))
                 default_response['active_positions'] = active_count
+                logger.debug(f"🔍 DEBUG [{request_id}]: Active positions: {active_count}")
 
             # Get strategies count
             if hasattr(current_bot_manager, 'strategies'):
                 strategies_count = len(current_bot_manager.strategies)
                 default_response['strategies'] = strategies_count
+                logger.debug(f"🔍 DEBUG [{request_id}]: Strategies count: {strategies_count}")
 
             # Try to get balance
             try:
@@ -581,17 +596,51 @@ def get_bot_status():
                     balance = current_bot_manager.balance_fetcher.get_usdt_balance()
                     if balance is not None:
                         default_response['balance'] = float(balance)
-            except:
-                pass  # Keep default balance
+                        logger.debug(f"🔍 DEBUG [{request_id}]: Balance retrieved: {balance}")
+            except Exception as balance_error:
+                logger.warning(f"🔍 DEBUG [{request_id}]: Balance fetch failed: {balance_error}")
+
+        else:
+            logger.debug(f"🔍 DEBUG [{request_id}]: No bot manager found")
+
+        # Calculate response size for debugging
+        import json
+        response_json = json.dumps(default_response)
+        default_response['debug_info']['response_size'] = len(response_json)
+        
+        logger.debug(f"🔍 DEBUG [{request_id}]: Response prepared, size: {len(response_json)} chars")
+        
+        # CRITICAL: Validate JSON before sending
+        try:
+            json.loads(json.dumps(default_response))  # Test JSON serialization
+            logger.debug(f"✅ DEBUG [{request_id}]: JSON validation passed")
+        except Exception as json_error:
+            logger.error(f"❌ DEBUG [{request_id}]: JSON validation FAILED: {json_error}")
+            # Return minimal safe response
+            safe_response = {
+                'success': False,
+                'error': 'JSON serialization failed',
+                'timestamp': current_time,
+                'debug_info': {'request_id': request_id, 'json_error': str(json_error)}
+            }
+            return jsonify(safe_response)
 
         return jsonify(default_response)
 
     except Exception as e:
-        logger.error(f"Bot status API error: {e}")
+        logger.error(f"❌ DEBUG [{request_id}]: Bot status API error: {e}")
+        import traceback
+        logger.error(f"❌ DEBUG [{request_id}]: Full traceback: {traceback.format_exc()}")
+        
         default_response.update({
             'success': False,
             'status': 'api_error',
-            'error': str(e)
+            'error': str(e),
+            'debug_info': {
+                'request_id': request_id,
+                'error_type': type(e).__name__,
+                'traceback': traceback.format_exc()[-500:]  # Last 500 chars
+            }
         })
         return jsonify(default_response)
 
@@ -1045,7 +1094,10 @@ def update_strategy(strategy_name):
 @app.route('/api/balance')
 @rate_limit('balance', max_requests=10, window_seconds=60)
 def get_balance():
-    """Get balance with bulletproof error handling"""
+    """Get balance with bulletproof error handling and comprehensive debugging"""
+    request_id = f"balance_{int(time.time() * 1000)}"
+    logger.debug(f"🔍 DEBUG [{request_id}]: Balance API called")
+    
     # FIXED: Always start with complete, valid balance structure
     default_balance = {
         'total_balance': 0.0,
@@ -1053,11 +1105,18 @@ def get_balance():
         'used_balance': 0.0,
         'last_updated': datetime.now().isoformat(),
         'status': 'initializing',
-        'success': True
+        'success': True,
+        'debug_info': {
+            'request_id': request_id,
+            'endpoint': 'balance',
+            'source': 'unknown'
+        }
     }
 
     try:
         if IMPORTS_AVAILABLE:
+            logger.debug(f"🔍 DEBUG [{request_id}]: Imports available, trying live balance")
+            
             # Get real balance from Binance with timeout protection
             try:
                 usdt_balance = balance_fetcher.get_usdt_balance()
@@ -1071,16 +1130,28 @@ def get_balance():
                     'used_balance': 0.0,
                     'last_updated': datetime.now().isoformat(),
                     'status': 'live_balance',
-                    'success': True
+                    'success': True,
+                    'debug_info': {
+                        'request_id': request_id,
+                        'endpoint': 'balance',
+                        'source': 'binance_api'
+                    }
                 }
-                logger.debug(f"API Balance Success: {balance_response}")
+                logger.debug(f"✅ DEBUG [{request_id}]: Live balance retrieved: {usdt_balance}")
+                
+                # Validate JSON before sending
+                import json
+                json.dumps(balance_response)  # Test serialization
+                
                 return jsonify(balance_response)
             except Exception as balance_error:
-                logger.error(f"Error getting live balance: {balance_error}")
+                logger.error(f"❌ DEBUG [{request_id}]: Live balance fetch failed: {balance_error}")
                 # Continue to fallback instead of failing
 
         # Fallback to file-based balance
         balance_file = "trading_data/balance.json"
+        logger.debug(f"🔍 DEBUG [{request_id}]: Checking file balance: {balance_file}")
+        
         if os.path.exists(balance_file):
             try:
                 with open(balance_file, 'r') as f:
@@ -1092,11 +1163,17 @@ def get_balance():
                 complete_balance['status'] = 'file_cache'
                 complete_balance['success'] = True
                 complete_balance['last_updated'] = datetime.now().isoformat()
+                complete_balance['debug_info']['source'] = 'file_cache'
 
-                logger.debug(f"API Balance File Cache: {complete_balance}")
+                logger.debug(f"✅ DEBUG [{request_id}]: File balance loaded")
+                
+                # Validate JSON before sending
+                import json
+                json.dumps(complete_balance)  # Test serialization
+                
                 return jsonify(complete_balance)
             except Exception as file_error:
-                logger.error(f"Error reading balance file: {file_error}")
+                logger.error(f"❌ DEBUG [{request_id}]: File balance read failed: {file_error}")
 
         # Default balance for demo/testnet
         default_balance.update({
@@ -1106,11 +1183,21 @@ def get_balance():
             'status': 'default_demo',
             'success': True
         })
-        logger.debug(f"API Balance Default: {default_balance}")
+        default_balance['debug_info']['source'] = 'default_demo'
+        
+        logger.debug(f"✅ DEBUG [{request_id}]: Using default demo balance")
+        
+        # Validate JSON before sending
+        import json
+        json.dumps(default_balance)  # Test serialization
+        
         return jsonify(default_balance)
 
     except Exception as e:
-        logger.error(f"Critical error in balance endpoint: {e}")
+        logger.error(f"❌ DEBUG [{request_id}]: Critical error in balance endpoint: {e}")
+        import traceback
+        logger.error(f"❌ DEBUG [{request_id}]: Full traceback: {traceback.format_exc()}")
+        
         # FIXED: Always return complete, valid JSON structure
         error_balance = {
             'total_balance': 0.0,
@@ -1119,8 +1206,24 @@ def get_balance():
             'last_updated': datetime.now().isoformat(),
             'status': 'api_error',
             'error': str(e),
-            'success': False
+            'success': False,
+            'debug_info': {
+                'request_id': request_id,
+                'endpoint': 'balance',
+                'error_type': type(e).__name__,
+                'traceback': traceback.format_exc()[-300:]
+            }
         }
+        
+        # Validate error response JSON
+        try:
+            import json
+            json.dumps(error_balance)
+        except Exception as json_error:
+            logger.error(f"❌ DEBUG [{request_id}]: Error response JSON validation failed: {json_error}")
+            # Return absolute minimal response
+            return jsonify({'error': 'JSON_ERROR', 'success': False, 'request_id': request_id}), 200
+        
         return jsonify(error_balance), 200
 
 @app.route('/api/positions')

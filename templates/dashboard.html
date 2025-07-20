@@ -978,97 +978,115 @@
         }
 
         // Update bot status with safe API handling
-        function updateBotStatus() {
-            // Check cache first
-            const cachedData = getCachedData('botStatus');
-            if (cachedData) {
-                updateBotStatusUI(cachedData);
-                return Promise.resolve(cachedData);
-            }
+        async function updateBotStatus() {
+            const debugId = `status_${Date.now()}`;
+            console.log(`🔍 DEBUG [${debugId}]: updateBotStatus called`);
 
-            // Check if we can make a new request
-            if (!canMakeRequest('botStatus')) {
-                return Promise.resolve(null);
-            }
-
-            markRequestStart('botStatus');
-
-            return safeApiCall('/api/bot/status')
-                .then(data => {
-                    setCachedData('botStatus', data);
-                    updateBotStatusUI(data);
-                    markRequestEnd('botStatus', true);
-                    return data;
-                })
-                .catch(error => {
-                    updateBotStatusErrorUI();
-                    markRequestEnd('botStatus', false);
-                    return getDefaultResponse('/api/bot/status');
-                });
-        }
-
-        function updateBotStatusUI(data) {
-            // FIXED: Validate data object before accessing properties
-            if (!data || typeof data !== 'object') {
-                console.warn('Invalid bot status data received:', data);
-                updateBotStatusErrorUI();
+            if (!shouldUpdate('botStatus')) {
+                console.log(`🔍 DEBUG [${debugId}]: shouldUpdate returned false, skipping`);
                 return;
             }
 
-            const statusBadge = document.getElementById('statusBadge');
-            const botToggle = document.getElementById('botToggle');
-            const botStatus = document.getElementById('botStatus');
-            const activePositions = document.getElementById('activePositions');
+            try {
+                console.log(`🔍 DEBUG [${debugId}]: Calling cachedApiRequest for bot status`);
+                const data = await cachedApiRequest('/api/bot/status', 'botStatus');
 
-            // Always update button state first
-            if (botToggle) {
-                botToggle.disabled = false; // Re-enable button
-            }
-
-            // Check if bot is running (handle both 'running' and 'is_running' properties)
-            const isRunning = data.running || data.is_running || false;
-
-            if (isRunning) {
-                if (statusBadge) {
-                    statusBadge.textContent = `RUNNING (${data.strategies || 0} strategies)`;
-                    statusBadge.className = 'badge bg-success me-2';
+                if (!data) {
+                    console.log(`🔍 DEBUG [${debugId}]: No data returned from API`);
+                    return;
                 }
+
+                console.log(`🔍 DEBUG [${debugId}]: Bot status data received:`, data);
+
+                const statusElement = document.getElementById('botStatus');
+                const botToggle = document.getElementById('botToggle');
+                const botStatus = document.getElementById('botStatus');
+                const activePositions = document.getElementById('activePositions');
+                const activeStrategies = document.getElementById('activeStrategies');
+                const balanceElement = document.getElementById('balance');
+
+                // Always update button state first
                 if (botToggle) {
-                    botToggle.textContent = 'Stop Bot';
-                    botToggle.className = 'btn btn-danger btn-sm';
+                    botToggle.disabled = false; // Re-enable button
                 }
-                if (botStatus) {
-                    botStatus.textContent = 'RUNNING';
-                    botStatus.className = 'badge bg-success';
+
+                // Check if bot is running (handle both 'running' and 'is_running' properties)
+                const isRunning = data.running || data.is_running || false;
+
+                if (isRunning) {
+                    if (statusElement) {
+                        statusElement.textContent = `RUNNING (${data.strategies || 0} strategies)`;
+                        statusElement.className = 'badge bg-success me-2';
+                    }
+                    if (botToggle) {
+                        botToggle.textContent = 'Stop Bot';
+                        botToggle.className = 'btn btn-danger btn-sm';
+                    }
+                    if (botStatus) {
+                        botStatus.textContent = 'RUNNING';
+                        botStatus.className = 'badge bg-success';
+                    }
+                } else {
+                    if (statusElement) {
+                        statusElement.textContent = `STOPPED (${data.strategies || 0} strategies)`;
+                        statusElement.className = 'badge bg-danger me-2';
+                    }
+                    if (botToggle) {
+                        botToggle.textContent = 'Start Bot';
+                        botToggle.className = 'btn btn-success btn-sm';
+                    }
+                    if (botStatus) {
+                        botStatus.textContent = 'STOPPED';
+                        botStatus.className = 'badge bg-danger';
+                    }
                 }
-            } else {
-                if (statusBadge) {
-                    statusBadge.textContent = `STOPPED (${data.strategies || 0} strategies)`;
-                    statusBadge.className = 'badge bg-danger me-2';
+
+                 // Update active positions count
+                if (activePositions) {
+                    activePositions.textContent = data.active_positions || 0;
                 }
+
+                 // Update active strategies count
+                if (activeStrategies) {
+                    activeStrategies.textContent = data.strategies || 0;
+                }
+                // Update balance if provided in status
+                if (balanceElement && data.balance !== undefined) {
+                    const balance = data.balance || 0;
+                    console.log(`🔍 DEBUG [${debugId}]: Balance from status: ${balance}`);
+                    balanceElement.textContent = `${balance.toFixed(2)}`;
+                }
+                recordApiSuccess('botStatus');
+                console.log(`✅ DEBUG [${debugId}]: Bot status update completed successfully`);
+
+            } catch (error) {
+                console.error(`❌ DEBUG [${debugId}]: Error updating bot status:`, error);
+                console.error(`❌ DEBUG [${debugId}]: Error type: ${error.constructor.name}`);
+                console.error(`❌ DEBUG [${debugId}]: Error message: ${error.message}`);
+                console.error(`❌ DEBUG [${debugId}]: Error stack:`, error.stack);
+
+                recordApiError('botStatus');
+
+                // Show error state in UI
+                const statusElement = document.getElementById('botStatus');
+                if (statusElement) {
+                    statusElement.textContent = 'Error';
+                    statusElement.className = 'badge bg-warning me-2';
+                }
+                 const botToggle = document.getElementById('botToggle');
                 if (botToggle) {
-                    botToggle.textContent = 'Start Bot';
-                    botToggle.className = 'btn btn-success btn-sm';
-                }
+                        botToggle.textContent = 'Error';
+                        botToggle.className = 'btn btn-warning btn-sm';
+                    }
+                const botStatus = document.getElementById('botStatus');
                 if (botStatus) {
-                    botStatus.textContent = 'STOPPED';
-                    botStatus.className = 'badge bg-danger';
+                    botStatus.textContent = 'Error';
+                    botStatus.className = 'badge bg-warning';
                 }
-            }
-
-            // Update active positions count
-            if (activePositions) {
-                activePositions.textContent = data.active_positions || 0;
-            }
-
-            // Update active strategies count
-            const activeStrategiesElement = document.getElementById('activeStrategies');
-            if (activeStrategiesElement) {
-                activeStrategiesElement.textContent = data.strategies || 0;
             }
         }
 
-        function updateBotStatusErrorUI() {
+         function updateBotStatusErrorUI() {
             // Enhanced offline status handling
             const statusBadge = document.getElementById('statusBadge');
             const botToggle = document.getElementById('botToggle');
@@ -1102,7 +1120,6 @@
                 activePositions.textContent = '?';
             }
         }
-
         // Update balance with intelligent caching and throttling
         function updateBalance() {
             // Check cache first
@@ -1323,6 +1340,95 @@
         let updateTimeouts = {};
         let pollingActive = true;
 
+         async function apiRequest(url, options = {}) {
+            const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            console.log(`🔍 DEBUG [${requestId}]: Starting API request to ${url}`);
+
+            try {
+                // Check if this request is already active to prevent duplicates
+                if (activeRequests.has(url)) {
+                    console.log(`⏸️ Request already active for ${url}, skipping duplicate`);
+                    return null;
+                }
+
+                activeRequests.add(url);
+
+                const startTime = performance.now();
+                console.log(`📤 DEBUG [${requestId}]: Sending request...`);
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'Cache-Control': 'no-cache',
+                        'X-Request-ID': requestId
+                    },
+                    ...options
+                });
+
+                const requestDuration = performance.now() - startTime;
+                console.log(`📥 DEBUG [${requestId}]: Response received in ${requestDuration.toFixed(2)}ms`);
+                console.log(`📊 DEBUG [${requestId}]: Status: ${response.status}, Content-Type: ${response.headers.get('content-type')}`);
+
+                if (!response.ok) {
+                    console.error(`❌ DEBUG [${requestId}]: HTTP error ${response.status}: ${response.statusText}`);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                // Check content type
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.error(`❌ DEBUG [${requestId}]: Invalid content type: ${contentType}`);
+                    throw new Error(`Invalid content type: ${contentType}`);
+                }
+
+                // Clone response to read as text first for debugging
+                const responseClone = response.clone();
+                const responseText = await responseClone.text();
+
+                console.log(`📄 DEBUG [${requestId}]: Raw response (${responseText.length} chars):`, responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
+
+                // Validate JSON before parsing
+                if (!responseText.trim()) {
+                    console.error(`❌ DEBUG [${requestId}]: Empty response body!`);
+                    throw new Error('Empty response body');
+                }
+
+                if (!responseText.startsWith('{') && !responseText.startsWith('[')) {
+                    console.error(`❌ DEBUG [${requestId}]: Response does not start with JSON character: "${responseText.charAt(0)}"`);
+                    throw new Error(`Invalid JSON start character: "${responseText.charAt(0)}"`);
+                }
+
+                try {
+                    const data = JSON.parse(responseText);
+                    console.log(`✅ DEBUG [${requestId}]: JSON parsed successfully`);
+                    console.log(`📋 DEBUG [${requestId}]: Response data keys:`, Object.keys(data));
+                    return data;
+                } catch (parseError) {
+                    console.error(`❌ DEBUG [${requestId}]: JSON parse error:`, parseError);
+                    console.error(`❌ DEBUG [${requestId}]: Problematic text:`, responseText);
+                    throw new Error(`JSON parse error: ${parseError.message}`);
+                }
+
+            } catch (error) {
+                console.error(`❌ DEBUG [${requestId}]: API request failed for ${url}`);
+                console.error(`❌ DEBUG [${requestId}]: Error type: ${error.constructor.name}`);
+                console.error(`❌ DEBUG [${requestId}]: Error message: ${error.message}`);
+                console.error(`❌ DEBUG [${requestId}]: Full error:`, error);
+
+                // Log additional context
+                console.error(`❌ DEBUG [${requestId}]: URL: ${url}`);
+                console.error(`❌ DEBUG [${requestId}]: Options:`, options);
+
+                return null;
+            } finally {
+                activeRequests.delete(url);
+                console.log(`🧹 DEBUG [${requestId}]: Request cleanup completed`);
+            }
+        }
+
         // FIXED: Enhanced safe API response handler to prevent parsing errors
         function safeApiCall(url, options = {}) {
             return fetch(url, options)
@@ -1364,7 +1470,7 @@
 
         function getDefaultResponse(url) {
             const currentTime = new Date().toLocaleTimeString();
-            
+
             if (url.includes('/api/bot/status') || url.includes('/api/bot_status')) {
                 return {
                     success: true,
@@ -1402,7 +1508,7 @@
                     status: 'api_fallback'
                 };
             }
-            
+
             return { success: false, error: 'Unknown endpoint' };
         }
 
