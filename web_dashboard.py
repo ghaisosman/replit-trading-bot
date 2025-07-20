@@ -756,7 +756,6 @@ def get_strategies():
                     'rsi_short_entry': 70, 'rsi_short_exit': 30
                 },
                 'macd_divergence': {
-                    ```python
                     # Core Parameters
                     'symbol': 'BTCUSDT', 'timeframe': '15m', 'margin': 50.0, 'leverage': 5,
                     'stop_loss_pct': 10.0, 'max_loss_pct': 10.0, 'assessment_interval': 30,
@@ -1421,7 +1420,7 @@ def get_rsi(symbol):
         if not symbol or len(symbol) < 6:
             return jsonify({'success': False, 'error': 'Invalid symbol'})
 
-        # Try to get klines with proper error handling```python
+        # Try to get klines with proper error handling
         try:
             klines = binance_client.get_klines(symbol=symbol, interval='15m', limit=100)
 
