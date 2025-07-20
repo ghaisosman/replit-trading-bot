@@ -751,8 +751,7 @@ def get_strategies():
                     'cooldown_period': 300, 'min_volume': 1000.0, 'decimals': 3,
                     'take_profit_pct': 15.0, 'trailing_stop_pct': 2.0, 'max_position_time': 3600,
                     # MACD Specific
-                    'macd_fast': ```python
-12, 'macd_slow': 26, 'macd_signal': 9,
+                    'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
                     'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2,
                     'divergence_strength_min': 0.6
                 }
