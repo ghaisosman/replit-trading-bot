@@ -251,15 +251,18 @@ class OrderManager:
             else:  # Short position
                 pnl = (entry_price - current_price) * quantity
 
-            # Calculate PnL percentage against actual margin invested from strategy config
-            margin_invested = 50.0  # Default margin
-            if hasattr(position, 'strategy_config') and position.strategy_config:
-                margin_invested = position.strategy_config.get('margin', 50.0)
-            else:
-                # Fallback: calculate from position value and leverage
-                leverage = max(1, 5)  # Default leverage, ensure minimum 1
-                position_value = entry_price * quantity
-                margin_invested = position_value / leverage
+            # FIXED: Calculate PnL percentage against actual margin invested for this position
+            margin_invested = getattr(position, 'actual_margin_used', None)
+            
+            if margin_invested is None:
+                # Fallback: try strategy config margin
+                if hasattr(position, 'strategy_config') and position.strategy_config:
+                    margin_invested = position.strategy_config.get('margin', 50.0)
+                else:
+                    # Last resort: calculate from position value and leverage
+                    leverage = max(1, 5)  # Default leverage, ensure minimum 1
+                    position_value = entry_price * quantity
+                    margin_invested = position_value / leverage
 
             # Ensure margin_invested is not zero to prevent division by zero
             if margin_invested <= 0:

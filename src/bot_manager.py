@@ -1000,6 +1000,7 @@ Interval: every {assessment_interval} seconds
                                 entry_price = float(position.get('entryPrice', 0))
                                 side = 'BUY' if position_amt > 0 else 'SELL'
                                 quantity = abs(position_amt)
+                                leverage = strategy_config.get('leverage', 5)
 
                                 # Check if there's a matching trade in our database
                                 trade_id = None
@@ -1082,21 +1083,37 @@ Interval: every {assessment_interval} seconds
                                     # Position recovery - always recover valid positions to prevent ghost detection
                                     from src.execution_engine.order_manager import Position
                                     from datetime import datetime
+                                    position_side = 'LONG' if side == 'BUY' else 'SHORT'
+                                    stop_loss = entry_price * (0.98 if side == 'BUY' else 1.02)
+                                    take_profit = entry_price * (1.02 if side == 'BUY' else 0.98)
 
+                                    # Calculate actual margin used based on position data
+                                    position_value = entry_price * abs(position_amt)
+                                    actual_margin_used = position_value / leverage
+
+                                    # Create Position object for recovered position
                                     recovered_position = Position(
                                         strategy_name=strategy_name,
                                         symbol=symbol,
                                         side=side,
                                         entry_price=entry_price,
                                         quantity=quantity,
-                                        stop_loss=entry_price * (0.98 if side == 'BUY' else 1.02),
-                                        take_profit=entry_price * (1.02 if side == 'BUY' else 0.98),
-                                        position_side='LONG' if side == 'BUY' else 'SHORT',
+                                        stop_loss=stop_loss,
+                                        take_profit=take_profit,
+                                        position_side=position_side,
                                         order_id=0,
                                         entry_time=datetime.now(),
                                         status='RECOVERED',
                                         trade_id=trade_id or f"recovered_{symbol}_{int(datetime.now().timestamp())}",
-                                        strategy_config=strategy_config
+                                        strategy_config=strategy_config,
+                                        # Initialize partial TP fields
+                                        original_quantity=abs(position_amt),
+                                        remaining_quantity=abs(position_amt),
+                                        partial_tp_taken=False,
+                                        partial_tp_amount=0.0,
+                                        partial_tp_percentage=0.0,
+                                        # CRITICAL FIX: Store actual margin used for this specific position
+                                        actual_margin_used=actual_margin_used
                                     )
 
                                     # Add to active positions

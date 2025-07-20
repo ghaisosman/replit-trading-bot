@@ -322,8 +322,16 @@ def dashboard():
                 strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
                 leverage = strategy_config.get('leverage', 5)  # Default 5x leverage
 
-                # Use actual margin used for this specific position, fallback to configured margin
-                margin_invested = getattr(position, 'actual_margin_used', None) or strategy_config.get('margin', 50.0)
+                # FIXED: Prioritize actual margin used for this specific position
+                margin_invested = getattr(position, 'actual_margin_used', None)
+                if margin_invested is None:
+                    # Fallback: calculate from position data if actual_margin_used not available
+                    position_value = position.entry_price * position.quantity
+                    margin_invested = position_value / leverage
+                    
+                # Ensure margin_invested is valid
+                if margin_invested <= 0:
+                    margin_invested = strategy_config.get('margin', 50.0)  # Last resort fallback
 
                 # Calculate PnL percentage against margin invested (correct for futures)
                 pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
