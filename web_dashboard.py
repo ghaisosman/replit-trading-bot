@@ -369,11 +369,11 @@ def start_bot():
         if current_bot and getattr(current_bot, 'is_running', False):
             return jsonify({'success': False, 'message': 'Bot is already running'})
 
-        if bot_running and bot_thread and bot_thread.is_alive():
-            return jsonify({'success': False, 'message': 'Bot is already running in web dashboard'})
-
         # Set running state immediately - declare global first
         global bot_running
+        
+        if bot_running and bot_thread and bot_thread.is_alive():
+            return jsonify({'success': False, 'message': 'Bot is already running in web dashboard'})
         logger.info("🌐 WEB INTERFACE: Starting bot from dashboard")
         bot_running = True
 
