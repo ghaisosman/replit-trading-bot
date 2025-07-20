@@ -21,7 +21,9 @@
     "LOGGED": "\u001b[1;31m",
     "OPENED": "\u001b[1;32m",
     "TRIGGERED": "\u001b[1;34m",
-    "BLOCKED": "\u001b[1;37m"
+    "BLOCKED": "\u001b[1;37m",
+    "XRPSDT": "\u001b[95m",
+    "XRPUSDT": "\u001b[95m"
   },
   "active_position_colors": {
     "LOADED": "\u001b[1;95m",
@@ -45,6 +47,8 @@
     "LOGGED": "\u001b[1;31m",
     "OPENED": "\u001b[1;32m",
     "TRIGGERED": "\u001b[1;34m",
-    "BLOCKED": "\u001b[1;37m"
+    "BLOCKED": "\u001b[1;37m",
+    "XRPSDT": "\u001b[1;95m",
+    "XRPUSDT": "\u001b[1;95m"
   }
 }
