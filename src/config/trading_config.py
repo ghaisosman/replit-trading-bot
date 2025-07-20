@@ -239,6 +239,17 @@ class TradingConfigManager:
             if validated_updates['divergence_strength_min'] < 0.1 or validated_updates['divergence_strength_min'] > 1.0:
                 validated_updates['divergence_strength_min'] = 0.4
 
+        # MACD Entry/Exit Thresholds - MISSING PARAMETERS FIXED
+        if 'macd_entry_threshold' in updates:
+            validated_updates['macd_entry_threshold'] = float(updates['macd_entry_threshold'])
+            if validated_updates['macd_entry_threshold'] < 0.001 or validated_updates['macd_entry_threshold'] > 1.0:
+                validated_updates['macd_entry_threshold'] = 0.05
+
+        if 'macd_exit_threshold' in updates:
+            validated_updates['macd_exit_threshold'] = float(updates['macd_exit_threshold'])
+            if validated_updates['macd_exit_threshold'] < 0.001 or validated_updates['macd_exit_threshold'] > 1.0:
+                validated_updates['macd_exit_threshold'] = 0.02
+
 
 
         # Universal Strategy Parameters (for any future strategy)
@@ -338,6 +349,8 @@ class TradingConfigManager:
                     strategies[strategy_name].setdefault('histogram_divergence_lookback', 10)
                     strategies[strategy_name].setdefault('price_divergence_lookback', 10)
                     strategies[strategy_name].setdefault('divergence_strength_min', 0.4)
+                    strategies[strategy_name].setdefault('macd_entry_threshold', 0.05)
+                    strategies[strategy_name].setdefault('macd_exit_threshold', 0.02)
 
                 # Set common defaults only if not already set
                 strategies[strategy_name].setdefault('min_volume', 1000000)
@@ -380,6 +393,8 @@ class TradingConfigManager:
                 'histogram_divergence_lookback': 10,
                 'price_divergence_lookback': 10,
                 'divergence_strength_min': 0.4,
+                'macd_entry_threshold': 0.05,
+                'macd_exit_threshold': 0.02,
                 'min_volume': 1000000,
             },
         }

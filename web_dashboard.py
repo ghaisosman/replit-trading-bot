@@ -540,7 +540,7 @@ def get_bot_status():
     """Get current bot status with bulletproof error handling and comprehensive debugging"""
     current_time = datetime.now().strftime('%H:%M:%S')
     request_id = f"status_{int(time.time() * 1000)}"
-    
+
     logger.debug(f"🔍 DEBUG [{request_id}]: Bot status API called")
 
     # FIXED: Always return complete JSON structure to prevent parsing errors
@@ -563,13 +563,13 @@ def get_bot_status():
 
     try:
         logger.debug(f"🔍 DEBUG [{request_id}]: Getting bot manager...")
-        
+
         # Try to get current bot manager
         current_bot_manager = get_bot_manager()
 
         if current_bot_manager:
             logger.debug(f"🔍 DEBUG [{request_id}]: Bot manager found")
-            
+
             # Get running status
             is_running = getattr(current_bot_manager, 'is_running', False)
             default_response.update({
@@ -608,9 +608,9 @@ def get_bot_status():
         import json
         response_json = json.dumps(default_response)
         default_response['debug_info']['response_size'] = len(response_json)
-        
+
         logger.debug(f"🔍 DEBUG [{request_id}]: Response prepared, size: {len(response_json)} chars")
-        
+
         # CRITICAL: Validate JSON before sending
         try:
             json.loads(json.dumps(default_response))  # Test JSON serialization
@@ -632,7 +632,7 @@ def get_bot_status():
         logger.error(f"❌ DEBUG [{request_id}]: Bot status API error: {e}")
         import traceback
         logger.error(f"❌ DEBUG [{request_id}]: Full traceback: {traceback.format_exc()}")
-        
+
         default_response.update({
             'success': False,
             'status': 'api_error',
@@ -652,7 +652,7 @@ def get_strategies():
         if IMPORTS_AVAILABLE:
             # FORCE FRESH LOAD - Clear any cached configurations
             trading_config_manager._clear_cache() if hasattr(trading_config_manager, '_clear_cache') else None
-            
+
             # Get all strategies from web dashboard configuration manager
             strategies = trading_config_manager.get_all_strategies()
 
@@ -1025,22 +1025,22 @@ def update_strategy(strategy_name):
 
         # 🎯 WEB DASHBOARD IS THE SINGLE SOURCE OF TRUTH - Save to persistent config
         trading_config_manager.update_strategy_params(strategy_name, data)
-        
+
         # CRITICAL: Force immediate cache invalidation to prevent stale data
         if hasattr(trading_config_manager, '_clear_cache'):
             trading_config_manager._clear_cache()
-        
+
         # CRITICAL: Verify the update was actually saved
         updated_strategies = trading_config_manager.get_all_strategies()
         saved_config = updated_strategies.get(strategy_name, {})
-        
+
         # Validate that our changes were actually persisted
         validation_passed = True
         for key, value in data.items():
             if saved_config.get(key) != value:
                 validation_passed = False
                 logger.error(f"❌ VALIDATION FAILED: {key} = {saved_config.get(key)} (expected {value})")
-        
+
         if validation_passed:
             logger.info(f"✅ VALIDATION PASSED: All {len(data)} parameters correctly saved")
         else:
@@ -1121,7 +1121,7 @@ def get_balance():
     """Get balance with bulletproof error handling and comprehensive debugging"""
     request_id = f"balance_{int(time.time() * 1000)}"
     logger.debug(f"🔍 DEBUG [{request_id}]: Balance API called")
-    
+
     # FIXED: Always start with complete, valid balance structure
     default_balance = {
         'total_balance': 0.0,
@@ -1140,7 +1140,7 @@ def get_balance():
     try:
         if IMPORTS_AVAILABLE:
             logger.debug(f"🔍 DEBUG [{request_id}]: Imports available, trying live balance")
-            
+
             # Get real balance from Binance with timeout protection
             try:
                 usdt_balance = balance_fetcher.get_usdt_balance()
@@ -1162,11 +1162,11 @@ def get_balance():
                     }
                 }
                 logger.debug(f"✅ DEBUG [{request_id}]: Live balance retrieved: {usdt_balance}")
-                
+
                 # Validate JSON before sending
                 import json
                 json.dumps(balance_response)  # Test serialization
-                
+
                 return jsonify(balance_response)
             except Exception as balance_error:
                 logger.error(f"❌ DEBUG [{request_id}]: Live balance fetch failed: {balance_error}")
@@ -1175,7 +1175,7 @@ def get_balance():
         # Fallback to file-based balance
         balance_file = "trading_data/balance.json"
         logger.debug(f"🔍 DEBUG [{request_id}]: Checking file balance: {balance_file}")
-        
+
         if os.path.exists(balance_file):
             try:
                 with open(balance_file, 'r') as f:
@@ -1190,11 +1190,11 @@ def get_balance():
                 complete_balance['debug_info']['source'] = 'file_cache'
 
                 logger.debug(f"✅ DEBUG [{request_id}]: File balance loaded")
-                
+
                 # Validate JSON before sending
                 import json
                 json.dumps(complete_balance)  # Test serialization
-                
+
                 return jsonify(complete_balance)
             except Exception as file_error:
                 logger.error(f"❌ DEBUG [{request_id}]: File balance read failed: {file_error}")
@@ -1208,20 +1208,20 @@ def get_balance():
             'success': True
         })
         default_balance['debug_info']['source'] = 'default_demo'
-        
+
         logger.debug(f"✅ DEBUG [{request_id}]: Using default demo balance")
-        
+
         # Validate JSON before sending
         import json
         json.dumps(default_balance)  # Test serialization
-        
+
         return jsonify(default_balance)
 
     except Exception as e:
         logger.error(f"❌ DEBUG [{request_id}]: Critical error in balance endpoint: {e}")
         import traceback
         logger.error(f"❌ DEBUG [{request_id}]: Full traceback: {traceback.format_exc()}")
-        
+
         # FIXED: Always return complete, valid JSON structure
         error_balance = {
             'total_balance': 0.0,
@@ -1238,7 +1238,7 @@ def get_balance():
                 'traceback': traceback.format_exc()[-300:]
             }
         }
-        
+
         # Validate error response JSON
         try:
             import json
@@ -1247,7 +1247,7 @@ def get_balance():
             logger.error(f"❌ DEBUG [{request_id}]: Error response JSON validation failed: {json_error}")
             # Return absolute minimal response
             return jsonify({'error': 'JSON_ERROR', 'success': False, 'request_id': request_id}), 200
-        
+
         return jsonify(error_balance), 200
 
 @app.route('/api/positions')
@@ -1437,7 +1437,7 @@ def calculate_rsi(closes, period=14):
             return 50.0  # Default RSI if not enough data
 
         # Validate closes data
-        valid_closes = []
+        valid_closes = []```python
         for close in closes:
             if isinstance(close, (int, float)) and close > 0:
                 valid_closes.append(float(close))
@@ -2017,7 +2017,7 @@ def wait_for_bot_initialization():
     """Wait for bot to be fully initialized before serving API requests"""
     max_wait = 30  # Maximum 30 seconds wait
     wait_time = 0
-    
+
     while wait_time < max_wait:
         try:
             # Check if bot manager exists and is properly initialized
@@ -2027,13 +2027,13 @@ def wait_for_bot_initialization():
                 return True
         except:
             pass
-        
+
         time.sleep(1)
         wait_time += 1
-        
+
         if wait_time % 5 == 0:
             logger.info(f"⏳ Waiting for bot initialization... ({wait_time}s)")
-    
+
     logger.warning("⚠️ Bot initialization timeout - Dashboard will serve with limited functionality")
     return False
 
@@ -2043,18 +2043,18 @@ _dashboard_ready = False
 def initialize_dashboard():
     """Initialize dashboard with proper timing"""
     global _dashboard_ready
-    
+
     logger.info("🌐 Web dashboard initializing...")
-    
+
     # Wait a minimum time for basic setup
     time.sleep(3)
-    
+
     # Wait for bot to be ready
     wait_for_bot_initialization()
-    
+
     # Additional buffer for safety
     time.sleep(2)
-    
+
     _dashboard_ready = True
     logger.info("✅ Web dashboard fully initialized and ready")
 
@@ -2095,7 +2095,7 @@ def validate_json_response(response):
                     return fallback_response
         except Exception as e:
             logger.error(f"Response validation error for {request.path}: {e}")
-    
+
     return response
 
 if __name__ == '__main__':
