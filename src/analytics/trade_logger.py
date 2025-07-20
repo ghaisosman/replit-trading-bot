@@ -139,6 +139,12 @@ class TradeLogger:
             trade_record.volatility_score = market_conditions.get('volatility')
             trade_record.market_phase = market_conditions.get('phase')
 
+        # Validate trade record has all required data
+        if not all([trade_record.trade_id, trade_record.strategy_name, trade_record.symbol, 
+                   trade_record.side, trade_record.entry_price, trade_record.quantity]):
+            self.logger.error(f"❌ Invalid trade record - missing required fields: {trade_record}")
+            return None
+
         # Add to trades list
         self.trades.append(trade_record)
 
@@ -146,14 +152,20 @@ class TradeLogger:
         self._save_trades()
 
         self.logger.info(f"📝 TRADE ENTRY LOGGED | {trade_id} | {symbol} | {side} | ${entry_price:.4f}")
+        self.logger.debug(f"📝 TRADE DETAILS: {trade_record.to_dict()}")
 
         # Add to trade database for position validation
         try:
             from src.execution_engine.trade_database import TradeDatabase
             trade_db = TradeDatabase()
-            trade_db.add_trade(trade_id, trade_record.to_dict())
+            trade_dict = trade_record.to_dict()
+            success = trade_db.add_trade(trade_id, trade_dict)
+            if not success:
+                self.logger.error(f"❌ Failed to add trade to database: {trade_id}")
         except Exception as e:
-            self.logger.warning(f"Could not add trade to database: {e}")
+            self.logger.error(f"❌ Could not add trade to database: {e}")
+            import traceback
+            self.logger.error(f"❌ Database add error traceback: {traceback.format_exc()}")
 
         return trade_id
 

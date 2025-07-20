@@ -70,22 +70,61 @@ class TradeDatabase:
         try:
             # Pre-validation checks
             required_fields = ['strategy_name', 'symbol', 'side', 'quantity', 'entry_price', 'trade_status']
-            missing_fields = [field for field in required_fields if field not in trade_data]
+            missing_fields = [field for field in required_fields if field not in trade_data or trade_data[field] is None]
             if missing_fields:
                 self.logger.error(f"🚨 BULLETPROOF: Missing required fields {missing_fields} in trade {trade_id}")
+                self.logger.error(f"🚨 BULLETPROOF: Trade data received: {trade_data}")
                 return False
 
-            # Add bulletproof metadata
-            trade_data['created_at'] = datetime.now().isoformat()
-            trade_data['last_verified'] = datetime.now().isoformat()
-            trade_data['sync_status'] = 'PENDING_VERIFICATION'
+            # Validate data types and values
+            try:
+                if not isinstance(trade_data['quantity'], (int, float)) or trade_data['quantity'] <= 0:
+                    self.logger.error(f"🚨 BULLETPROOF: Invalid quantity {trade_data['quantity']} in trade {trade_id}")
+                    return False
+                
+                if not isinstance(trade_data['entry_price'], (int, float)) or trade_data['entry_price'] <= 0:
+                    self.logger.error(f"🚨 BULLETPROOF: Invalid entry_price {trade_data['entry_price']} in trade {trade_id}")
+                    return False
+                    
+                if trade_data['side'] not in ['BUY', 'SELL']:
+                    self.logger.error(f"🚨 BULLETPROOF: Invalid side {trade_data['side']} in trade {trade_id}")
+                    return False
+                    
+            except (KeyError, TypeError, ValueError) as e:
+                self.logger.error(f"🚨 BULLETPROOF: Data validation failed for trade {trade_id}: {e}")
+                return False
+
+            # Create a complete trade data copy to avoid reference issues
+            complete_trade_data = {
+                'trade_id': trade_id,
+                'strategy_name': str(trade_data['strategy_name']),
+                'symbol': str(trade_data['symbol']),
+                'side': str(trade_data['side']),
+                'quantity': float(trade_data['quantity']),
+                'entry_price': float(trade_data['entry_price']),
+                'trade_status': str(trade_data['trade_status']),
+                'created_at': datetime.now().isoformat(),
+                'last_verified': datetime.now().isoformat(),
+                'sync_status': 'PENDING_VERIFICATION'
+            }
+            
+            # Add optional fields if present
+            optional_fields = ['stop_loss', 'take_profit', 'position_side', 'order_id', 'entry_time', 
+                             'timestamp', 'margin_used', 'leverage', 'position_value_usdt']
+            for field in optional_fields:
+                if field in trade_data and trade_data[field] is not None:
+                    complete_trade_data[field] = trade_data[field]
             
             # Add to database
-            self.trades[trade_id] = trade_data
+            self.trades[trade_id] = complete_trade_data
             self._save_database()
             
+            # Log successful addition
+            self.logger.info(f"🛡️ BULLETPROOF: Trade {trade_id} added to database with complete data")
+            self.logger.debug(f"🛡️ BULLETPROOF: Saved trade data: {complete_trade_data}")
+            
             # Immediate verification with Binance
-            if self._verify_trade_on_binance(trade_id, trade_data):
+            if self._verify_trade_on_binance(trade_id, complete_trade_data):
                 self.trades[trade_id]['sync_status'] = 'VERIFIED'
                 self._save_database()
                 self.logger.info(f"🛡️ BULLETPROOF: Added and verified trade {trade_id}")
@@ -95,6 +134,8 @@ class TradeDatabase:
             return True
         except Exception as e:
             self.logger.error(f"🚨 BULLETPROOF: Error adding trade to database: {e}")
+            import traceback
+            self.logger.error(f"🚨 BULLETPROOF: Full traceback: {traceback.format_exc()}")
             return False
 
     def find_trade_by_position(self, strategy_name: str, symbol: str, side: str, 

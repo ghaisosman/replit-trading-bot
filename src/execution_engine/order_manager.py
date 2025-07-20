@@ -798,33 +798,45 @@ class OrderManager:
                 from src.execution_engine.trade_database import TradeDatabase
                 trade_db = TradeDatabase()
 
-                # Create comprehensive trade data for database
+                # Create comprehensive trade data for database with all required fields
                 trade_data = {
                     'trade_id': generated_trade_id,
                     'strategy_name': position.strategy_name,
                     'symbol': position.symbol,
                     'side': position.side,
-                    'entry_price': position.entry_price,
-                    'quantity': position.quantity,
-                    'stop_loss': position.stop_loss,
-                    'take_profit': position.take_profit,
+                    'entry_price': float(position.entry_price),
+                    'quantity': float(position.quantity),
+                    'trade_status': 'OPEN',
+                    'stop_loss': float(position.stop_loss) if position.stop_loss else None,
+                    'take_profit': float(position.take_profit) if position.take_profit else None,
                     'position_side': position.position_side,
                     'order_id': position.order_id,
-                    'entry_time': position.entry_time.isoformat() if position.entry_time else None,
+                    'entry_time': position.entry_time.isoformat() if position.entry_time else datetime.now().isoformat(),
                     'timestamp': position.entry_time.isoformat() if position.entry_time else datetime.now().isoformat(),
-                    'trade_status': 'OPEN',
-                    'margin_used': margin_used,
-                    'leverage': actual_leverage,
-                    'position_value_usdt': position.entry_price * position.quantity
+                    'margin_used': float(margin_used),
+                    'leverage': int(actual_leverage),
+                    'position_value_usdt': float(position.entry_price * position.quantity)
                 }
 
-                # Add trade to database
-                trade_db.add_trade(generated_trade_id, trade_data)
-
-                self.logger.debug(f"✅ Trade recorded in database: {generated_trade_id}")
+                # Validate all required data is present before adding
+                required_check = ['strategy_name', 'symbol', 'side', 'entry_price', 'quantity', 'trade_status']
+                missing = [f for f in required_check if f not in trade_data or trade_data[f] is None]
+                
+                if missing:
+                    self.logger.error(f"❌ Cannot save trade to database - missing: {missing}")
+                    self.logger.error(f"❌ Trade data: {trade_data}")
+                else:
+                    # Add trade to database
+                    success = trade_db.add_trade(generated_trade_id, trade_data)
+                    if success:
+                        self.logger.info(f"✅ Trade recorded in database: {generated_trade_id}")
+                    else:
+                        self.logger.error(f"❌ Failed to record trade in database: {generated_trade_id}")
 
             except Exception as db_error:
                 self.logger.error(f"❌ Error recording trade in database: {db_error}")
+                import traceback
+                self.logger.error(f"❌ Database error traceback: {traceback.format_exc()}")
                 # Don't fail the entire trade entry if database fails
 
             self.logger.info(f"📊 TRADE ENTRY LOGGED | ID: {generated_trade_id} | {position.strategy_name} | {position.symbol}")
