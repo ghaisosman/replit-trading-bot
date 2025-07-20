@@ -750,8 +750,6 @@ def get_strategies():
                     # Position Management
                     'cooldown_period': 300, 'min_volume': 1000.0, 'decimals': 3,
                     'take_profit_pct': 15.0, 'trailing_stop_pct': 2.0, 'max_position_time': 3600,
-The code has been modified to fix the syntax error in the MACD strategy configuration by removing the malformed triple backticks.
-```python
                     # MACD Specific
                     'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
                     'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2,
@@ -1439,8 +1437,7 @@ def calculate_rsi(closes, period=14):
             return 50.0  # Default RSI if not enough data
 
         # Validate closes data
-        valid```python
-_closes = []
+        valid_closes = []
         for close in closes:
             if isinstance(close, (int, float)) and close > 0:
                 valid_closes.append(float(close))
