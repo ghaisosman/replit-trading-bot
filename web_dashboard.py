@@ -755,7 +755,7 @@ def get_strategies():
                 'macd_divergence': {
                     # Core Parameters
                     'symbol': 'BTCUSDT', 'timeframe': '15m', 'margin': 50.0, 'leverage': 5,
-                    'stop_loss_pct': 10.0, 'max_loss_pct': 10.0, 'assessment_interval': 30,```python
+                    'stop_loss_pct': 10.0, 'max_loss_pct': 10.0, 'assessment_interval': 30,
                     # Position Management
                     'cooldown_period': 300, 'min_volume': 1000.0, 'decimals': 3,
                     'take_profit_pct': 15.0, 'trailing_stop_pct': 2.0, 'max_position_time': 3600,
