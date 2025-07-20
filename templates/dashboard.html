@@ -2146,9 +2146,16 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                  showAlert('Configuration saved successfully!', 'success');
+                    // Always show success message first
+                    showAlert('Configuration saved successfully!', 'success');
 
-                    // Handle safety validation feedback
+                    // Close the modal immediately on success
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('strategyModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+
+                    // Handle safety validation feedback after closing modal
                     handleSafetyValidation(data);
 
                     // Reload strategies to show updated config
@@ -2157,7 +2164,10 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                     alert('Error updating strategy: ' + data.message);
                 }
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error saving configuration: ' + error.message);
+            });
         }
 
         // Add new strategy function
@@ -2348,12 +2358,15 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
 
         // Safety validation feedback function
         function handleSafetyValidation(data) {
-            if (data && data.warnings && data.warnings.length > 0) {
-                let warningMessage = '⚠️ Configuration saved, but with the following warnings:\n\n';
-                data.warnings.forEach(warning => {
+            if (data && data.safety_warnings && data.safety_warnings.length > 0) {
+                let warningMessage = '⚠️ Safety corrections were applied:\n\n';
+                data.safety_warnings.forEach(warning => {
                     warningMessage += '• ' + warning + '\n';
                 });
-                alert(warningMessage);
+                warningMessage += '\nConfiguration was saved with safe default values.';
+                
+                // Show as a warning alert instead of blocking alert
+                showAlert(warningMessage, 'warning');
             }
         }
 
