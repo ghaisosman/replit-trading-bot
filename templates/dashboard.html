@@ -1495,6 +1495,7 @@
                             rsiElement.className = 'badge bg-warning';
                             rsiElement.textContent = 'RSI: N/A';
                             rsiElement.title = 'RSI data temporarily unavailable';
+                        ```text
                         }
                     }
                 })
@@ -2011,20 +2012,18 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                 .then(result => {
                     if (result.success) {
                         showAlert('✅ Strategy disabled successfully!\n\n' + (result.note || ''), 'success');
-                        
+
                         // Update button immediately to show enabled state
                         button.innerHTML = '<i class="fas fa-play"></i> Enable';
                         button.className = 'btn btn-outline-success btn-sm';
                         button.disabled = false;
                         button.onclick = function() { enableStrategy(strategyName); };
-                        
-                        // Force refresh strategies data and reload page after longer delay
+
+                        // Force refresh strategies data and update button state
                         setTimeout(() => {
-                            loadStrategiesWithCacheBust();
-                            setTimeout(() => {
-                                location.reload();
-                            }, 1000);
-                        }, 2000);
+                            // Force reload the entire page to refresh all data including strategy cards
+                            location.reload();
+                        }, 1500);
                     } else {
                         showAlert('❌ Error disabling strategy:\n\n' + result.message, 'danger');
                         // Restore button state
@@ -2063,20 +2062,18 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                 .then(result => {
                     if (result.success) {
                         showAlert('✅ Strategy enabled successfully!', 'success');
-                        
+
                         // Update button immediately to show disabled state
                         button.innerHTML = '<i class="fas fa-pause"></i> Disable';
                         button.className = 'btn btn-outline-danger btn-sm';
                         button.disabled = false;
                         button.onclick = function() { disableStrategy(strategyName); };
-                        
-                        // Force refresh strategies data and reload page after longer delay
+
+                        // Force refresh strategies data and update button state
                         setTimeout(() => {
-                            loadStrategiesWithCacheBust();
-                            setTimeout(() => {
-                                location.reload();
-                            }, 1000);
-                        }, 2000);
+                            // Force reload the entire page to refresh all data including strategy cards
+                            location.reload();
+                        }, 1500);
                     } else {
                         showAlert('❌ Error enabling strategy:\n\n' + result.message, 'danger');
                         // Restore button state
@@ -2548,7 +2545,7 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                     warningMessage += '• ' + warning + '\n';
                 });
                 warningMessage += '\nConfiguration was saved with safe default values.';
-                
+
                 // Show as a warning alert instead of blocking alert
                 showAlert(warningMessage, 'warning');
             }
