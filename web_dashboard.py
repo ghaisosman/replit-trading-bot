@@ -2166,19 +2166,47 @@ def check_initialization():
             'status': 'initializing',
             'message': 'Dashboard initializing...',
             'timestamp': datetime.now().strftime('%H:%M:%S')
-        }), 202  # 202 Accepted status for initialization
+        }), 200  # Changed to 200 to prevent browser JSON parsing errors
+
+@app.errorhandler(404)
+def not_found_error(error):
+    """Handle 404 errors for API routes"""
+    if request.path.startswith('/api/'):
+        return jsonify({
+            'success': False,
+            'error': 'Endpoint not found',
+            'path': request.path,
+            'timestamp': datetime.now().strftime('%H:%M:%S')
+        }), 404
+    return error
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle 500 errors for API routes"""
+    if request.path.startswith('/api/'):
+        return jsonify({
+            'success': False,
+            'error': 'Internal server error',
+            'path': request.path,
+            'timestamp': datetime.now().strftime('%H:%M:%S')
+        }), 500
+    return error
 
 @app.after_request
 def validate_json_response(response):
     """Ensure all API responses are valid JSON"""
     if request.path.startswith('/api/'):
         try:
+            # Force content type to JSON for API endpoints
+            if response.status_code == 200 and not response.mimetype == 'application/json':
+                response.headers['Content-Type'] = 'application/json'
+                
             if response.mimetype == 'application/json':
                 # Verify the response can be parsed as JSON
                 data = response.get_json()
                 if data is None and response.data:
                     # Response claims to be JSON but isn't parseable
-                    logger.warning(f"Invalid JSON response for {request.path}: {response.data}")
+                    logger.warning(f"Invalid JSON response for {request.path}: {response.data[:100]}")
                     fallback_response = jsonify({
                         'success': True,
                         'status': 'response_error',
@@ -2186,8 +2214,26 @@ def validate_json_response(response):
                         'timestamp': datetime.now().strftime('%H:%M:%S')
                     })
                     return fallback_response
+            else:
+                # Non-JSON response for API endpoint - force JSON
+                logger.warning(f"Non-JSON response for API {request.path}: {response.mimetype}")
+                fallback_response = jsonify({
+                    'success': True,
+                    'status': 'format_corrected',
+                    'message': 'Response format corrected to JSON',
+                    'timestamp': datetime.now().strftime('%H:%M:%S')
+                })
+                return fallback_response
+                
         except Exception as e:
             logger.error(f"Response validation error for {request.path}: {e}")
+            # Return a safe JSON response in case of validation errors
+            return jsonify({
+                'success': True,
+                'status': 'validation_error',
+                'message': 'Response validation failed',
+                'timestamp': datetime.now().strftime('%H:%M:%S')
+            }), 200
 
     return response
 

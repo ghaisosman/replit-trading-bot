@@ -1252,36 +1252,69 @@
             }
         }
 
-         function updateBotStatusErrorUI() {
-            // Enhanced offline status handling
+         function updateBotStatusErrorUI(errorData) {
+            // Enhanced offline status handling with error details
             const statusBadge = document.getElementById('statusBadge');
             const botToggle = document.getElementById('botToggle');
             const botStatus = document.getElementById('botStatus');
             const activePositions = document.getElementById('activePositions');
 
+            // Determine error type and appropriate message
+            let statusText = 'CONNECTION ISSUE';
+            let buttonText = 'Connection Lost';
+            
+            if (errorData && errorData.status) {
+                switch (errorData.status) {
+                    case 'initializing':
+                        statusText = 'INITIALIZING...';
+                        buttonText = 'Initializing...';
+                        break;
+                    case 'html_response':
+                        statusText = 'SERVER ERROR';
+                        buttonText = 'Server Error';
+                        break;
+                    case 'json_parse_error':
+                        statusText = 'DATA ERROR';
+                        buttonText = 'Data Error';
+                        break;
+                    case 'network_error':
+                        statusText = 'NETWORK ERROR';
+                        buttonText = 'Network Error';
+                        break;
+                    default:
+                        statusText = 'OFFLINE';
+                        buttonText = 'Connection Lost';
+                }
+            }
+
             if (statusBadge) {
-                statusBadge.textContent = 'OFFLINE - Reconnecting...';
+                statusBadge.textContent = statusText;
                 statusBadge.className = 'badge bg-warning me-2';
             }
 
             if (botToggle) {
-                // Don't change button text if it's already showing a valid state
-                if (botToggle.textContent === 'Loading...' || botToggle.textContent === 'Reconnecting...') {
-                    botToggle.textContent = 'Connection Lost';
+                // Only update if it's in an error state already
+                if (botToggle.textContent.includes('Loading') || 
+                    botToggle.textContent.includes('Error') || 
+                    botToggle.textContent.includes('Lost') ||
+                    botToggle.textContent.includes('Initializing')) {
+                    
+                    botToggle.textContent = buttonText;
                     botToggle.className = 'btn btn-warning btn-sm';
                     botToggle.disabled = true;
 
-                    // Auto-retry after 3 seconds
+                    // Auto-retry based on error type
+                    const retryDelay = errorData && errorData.status === 'initializing' ? 2000 : 5000;
                     setTimeout(() => {
-                        if (botToggle.disabled && botToggle.textContent === 'Connection Lost') {
+                        if (botToggle.disabled && botToggle.textContent === buttonText) {
                             updateBotStatus(); // Retry
                         }
-                    }, 3000);
+                    }, retryDelay);
                 }
             }
 
             if (botStatus) {
-                botStatus.textContent = 'OFFLINE';
+                botStatus.textContent = statusText;
                 botStatus.className = 'badge bg-warning';
             }
 
@@ -1539,7 +1572,6 @@
                         'Cache-Control': 'no-cache',
                         'X-Request-ID': requestId
                     },
-                    timeout: 10000, // 10 second timeout
                     ...options
                 });
 
@@ -1547,86 +1579,73 @@
                 console.log('📥 DEBUG [' + requestId + ']: Response received in ' + requestDuration.toFixed(2) + 'ms');
                 console.log('📊 DEBUG [' + requestId + ']: Status: ' + response.status + ', Content-Type: ' + response.headers.get('content-type'));
 
-                // Handle initialization status specifically
-                if (response.status === 202) {
-                    console.log('⏳ DEBUG [' + requestId + ']: Backend still initializing (202)');
-                    const responseText = await response.text();
-                    try {
-                        const data = JSON.parse(responseText);
-                        console.log('🔄 DEBUG [' + requestId + ']: Initialization response:', data);
-                        return data;
-                    } catch (parseError) {
-                        console.log('⏳ DEBUG [' + requestId + ']: Initialization response not JSON, continuing...');
-                        return {
-                            success: false,
-                            status: 'initializing',
-                            message: 'Backend initializing...',
-                            timestamp: new Date().toLocaleTimeString()
-                        };
-                    }
-                }
+                // Always read response as text first to safely handle any content type
+                const responseText = await response.text();
+                console.log('📄 DEBUG [' + requestId + ']: Raw response (' + responseText.length + ' chars):', responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
 
+                // Handle non-OK responses
                 if (!response.ok) {
                     console.error('❌ DEBUG [' + requestId + ']: HTTP error ' + response.status + ': ' + response.statusText);
                     
-                    // Try to get error response text safely
+                    // Try to parse as JSON even for error responses
                     try {
-                        const errorText = await response.text();
-                        if (errorText.startsWith('<')) {
-                            console.error('❌ DEBUG [' + requestId + ']: Server returned HTML error page');
-                            throw new Error('Server error (HTML response)');
+                        if (responseText.trim() && responseText.startsWith('{')) {
+                            const errorData = JSON.parse(responseText);
+                            console.log('📋 DEBUG [' + requestId + ']: Error response parsed as JSON:', errorData);
+                            return errorData; // Return the error JSON instead of throwing
                         }
-                    } catch (readError) {
-                        console.error('❌ DEBUG [' + requestId + ']: Could not read error response');
+                    } catch (parseError) {
+                        console.error('❌ DEBUG [' + requestId + ']: Error response not valid JSON');
                     }
-                    
-                    throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+
+                    // Return structured error response
+                    return {
+                        success: false,
+                        status: 'http_error',
+                        error: 'HTTP ' + response.status + ': ' + response.statusText,
+                        timestamp: new Date().toLocaleTimeString()
+                    };
                 }
 
-                // Check content type
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    console.error('❌ DEBUG [' + requestId + ']: Invalid content type: ' + contentType);
-                    
-                    // If it's HTML, don't try to parse as JSON
-                    if (contentType && contentType.includes('text/html')) {
-                        throw new Error('Server returned HTML instead of JSON');
-                    }
-                    
-                    throw new Error('Invalid content type: ' + contentType);
-                }
-
-                // Clone response to read as text first for debugging
-                const responseClone = response.clone();
-                const responseText = await responseClone.text();
-
-                console.log('📄 DEBUG [' + requestId + ']: Raw response (' + responseText.length + ' chars):', responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
-
-                // Validate JSON before parsing
+                // Validate and parse response text
                 if (!responseText.trim()) {
-                    console.error('❌ DEBUG [' + requestId + ']: Empty response body!');
-                    throw new Error('Empty response body');
+                    console.error('❌ DEBUG [' + requestId + ']: Empty response body');
+                    return {
+                        success: false,
+                        status: 'empty_response',
+                        error: 'Empty response body',
+                        timestamp: new Date().toLocaleTimeString()
+                    };
                 }
 
-                if (responseText.startsWith('<')) {
-                    console.error('❌ DEBUG [' + requestId + ']: Response is HTML, not JSON');
-                    throw new Error('Server returned HTML instead of JSON');
+                // Check if response is HTML (error page)
+                if (responseText.trim().startsWith('<')) {
+                    console.error('❌ DEBUG [' + requestId + ']: Server returned HTML instead of JSON');
+                    return {
+                        success: false,
+                        status: 'html_response',
+                        error: 'Server returned HTML instead of JSON',
+                        timestamp: new Date().toLocaleTimeString()
+                    };
                 }
 
-                if (!responseText.startsWith('{') && !responseText.startsWith('[')) {
-                    console.error('❌ DEBUG [' + requestId + ']: Response does not start with JSON character: "' + responseText.charAt(0) + '"');
-                    throw new Error('Invalid JSON start character: "' + responseText.charAt(0) + '"');
-                }
-
+                // Try to parse as JSON
                 try {
                     const data = JSON.parse(responseText);
                     console.log('✅ DEBUG [' + requestId + ']: JSON parsed successfully');
-                    console.log('📋 DEBUG [' + requestId + ']: Response data keys:', Object.keys(data));
+                    console.log('📋 DEBUG [' + requestId + ']: Response data keys:', Object.keys(data || {}));
                     return data;
                 } catch (parseError) {
                     console.error('❌ DEBUG [' + requestId + ']: JSON parse error:', parseError);
-                    console.error('❌ DEBUG [' + requestId + ']: Problematic text:', responseText.substring(0, 500));
-                    throw new Error('JSON parse error: ' + parseError.message);
+                    console.error('❌ DEBUG [' + requestId + ']: Problematic text (first 200 chars):', responseText.substring(0, 200));
+                    
+                    // Return structured error instead of throwing
+                    return {
+                        success: false,
+                        status: 'json_parse_error',
+                        error: 'JSON parse error: ' + parseError.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    };
                 }
 
             } catch (error) {
@@ -1634,7 +1653,13 @@
                 console.error('❌ DEBUG [' + requestId + ']: Error type: ' + error.constructor.name);
                 console.error('❌ DEBUG [' + requestId + ']: Error message: ' + error.message);
 
-                return null;
+                // Return structured error response instead of null
+                return {
+                    success: false,
+                    status: 'network_error',
+                    error: error.message || 'Network request failed',
+                    timestamp: new Date().toLocaleTimeString()
+                };
             } finally {
                 activeRequests.delete(url);
                 console.log('🧹 DEBUG [' + requestId + ']: Request cleanup completed');
