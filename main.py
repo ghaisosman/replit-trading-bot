@@ -59,31 +59,37 @@ async def main():
         logger.info("🚀 RENDER DEPLOYMENT MODE: Starting web dashboard + bot with independent control")
 
         # Start web dashboard in background thread (always running)
-        web_thread = threading.Thread(target=run_web_dashboard, daemon=True)
+        web_thread = threading.Thread(target=run_web_dashboard, daemon=False)  # Changed to non-daemon
         web_thread.start()
 
         # Give web dashboard time to start
         await asyncio.sleep(2)
 
-        # The bot can be controlled via the web dashboard
-        # But the web dashboard stays alive even if bot stops
+        # Initialize bot manager but don't start it automatically
+        bot_manager = BotManager()
+
+        # Make bot manager available to web dashboard
+        sys.modules['__main__'].bot_manager = bot_manager
+        globals()['bot_manager'] = bot_manager
+
+        logger.info("🌐 RENDER DEPLOYMENT: Web dashboard active - Bot can be controlled via web interface")
+        logger.info("🎯 RENDER DEPLOYMENT: Access your dashboard to start/stop the bot")
+
+        # Keep the process alive indefinitely - web dashboard controls everything
         try:
-            # Initialize bot manager but don't start it automatically
-            bot_manager = BotManager()
-
-            # Make bot manager available to web dashboard
-            sys.modules['__main__'].bot_manager = bot_manager
-            globals()['bot_manager'] = bot_manager
-
-            logger.info("🌐 RENDER DEPLOYMENT: Web dashboard active - Bot can be controlled via web interface")
-            logger.info("🎯 RENDER DEPLOYMENT: Access your dashboard to start/stop the bot")
-
-            # Keep the process alive but let the web dashboard control the bot
             while True:
+                # Check if web thread is still alive
+                if not web_thread.is_alive():
+                    logger.error("🚨 Web dashboard thread died! Restarting...")
+                    web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
+                    web_thread.start()
+                
                 await asyncio.sleep(10)
                 
         except KeyboardInterrupt:
             logger.info("🔴 Render deployment shutdown")
+            if bot_manager and bot_manager.is_running:
+                await bot_manager.stop("Deployment shutdown")
 
     else:
         logger.info("🛠️ DEVELOPMENT MODE: Starting bot + web dashboard")

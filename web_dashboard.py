@@ -1420,7 +1420,7 @@ def get_rsi(symbol):
 
         # Try to get klines with proper error handling
         try:
-            klines = binance_client.get_klines(symbol=symbol, interval='15m', limit=100)
+            klines = binance_client.getlines(symbol=symbol, interval='15m', limit=100)
 
             if not klines or len(klines) < 15:
                 # Fallback: Try different timeframe
@@ -1957,7 +1957,7 @@ def disable_strategy(strategy_name):
 
         # Get current strategies
         strategies = trading_config_manager.get_all_strategies()
-        
+
         if strategy_name not in strategies:
             return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" not found'})
 
@@ -1966,26 +1966,26 @@ def disable_strategy(strategy_name):
             'assessment_interval': 0,  # This effectively disables the strategy
             'enabled': False
         }
-        
+
         # Update the strategy configuration
         trading_config_manager.update_strategy_params(strategy_name, updates)
-        
+
         # Try to update running bot if available
         current_bot = get_bot_manager()
         if current_bot and hasattr(current_bot, 'strategies'):
             if strategy_name in current_bot.strategies:
                 current_bot.strategies[strategy_name].update(updates)
                 logger.info(f"🔴 LIVE DISABLE: {strategy_name} disabled in running bot")
-        
+
         logger.info(f"🔴 STRATEGY DISABLED: {strategy_name}")
-        
+
         return jsonify({
             'success': True,
             'message': f'Strategy "{strategy_name}" has been disabled successfully',
             'strategy_name': strategy_name,
             'note': 'Strategy will stop scanning for new trades but existing positions remain active'
         })
-        
+
     except Exception as e:
         logger.error(f"Error disabling strategy {strategy_name}: {e}")
         return jsonify({'success': False, 'message': f'Failed to disable strategy: {str(e)}'})
@@ -1999,7 +1999,7 @@ def enable_strategy(strategy_name):
 
         # Get current strategies
         strategies = trading_config_manager.get_all_strategies()
-        
+
         if strategy_name not in strategies:
             return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" not found'})
 
@@ -2016,26 +2016,26 @@ def enable_strategy(strategy_name):
             'assessment_interval': default_interval,
             'enabled': True
         }
-        
+
         # Update the strategy configuration
         trading_config_manager.update_strategy_params(strategy_name, updates)
-        
+
         # Try to update running bot if available
         current_bot = get_bot_manager()
         if current_bot and hasattr(current_bot, 'strategies'):
             if strategy_name in current_bot.strategies:
                 current_bot.strategies[strategy_name].update(updates)
                 logger.info(f"🟢 LIVE ENABLE: {strategy_name} enabled in running bot")
-        
+
         logger.info(f"🟢 STRATEGY ENABLED: {strategy_name}")
-        
+
         return jsonify({
             'success': True,
             'message': f'Strategy "{strategy_name}" has been enabled successfully',
             'strategy_name': strategy_name,
             'assessment_interval': default_interval
         })
-        
+
     except Exception as e:
         logger.error(f"Error enabling strategy {strategy_name}: {e}")
         return jsonify({'success': False, 'message': f'Failed to enable strategy: {str(e)}'})
@@ -2198,7 +2198,7 @@ def validate_json_response(response):
             # Force content type to JSON for API endpoints
             if response.status_code == 200 and not response.mimetype == 'application/json':
                 response.headers['Content-Type'] = 'application/json'
-                
+
             if response.mimetype == 'application/json':
                 # Verify the response can be parsed as JSON
                 data = response.get_json()
@@ -2222,7 +2222,7 @@ def validate_json_response(response):
                     'timestamp': datetime.now().strftime('%H:%M:%S')
                 })
                 return fallback_response
-                
+
         except Exception as e:
             logger.error(f"Response validation error for {request.path}: {e}")
             # Return a safe JSON response in case of validation errors
@@ -2234,6 +2234,36 @@ def validate_json_response(response):
             }), 200
 
     return response
+
+def run_web_dashboard():
+    """Run web dashboard in separate thread with recovery"""
+    max_retries = 3
+    retry_count = 0
+
+    while retry_count < max_retries:
+        try:
+            # Get port from environment
+            port = int(os.environ.get('PORT', 5000))
+
+            logger.info(f"🌐 Starting web dashboard on port {port} (attempt {retry_count + 1})")
+
+            # Run Flask app with error recovery
+            app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
+
+            # If we reach here, the app stopped normally
+            logger.info("🌐 Web dashboard stopped normally")
+            break
+
+        except Exception as e:
+            retry_count += 1
+            logger.error(f"❌ Web dashboard error (attempt {retry_count}): {e}")
+
+            if retry_count < max_retries:
+                logger.info(f"🔄 Retrying web dashboard in 5 seconds...")
+                time.sleep(5)
+            else:
+                logger.error("🚨 Web dashboard failed after maximum retries")
+                break
 
 if __name__ == '__main__':
     # This should not be executed when imported by main.py
