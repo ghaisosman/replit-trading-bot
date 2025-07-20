@@ -380,7 +380,7 @@ def start_bot():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             bot_instance = None
-            
+
             try:
                 # Create fresh bot manager instance
                 from src.bot_manager import BotManager
@@ -391,10 +391,10 @@ def start_bot():
                 globals()['bot_manager'] = bot_instance
 
                 logger.info("🚀 STARTING BOT FROM WEB INTERFACE")
-                
+
                 # Run the bot
                 loop.run_until_complete(bot_instance.start())
-                
+
             except Exception as e:
                 logger.error(f"Bot runtime error: {e}")
                 try:
@@ -444,10 +444,10 @@ def stop_bot():
         shared_bot_manager = get_shared_bot_manager()
         if shared_bot_manager and hasattr(shared_bot_manager, 'is_running') and shared_bot_manager.is_running:
             logger.info("🌐 STOPPING SHARED BOT MANAGER")
-            
+
             # Set stop flag immediately
             shared_bot_manager.is_running = False
-            
+
             # Try graceful shutdown
             try:
                 # Create stop task in separate thread
@@ -463,11 +463,11 @@ def stop_bot():
 
                 stop_thread = threading.Thread(target=stop_shared_bot, daemon=True)
                 stop_thread.start()
-                
+
                 # Wait briefly for stop to complete
                 stop_thread.join(timeout=2.0)
                 stopped = True
-                
+
             except Exception as e:
                 logger.error(f"Error stopping shared bot: {e}")
                 # Force stop
@@ -508,7 +508,7 @@ def stop_bot():
             shared_bot_manager.is_running = False
         if bot_manager:
             bot_manager.is_running = False
-        
+
         return jsonify({'success': False, 'message': f'Error stopping bot: {e}'})
 
 # FIXED: Ensure datetime is available for all endpoints
@@ -1536,7 +1536,7 @@ def get_bot_manager():
 
         # Return None if no valid bot manager found
         return None
-        
+
     except Exception as e:
         logger.error(f"Error in get_bot_manager: {e}")
         return None
@@ -2010,233 +2010,4 @@ def enable_strategy(strategy_name):
         logger.error(f"Error enabling strategy {strategy_name}: {e}")
         return jsonify({'success': False, 'message': f'Failed to enable strategy: {str(e)}'})
 
-@app.route('/api/trading/environment', methods=['POST'])
-def update_trading_environment():
-    """Update trading environment (testnet/mainnet)"""
-    global bot_running
-    try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'message': 'Configuration update not available in demo mode'})
-
-        data = request.get_json()
-
-        if not data or 'is_testnet' not in data:
-            return jsonify({'success': False, 'message': 'Missing is_testnet parameter'})
-
-        is_testnet = bool(data['is_testnet'])
-
-        # Update the global config in memory
-        global_config.BINANCE_TESTNET = is_testnet
-
-        # Save to environment configuration file for persistence
-        env_config = {
-            'BINANCE_TESTNET': str(is_testnet).lower(),
-            'BINANCE_FUTURES': str(global_config.BINANCE_FUTURES).lower()
-        }
-
-        # Write to a config file for persistence across restarts
-        config_file = "trading_data/environment_config.json"
-        os.makedirs(os.path.dirname(config_file), exist_ok=True)
-
-        with open(config_file, 'w') as f:
-            json.dump(env_config, f, indent=2)
-
-        mode = 'FUTURES TESTNET' if is_testnet else 'FUTURES MAINNET'
-
-        # Log the environment change
-        logger.info(f"🔄 ENVIRONMENT CHANGED: {mode}")
-        logger.info(f"🌐 WEB DASHBOARD: Trading environment updated via web interface")
-
-        # Check if bot is running and warn about restart requirement
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-        bot_running = current_bot and getattr(current_bot, 'is_running', False)
-
-        message = f'Trading environment updated to {mode}'
-        if bot_running:
-            message += ' (Bot restart required to apply changes)'
-            logger.warning("⚠️ Bot restart required for environment change to take effect")
-
-        return jsonify({
-            'success': True, 
-            'message': message,
-            'environment': {
-                'is_testnet': is_testnet,
-                'is_futures': global_config.BINANCE_FUTURES,
-                'mode': mode,
-                'restart_required': bot_running
-            }
-        })
-
-    except Exception as e:
-        logger.error(f"Error updating trading environment: {e}")
-        return jsonify({'success': False, 'message': f'Failed to update environment: {e}'})
-
-# Add startup coordination and initialization delay
-import threading
-import time
-
-def wait_for_bot_initialization():
-    """Wait for bot to be fully initialized before serving API requests"""
-    max_wait = 30  # Maximum 30 seconds wait
-    wait_time = 0
-
-    while wait_time < max_wait:
-        try:
-            # Check if bot manager exists and is properly initialized
-            current_bot = get_bot_manager()
-            if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
-                logger.info("✅ Bot initialization detected - Web dashboard ready")
-                return True
-        except:
-            pass
-
-        time.sleep(1)
-        wait_time += 1
-
-        if wait_time % 5 == 0:
-            logger.info(f"⏳ Waiting for bot initialization... ({wait_time}s)")
-
-    logger.warning("⚠️ Bot initialization timeout - Dashboard will serve with limited functionality")
-    return False
-
-# Global initialization flag
-_dashboard_ready = False
-
-def initialize_dashboard():
-    """Initialize dashboard with proper timing"""
-    global _dashboard_ready
-
-    logger.info("🌐 Web dashboard initializing...")
-
-    # Wait a minimum time for basic setup
-    time.sleep(3)
-
-    # Wait for bot to be ready
-    wait_for_bot_initialization()
-
-    # Additional buffer for safety
-    time.sleep(2)
-
-    _dashboard_ready = True
-    logger.info("✅ Web dashboard fully initialized and ready")
-
-# Start initialization in background thread
-initialization_thread = threading.Thread(target=initialize_dashboard, daemon=True)
-initialization_thread.start()
-
-# Middleware to check initialization status
-@app.before_request
-def check_initialization():
-    """Ensure dashboard is initialized before processing API requests"""
-    if not _dashboard_ready and request.path.startswith('/api/'):
-        # Return loading response instead of empty response
-        return jsonify({
-            'success': True,  # Changed to prevent frontend errors
-            'status': 'initializing',
-            'message': 'Dashboard initializing...',
-            'timestamp': datetime.now().strftime('%H:%M:%S')
-        }), 200  # Changed to 200 to prevent browser JSON parsing errors
-
-@app.errorhandler(404)
-def not_found_error(error):
-    """Handle 404 errors for API routes"""
-    if request.path.startswith('/api/'):
-        return jsonify({
-            'success': False,
-            'error': 'Endpoint not found',
-            'path': request.path,
-            'timestamp': datetime.now().strftime('%H:%M:%S')
-        }), 404
-    return error
-
-@app.errorhandler(500)
-def internal_error(error):
-    """Handle 500 errors for API routes"""
-    if request.path.startswith('/api/'):
-        return jsonify({
-            'success': False,
-            'error': 'Internal server error',
-            'path': request.path,
-            'timestamp': datetime.now().strftime('%H:%M:%S')
-        }), 500
-    return error
-
-@app.after_request
-def validate_json_response(response):
-    """Ensure all API responses are valid JSON"""
-    if request.path.startswith('/api/'):
-        try:
-            # Force content type to JSON for API endpoints
-            if response.status_code == 200 and not response.mimetype == 'application/json':
-                response.headers['Content-Type'] = 'application/json'
-
-            if response.mimetype == 'application/json':
-                # Verify the response can be parsed as JSON
-                data = response.get_json()
-                if data is None and response.data:
-                    # Response claims to be JSON but isn't parseable
-                    logger.warning(f"Invalid JSON response for {request.path}: {response.data[:100]}")
-                    fallback_response = jsonify({
-                        'success': True,
-                        'status': 'response_error',
-                        'message': 'Invalid response format',
-                        'timestamp': datetime.now().strftime('%H:%M:%S')
-                    })
-                    return fallback_response
-            else:
-                # Non-JSON response for API endpoint - force JSON
-                logger.warning(f"Non-JSON response for API {request.path}: {response.mimetype}")
-                fallback_response = jsonify({
-                    'success': True,
-                    'status': 'format_corrected',
-                    'message': 'Response format corrected to JSON',
-                    'timestamp': datetime.now().strftime('%H:%M:%S')
-                })
-                return fallback_response
-
-        except Exception as e:
-            logger.error(f"Response validation error for {request.path}: {e}")
-            # Return a safe JSON response in case of validation errors
-            return jsonify({
-                'success': True,
-                'status': 'validation_error',
-                'message': 'Response validation failed',
-                'timestamp': datetime.now().strftime('%H:%M:%S')
-            }), 200
-
-    return response
-
-def run_web_dashboard():
-    """Run web dashboard in separate thread with recovery"""
-    max_retries = 3
-    retry_count = 0
-
-    while retry_count < max_retries:
-        try:
-            # Get port from environment
-            port = int(os.environ.get('PORT', 5000))
-
-            logger.info(f"🌐 Starting web dashboard on port {port} (attempt {retry_count + 1})")
-
-            # Run Flask app with error recovery
-            app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
-
-            # If we reach here, the app stopped normally
-            logger.info("🌐 Web dashboard stopped normally")
-            break
-
-        except Exception as e:
-            retry_count += 1
-            logger.error(f"❌ Web dashboard error (attempt {retry_count}): {e}")
-
-            if retry_count < max_retries:
-                logger.info(f"🔄 Retrying web dashboard in 5 seconds...")
-                time.sleep(5)
-            else:
-                logger.error("🚨 Web dashboard failed after maximum retries")
-                break
-
-if __name__ == '__main__':
-    # This should not be executed when imported by main.py
-    # Only for standalone testing
-    app.run(host='0.0.0.0', port=5000, debug=False)
+Add missing global bot_running declaration in update_trading_environment function
