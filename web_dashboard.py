@@ -4,7 +4,7 @@ Trading Bot Web Dashboard
 Complete web interface for managing the trading bot
 """
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, jsonify, request, send_from_directory
 from flask_cors import CORS
 import json
 import asyncio
@@ -34,6 +34,11 @@ werkzeug_logger.setLevel(flask_logging.WARNING)
 # Setup logging for web dashboard
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    """Serve static files"""
+    return send_from_directory('static', filename)
 
 # Rate limiting system to prevent API flooding
 rate_limits = {
@@ -1023,6 +1028,24 @@ def update_strategy(strategy_name):
         except ValueError as ve:
             return jsonify({'success': False, 'message': f'Invalid parameter value: {ve}'})
 
+        #Add safety mechanism to prevent zero entries
+        safety_errors = []
+        if 'margin' in data and float(data['margin']) == 0:
+            data['margin'] = 50.0
+            safety_errors.append("Margin cannot be zero. Reset to default value 50.0.")
+
+        if 'leverage' in data and int(data['leverage']) == 0:
+            data['leverage'] = 5
+            safety_errors.append("Leverage cannot be zero. Reset to default value 5.")
+
+        if 'max_loss_pct' in data and float(data['max_loss_pct']) == 0:
+            data['max_loss_pct'] = 10.0
+            safety_errors.append("Maximum Loss Percentage cannot be zero. Reset to default value 10.0.")
+
+        if 'stop_loss_pct' in data and float(data['stop_loss_pct']) == 0:
+            data['stop_loss_pct'] = 10.0
+            safety_errors.append("Stop Loss Percentage cannot be zero. Reset to default value 10.0.")
+
         # 🎯 WEB DASHBOARD IS THE SINGLE SOURCE OF TRUTH - Save to persistent config
         trading_config_manager.update_strategy_params(strategy_name, data)
 
@@ -1103,13 +1126,21 @@ def update_strategy(strategy_name):
         logger.info(f"🎯 DASHBOARD IS SOURCE OF TRUTH - All file configs overridden")
         logger.info(f"📋 Updated {len(data)} parameters: {list(data.keys())}")
 
-        return jsonify({
-            'success': True, 
-            'message': message,
+        # Prepare response with safety validation feedback
+        response_data = {
+            'success': True,
+            'message': f'Configuration updated for {strategy_name}',
             'updated_parameters': list(data.keys()),
             'live_update': live_update_applied,
             'strategy_name': strategy_name
-        })
+        }
+
+        # Add safety validation warnings if any
+        if safety_errors:
+            response_data['safety_warnings'] = safety_errors
+            response_data['message'] += f' (with {len(safety_errors)} safety corrections)'
+
+        return jsonify(response_data)
 
     except Exception as e:
         logger.error(f"❌ Error updating strategy {strategy_name}: {e}")
@@ -1402,7 +1433,7 @@ def get_rsi(symbol):
                 close_price = float(kline[4])
                 closes.append(close_price)
             except (ValueError, IndexError):
-                continue
+continue
 
         if len(closes) < 14:
             return jsonify({'success': False, 'error': f'Not enough valid price data for RSI calculation for {symbol}'})

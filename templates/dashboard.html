@@ -688,7 +688,7 @@
                                 </label>
                                 <div class="form-text">Enable to configure automatic partial profit taking</div>
                             </div>
-                            
+
                             <!-- Partial TP Configuration Fields (disabled by default) -->
                             <div id="partialTpConfigSection" class="mt-3" style="opacity: 0.5;">
                                 <div class="row">
@@ -707,7 +707,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <!-- Example Calculation Display -->
                                 <div class="alert alert-info mt-2" id="partialTpExample">
                                     <small>
@@ -752,7 +752,7 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="macdFast" class="form-label">MACD Fast Length</label>
-                                        <input type="number" class="form-control" id="macdFast" min="2" max="30" placeholder="e.g., 12">
+                                        <input type="number" class="form-control" id="macdFast" min="2max="30" placeholder="e.g., 12">
                                         <div class="form-text">Shorter EMA period</div>
                                     </div>
                                 </div>
@@ -1077,7 +1077,7 @@
                 // Always update button state based on running status
                 if (botToggle) {
                     botToggle.disabled = false; // Re-enable button
-                    
+
                     if (isRunning) {
                         botToggle.textContent = 'Stop Bot';
                         botToggle.className = 'btn btn-danger btn-sm';
@@ -1605,7 +1605,7 @@
 
         // FIXED: Enhanced intelligent update system with adaptive intervals
         function startIntelligentUpdates() {
-            // Clear any existing timeouts
+            // Clear any existingtimeouts
             Object.values(updateTimeouts).forEach(timeout => clearTimeout(timeout));
             updateTimeouts = {};
 
@@ -1923,14 +1923,14 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
             const thresholdInput = document.getElementById('partialTpPnlThreshold');
             const positionInput = document.getElementById('partialTpPositionPercentage');
             const exampleDiv = document.getElementById('partialTpExample');
-            
+
             if (toggle.checked) {
                 // Enable partial TP configuration
                 configSection.style.opacity = '1';
                 configSection.style.pointerEvents = 'auto';
                 thresholdInput.disabled = false;
                 positionInput.disabled = false;
-                
+
                 // Set default values if empty
                 if (!thresholdInput.value) {
                     thresholdInput.value = 50;
@@ -1938,7 +1938,7 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                 if (!positionInput.value) {
                     positionInput.value = 50;
                 }
-                
+
                 console.log('✅ Partial TP enabled - configuration unlocked');
             } else {
                 // Disable partial TP configuration
@@ -1946,14 +1946,14 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                 configSection.style.pointerEvents = 'none';
                 thresholdInput.disabled = true;
                 positionInput.disabled = true;
-                
+
                 // Clear values when disabled to prevent accidental saving
                 thresholdInput.value = '';
                 positionInput.value = '';
-                
+
                 console.log('❌ Partial TP disabled - configuration locked');
             }
-            
+
             // Update example calculation
             updatePartialTpExample();
         }
@@ -1963,7 +1963,7 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
             const threshold = document.getElementById('partialTpPnlThreshold').value;
             const position = document.getElementById('partialTpPositionPercentage').value;
             const exampleDiv = document.getElementById('partialTpExample');
-            
+
             if (toggle.checked && threshold && position) {
                 exampleDiv.innerHTML = `
                     <small>
@@ -2019,10 +2019,10 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                                                      config.partial_tp_position_percentage !== undefined &&
                                                      config.partial_tp_pnl_threshold > 0 && 
                                                      config.partial_tp_position_percentage > 0;
-                            
+
                             const partialTpToggle = document.getElementById('partialTpEnabled');
                             partialTpToggle.checked = hasPartialTpConfig;
-                            
+
                             if (hasPartialTpConfig) {
                                 document.getElementById('partialTpPnlThreshold').value = config.partial_tp_pnl_threshold;
                                 document.getElementById('partialTpPositionPercentage').value = config.partial_tp_position_percentage;
@@ -2030,7 +2030,7 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                                 document.getElementById('partialTpPnlThreshold').value = '';
                                 document.getElementById('partialTpPositionPercentage').value = '';
                             }
-                            
+
                             // Apply toggle state
                             togglePartialTpConfig();
 
@@ -2089,11 +2089,11 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
 
             // Partial Take Profit Configuration
             const partialTpEnabled = document.getElementById('partialTpEnabled').checked;
-            
+
             if (partialTpEnabled) {
                 const threshold = document.getElementById('partialTpPnlThreshold').value;
                 const positionSize = document.getElementById('partialTpPositionPercentage').value;
-                
+
                 if (threshold && positionSize) {
                     updates.partial_tp_pnl_threshold = parseFloat(threshold);
                     updates.partial_tp_position_percentage = parseFloat(positionSize);
@@ -2130,6 +2130,12 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                 updates.divergence_strength_min = parseFloat(document.getElementById('divergenceStrengthMin').value);
             }
 
+             // Safety validation to prevent zero entries
+             if (updates.margin <= 0 || updates.leverage <= 0 || updates.max_loss_pct <= 0 || updates.assessment_interval <= 0 || updates.cooldown_period <= 0) {
+                alert('Error: Critical parameters (margin, leverage, max loss %, assessment interval, cooldown period) cannot be zero.');
+                return;
+            }
+
             fetch('/api/strategies/' + strategyName, {
                 method: 'POST',
                 headers: {
@@ -2140,25 +2146,13 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Strategy configuration saved successfully!');
+                  showAlert('Configuration saved successfully!', 'success');
 
-                    // Hide modal
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('strategyModal'));
-                    if (modal) {
-                        modal.hide();
-                    }
+                    // Handle safety validation feedback
+                    handleSafetyValidation(data);
 
-                    // FORCE CLEAR CACHED STRATEGY DATA
-                    delete window.strategiesCache;
-                    delete window.strategiesData;
-
-                    // Refresh dashboard data with cache bust
-                    updateDashboard();
-
-                    // Force reload strategies data for next edit
-                    setTimeout(() => {
-                        loadStrategiesWithCacheBust();
-                    }, 1000);
+                    // Reload strategies to show updated config
+                    loadStrategiesWithCacheBust();
                 } else {
                     alert('Error updating strategy: ' + data.message);
                 }
@@ -2220,6 +2214,12 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                 newStrategy.divergence_strength_min = 0.6;
             }
 
+             // Safety validation to prevent zero entries
+             if (newStrategy.margin <= 0 || newStrategy.leverage <= 0 || newStrategy.max_loss_pct <= 0 || newStrategy.assessment_interval <= 0 || newStrategy.cooldown_period <= 0) {
+                alert('Error: Critical parameters (margin, leverage, max loss %, assessment interval, cooldown period) cannot be zero.');
+                return;
+            }
+
             fetch('/api/strategies', {
                 method: 'POST',
                 headers: {
@@ -2271,8 +2271,6 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                     '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: OFF';
             }
         }
-
-
 
         // Utility functions
         function formatNumber(number) {
@@ -2345,6 +2343,35 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
             // Remove success message after 5 seconds
             setTimeout(() => {
                 container.innerHTML = existingContent;
+            }, 5000);
+        }
+
+        // Safety validation feedback function
+        function handleSafetyValidation(data) {
+            if (data && data.warnings && data.warnings.length > 0) {
+                let warningMessage = '⚠️ Configuration saved, but with the following warnings:\n\n';
+                data.warnings.forEach(warning => {
+                    warningMessage += '• ' + warning + '\n';
+                });
+                alert(warningMessage);
+            }
+        }
+
+        // Alert function
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+
+            const container = document.querySelector('.container-fluid'); // Or any specific container you want to insert into
+            container.prepend(alertDiv);
+
+            // Automatically close the alert after 5 seconds
+            setTimeout(() => {
+                alertDiv.remove();
             }, 5000);
         }
 </script>

@@ -113,8 +113,29 @@ class TradingConfigManager:
 
     def update_strategy_params(self, strategy_name: str, updates: Dict[str, Any]):
         """Update trading parameters for a specific strategy - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
+        # Import validation safety system
+        try:
+            from src.config.validation_safety import validation_safety
+        except ImportError:
+            validation_safety = None
         if strategy_name not in self.strategy_overrides:
             self.strategy_overrides[strategy_name] = {}
+
+        # 🔒 SAFETY VALIDATION - Prevent critical zero configurations
+        safety_errors = {}
+        if validation_safety and validation_safety.lock_mechanism_enabled:
+            # Use validation safety system
+            pre_validated_updates, safety_errors = validation_safety.validate_multiple_parameters(updates)
+            
+            # Log any safety corrections
+            if safety_errors:
+                import logging
+                logging.getLogger(__name__).warning(f"🛡️ SAFETY VALIDATION APPLIED to {strategy_name}")
+                for param, error in safety_errors.items():
+                    logging.getLogger(__name__).warning(f"   🚫 {param}: {error}")
+            
+            # Use safety-validated updates as base
+            updates = pre_validated_updates
 
         # Comprehensive parameter validation and cleaning
         validated_updates = {}
@@ -125,13 +146,22 @@ class TradingConfigManager:
 
         if 'margin' in updates:
             validated_updates['margin'] = float(updates['margin'])
+            # Safety check already applied above, but double-check for zero
             if validated_updates['margin'] <= 0:
                 validated_updates['margin'] = 50.0
+                import logging
+                logging.getLogger(__name__).warning(f"🛡️ MARGIN SAFETY: Prevented zero margin for {strategy_name}")
+                safety_errors['margin'] = 'Margin cannot be zero - set to safe default 50.0 USDT'
 
         if 'leverage' in updates:
             validated_updates['leverage'] = int(updates['leverage'])
+            # Safety check already applied above, but double-check for zero
             if validated_updates['leverage'] <= 0 or validated_updates['leverage'] > 125:
                 validated_updates['leverage'] = 5
+                if updates['leverage'] == 0:
+                    import logging
+                    logging.getLogger(__name__).warning(f"🛡️ LEVERAGE SAFETY: Prevented zero leverage for {strategy_name}")
+                    safety_errors['leverage'] = 'Leverage cannot be zero - set to safe default 5x'
 
         if 'timeframe' in updates:
             valid_timeframes = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d']
@@ -309,6 +339,9 @@ class TradingConfigManager:
         logging.getLogger(__name__).info(f"🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - ALL CONFIG FILES IGNORED")
         if 'assessment_interval' in validated_updates:
             logging.getLogger(__name__).info(f"📅 {strategy_name} assessment interval set to {validated_updates['assessment_interval']} seconds")
+        
+        # Return safety validation results for web dashboard feedback
+        return safety_errors
 
     def _force_update_running_bot(self, strategy_name: str, updates: Dict[str, Any]):
         """Force update running bot with web dashboard settings"""
