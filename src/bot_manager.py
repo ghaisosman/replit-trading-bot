@@ -1423,7 +1423,7 @@ Interval: every {assessment_interval} seconds
 
             # Trigger stop loss if loss percentage exceeds threshold
             if pnl_percentage <= -max_loss_pct:
-                    self.logger.info(f"💥 STOP LOSS TRIGGERED | {strategy_name} | PnL: ${pnl:.2f} ({pnl_percentage:.1f}%) >= -{max_loss_pct}% threshold")
+                self.logger.info(f"💥 STOP LOSS TRIGGERED | {strategy_name} | PnL: ${pnl:.2f} ({pnl_percentage:.1f}%) >= -{max_loss_pct}% threshold")
                 result = self.order_manager.close_position(strategy_name, "Stop Loss")
                 if result:
                     self._notify_position_closed(strategy_name, result)
