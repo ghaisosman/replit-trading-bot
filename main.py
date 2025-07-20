@@ -92,7 +92,7 @@ async def main():
                 await bot_manager.stop("Deployment shutdown")
 
     else:
-        logger.info("🛠️ DEVELOPMENT MODE: Starting bot + web dashboard")
+        logger.info("🛠️ DEVELOPMENT MODE: Starting web dashboard only")
 
         # Start web dashboard in background thread (NON-DAEMON for persistence)
         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
@@ -101,14 +101,12 @@ async def main():
         # Give web dashboard time to start
         await asyncio.sleep(2)
 
-        # Initialize bot manager but don't start it automatically in development mode
-        bot_manager = BotManager()
-
-        # Make bot manager available to web dashboard
+        # Initialize empty bot manager reference
+        bot_manager = None
         sys.modules['__main__'].bot_manager = bot_manager
         globals()['bot_manager'] = bot_manager
 
-        logger.info("🌐 DEVELOPMENT MODE: Web dashboard active - Bot can be controlled via web interface")
+        logger.info("🌐 DEVELOPMENT MODE: Web dashboard active - Bot can be started via web interface")
         logger.info("🎯 DEVELOPMENT MODE: Access your dashboard to start/stop the bot")
 
         # Keep the process alive indefinitely - web dashboard controls everything
@@ -120,12 +118,20 @@ async def main():
                     web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
                     web_thread.start()
                 
-                await asyncio.sleep(10)
+                # Check if bot needs to be cleaned up
+                current_bot = sys.modules['__main__'].bot_manager
+                if current_bot and hasattr(current_bot, 'is_running') and not current_bot.is_running:
+                    # Clean up stopped bot
+                    sys.modules['__main__'].bot_manager = None
+                    globals()['bot_manager'] = None
+                
+                await asyncio.sleep(5)
                 
         except KeyboardInterrupt:
             logger.info("🔴 Development mode shutdown")
-            if bot_manager and bot_manager.is_running:
-                await bot_manager.stop("Development shutdown")
+            current_bot = sys.modules['__main__'].bot_manager
+            if current_bot and hasattr(current_bot, 'is_running') and current_bot.is_running:
+                await current_bot.stop("Development shutdown")
 
 if __name__ == "__main__":
     asyncio.run(main())

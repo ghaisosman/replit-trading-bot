@@ -358,102 +358,73 @@ def dashboard():
 
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
-    """Start the trading bot"""
+    """Start the trading bot with improved connection handling"""
     global bot_manager, bot_thread, bot_running, shared_bot_manager
 
     try:
         logger = logging.getLogger(__name__)
 
-        # Always try to get the latest shared bot manager
-        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
-
-        # Check if there's a shared bot manager from main.py
-        if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
-            if shared_bot_manager.is_running:
-                return jsonify({'success': False, 'message': 'Bot is already running in console'})
-
-            # Create a fresh bot manager instance to avoid connection issues
-            logger.info("🌐 WEB INTERFACE: Creating fresh bot manager for restart")
-
-            # Start the fresh bot in the main event loop
-            def start_fresh_bot():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    # Create completely fresh bot manager instance
-                    from src.bot_manager import BotManager
-                    fresh_bot_manager = BotManager()
-
-                    # Update the global reference
-                    sys.modules['__main__'].bot_manager = fresh_bot_manager
-                    globals()['bot_manager'] = fresh_bot_manager
-
-                    logger.info("🚀 FRESH BOT INSTANCE CREATED VIA WEB INTERFACE")
-
-                    # Start the fresh bot's start method
-                    loop.run_until_complete(fresh_bot_manager.start())
-                except Exception as e:
-                    logger.error(f"Fresh bot error during restart: {e}")
-                    # Send error notification
-                    try:
-                        if 'fresh_bot_manager' in locals():
-                            fresh_bot_manager.telegram_reporter.report_bot_stopped(f"Restart failed: {str(e)}")
-                    except:
-                        pass
-                finally:
-                    if 'fresh_bot_manager' in locals():
-                        fresh_bot_manager.is_running = False
-                    logger.info("🔴 BOT STOPPED - Web interface remains active")
-                    loop.close()
-
-            bot_thread = threading.Thread(target=start_fresh_bot, daemon=True)
-            bot_thread.start()
-            bot_running = True
-
-            return jsonify({'success': True, 'message': 'Fresh bot instance started successfully from web interface'})
-
-        # Fallback: create new bot instance if no shared manager exists
-        if bot_running:
+        # Check if any bot is currently running
+        current_bot = get_shared_bot_manager()
+        if current_bot and getattr(current_bot, 'is_running', False):
             return jsonify({'success': False, 'message': 'Bot is already running'})
 
-        logger.info("🌐 WEB INTERFACE: Creating new bot instance via web dashboard")
+        if bot_running and bot_thread and bot_thread.is_alive():
+            return jsonify({'success': False, 'message': 'Bot is already running in web dashboard'})
 
+        logger.info("🌐 WEB INTERFACE: Starting bot from dashboard")
+
+        # Set running state immediately
         bot_running = True
 
-        # Start bot in separate thread
+        # Start bot in separate thread with proper cleanup
         def run_bot():
+            nonlocal bot_running
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            logger = logging.getLogger(__name__)
+            bot_instance = None
+            
             try:
-                # Create fresh bot manager instance inside the thread
+                # Create fresh bot manager instance
                 from src.bot_manager import BotManager
-                new_bot_manager = BotManager()
+                bot_instance = BotManager()
 
-                # Update the global reference
-                sys.modules['__main__'].bot_manager = new_bot_manager
-                globals()['bot_manager'] = new_bot_manager
+                # Update global references
+                sys.modules['__main__'].bot_manager = bot_instance
+                globals()['bot_manager'] = bot_instance
 
-                logger.info("🚀 STARTING NEW BOT INSTANCE FROM WEB INTERFACE")
-                loop.run_until_complete(new_bot_manager.start())
+                logger.info("🚀 STARTING BOT FROM WEB INTERFACE")
+                
+                # Run the bot
+                loop.run_until_complete(bot_instance.start())
+                
             except Exception as e:
-                logger.error(f"Bot error: {e}")
-                # Send error notification
+                logger.error(f"Bot runtime error: {e}")
                 try:
-                    if 'new_bot_manager' in locals():
-                        new_bot_manager.telegram_reporter.report_bot_stopped(f"Startup failed: {str(e)}")
+                    if bot_instance:
+                        bot_instance.telegram_reporter.report_bot_stopped(f"Error: {str(e)}")
                 except:
                     pass
             finally:
-                global bot_running
+                # Cleanup
                 bot_running = False
+                if bot_instance:
+                    bot_instance.is_running = False
                 logger.info("🔴 BOT STOPPED - Web interface remains active")
-                loop.close()
+                try:
+                    loop.close()
+                except:
+                    pass
 
+        # Start in daemon thread
         bot_thread = threading.Thread(target=run_bot, daemon=True)
         bot_thread.start()
 
-        return jsonify({'success': True, 'message': 'New bot instance started successfully'})
+        # Wait a moment for startup
+        import time
+        time.sleep(0.5)
+
+        return jsonify({'success': True, 'message': 'Bot started successfully from web interface'})
 
     except Exception as e:
         bot_running = False
@@ -462,93 +433,85 @@ def start_bot():
 
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
-    """Stop the trading bot while keeping web interface active"""
-    global bot_manager, bot_running, shared_bot_manager
+    """Stop the trading bot completely"""
+    global bot_manager, bot_running, shared_bot_manager, bot_thread
 
     try:
         logger = logging.getLogger(__name__)
+        logger.info("🌐 WEB INTERFACE: Stop request received")
 
-        # Always try to get the latest shared bot manager
-        shared_bot_manager = getattr(sys.modules.get('__main__', None), 'bot_manager', None)
+        stopped = False
 
-        # Check if there's a shared bot manager from main.py
-        if shared_bot_manager and hasattr(shared_bot_manager, 'is_running'):
-            if shared_bot_manager.is_running:
-                logger.info("🌐 WEB INTERFACE: Stopping bot via web dashboard (web interface will remain active)")
-
-                # Also log to bot manager's logger if available
-                if hasattr(shared_bot_manager, 'logger'):
-                    shared_bot_manager.logger.info("🌐 WEB INTERFACE: Bot stopped via web dashboard")
-
-                # Gracefully stop the bot using asyncio
-                try:
-                    import asyncio
-                    
-                    # Create a new event loop if one doesn't exist
+        # Try to stop shared bot manager first
+        shared_bot_manager = get_shared_bot_manager()
+        if shared_bot_manager and hasattr(shared_bot_manager, 'is_running') and shared_bot_manager.is_running:
+            logger.info("🌐 STOPPING SHARED BOT MANAGER")
+            
+            # Set stop flag immediately
+            shared_bot_manager.is_running = False
+            
+            # Try graceful shutdown
+            try:
+                # Create stop task in separate thread
+                def stop_shared_bot():
                     try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_closed():
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                    except RuntimeError:
+                        import asyncio
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
-                    
-                    # Stop the bot gracefully
-                    if hasattr(shared_bot_manager, 'stop'):
-                        # Run the stop method in the event loop
-                        def stop_bot_task():
-                            try:
-                                loop.run_until_complete(shared_bot_manager.stop("Manual stop via web interface"))
-                            except Exception as e:
-                                logger.error(f"Error during bot stop: {e}")
-                        
-                        # Start stop task in a separate thread to avoid blocking the web response
-                        import threading
-                        stop_thread = threading.Thread(target=stop_bot_task, daemon=True)
-                        stop_thread.start()
-                    else:
-                        # Fallback: just set is_running to False
-                        shared_bot_manager.is_running = False
-                        
-                except Exception as e:
-                    logger.error(f"Error stopping bot gracefully: {e}")
-                    # Fallback: just set is_running to False
-                    shared_bot_manager.is_running = False
+                        loop.run_until_complete(shared_bot_manager.stop("Manual stop via web interface"))
+                        loop.close()
+                    except Exception as e:
+                        logger.error(f"Error in shared bot stop: {e}")
 
-                bot_running = False
-                logger.info("🔴 BOT STOPPED VIA WEB INTERFACE (Dashboard remains active)")
-                logger.info("💡 Web interface remains active - you can restart the bot anytime")
+                stop_thread = threading.Thread(target=stop_shared_bot, daemon=True)
+                stop_thread.start()
+                
+                # Wait briefly for stop to complete
+                stop_thread.join(timeout=2.0)
+                stopped = True
+                
+            except Exception as e:
+                logger.error(f"Error stopping shared bot: {e}")
+                # Force stop
+                shared_bot_manager.is_running = False
+                stopped = True
 
-                return jsonify({
-                    'success': True, 
-                    'message': 'Bot stopped successfully. Web interface remains active for restart.'
-                })
-            else:
-                return jsonify({'success': False, 'message': 'Bot is not running'})
-
-        # Fallback to standalone bot
-        if not bot_running or not bot_manager:
-            return jsonify({'success': False, 'message': 'Bot is not running'})
-
-        logger.info("🌐 WEB INTERFACE: Stopping standalone bot via web dashboard (web interface will remain active)")
-
-        # Stop the bot gracefully
-        if hasattr(bot_manager, 'is_running'):
+        # Try to stop standalone bot
+        if bot_manager and hasattr(bot_manager, 'is_running') and bot_manager.is_running:
+            logger.info("🌐 STOPPING STANDALONE BOT MANAGER")
             bot_manager.is_running = False
+            stopped = True
 
+        # Update global state
         bot_running = False
-        logger.info("🔴 STANDALONE BOT STOPPED VIA WEB INTERFACE (Dashboard remains active)")
-        logger.info("💡 Web interface remains active - you can restart the bot anytime")
 
-        return jsonify({
-            'success': True, 
-            'message': 'Bot stopped successfully. Web interface remains active for restart.'
-        })
+        # Wait for bot thread to finish
+        if bot_thread and bot_thread.is_alive():
+            logger.info("🌐 WAITING FOR BOT THREAD TO FINISH")
+            bot_thread.join(timeout=3.0)
+            if bot_thread.is_alive():
+                logger.warning("⚠️ Bot thread did not finish cleanly")
+
+        if stopped:
+            logger.info("🔴 BOT STOPPED VIA WEB INTERFACE")
+            logger.info("💡 Web dashboard remains active - you can restart the bot anytime")
+            return jsonify({
+                'success': True, 
+                'message': 'Bot stopped successfully. You can restart it from the dashboard.'
+            })
+        else:
+            return jsonify({'success': False, 'message': 'No running bot found to stop'})
 
     except Exception as e:
         logger.error(f"Error stopping bot: {e}")
-        return jsonify({'success': False, 'message': f'Failed to stop bot: {e}'})
+        # Force cleanup
+        bot_running = False
+        if shared_bot_manager:
+            shared_bot_manager.is_running = False
+        if bot_manager:
+            bot_manager.is_running = False
+        
+        return jsonify({'success': False, 'message': f'Error stopping bot: {e}'})
 
 # FIXED: Ensure datetime is available for all endpoints
 from flask import Flask, render_template, request, jsonify, redirect, url_for
@@ -1561,30 +1524,21 @@ def calculate_rsi(closes, period=14):
         return 50.0  # Safe fallback
 
 def get_bot_manager():
-    """Get the current bot manager (shared or standalone) with startup timing fix"""
+    """Get the current bot manager with improved detection"""
     try:
-        # Always try to get the latest shared bot manager first
+        # Try shared bot manager first
         current_shared = get_shared_bot_manager()
-        if current_shared:
-            # TIMING FIX: Verify the bot manager is fully initialized
-            if hasattr(current_shared, 'order_manager') and current_shared.order_manager:
-                logger.debug(f"Using shared bot manager: {current_shared}")
-                return current_shared
-            else:
-                logger.debug("Shared bot manager found but not fully initialized yet")
+        if current_shared and hasattr(current_shared, 'is_running'):
+            return current_shared
 
-        # Fallback to global bot_manager
+        # Try global bot_manager
         global bot_manager
-        if bot_manager:
-            # TIMING FIX: Verify the bot manager is fully initialized
-            if hasattr(bot_manager, 'order_manager') and bot_manager.order_manager:
-                logger.debug(f"Using global bot manager: {bot_manager}")
-                return bot_manager
-            else:
-                logger.debug("Global bot manager found but not fully initialized yet")
+        if bot_manager and hasattr(bot_manager, 'is_running'):
+            return bot_manager
 
-        logger.debug("No fully initialized bot manager available")
+        # Return None if no valid bot manager found
         return None
+        
     except Exception as e:
         logger.error(f"Error in get_bot_manager: {e}")
         return None
