@@ -203,13 +203,20 @@ def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
 bot_manager = None
 bot_thread = None
 bot_running = False
+shared_bot_manager = None
 
 # Ensure global variables are properly initialized
 def init_globals():
     """Initialize global variables safely"""
     global bot_manager, bot_thread, bot_running, shared_bot_manager
-    if 'bot_running' not in globals():
+    
+    # Initialize all variables to safe defaults
+    if 'bot_running' not in globals() or bot_running is None:
         bot_running = False
+    if 'bot_manager' not in globals():
+        bot_manager = None
+    if 'bot_thread' not in globals():
+        bot_thread = None
     if 'shared_bot_manager' not in globals():
         shared_bot_manager = None
 
@@ -2064,7 +2071,7 @@ def update_trading_environment():
         except Exception as save_error:
             logger.warning(f"Could not save environment config: {save_error}")
 
-        # Check if bot is running and warn about restart requirement
+        # Check if bot is running and warn about restart requirement  
         current_bot = shared_bot_manager if shared_bot_manager else bot_manager
         is_bot_running = current_bot and getattr(current_bot, 'is_running', False)
 
