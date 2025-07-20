@@ -1041,37 +1041,39 @@
                 const activeStrategies = document.getElementById('activeStrategies');
                 const balanceElement = document.getElementById('balance');
 
-                // Always update button state first
-                if (botToggle) {
-                    botToggle.disabled = false; // Re-enable button
-                }
-
                 // Check if bot is running (handle both 'running' and 'is_running' properties)
                 const isRunning = data.running || data.is_running || false;
 
-                if (isRunning) {
-                    if (statusElement) {
-                        statusElement.textContent = 'RUNNING (' + (data.strategies || 0) + ' strategies)';
-                        statusElement.className = 'badge bg-success me-2';
-                    }
-                    if (botToggle) {
+                // Always update button state based on running status
+                if (botToggle) {
+                    botToggle.disabled = false; // Re-enable button
+                    
+                    if (isRunning) {
                         botToggle.textContent = 'Stop Bot';
                         botToggle.className = 'btn btn-danger btn-sm';
-                    }
-                    if (botStatus) {
-                        botStatus.textContent = 'RUNNING';
-                        botStatus.className = 'badge bg-success';
-                    }
-                } else {
-                    if (statusElement) {
-                        statusElement.textContent = 'STOPPED (' + (data.strategies || 0) + ' strategies)';
-                        statusElement.className = 'badge bg-danger me-2';
-                    }
-                    if (botToggle) {
+                    } else {
                         botToggle.textContent = 'Start Bot';
                         botToggle.className = 'btn btn-success btn-sm';
                     }
-                    if (botStatus) {
+                }
+
+                // Update status badge
+                if (statusElement) {
+                    if (isRunning) {
+                        statusElement.textContent = 'RUNNING (' + (data.strategies || 0) + ' strategies)';
+                        statusElement.className = 'badge bg-success me-2';
+                    } else {
+                        statusElement.textContent = 'STOPPED (' + (data.strategies || 0) + ' strategies)';
+                        statusElement.className = 'badge bg-danger me-2';
+                    }
+                }
+
+                // Update bot status in the main status section
+                if (botStatus) {
+                    if (isRunning) {
+                        botStatus.textContent = 'RUNNING';
+                        botStatus.className = 'badge bg-success';
+                    } else {
                         botStatus.textContent = 'STOPPED';
                         botStatus.className = 'badge bg-danger';
                     }
@@ -1135,16 +1137,19 @@
             }
 
             if (botToggle) {
-                botToggle.textContent = 'Reconnecting...';
-                botToggle.className = 'btn btn-warning btn-sm';
-                botToggle.disabled = true;
+                // Don't change button text if it's already showing a valid state
+                if (botToggle.textContent === 'Loading...' || botToggle.textContent === 'Reconnecting...') {
+                    botToggle.textContent = 'Connection Lost';
+                    botToggle.className = 'btn btn-warning btn-sm';
+                    botToggle.disabled = true;
 
-                // Auto-retry after 5 seconds (increased from 3 to reduce request frequency)
-                setTimeout(() => {
-                    if (botToggle.disabled && botToggle.textContent === 'Reconnecting...') {
-                        updateBotStatus(); // Retry
-                    }
-                }, 5000);
+                    // Auto-retry after 3 seconds
+                    setTimeout(() => {
+                        if (botToggle.disabled && botToggle.textContent === 'Connection Lost') {
+                            updateBotStatus(); // Retry
+                        }
+                    }, 3000);
+                }
             }
 
             if (botStatus) {
