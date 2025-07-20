@@ -2031,10 +2031,6 @@ def update_trading_environment():
     """Update trading environment (testnet/mainnet)"""
     global bot_running, shared_bot_manager, bot_manager
     
-    # Ensure bot_running is initialized
-    if 'bot_running' not in globals():
-        bot_running = False
-    
     try:
         if not IMPORTS_AVAILABLE:
             return jsonify({'success': False, 'message': 'Configuration update not available in demo mode'})
