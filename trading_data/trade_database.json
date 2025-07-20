@@ -151,12 +151,18 @@
       "order_id": 8389765922330051166,
       "entry_time": "2025-07-20T07:42:29.585180",
       "timestamp": "2025-07-20T07:42:29.585180",
-      "trade_status": "OPEN",
+      "trade_status": "CLOSED",
       "margin_used": 18.41645,
       "leverage": 2,
       "position_value_usdt": 36.8329,
       "sync_status": "VERIFIED",
-      "last_verified": "2025-07-20T13:06:56.737541"
+      "last_verified": "2025-07-20T13:06:56.737541",
+      "exit_reason": "Stale Trade - Open for 6.4 hours",
+      "exit_price": 3683.29,
+      "pnl_usdt": 0.0,
+      "pnl_percentage": 0.0,
+      "duration_minutes": 0,
+      "closed_at": "2025-07-20T14:04:49.567084"
     },
     "RSI_ETH_ETHUSDT_20250720_120323_RECOVERED": {
       "trade_id": "RSI_ETH_ETHUSDT_20250720_120323_RECOVERED",
@@ -551,5 +557,5 @@
       "sync_status": "VERIFIED"
     }
   },
-  "last_updated": "2025-07-20T13:23:50.769037"
+  "last_updated": "2025-07-20T14:04:50.133958"
 }
