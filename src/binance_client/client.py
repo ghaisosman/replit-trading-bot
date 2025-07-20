@@ -35,8 +35,7 @@ class BinanceClientWrapper:
                     self.client = Client(
                         api_key=global_config.BINANCE_API_KEY,
                         api_secret=global_config.BINANCE_SECRET_KEY,
-                        testnet=True,
-                        requests_params={'proxies': proxies} if proxies else {}  # Pass proxies here
+                        testnet=True
                     )
                     # Override base URLs for futures testnet
                     self.client.API_URL = 'https://testnet.binancefuture.com'
@@ -48,8 +47,7 @@ class BinanceClientWrapper:
                     self.client = Client(
                         api_key=global_config.BINANCE_API_KEY,
                         api_secret=global_config.BINANCE_SECRET_KEY,
-                        testnet=True,
-                        requests_params={'proxies': proxies} if proxies else {}  # Pass proxies here
+                        testnet=True
                     )
                     self.logger.info("Binance SPOT testnet client initialized successfully")
                     self.logger.info(f"Using spot testnet URL: {self.client.API_URL}")
@@ -58,8 +56,7 @@ class BinanceClientWrapper:
                 self.client = Client(
                     api_key=global_config.BINANCE_API_KEY,
                     api_secret=global_config.BINANCE_SECRET_KEY,
-                    testnet=False,
-                    requests_params={'proxies': proxies} if proxies else {}  # Pass proxies here
+                    testnet=False
                 )
                 mode = "FUTURES" if self.is_futures else "SPOT"
                 self.logger.info(f"Binance {mode} mainnet client initialized successfully")

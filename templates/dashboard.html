@@ -329,20 +329,7 @@
                                 <small>Trading with real funds</small>
                             </div>
 
-                            <!-- Proxy Service Toggle -->
-                            <div style="text-align: center; padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; margin-top: 15px;">
-                                <h5>🔐 Proxy Service</h5>
-                                <p><small>Toggle proxy to bypass geographic restrictions</small></p>
-                                <div class="form-check form-switch d-flex justify-content-center">
-                                    <input class="form-check-input" type="checkbox" role="switch" id="proxyToggle" style="transform: scale(1.5); margin-right: 10px;">
-                                    <label class="form-check-label" for="proxyToggle" id="proxyToggleLabel">
-                                        <span id="proxyStatus">Loading...</span>
-                                    </label>
-                                </div>
-                                <div id="proxyInfo" class="mt-2" style="font-size: 0.9em; color: #666;">
-                                    <span id="proxyStatusText">Checking proxy status...</span>
-                                </div>
-                            </div>
+                            
                         </div>
                     </div>
                 </div>
@@ -2112,109 +2099,7 @@
             }
         }
 
-        // Proxy management functions
-        function updateProxyStatus() {
-            fetch('/api/trading/environment')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.environment) {
-                        const proxyEnabled = data.environment.proxy_enabled;
-                        const proxyStatus = data.environment.proxy_status;
-
-                        const proxyToggle = document.getElementById('proxyToggle');
-                        const proxyStatusEl = document.getElementById('proxyStatus');
-                        const proxyStatusText = document.getElementById('proxyStatusText');
-
-                        if (proxyToggle) {
-                            proxyToggle.checked = proxyEnabled;
-                            proxyToggle.disabled = false;
-                        }
-
-                        if (proxyStatusEl) {
-                            proxyStatusEl.textContent = proxyEnabled ? 'ExpressVPN ON' : 'ExpressVPN OFF';
-                            proxyStatusEl.className = proxyEnabled ? 'text-success' : 'text-secondary';
-                        }
-
-                        if (proxyStatusText) {
-                            if (proxyEnabled) {
-                                proxyStatusText.innerHTML = '🔐 <strong>Protected</strong> - Trading through ExpressVPN';
-                                proxyStatusText.className = 'text-success';
-                            } else {
-                                proxyStatusText.innerHTML = '🌐 <strong>Direct</strong> - Trading without proxy';
-                                proxyStatusText.className = 'text-secondary';
-                            }
-                        }
-                    }
-                })
-                .catch(error => {
-                    console.error('Error updating proxy status:', error);
-                    const proxyStatusEl = document.getElementById('proxyStatus');
-                    if (proxyStatusEl) {
-                        proxyStatusEl.textContent = 'Error';
-                        proxyStatusEl.className = 'text-danger';
-                    }
-                });
-        }
-
-        // Setup proxy toggle event listener
-        document.addEventListener('DOMContentLoaded', function() {
-            const proxyToggle = document.getElementById('proxyToggle');
-            if (proxyToggle) {
-                proxyToggle.addEventListener('change', function() {
-                    const enabled = this.checked;
-
-                    // Disable toggle while processing
-                    this.disabled = true;
-
-                    fetch('/api/proxy/toggle', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ enabled: enabled })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            updateProxyStatus();
-
-                            // Show success message
-                            const message = enabled ?
-                                '✅ Proxy service enabled! Geographic restrictions bypassed.' :
-                                '✅ Proxy service disabled! Using direct connection.';
-
-                            if (data.restart_required) {
-                                alert(message + '\n\n⚠️ Bot restart required for changes to take effect.');
-                            } else {
-                                // Create a temporary success message
-                                const proxyInfo = document.getElementById('proxyInfo');
-                                if (proxyInfo) {
-                                    const originalContent = proxyInfo.innerHTML;
-                                    proxyInfo.innerHTML = `<span class="text-success">${message}</span>`;
-                                    setTimeout(() => {
-                                        updateProxyStatus();
-                                    }, 3000);
-                                }
-                            }
-                        } else {
-                            alert('❌ Error toggling proxy: ' + data.message);
-                            // Revert toggle state
-                            this.checked = !enabled;
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error toggling proxy:', error);
-                        alert('❌ Error toggling proxy: ' + error.message);
-                        // Revert toggle state
-                        this.checked = !enabled;
-                    })
-                    .finally(() => {
-                        // Re-enable toggle
-                        this.disabled = false;
-                    });
-                });
-            }
-        });
+        
 
         // Utility functions
         function formatNumber(number) {

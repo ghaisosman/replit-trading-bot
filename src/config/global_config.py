@@ -34,26 +34,6 @@ class GlobalConfig:
         self.USE_LOCAL_TIMEZONE = os.getenv('USE_LOCAL_TIMEZONE', 'false').lower() == 'true'
         self.TIMEZONE_OFFSET_HOURS = float(os.getenv('TIMEZONE_OFFSET_HOURS', '0'))  # Manual offset if needed
 
-        # Proxy configuration for geographic restriction bypass
-        self.PROXY_ENABLED = os.getenv('PROXY_ENABLED', 'false').lower() == 'true'
-        
-        # HTTP/HTTPS Proxy Services (recommended for reliability)
-        self.PROXY_URLS = os.getenv('PROXY_URLS', '').split(',') if os.getenv('PROXY_URLS') else []
-        self.PROXY_USERNAME = os.getenv('PROXY_USERNAME')
-        self.PROXY_PASSWORD = os.getenv('PROXY_PASSWORD')
-        self.PROXY_ROTATION_INTERVAL = int(os.getenv('PROXY_ROTATION_INTERVAL', '300'))  # 5 minutes
-        self.PROXY_MAX_RETRIES = int(os.getenv('PROXY_MAX_RETRIES', '3'))
-        
-        # Popular proxy service configurations (examples)
-        # Users can set PROXY_URLS to one of these formats:
-        # - http://username:password@proxy.provider.com:8080
-        # - https://username:password@proxy.provider.com:8080
-        # - socks5://username:password@proxy.provider.com:1080
-        
-        # Auto-enable proxy if configured
-        if self.PROXY_URLS and any(url.strip() for url in self.PROXY_URLS):
-            self.PROXY_ENABLED = True
-
     def validate_config(self) -> bool:
         """Validate that all required config is present"""
         required_vars = [
@@ -73,26 +53,6 @@ class GlobalConfig:
         for var in optional_vars:
             if not getattr(self, var):
                 print(f"Warning: Missing optional environment variable: {var} (Telegram reporting disabled)")
-
-        # Validate proxy configuration if enabled
-        if self.PROXY_ENABLED:
-            if not self.PROXY_URLS or not any(self.PROXY_URLS):
-                print("Warning: PROXY_ENABLED=true but no PROXY_URLS provided")
-                self.PROXY_ENABLED = False
-            else:
-                # Validate proxy URLs format
-                valid_proxies = []
-                for proxy_url in self.PROXY_URLS:
-                    proxy_url = proxy_url.strip()
-                    if proxy_url and ('http://' in proxy_url or 'https://' in proxy_url or 'socks5://' in proxy_url):
-                        valid_proxies.append(proxy_url)
-                
-                if not valid_proxies:
-                    print("Warning: No valid proxy URLs found, disabling proxy")
-                    self.PROXY_ENABLED = False
-                else:
-                    self.PROXY_URLS = valid_proxies
-                    print(f"✅ Proxy configuration validated: {len(valid_proxies)} proxies")
 
         return True
 
@@ -138,20 +98,7 @@ class GlobalConfig:
         self.BINANCE_TESTNET = False
         self.BINANCE_FUTURES = os.getenv('BINANCE_FUTURES', 'true').lower() == 'true'
         
-        # Check if proxy should be enabled for geographic restrictions
-        is_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
-        if is_deployment and not self.PROXY_ENABLED:
-            print("🚨 DEPLOYMENT MODE: Consider enabling proxy to bypass geographic restrictions")
-            print("   Set EXPRESSVPN_ENABLED=true and ExpressVPN credentials in your Replit Secrets")
-        
-        proxy_status = 'disabled'
-        if self.PROXY_ENABLED:
-            if self.EXPRESSVPN_ENABLED:
-                proxy_status = 'ExpressVPN'
-            else:
-                proxy_status = 'custom proxy'
-        
-        print(f"🔧 Environment loaded: MAINNET (proxy: {proxy_status})")
+        print(f"🔧 Environment loaded: MAINNET")
 
 # Global config instance
 global_config = GlobalConfig()

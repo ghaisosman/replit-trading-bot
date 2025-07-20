@@ -751,7 +751,8 @@ def get_strategies():
                     'cooldown_period': 300, 'min_volume': 1000.0, 'decimals': 3,
                     'take_profit_pct': 15.0, 'trailing_stop_pct': 2.0, 'max_position_time': 3600,
                     # MACD Specific
-                    'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
+                    'macd_fast': ```python
+12, 'macd_slow': 26, 'macd_signal': 9,
                     'min_histogram_threshold': 0.0001, 'min_distance_threshold': 0.005, 'confirmation_candles': 2,
                     'divergence_strength_min': 0.6
                 }
@@ -1956,58 +1957,6 @@ def update_trading_environment():
     except Exception as e:
         logger.error(f"Error updating trading environment: {e}")
         return jsonify({'success': False, 'message': f'Failed to update environment: {e}'})
-
-@app.route('/api/proxy/toggle', methods=['POST'])
-def toggle_proxy():
-    """Toggle proxy service on/off"""
-    try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'message': 'Proxy toggle not available in demo mode'})
-
-        data = request.get_json()
-        if not data or 'enabled' not in data:
-            return jsonify({'success': False, 'message': 'Missing enabled parameter'})
-
-        enabled = bool(data['enabled'])
-
-        # Update global config
-        global_config.PROXY_ENABLED = enabled
-
-        # Save to environment configuration file for persistence
-        config_file = "trading_data/proxy_config.json"
-        os.makedirs(os.path.dirname(config_file), exist_ok=True)
-
-        proxy_config = {
-            'PROXY_ENABLED': str(enabled).lower()
-        }
-
-        with open(config_file, 'w') as f:
-            json.dump(proxy_config, f, indent=2)
-
-        status = 'enabled' if enabled else 'disabled'
-        logger.info(f"🔄 PROXY TOGGLED: {status}")
-        logger.info(f"🌐 WEB DASHBOARD: Proxy settings updated via web interface")
-
-        # Check if bot is running and warn about restart requirement
-        current_bot = shared_bot_manager if shared_bot_manager else bot_manager
-        bot_running = current_bot and getattr(current_bot, 'is_running', False)
-
-        message = f'Proxy {status}'
-        if bot_running:
-            message += ' (Bot restart required to apply changes)'
-            logger.warning("⚠️ Bot restart required for proxy changes to take effect")
-
-        return jsonify({
-            'success': True,
-            'message': message,
-            'proxy_enabled': enabled,
-            'proxy_status': status,
-            'restart_required': bot_running
-        })
-
-    except Exception as e:
-        logger.error(f"Error toggling proxy: {e}")
-        return jsonify({'success': False, 'message': f'Failed to toggle proxy: {e}'})
 
 # Add startup coordination and initialization delay
 import threading
