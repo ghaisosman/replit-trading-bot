@@ -15,20 +15,11 @@ class BinanceClientWrapper:
         self.is_futures = global_config.BINANCE_FUTURES
         self._last_request_time = 0
         self._min_request_interval = 0.1  # Minimum 100ms between requests
-          # Initially, don't use proxy
         self._initialize_client()
 
     def _initialize_client(self):
         """Initialize Binance client for Spot or Futures"""
         try:
-            proxies = None  # No proxy by default
-            if self._use_proxy:
-                proxies = {
-                    'http': 'http://username:password@host:port',  # Replace with your ExpressVPN proxy details
-                    'https': 'http://username:password@host:port'  # Replace with your ExpressVPN proxy details
-                }
-                self.logger.info("Using ExpressVPN proxy for Binance client.")
-
             if global_config.BINANCE_TESTNET:
                 if self.is_futures:
                     # Use futures testnet
@@ -367,6 +358,3 @@ class BinanceClientWrapper:
         except Exception as e:
             self.logger.error(f"Unexpected error setting margin type for {symbol}: {e}")
             return None
-
-    ient to remove proxy settings
-        self.logger.info("VPN proxy disabled.")
