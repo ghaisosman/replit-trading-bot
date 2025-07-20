@@ -472,10 +472,19 @@ class TradeDatabase:
                     side = 'BUY' if position_amt > 0 else 'SELL'
                     quantity = abs(position_amt)
                     
-                    # Check if we have this position in our database
+                    # Check if we have this position in our database (including any strategy)
                     matching_trade = self.find_trade_by_position('UNKNOWN', symbol, side, quantity, entry_price, tolerance=0.05)
                     
-                    if not matching_trade:
+                    # Also check for existing recovery entries for this symbol
+                    existing_recovery = None
+                    for trade_id, trade_data in self.trades.items():
+                        if (trade_data.get('symbol') == symbol and 
+                            trade_data.get('trade_status') == 'OPEN' and
+                            'RECOVERY' in trade_id):
+                            existing_recovery = trade_id
+                            break
+                    
+                    if not matching_trade and not existing_recovery:
                         # Create recovery trade entry
                         recovery_trade_id = f"RECOVERY_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                         
