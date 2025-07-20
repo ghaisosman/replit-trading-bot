@@ -20,7 +20,7 @@
     "margin": 6.0,
     "leverage": 2,
     "timeframe": "15m",
-    "assessment_interval": 30,
+    "assessment_interval": 60,
     "decimals": 2,
     "cooldown_period": 70,
     "macd_fast": 12,
