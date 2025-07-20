@@ -11,7 +11,9 @@
     "rsi_long_entry": 30,
     "rsi_long_exit": 60,
     "rsi_short_entry": 70,
-    "rsi_short_exit": 40
+    "rsi_short_exit": 40,
+    "partial_tp_pnl_threshold": 50.0,
+    "partial_tp_position_percentage": 25.0
   },
   "macd_divergence": {
     "symbol": "BTCUSDT",
@@ -33,7 +35,9 @@
     "price_divergence_lookback": 10,
     "divergence_strength_min": 0.4,
     "macd_entry_threshold": 0.005,
-    "macd_exit_threshold": 0.002
+    "macd_exit_threshold": 0.002,
+    "partial_tp_pnl_threshold": 70.0,
+    "partial_tp_position_percentage": 50.0
   },
   "RSI_ETH": {
     "symbol": "ETHUSDT",
@@ -49,6 +53,8 @@
     "rsi_long_entry": 30,
     "rsi_long_exit": 60,
     "rsi_short_entry": 70,
-    "rsi_short_exit": 40
+    "rsi_short_exit": 40,
+    "partial_tp_pnl_threshold": 44.0,
+    "partial_tp_position_percentage": 33.0
   }
 }
