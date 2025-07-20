@@ -2075,5 +2075,7 @@ def validate_json_response(response):
     
     return response
 
-# Flask app is configured above - no standalone execution needed
-# Web dashboard is launched from main.py only
+if __name__ == '__main__':
+    # This should not be executed when imported by main.py
+    # Only for standalone testing
+    app.run(host='0.0.0.0', port=5000, debug=False)

@@ -1632,9 +1632,9 @@
             console.log('🚀 Dashboard initialization started with intelligent polling system');
 
             // Add initialization delay to prevent premature API calls
-            setTimeout(() => {
+setTimeout(() => {
                 console.log('⏳ Starting dashboard initialization after delay...');
-                
+
                 // Initial load with controlled startup and retry logic
                 initializeDashboardWithRetry();
             }, 2000); // 2 second delay to allow backend initialization
@@ -1677,7 +1677,7 @@
                 console.log('🔧 Intelligent polling system active with adaptive intervals');
             }).catch(error => {
                 console.error('❌ Dashboard initialization error:', error);
-                
+
                 if (attempt < maxAttempts) {
                     console.log(`🔄 Retrying dashboard initialization in 5 seconds... (${attempt}/${maxAttempts})`);
                     setTimeout(() => {
