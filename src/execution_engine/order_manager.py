@@ -884,7 +884,7 @@ class OrderManager:
             self.logger.error(f"Error checking partial take profit: {e}")
             return False
 
-    def _execute_partial_close(self, self, position: Position, close_quantity: float, current_price: float) -> bool:
+    def _execute_partial_close(self, position: Position, close_quantity: float, current_price: float) -> bool:
         """Execute partial position close"""
         try:
             # Create closing order (opposite side)
