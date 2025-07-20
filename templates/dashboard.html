@@ -1214,7 +1214,7 @@
             // Determine error type and appropriate message
             let statusText = 'CONNECTION ISSUE';
             let buttonText = 'Connection Lost';
-            
+
             if (errorData && errorData.status) {
                 switch (errorData.status) {
                     case 'initializing':
@@ -1250,7 +1250,7 @@
                     botToggle.textContent.includes('Error') || 
                     botToggle.textContent.includes('Lost') ||
                     botToggle.textContent.includes('Initializing')) {
-                    
+
                     botToggle.textContent = buttonText;
                     botToggle.className = 'btn btn-warning btn-sm';
                     botToggle.disabled = true;
@@ -1450,7 +1450,6 @@
                             rsiElement.className = 'badge bg-warning';
                             rsiElement.textContent = 'RSI: N/A';
                             rsiElement.title = 'RSI data temporarily unavailable';
-                        ```text
                         }
                     }
                 })
@@ -1523,7 +1522,7 @@
                 });
         }
 
-        function getDefaultResponse(url) {
+        function getDefaultResponse(url){
             const currentTime = new Date().toLocaleTimeString();
 
             if (url.includes('/api/bot/status') || url.includes('/api/bot_status')) {
