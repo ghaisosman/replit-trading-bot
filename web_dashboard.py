@@ -204,12 +204,25 @@ bot_manager = None
 bot_thread = None
 bot_running = False
 
+# Ensure global variables are properly initialized
+def init_globals():
+    """Initialize global variables safely"""
+    global bot_manager, bot_thread, bot_running, shared_bot_manager
+    if 'bot_running' not in globals():
+        bot_running = False
+    if 'shared_bot_manager' not in globals():
+        shared_bot_manager = None
+
+# Call initialization
+init_globals()
+
 # Import the shared bot manager from main.py if it exists
 import sys
 shared_bot_manager = None
 
 def get_shared_bot_manager():
     """Get the shared bot manager with proper error handling"""
+    global bot_running, shared_bot_manager
     try:
         return getattr(sys.modules.get('__main__', None), 'bot_manager', None)
     except Exception as e:
@@ -2017,6 +2030,10 @@ def enable_strategy(strategy_name):
 def update_trading_environment():
     """Update trading environment (testnet/mainnet)"""
     global bot_running, shared_bot_manager, bot_manager
+    
+    # Ensure bot_running is initialized
+    if 'bot_running' not in globals():
+        bot_running = False
     
     try:
         if not IMPORTS_AVAILABLE:
