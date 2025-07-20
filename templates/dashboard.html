@@ -2012,10 +2012,16 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                     if (result.success) {
                         showAlert('✅ Strategy disabled successfully!\n\n' + (result.note || ''), 'success');
                         
-                        // Wait a moment for the alert to show, then reload
+                        // Update button immediately to show enabled state
+                        button.innerHTML = '<i class="fas fa-play"></i> Enable';
+                        button.className = 'btn btn-outline-success btn-sm';
+                        button.disabled = false;
+                        button.onclick = function() { enableStrategy(strategyName); };
+                        
+                        // Also reload after longer delay to refresh all data
                         setTimeout(() => {
                             location.reload();
-                        }, 1000);
+                        }, 3000);
                     } else {
                         showAlert('❌ Error disabling strategy:\n\n' + result.message, 'danger');
                         // Restore button state
@@ -2055,10 +2061,16 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                     if (result.success) {
                         showAlert('✅ Strategy enabled successfully!', 'success');
                         
-                        // Wait a moment for the alert to show, then reload
+                        // Update button immediately to show disabled state
+                        button.innerHTML = '<i class="fas fa-pause"></i> Disable';
+                        button.className = 'btn btn-outline-danger btn-sm';
+                        button.disabled = false;
+                        button.onclick = function() { disableStrategy(strategyName); };
+                        
+                        // Also reload after longer delay to refresh all data
                         setTimeout(() => {
                             location.reload();
-                        }, 1000);
+                        }, 3000);
                     } else {
                         showAlert('❌ Error enabling strategy:\n\n' + result.message, 'danger');
                         // Restore button state
