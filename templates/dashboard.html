@@ -640,7 +640,7 @@
                         <div class="mb-3">
                             <label for="strategySymbol" class="form-label">Symbol</label>
                             <input type="text" class="form-control" id="strategySymbol" placeholder="e.g., BTCUSDT">
-                            <div class="form-text text-info">
+                            <div class="form-text" style="color: black; font-size: 0.825rem;">
                                 <strong>Function:</strong> The cryptocurrency pair to trade (e.g., BTCUSDT, ETHUSDT, SOLUSDT)<br>
                                 <strong>Recommended:</strong> Use high-volume pairs like BTCUSDT (conservative) or SOLUSDT (aggressive)
                             </div>
@@ -648,7 +648,7 @@
                         <div class="mb-3">
                             <label for="strategyMargin" class="form-label">Margin (USDT)</label>
                             <input type="number" class="form-control" id="strategyMargin" step="0.1" min="1">
-                            <div class="form-text text-info">
+                            <div class="form-text" style="color: black; font-size: 0.825rem;">
                                 <strong>Function:</strong> Amount of USDT to use as margin for each trade position<br>
                                 <strong>Recommended:</strong> Start with $10-50 USDT for testing, scale up based on results
                             </div>
@@ -656,7 +656,7 @@
                         <div class="mb-3">
                             <label for="strategyLeverage" class="form-label">Leverage</label>
                             <input type="number" class="form-control" id="strategyLeverage" min="1" max="125">
-                            <div class="form-text text-info">
+                            <div class="form-text" style="color: black; font-size: 0.825rem;">
                                 <strong>Function:</strong> Multiplier for position size - higher leverage = higher profit/loss potential<br>
                                 <strong>Recommended:</strong> 3-10x for conservative, 15-25x for aggressive (never exceed 50x)
                             </div>
@@ -664,7 +664,7 @@
                          <div class="mb-3">
                             <label for="strategyDecimals" class="form-label">Decimal Precision</label>
                             <input type="number" class="form-control" id="strategyDecimals" min="0" max="8" value="2">
-                            <div class="form-text text-info">
+                            <div class="form-text" style="color: black; font-size: 0.825rem;">
                                 <strong>Function:</strong> Number of decimal places for price calculations and display<br>
                                 <strong>Recommended:</strong> 2 for most pairs, 3 for BTC pairs, 4+ for very low-value coins
                             </div>
@@ -679,7 +679,7 @@
                                 <option value="4h">4 hours</option>
                                 <option value="1d">1 day</option>
                             </select>
-                            <div class="form-text text-info">
+                            <div class="form-text" style="color: black; font-size: 0.825rem;">
                                 <strong>Function:</strong> Chart timeframe for technical analysis and signal generation<br>
                                 <strong>Recommended:</strong> 15m for balanced trading, 5m for scalping, 1h+ for swing trading
                             </div>
@@ -687,7 +687,7 @@
                         <div class="mb-3">
                             <label for="strategyMaxLoss" class="form-label">Max Loss % (of margin)</label>
                             <input type="number" class="form-control" id="strategyMaxLoss" step="0.1" min="1" max="50" placeholder="e.g., 10">
-                            <div class="form-text text-info">
+                            <div class="form-text" style="color: black; font-size: 0.825rem;">
                                 <strong>Function:</strong> Maximum loss as percentage of margin before automatic stop-loss triggers<br>
                                 <strong>Recommended:</strong> 5-10% for conservative, 10-20% for moderate risk tolerance
                             </div>
@@ -695,7 +695,7 @@
                         <div class="mb-3">
                             <label for="assessmentInterval" class="form-label">Market Assessment Interval (seconds)</label>
                             <input type="number" class="form-control" id="assessmentInterval" step="1" min="5" max="300" placeholder="e.g., 60">
-                            <div class="form-text text-info">
+                            <div class="form-text" style="color: black; font-size: 0.825rem;">
                                 <strong>Function:</strong> How often the bot scans market data for new entry opportunities<br>
                                 <strong>Recommended:</strong> 30-60 seconds for active trading, 120+ seconds for conservative approach
                             </div>
@@ -703,7 +703,7 @@
                         <div class="mb-3">
                             <label for="cooldownPeriod" class="form-label">Cooldown Period (seconds)</label>
                             <input type="number" class="form-control" id="cooldownPeriod" step="1" min="30" max="3600" placeholder="e.g., 300">
-                            <div class="form-text text-info">
+                            <div class="form-text" style="color: black; font-size: 0.825rem;">
                                 <strong>Function:</strong> Waiting time after closing a position before allowing new trades on same symbol<br>
                                 <strong>Recommended:</strong> 300-600 seconds (5-10 minutes) to avoid overtrading and emotional decisions
                             </div>
@@ -726,7 +726,7 @@
                                         <div class="mb-3">
                                             <label for="partialTpPnlThreshold" class="form-label">Partial TP PnL Threshold %</label>
                                             <input type="number" class="form-control" id="partialTpPnlThreshold" step="0.1" min="1" max="1000" placeholder="e.g., 50" disabled oninput="updatePartialTpExample()">
-                                            <div class="form-text text-info">
+                                            <div class="form-text" style="color: black; font-size: 0.825rem;">
                                                 <strong>Function:</strong> When profit reaches this % of margin, partial take-profit triggers<br>
                                                 <strong>Recommended:</strong> 30-50% for conservative, 75-100% for letting profits run longer
                                             </div>
@@ -736,7 +736,7 @@
                                         <div class="mb-3">
                                             <label for="partialTpPositionPercentage" class="form-label">Partial TP Position Size %</label>
                                             <input type="number" class="form-control" id="partialTpPositionPercentage" step="0.1" min="1" max="99" placeholder="e.g., 50" disabled oninput="updatePartialTpExample()">
-                                            <div class="form-text text-info">
+                                            <div class="form-text" style="color: black; font-size: 0.825rem;">
                                                 <strong>Function:</strong> What percentage of the position to close when partial TP triggers<br>
                                                 <strong>Recommended:</strong> 25-50% to secure profits while keeping remainder for further gains
                                             </div>
@@ -762,7 +762,7 @@
                                 <div class="col-6">
                                     <label for="rsiLongEntry" class="form-label">RSI Long Entry</label>
                                     <input type="number" class="form-control" id="rsiLongEntry" min="10" max="50" placeholder="e.g., 40">
-                                    <div class="form-text text-success">
+                                    <div class="form-text" style="color: black; font-size: 0.825rem;">
                                         <strong>Function:</strong> RSI level to trigger BUY (long) positions<br>
                                         <strong>Recommended:</strong> 25-35 for oversold entries, 40-45 for moderate entries
                                     </div>
@@ -770,7 +770,7 @@
                                 <div class="col-6">
                                     <label for="rsiLongExit" class="form-label">RSI Long Exit</label>
                                     <input type="number" class="form-control" id="rsiLongExit" min="50" max="90" placeholder="e.g., 70">
-                                    <div class="form-text text-success">
+                                    <div class="form-text" style="color: black; font-size: 0.825rem;">
                                         <strong>Function:</strong> RSI level to close BUY positions (take profit)<br>
                                         <strong>Recommended:</strong> 65-75 for conservative exits, 75-80 for letting profits run
                                     </div>
@@ -780,7 +780,7 @@
                                 <div class="col-6">
                                     <label for="rsiShortEntry" class="form-label">RSI Short Entry</label>
                                     <input type="number" class="form-control" id="rsiShortEntry" min="50" max="90" placeholder="e.g., 60">
-                                    <div class="form-text text-danger">
+                                    <div class="form-text" style="color: black; font-size: 0.825rem;">
                                         <strong>Function:</strong> RSI level to trigger SELL (short) positions<br>
                                         <strong>Recommended:</strong> 65-75 for overbought entries, 55-60 for moderate entries
                                     </div>
@@ -788,7 +788,7 @@
                                 <div class="col-6">
                                     <label for="rsiShortExit" class="form-label">RSI Short Exit</label>
                                     <input type="number" class="form-control" id="rsiShortExit" min="10" max="50" placeholder="e.g., 30">
-                                    <div class="form-text text-danger">
+                                    <div class="form-text" style="color: black; font-size: 0.825rem;">
                                         <strong>Function:</strong> RSI level to close SELL positions (take profit)<br>
                                         <strong>Recommended:</strong> 20-35 for conservative exits, 15-25 for maximum profit extraction
                                     </div>
@@ -805,7 +805,7 @@
                                     <div class="mb-3">
                                         <label for="macdFast" class="form-label">MACD Fast Length</label>
                                         <input type="number" class="form-control" id="macdFast" min="2" max="30" placeholder="e.g., 12">
-                                        <div class="form-text text-primary">
+                                        <div class="form-text" style="color: black; font-size: 0.825rem;">
                                             <strong>Function:</strong> Fast EMA period for MACD calculation (shorter = more sensitive)<br>
                                             <strong>Recommended:</strong> 12 for standard, 8-10 for faster signals, 15-20 for smoother signals
                                         </div>
@@ -815,7 +815,7 @@
                                     <div class="mb-3">
                                         <label for="macdSlow" class="form-label">MACD Slow Length</label>
                                         <input type="number" class="form-control" id="macdSlow" min="12" max="50" placeholder="e.g., 26">
-                                        <div class="form-text text-primary">
+                                        <div class="form-text" style="color: black; font-size: 0.825rem;">
                                             <strong>Function:</strong> Slow EMA period for MACD calculation (longer = trend filter)<br>
                                             <strong>Recommended:</strong> 26 for standard, 21-24 for faster, 30-35 for stronger trend filter
                                         </div>
@@ -827,7 +827,7 @@
                                     <div class="mb-3">
                                         <label for="macdSignal" class="form-label">MACD Signal Length</label>
                                         <input type="number" class="form-control" id="macdSignal" min="2" max="20" placeholder="e.g., 9">
-                                        <div class="form-text text-primary">
+                                        <div class="form-text" style="color: black; font-size: 0.825rem;">
                                             <strong>Function:</strong> Signal line EMA period (smooths MACD line for crossover signals)<br>
                                             <strong>Recommended:</strong> 9 for standard, 7-8 for faster signals, 12-15 for smoother signals
                                         </div>
@@ -837,7 +837,7 @@
                                     <div class="mb-3">
                                         <label for="minHistogramThreshold" class="form-label">Min Histogram Threshold</label>
                                         <input type="number" class="form-control" id="minHistogramThreshold" step="0.00001" placeholder="e.g., 0.0001">
-                                        <div class="form-text text-primary">
+                                        <div class="form-text" style="color: black; font-size: 0.825rem;">
                                             <strong>Function:</strong> Minimum histogram value required to validate MACD signals<br>
                                             <strong>Recommended:</strong> 0.0001 for BTC, 0.001 for ETH, 0.01 for altcoins (adjust per symbol)
                                         </div>
@@ -849,7 +849,7 @@
                                     <div class="mb-3">
                                         <label for="macdEntryThreshold" class="form-label">Entry Threshold</label>
                                         <input type="number" class="form-control" id="macdEntryThreshold" step="0.01" placeholder="e.g., 0.05">
-                                        <div class="form-text text-success">
+                                        <div class="form-text" style="color: black; font-size: 0.825rem;">
                                             <strong>Function:</strong> Minimum MACD crossover strength required to enter positions<br>
                                             <strong>Recommended:</strong> 0.03-0.07 for conservative, 0.01-0.03 for aggressive entry signals
                                         </div>
@@ -859,7 +859,7 @@
                                     <div class="mb-3">
                                         <label for="macdExitThreshold" class="form-label">Exit Threshold</label>
                                         <input type="number" class="form-control" id="macdExitThreshold" step="0.01" placeholder="e.g., 0.02">
-                                        <div class="form-text text-danger">
+                                        <div class="form-text" style="color: black; font-size: 0.825rem;">
                                             <strong>Function:</strong> MACD crossover strength needed to exit positions (take profit/stop loss)<br>
                                             <strong>Recommended:</strong> 0.02-0.04 for conservative exits, 0.005-0.02 for quick exits
                                         </div>
@@ -871,7 +871,7 @@
                                     <div class="mb-3">
                                         <label for="divergenceStrengthMin" class="form-label">Divergence Strength Min</label>
                                         <input type="number" class="form-control" id="divergenceStrengthMin" step="0.1" min="0.1" max="1.0" placeholder="e.g., 0.6">
-                                        <div class="form-text text-warning">
+                                        <div class="form-text" style="color: black; font-size: 0.825rem;">
                                             <strong>Function:</strong> Minimum strength of price/MACD divergence to trigger signals<br>
                                             <strong>Recommended:</strong> 0.4-0.6 for balanced, 0.7-0.9 for high-confidence signals only
                                         </div>
@@ -881,7 +881,7 @@
                                     <div class="mb-3">
                                         <label for="histogramDivergenceLookback" class="form-label">Histogram Divergence Lookback</label>
                                         <input type="number" class="form-control" id="histogramDivergenceLookback" min="5" max="50" placeholder="e.g., 10">
-                                        <div class="form-text text-warning">
+                                        <div class="form-text" style="color: black; font-size: 0.825rem;">
                                             <strong>Function:</strong> How many candles back to analyze histogram divergence patterns<br>
                                             <strong>Recommended:</strong> 8-12 for short-term, 15-25 for medium-term divergence detection
                                         </div>
@@ -893,7 +893,7 @@
                                     <div class="mb-3">
                                         <label for="priceDivergenceLookback" class="form-label">Price Divergence Lookback</label>
                                         <input type="number" class="form-control" id="priceDivergenceLookback" min="5" max="50" placeholder="e.g., 10">
-                                        <div class="form-text text-info">
+                                        <div class="form-text" style="color: black; font-size: 0.825rem;">
                                             <strong>Function:</strong> How many candles back to analyze price divergence patterns<br>
                                             <strong>Recommended:</strong> 8-12 for short-term, 15-25 for identifying stronger divergences
                                         </div>
@@ -903,7 +903,7 @@
                                     <div class="mb-3">
                                         <label for="confirmationCandles" class="form-label">Confirmation Candles</label>
                                         <input type="number" class="form-control" id="confirmationCandles" min="1" max="5" placeholder="e.g., 2">
-                                        <div class="form-text text-info">
+                                        <div class="form-text" style="color: black; font-size: 0.825rem;">
                                             <strong>Function:</strong> Number of consecutive candles needed to confirm momentum direction<br>
                                             <strong>Recommended:</strong> 2-3 for balance of speed vs accuracy, 1 for fast entries, 4-5 for high confidence
                                         </div>
