@@ -20,22 +20,36 @@ class TradeDatabase:
         os.makedirs(os.path.dirname(self.db_file), exist_ok=True)
 
     def _load_database(self):
-        """Load trades from database file with bulletproof startup cleanup"""
+        """Load trades from database file with bulletproof startup cleanup and recovery"""
         try:
             if os.path.exists(self.db_file):
                 with open(self.db_file, 'r') as f:
                     data = json.load(f)
                     self.trades = data.get('trades', {})
-                    self.logger.debug(f"Loaded {len(self.trades)} trades from database")
+                    self.logger.info(f"🛡️ BULLETPROOF: Loaded {len(self.trades)} trades from database")
 
-                    # Bulletproof cleanup on startup with Binance synchronization
-                    self.logger.info(f"🔄 Running bulletproof database cleanup on startup...")
+                    # Bulletproof startup sequence
+                    self.logger.info(f"🛡️ BULLETPROOF: Running comprehensive startup verification...")
+                    
+                    # Step 1: Clean up stale trades
                     self.cleanup_stale_open_trades(hours=6, sync_with_binance=True)
+                    
+                    # Step 2: Run health check and recovery
+                    health_report = self.run_bulletproof_health_check()
+                    
+                    # Step 3: Log startup summary
+                    open_count = len([t for t in self.trades.values() if t.get('trade_status') == 'OPEN'])
+                    self.logger.info(f"🛡️ BULLETPROOF STARTUP COMPLETE:")
+                    self.logger.info(f"   📊 Total trades: {len(self.trades)}")
+                    self.logger.info(f"   🔓 Open trades: {open_count}")
+                    self.logger.info(f"   🔧 Issues fixed: {len(health_report.get('fixed_issues', []))}")
+                    self.logger.info(f"   ⚠️ Issues remaining: {len(health_report.get('remaining_issues', []))}")
+                    
             else:
-                self.logger.info("Trade database file not found, starting with empty database")
+                self.logger.info("🛡️ BULLETPROOF: Trade database file not found, starting with empty database")
                 self.trades = {}
         except Exception as e:
-            self.logger.error(f"Error loading trade database: {e}")
+            self.logger.error(f"🚨 BULLETPROOF: Error loading trade database: {e}")
             self.trades = {}
 
     def _save_database(self):
@@ -52,13 +66,36 @@ class TradeDatabase:
             self.logger.error(f"Error saving trade database: {e}")
 
     def add_trade(self, trade_id: str, trade_data: Dict[str, Any]):
-        """Add a trade to the database"""
+        """Add a trade to the database with bulletproof verification"""
         try:
+            # Pre-validation checks
+            required_fields = ['strategy_name', 'symbol', 'side', 'quantity', 'entry_price', 'trade_status']
+            missing_fields = [field for field in required_fields if field not in trade_data]
+            if missing_fields:
+                self.logger.error(f"🚨 BULLETPROOF: Missing required fields {missing_fields} in trade {trade_id}")
+                return False
+
+            # Add bulletproof metadata
+            trade_data['created_at'] = datetime.now().isoformat()
+            trade_data['last_verified'] = datetime.now().isoformat()
+            trade_data['sync_status'] = 'PENDING_VERIFICATION'
+            
+            # Add to database
             self.trades[trade_id] = trade_data
             self._save_database()
-            self.logger.debug(f"Added trade {trade_id} to database")
+            
+            # Immediate verification with Binance
+            if self._verify_trade_on_binance(trade_id, trade_data):
+                self.trades[trade_id]['sync_status'] = 'VERIFIED'
+                self._save_database()
+                self.logger.info(f"🛡️ BULLETPROOF: Added and verified trade {trade_id}")
+            else:
+                self.logger.warning(f"⚠️ BULLETPROOF: Trade {trade_id} added but verification pending")
+            
+            return True
         except Exception as e:
-            self.logger.error(f"Error adding trade to database: {e}")
+            self.logger.error(f"🚨 BULLETPROOF: Error adding trade to database: {e}")
+            return False
 
     def find_trade_by_position(self, strategy_name: str, symbol: str, side: str, 
                              quantity: float, entry_price: float, tolerance: float = 0.01) -> Optional[str]:
@@ -102,16 +139,35 @@ class TradeDatabase:
         return self.trades.get(trade_id)
 
     def update_trade(self, trade_id: str, updates: Dict[str, Any]):
-        """Update trade data"""
+        """Update trade data with bulletproof verification"""
         try:
             if trade_id in self.trades:
+                # Add update metadata
+                updates['last_updated'] = datetime.now().isoformat()
+                updates['last_verified'] = datetime.now().isoformat()
+                
+                # Critical status changes require verification
+                if 'trade_status' in updates and updates['trade_status'] == 'CLOSED':
+                    # Verify closure with Binance if trade was marked as closed
+                    if self._verify_trade_closure_on_binance(trade_id, self.trades[trade_id]):
+                        updates['closure_verified'] = True
+                        updates['sync_status'] = 'CLOSURE_VERIFIED'
+                        self.logger.info(f"🛡️ BULLETPROOF: Trade closure verified for {trade_id}")
+                    else:
+                        updates['closure_verified'] = False
+                        updates['sync_status'] = 'CLOSURE_PENDING'
+                        self.logger.warning(f"⚠️ BULLETPROOF: Trade closure not verified for {trade_id}")
+                
                 self.trades[trade_id].update(updates)
                 self._save_database()
-                self.logger.debug(f"Updated trade {trade_id}")
+                self.logger.info(f"🛡️ BULLETPROOF: Updated trade {trade_id} with verification")
             else:
-                self.logger.warning(f"Trade {trade_id} not found for update")
+                self.logger.error(f"🚨 BULLETPROOF: Trade {trade_id} not found for update - potential orphan!")
+                # Create orphan detection entry
+                self._log_orphan_operation(trade_id, 'UPDATE_MISSING', updates)
         except Exception as e:
-            self.logger.error(f"Error updating trade: {e}")
+            self.logger.error(f"🚨 BULLETPROOF: Error updating trade: {e}")
+            self._log_critical_error('UPDATE_TRADE', trade_id, str(e))
 
     def get_all_trades(self) -> Dict[str, Dict[str, Any]]:
         """Get all trades"""
@@ -249,3 +305,252 @@ class TradeDatabase:
             self.logger.error(f"Error in bulletproof cleanup: {e}")
             import traceback
             self.logger.error(f"Cleanup error traceback: {traceback.format_exc()}")
+
+
+
+    def _verify_trade_on_binance(self, trade_id: str, trade_data: Dict[str, Any]) -> bool:
+        """Verify trade exists on Binance with bulletproof error handling"""
+        try:
+            from src.binance_client.client import BinanceClientWrapper
+            
+            binance_client = BinanceClientWrapper()
+            if not binance_client.is_futures:
+                return True  # Skip verification for spot trading
+            
+            account_info = binance_client.client.futures_account()
+            positions = account_info.get('positions', [])
+            
+            symbol = trade_data.get('symbol')
+            expected_side = trade_data.get('side')
+            expected_quantity = trade_data.get('quantity', 0)
+            
+            for position in positions:
+                if position.get('symbol') == symbol:
+                    position_amt = float(position.get('positionAmt', 0))
+                    if abs(position_amt) > 0.0001:  # Position exists
+                        actual_side = 'BUY' if position_amt > 0 else 'SELL'
+                        actual_quantity = abs(position_amt)
+                        
+                        # Check if matches with tolerance
+                        quantity_match = abs(actual_quantity - expected_quantity) < 0.1
+                        side_match = actual_side == expected_side
+                        
+                        if quantity_match and side_match:
+                            self.logger.debug(f"🛡️ VERIFICATION: {trade_id} confirmed on Binance")
+                            return True
+            
+            self.logger.warning(f"⚠️ VERIFICATION: {trade_id} not found on Binance")
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"🚨 VERIFICATION ERROR for {trade_id}: {e}")
+            return False
+
+    def _verify_trade_closure_on_binance(self, trade_id: str, trade_data: Dict[str, Any]) -> bool:
+        """Verify trade is actually closed on Binance"""
+        try:
+            from src.binance_client.client import BinanceClientWrapper
+            
+            binance_client = BinanceClientWrapper()
+            if not binance_client.is_futures:
+                return True  # Skip verification for spot trading
+            
+            account_info = binance_client.client.futures_account()
+            positions = account_info.get('positions', [])
+            
+            symbol = trade_data.get('symbol')
+            
+            for position in positions:
+                if position.get('symbol') == symbol:
+                    position_amt = float(position.get('positionAmt', 0))
+                    if abs(position_amt) > 0.0001:  # Position still exists
+                        self.logger.warning(f"⚠️ CLOSURE VERIFICATION: {trade_id} still open on Binance")
+                        return False
+            
+            self.logger.info(f"🛡️ CLOSURE VERIFICATION: {trade_id} confirmed closed on Binance")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"🚨 CLOSURE VERIFICATION ERROR for {trade_id}: {e}")
+            return False
+
+    def _log_orphan_operation(self, trade_id: str, operation: str, data: Dict[str, Any]):
+        """Log orphan operations for investigation"""
+        try:
+            orphan_log_file = "trading_data/orphan_operations.json"
+            os.makedirs(os.path.dirname(orphan_log_file), exist_ok=True)
+            
+            orphan_entry = {
+                'trade_id': trade_id,
+                'operation': operation,
+                'data': data,
+                'timestamp': datetime.now().isoformat(),
+                'severity': 'HIGH'
+            }
+            
+            # Load existing orphan log
+            orphan_log = []
+            if os.path.exists(orphan_log_file):
+                with open(orphan_log_file, 'r') as f:
+                    existing_data = json.load(f)
+                    orphan_log = existing_data.get('orphan_operations', [])
+            
+            orphan_log.append(orphan_entry)
+            
+            # Save updated log
+            with open(orphan_log_file, 'w') as f:
+                json.dump({
+                    'orphan_operations': orphan_log[-100:],  # Keep last 100 entries
+                    'last_updated': datetime.now().isoformat()
+                }, f, indent=2)
+            
+            self.logger.error(f"🚨 ORPHAN LOGGED: {operation} for {trade_id}")
+            
+        except Exception as e:
+            self.logger.error(f"🚨 Failed to log orphan operation: {e}")
+
+    def _log_critical_error(self, operation: str, trade_id: str, error: str):
+        """Log critical database errors for investigation"""
+        try:
+            error_log_file = "trading_data/critical_errors.json"
+            os.makedirs(os.path.dirname(error_log_file), exist_ok=True)
+            
+            error_entry = {
+                'operation': operation,
+                'trade_id': trade_id,
+                'error': error,
+                'timestamp': datetime.now().isoformat(),
+                'severity': 'CRITICAL'
+            }
+            
+            # Load existing error log
+            error_log = []
+            if os.path.exists(error_log_file):
+                with open(error_log_file, 'r') as f:
+                    existing_data = json.load(f)
+                    error_log = existing_data.get('critical_errors', [])
+            
+            error_log.append(error_entry)
+            
+            # Save updated log
+            with open(error_log_file, 'w') as f:
+                json.dump({
+                    'critical_errors': error_log[-50:],  # Keep last 50 entries
+                    'last_updated': datetime.now().isoformat()
+                }, f, indent=2)
+            
+            self.logger.error(f"🚨 CRITICAL ERROR LOGGED: {operation} for {trade_id}")
+            
+        except Exception as e:
+            self.logger.error(f"🚨 Failed to log critical error: {e}")
+
+    def recover_missing_positions(self) -> Dict[str, Any]:
+        """Bulletproof recovery of missing positions from Binance"""
+        try:
+            recovery_report = {
+                'recovered_trades': [],
+                'orphaned_positions': [],
+                'verification_failures': []
+            }
+            
+            from src.binance_client.client import BinanceClientWrapper
+            
+            binance_client = BinanceClientWrapper()
+            if not binance_client.is_futures:
+                self.logger.info("🛡️ RECOVERY: Spot trading mode - skipping position recovery")
+                return recovery_report
+            
+            account_info = binance_client.client.futures_account()
+            positions = account_info.get('positions', [])
+            
+            for position in positions:
+                symbol = position.get('symbol')
+                position_amt = float(position.get('positionAmt', 0))
+                
+                if abs(position_amt) > 0.0001:  # Active position
+                    entry_price = float(position.get('entryPrice', 0))
+                    side = 'BUY' if position_amt > 0 else 'SELL'
+                    quantity = abs(position_amt)
+                    
+                    # Check if we have this position in our database
+                    matching_trade = self.find_trade_by_position('UNKNOWN', symbol, side, quantity, entry_price, tolerance=0.05)
+                    
+                    if not matching_trade:
+                        # Create recovery trade entry
+                        recovery_trade_id = f"RECOVERY_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                        
+                        recovery_trade_data = {
+                            'strategy_name': 'RECOVERY',
+                            'symbol': symbol,
+                            'side': side,
+                            'quantity': quantity,
+                            'entry_price': entry_price,
+                            'trade_status': 'OPEN',
+                            'timestamp': datetime.now().isoformat(),
+                            'recovery_source': 'BINANCE_SYNC',
+                            'sync_status': 'RECOVERED',
+                            'created_at': datetime.now().isoformat(),
+                            'last_verified': datetime.now().isoformat()
+                        }
+                        
+                        self.trades[recovery_trade_id] = recovery_trade_data
+                        recovery_report['recovered_trades'].append(recovery_trade_id)
+                        
+                        self.logger.warning(f"🛡️ RECOVERY: Created missing trade entry {recovery_trade_id} for {symbol}")
+            
+            if recovery_report['recovered_trades']:
+                self._save_database()
+                self.logger.info(f"🛡️ RECOVERY: Recovered {len(recovery_report['recovered_trades'])} missing positions")
+            
+            return recovery_report
+            
+        except Exception as e:
+            self.logger.error(f"🚨 RECOVERY ERROR: {e}")
+            return {'error': str(e)}
+
+    def run_bulletproof_health_check(self) -> Dict[str, Any]:
+        """Comprehensive health check with automatic fixes"""
+        try:
+            health_report = {
+                'total_trades': len(self.trades),
+                'open_trades': 0,
+                'closed_trades': 0,
+                'unverified_trades': 0,
+                'fixed_issues': [],
+                'remaining_issues': []
+            }
+            
+            for trade_id, trade_data in self.trades.items():
+                status = trade_data.get('trade_status', 'UNKNOWN')
+                
+                if status == 'OPEN':
+                    health_report['open_trades'] += 1
+                    
+                    # Check if trade needs verification
+                    sync_status = trade_data.get('sync_status', 'UNKNOWN')
+                    if sync_status in ['PENDING_VERIFICATION', 'UNKNOWN']:
+                        if self._verify_trade_on_binance(trade_id, trade_data):
+                            self.trades[trade_id]['sync_status'] = 'VERIFIED'
+                            self.trades[trade_id]['last_verified'] = datetime.now().isoformat()
+                            health_report['fixed_issues'].append(f"Verified {trade_id}")
+                        else:
+                            health_report['unverified_trades'] += 1
+                            health_report['remaining_issues'].append(f"Cannot verify {trade_id}")
+                
+                elif status == 'CLOSED':
+                    health_report['closed_trades'] += 1
+            
+            # Run recovery for missing positions
+            recovery_report = self.recover_missing_positions()
+            if recovery_report.get('recovered_trades'):
+                health_report['fixed_issues'].extend([f"Recovered {trade_id}" for trade_id in recovery_report['recovered_trades']])
+            
+            if health_report['fixed_issues']:
+                self._save_database()
+                
+            self.logger.info(f"🛡️ HEALTH CHECK: {health_report}")
+            return health_report
+            
+        except Exception as e:
+            self.logger.error(f"🚨 HEALTH CHECK ERROR: {e}")
+            return {'error': str(e)}
