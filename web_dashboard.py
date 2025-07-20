@@ -1436,9 +1436,7 @@ def get_rsi(symbol):
                 continue
 
         if len(closes) < 14:
-            ```python
-# Adding missing global bot_running declaration.
-    return jsonify({'success': False, 'error': f'Not enough valid price data for RSI calculation for {symbol}'})
+            return jsonify({'success': False, 'error': f'Not enough valid price data for RSI calculation for {symbol}'})
 
         # Calculate RSI using the same method as the bot
         try:
