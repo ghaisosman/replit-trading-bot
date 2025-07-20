@@ -2013,6 +2013,7 @@ def enable_strategy(strategy_name):
 @app.route('/api/trading/environment', methods=['POST'])
 def update_trading_environment():
     """Update trading environment (testnet/mainnet)"""
+    global bot_running
     try:
         if not IMPORTS_AVAILABLE:
             return jsonify({'success': False, 'message': 'Configuration update not available in demo mode'})
