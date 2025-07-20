@@ -90,6 +90,15 @@ args = "sleep 2"
 task = "shell.exec"
 args = "python force_start_bot.py"
 
+[[workflows.workflow]]
+name = "Test Trading System"
+author = 43555514
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
+
 [[ports]]
 localPort = 5000
 externalPort = 80
