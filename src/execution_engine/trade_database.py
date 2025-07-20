@@ -104,10 +104,15 @@ class TradeDatabase:
             self.logger.debug(f"Searching for trade: {strategy_name} | {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price}")
 
             for trade_id, trade_data in self.trades.items():
-                # Match strategy and symbol
-                if (trade_data.get('strategy_name') == strategy_name and 
+                # If strategy_name is 'UNKNOWN', search across ALL strategies
+                # Otherwise, match specific strategy
+                strategy_match = (strategy_name == 'UNKNOWN' or 
+                                trade_data.get('strategy_name') == strategy_name)
+                
+                if (strategy_match and 
                     trade_data.get('symbol') == symbol and
-                    trade_data.get('side') == side):
+                    trade_data.get('side') == side and
+                    trade_data.get('trade_status') == 'OPEN'):  # Only check open trades
 
                     # Check quantity match with tolerance
                     db_quantity = trade_data.get('quantity', 0)
@@ -120,14 +125,15 @@ class TradeDatabase:
                     price_tolerance = max(entry_price * tolerance, 0.01)
 
                     if quantity_diff <= quantity_tolerance and price_diff <= price_tolerance:
-                        self.logger.debug(f"Found matching trade: {trade_id}")
+                        self.logger.debug(f"Found matching trade: {trade_id} (strategy: {trade_data.get('strategy_name')})")
                         return trade_id
                     else:
                         self.logger.debug(f"Trade {trade_id} close but not exact match - "
                                         f"Qty diff: {quantity_diff:.6f} (tol: {quantity_tolerance:.6f}), "
                                         f"Price diff: {price_diff:.4f} (tol: {price_tolerance:.4f})")
 
-            self.logger.debug(f"No matching trade found for {strategy_name} | {symbol}")
+            search_scope = "all strategies" if strategy_name == 'UNKNOWN' else strategy_name
+            self.logger.debug(f"No matching trade found for {search_scope} | {symbol}")
             return None
 
         except Exception as e:
@@ -472,19 +478,32 @@ class TradeDatabase:
                     side = 'BUY' if position_amt > 0 else 'SELL'
                     quantity = abs(position_amt)
                     
-                    # Check if we have this position in our database (including any strategy)
-                    matching_trade = self.find_trade_by_position('UNKNOWN', symbol, side, quantity, entry_price, tolerance=0.05)
+                    # COMPREHENSIVE CHECK: Look for ANY existing trade for this position
+                    # Check across ALL strategies, not just 'UNKNOWN'
+                    position_already_tracked = False
+                    existing_trade_id = None
                     
-                    # Also check for existing recovery entries for this symbol
-                    existing_recovery = None
                     for trade_id, trade_data in self.trades.items():
                         if (trade_data.get('symbol') == symbol and 
-                            trade_data.get('trade_status') == 'OPEN' and
-                            'RECOVERY' in trade_id):
-                            existing_recovery = trade_id
-                            break
+                            trade_data.get('trade_status') == 'OPEN'):
+                            
+                            # Check if quantities and sides match with tolerance
+                            db_quantity = trade_data.get('quantity', 0)
+                            db_side = trade_data.get('side')
+                            db_entry_price = trade_data.get('entry_price', 0)
+                            
+                            quantity_match = abs(db_quantity - quantity) < 0.1
+                            side_match = db_side == side
+                            price_match = abs(db_entry_price - entry_price) < (entry_price * 0.05)  # 5% tolerance
+                            
+                            if quantity_match and side_match and price_match:
+                                position_already_tracked = True
+                                existing_trade_id = trade_id
+                                self.logger.debug(f"🛡️ RECOVERY: Position {symbol} already tracked as {trade_id}")
+                                break
                     
-                    if not matching_trade and not existing_recovery:
+                    # Only create recovery entry if position is NOT already tracked
+                    if not position_already_tracked:
                         # Create recovery trade entry
                         recovery_trade_id = f"RECOVERY_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                         
@@ -506,10 +525,14 @@ class TradeDatabase:
                         recovery_report['recovered_trades'].append(recovery_trade_id)
                         
                         self.logger.warning(f"🛡️ RECOVERY: Created missing trade entry {recovery_trade_id} for {symbol}")
+                    else:
+                        self.logger.info(f"🛡️ RECOVERY: Position {symbol} already tracked as {existing_trade_id} - skipping duplicate recovery")
             
             if recovery_report['recovered_trades']:
                 self._save_database()
                 self.logger.info(f"🛡️ RECOVERY: Recovered {len(recovery_report['recovered_trades'])} missing positions")
+            else:
+                self.logger.info(f"🛡️ RECOVERY: No missing positions found - all Binance positions are already tracked")
             
             return recovery_report
             
