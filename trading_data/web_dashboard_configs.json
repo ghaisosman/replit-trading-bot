@@ -2,9 +2,9 @@
   "rsi_oversold": {
     "symbol": "SOLUSDT",
     "margin": 5.0,
-    "leverage": 1,
+    "leverage": 3,
     "timeframe": "15m",
-    "max_loss_pct": 13.0,
+    "max_loss_pct": 5.0,
     "assessment_interval": 60,
     "decimals": 2,
     "cooldown_period": 300,
@@ -17,7 +17,7 @@
   },
   "macd_divergence": {
     "symbol": "BTCUSDT",
-    "margin": 7.0,
+    "margin": 6.0,
     "leverage": 2,
     "timeframe": "15m",
     "assessment_interval": 30,
