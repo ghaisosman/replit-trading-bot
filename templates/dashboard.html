@@ -977,6 +977,51 @@
             }
         }
 
+        function shouldUpdate(cacheKey) {
+            // Check cache first
+            const cachedData = getCachedData(cacheKey);
+            if (cachedData) {
+                return false; // Use cached data, don't make new request
+            }
+
+            // Check if we can make a new request
+            return canMakeRequest(cacheKey);
+        }
+
+        async function cachedApiRequest(url, cacheKey) {
+            // Check cache first
+            const cachedData = getCachedData(cacheKey);
+            if (cachedData) {
+                return cachedData;
+            }
+
+            // Make API request
+            const data = await apiRequest(url);
+
+            // Cache the response
+            if (data) {
+                setCachedData(cacheKey, data);
+            }
+
+            return data;
+        }
+
+        function recordApiSuccess(cacheKey) {
+            // Reset error counters, adjust intervals, etc.
+            const throttle = requestThrottle[cacheKey];
+            if (throttle) {
+                throttle.currentInterval = Math.max(throttle.currentInterval * 0.9, throttle.minInterval);
+            }
+        }
+
+        function recordApiError(cacheKey) {
+            // Increase intervals on error
+            const throttle = requestThrottle[cacheKey];
+            if (throttle) {
+                throttle.currentInterval = Math.min(throttle.currentInterval * 1.5, throttle.maxInterval);
+            }
+        }
+
         // Update bot status with safe API handling
         async function updateBotStatus() {
             const debugId = `status_${Date.now()}`;
@@ -1592,6 +1637,7 @@
         }
 
         // Refresh data function with complete cache invalidation and adaptive reset
+```text
         function refreshData() {
             // Clear all caches to force fresh data
             Object.keys(apiCache).forEach(key => {
@@ -2174,6 +2220,15 @@ setTimeout(() => {
          // Refresh dashboard data
         function updateDashboard() {
             refreshData();
+        }
+         // Show anomalies function
+        function showAnomalies() {
+            alert('Anomaly Detection System\n\n' +
+                  '• Unusual market movements\n' +
+                  '• Unexpected position changes\n' +
+                  '• API connection issues\n' +
+                  '• Risk management alerts\n\n' +
+                  'Check console logs for detailed anomaly reports.');
         }
     </script>
 </body>
