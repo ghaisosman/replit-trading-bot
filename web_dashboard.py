@@ -502,7 +502,7 @@ def stop_bot():
 
     except Exception as e:
         logger.error(f"Error stopping bot: {e}")
-        # Force cleanup
+        # Force cleanup - all variables are already declared as global at function start
         bot_running = False
         if shared_bot_manager:
             shared_bot_manager.is_running = False
