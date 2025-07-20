@@ -1950,6 +1950,98 @@ def update_environment():
     except Exception as e:
         return jsonify({'success': False, 'message': f'Failed to update environment: {e}'})
 
+@app.route('/api/strategies/<strategy_name>/disable', methods=['POST'])
+def disable_strategy(strategy_name):
+    """Disable a specific strategy"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'message': 'Strategy management not available in demo mode'})
+
+        # Get current strategies
+        strategies = trading_config_manager.get_all_strategies()
+        
+        if strategy_name not in strategies:
+            return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" not found'})
+
+        # Mark strategy as disabled by setting assessment_interval to 0
+        updates = {
+            'assessment_interval': 0,  # This effectively disables the strategy
+            'enabled': False
+        }
+        
+        # Update the strategy configuration
+        trading_config_manager.update_strategy_params(strategy_name, updates)
+        
+        # Try to update running bot if available
+        current_bot = get_bot_manager()
+        if current_bot and hasattr(current_bot, 'strategies'):
+            if strategy_name in current_bot.strategies:
+                current_bot.strategies[strategy_name].update(updates)
+                logger.info(f"🔴 LIVE DISABLE: {strategy_name} disabled in running bot")
+        
+        logger.info(f"🔴 STRATEGY DISABLED: {strategy_name}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Strategy "{strategy_name}" has been disabled successfully',
+            'strategy_name': strategy_name,
+            'note': 'Strategy will stop scanning for new trades but existing positions remain active'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error disabling strategy {strategy_name}: {e}")
+        return jsonify({'success': False, 'message': f'Failed to disable strategy: {str(e)}'})
+
+@app.route('/api/strategies/<strategy_name>/enable', methods=['POST'])
+def enable_strategy(strategy_name):
+    """Enable a previously disabled strategy"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'message': 'Strategy management not available in demo mode'})
+
+        # Get current strategies
+        strategies = trading_config_manager.get_all_strategies()
+        
+        if strategy_name not in strategies:
+            return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" not found'})
+
+        # Get default assessment interval based on strategy type
+        if 'rsi' in strategy_name.lower():
+            default_interval = 60
+        elif 'macd' in strategy_name.lower():
+            default_interval = 30
+        else:
+            default_interval = 60
+
+        # Re-enable strategy by restoring assessment_interval
+        updates = {
+            'assessment_interval': default_interval,
+            'enabled': True
+        }
+        
+        # Update the strategy configuration
+        trading_config_manager.update_strategy_params(strategy_name, updates)
+        
+        # Try to update running bot if available
+        current_bot = get_bot_manager()
+        if current_bot and hasattr(current_bot, 'strategies'):
+            if strategy_name in current_bot.strategies:
+                current_bot.strategies[strategy_name].update(updates)
+                logger.info(f"🟢 LIVE ENABLE: {strategy_name} enabled in running bot")
+        
+        logger.info(f"🟢 STRATEGY ENABLED: {strategy_name}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Strategy "{strategy_name}" has been enabled successfully',
+            'strategy_name': strategy_name,
+            'assessment_interval': default_interval
+        })
+        
+    except Exception as e:
+        logger.error(f"Error enabling strategy {strategy_name}: {e}")
+        return jsonify({'success': False, 'message': f'Failed to enable strategy: {str(e)}'})
+
 @app.route('/api/trading/environment', methods=['POST'])
 def update_trading_environment():
     """Update trading environment (testnet/mainnet)"""

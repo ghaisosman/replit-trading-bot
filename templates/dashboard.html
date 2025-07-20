@@ -428,9 +428,16 @@
                                         {% endif %}
                                     </small>
                                 </div>
+                                {% set is_disabled = config.get('assessment_interval', 60) == 0 or config.get('enabled', True) == False %}
+                                {% if is_disabled %}
+                                <span class="badge bg-secondary">
+                                    <i class="fas fa-pause"></i> Disabled
+                                </span>
+                                {% else %}
                                 <span class="badge bg-success">
                                     <i class="fas fa-play"></i> Active
                                 </span>
+                                {% endif %}
                             </div>
                         </div>
                         <div class="card-body">
@@ -495,9 +502,16 @@
                             <button class="btn btn-outline-warning btn-sm me-2" onclick="viewStrategyStats('{{ strategy_name }}')">
                                 <i class="fas fa-chart-bar"></i> View Stats
                             </button>
+                            {% set is_disabled = config.get('assessment_interval', 60) == 0 or config.get('enabled', True) == False %}
+                            {% if is_disabled %}
+                            <button class="btn btn-outline-success btn-sm" onclick="enableStrategy('{{ strategy_name }}')">
+                                <i class="fas fa-play"></i> Enable
+                            </button>
+                            {% else %}
                             <button class="btn btn-outline-danger btn-sm" onclick="disableStrategy('{{ strategy_name }}')">
                                 <i class="fas fa-pause"></i> Disable
                             </button>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -1978,7 +1992,8 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
         // Disable strategy function
         function disableStrategy(strategyName) {
             if (confirm('Are you sure you want to disable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n' +
-                       'This will stop the bot from executing trades for this strategy.')) {
+                       'This will stop the bot from scanning for new trades for this strategy.\n' +
+                       'Existing positions will remain active.')) {
 
                 fetch('/api/strategies/' + strategyName + '/disable', {
                     method: 'POST',
@@ -1989,15 +2004,42 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                 .then(response => response.json())
                 .then(result => {
                     if (result.success) {
-                        alert('✅ Strategy disabled successfully!');
+                        showAlert('✅ Strategy disabled successfully!\n\n' + result.note, 'success');
                         location.reload();
                     } else {
-                        alert('❌ Error disabling strategy:\n\n' + result.message);
+                        showAlert('❌ Error disabling strategy:\n\n' + result.message, 'danger');
                     }
                 })
                 .catch(error => {
                     console.error('Error disabling strategy:', error);
-                    alert('Error disabling strategy: ' + error);
+                    showAlert('❌ Error disabling strategy: ' + error.message, 'danger');
+                });
+            }
+        }
+
+        // Enable strategy function
+        function enableStrategy(strategyName) {
+            if (confirm('Are you sure you want to enable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n' +
+                       'This will resume scanning for new trades for this strategy.')) {
+
+                fetch('/api/strategies/' + strategyName + '/enable', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        showAlert('✅ Strategy enabled successfully!', 'success');
+                        location.reload();
+                    } else {
+                        showAlert('❌ Error enabling strategy:\n\n' + result.message, 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error enabling strategy:', error);
+                    showAlert('❌ Error enabling strategy: ' + error.message, 'danger');
                 });
             }
         }
