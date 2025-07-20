@@ -224,6 +224,21 @@ class TradingConfigManager:
             if validated_updates['confirmation_candles'] < 1 or validated_updates['confirmation_candles'] > 5:
                 validated_updates['confirmation_candles'] = 2
 
+        if 'histogram_divergence_lookback' in updates:
+            validated_updates['histogram_divergence_lookback'] = int(updates['histogram_divergence_lookback'])
+            if validated_updates['histogram_divergence_lookback'] < 5 or validated_updates['histogram_divergence_lookback'] > 50:
+                validated_updates['histogram_divergence_lookback'] = 10
+
+        if 'price_divergence_lookback' in updates:
+            validated_updates['price_divergence_lookback'] = int(updates['price_divergence_lookback'])
+            if validated_updates['price_divergence_lookback'] < 5 or validated_updates['price_divergence_lookback'] > 50:
+                validated_updates['price_divergence_lookback'] = 10
+
+        if 'divergence_strength_min' in updates:
+            validated_updates['divergence_strength_min'] = float(updates['divergence_strength_min'])
+            if validated_updates['divergence_strength_min'] < 0.1 or validated_updates['divergence_strength_min'] > 1.0:
+                validated_updates['divergence_strength_min'] = 0.4
+
 
 
         # Universal Strategy Parameters (for any future strategy)
@@ -320,6 +335,9 @@ class TradingConfigManager:
                     strategies[strategy_name].setdefault('min_histogram_threshold', 0.0001)
                     strategies[strategy_name].setdefault('min_distance_threshold', 0.005)
                     strategies[strategy_name].setdefault('confirmation_candles', 2)
+                    strategies[strategy_name].setdefault('histogram_divergence_lookback', 10)
+                    strategies[strategy_name].setdefault('price_divergence_lookback', 10)
+                    strategies[strategy_name].setdefault('divergence_strength_min', 0.4)
 
                 # Set common defaults only if not already set
                 strategies[strategy_name].setdefault('min_volume', 1000000)
@@ -359,6 +377,9 @@ class TradingConfigManager:
                 'min_histogram_threshold': 0.0001,
                 'min_distance_threshold': 0.005,
                 'confirmation_candles': 2,
+                'histogram_divergence_lookback': 10,
+                'price_divergence_lookback': 10,
+                'divergence_strength_min': 0.4,
                 'min_volume': 1000000,
             },
         }
