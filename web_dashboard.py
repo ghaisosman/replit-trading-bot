@@ -1359,7 +1359,7 @@ def get_positions():
                 # Ensure position_value is calculated and handled correctly
                 position_value_usdt = float(position.entry_price) * float(position.quantity) if hasattr(position, 'entry_price') and hasattr(position, 'quantity') else 0.0
 
-                active_positions.append({
+                position_data = {
                     'strategy': strategy_name,
                     'symbol': position.symbol,
                     'side': position.side,
@@ -1370,7 +1370,7 @@ def get_positions():
                     'current_price': current_price or 0,
                     'pnl': pnl,
                     'pnl_percent': pnl_percent
-                })
+                }
 
                 positions.append(position_data)
 
