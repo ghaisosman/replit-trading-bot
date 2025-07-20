@@ -2075,9 +2075,5 @@ def validate_json_response(response):
     
     return response
 
-# Middleware to check initialization status continuedd initializing, please wait...',
-            'timestamp': datetime.now().strftime('%H:%M:%S')
-        }), 202  # 202 Accepted (processing)
-
 # Flask app is configured above - no standalone execution needed
 # Web dashboard is launched from main.py only
