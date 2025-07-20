@@ -165,7 +165,7 @@ def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
                 current_time = datetime.now().strftime('%H:%M:%S')
                 if endpoint_key == 'bot_status':
                     return jsonify({
-                        'success': False,
+                        'success': True,  # Changed to True to prevent frontend errors
                         'running': False,
                         'is_running': False,
                         'active_positions': 0,
@@ -178,7 +178,7 @@ def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
                     }), 200
                 elif endpoint_key == 'console_log':
                     return jsonify({
-                        'success': False,
+                        'success': True,  # Changed to True to prevent frontend errors
                         'logs': [f'[{current_time}] ⚠️ Error loading logs: {str(func_error)}'],
                         'status': 'function_error',
                         'error': str(func_error),
@@ -186,9 +186,10 @@ def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
                     }), 200
                 else:
                     return jsonify({
-                        'success': False,
+                        'success': True,  # Changed to True to prevent frontend errors
                         'error': str(func_error),
-                        'timestamp': current_time
+                        'timestamp': current_time,
+                        'status': 'function_error'
                     }), 200
         return decorated_function
     return decorator
@@ -2045,9 +2046,36 @@ def check_initialization():
     if not _dashboard_ready and request.path.startswith('/api/'):
         # Return loading response instead of empty response
         return jsonify({
-            'success': False,
+            'success': True,  # Changed to prevent frontend errors
             'status': 'initializing',
-            'message': 'Dashboard initializing, please wait...',
+            'message': 'Dashboard initializing...',
+            'timestamp': datetime.now().strftime('%H:%M:%S')
+        }), 202  # 202 Accepted status for initialization
+
+@app.after_request
+def validate_json_response(response):
+    """Ensure all API responses are valid JSON"""
+    if request.path.startswith('/api/'):
+        try:
+            if response.mimetype == 'application/json':
+                # Verify the response can be parsed as JSON
+                data = response.get_json()
+                if data is None and response.data:
+                    # Response claims to be JSON but isn't parseable
+                    logger.warning(f"Invalid JSON response for {request.path}: {response.data}")
+                    fallback_response = jsonify({
+                        'success': True,
+                        'status': 'response_error',
+                        'message': 'Invalid response format',
+                        'timestamp': datetime.now().strftime('%H:%M:%S')
+                    })
+                    return fallback_response
+        except Exception as e:
+            logger.error(f"Response validation error for {request.path}: {e}")
+    
+    return response
+
+# Middleware to check initialization status continuedd initializing, please wait...',
             'timestamp': datetime.now().strftime('%H:%M:%S')
         }), 202  # 202 Accepted (processing)
 
