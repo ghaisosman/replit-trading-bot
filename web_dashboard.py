@@ -318,12 +318,12 @@ def dashboard():
                 # Calculate position value and get actual margin invested
                 position_value = position.entry_price * position.quantity
 
-                # Get leverage and margin from strategy config  
+                # Get leverage from strategy config
                 strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
                 leverage = strategy_config.get('leverage', 5)  # Default 5x leverage
 
-                # Use the configured margin as the actual margin invested (matches trading logic)
-                margin_invested = strategy_config.get('margin', 50.0)
+                # Use actual margin used for this specific position, fallback to configured margin
+                margin_invested = getattr(position, 'actual_margin_used', None) or strategy_config.get('margin', 50.0)
 
                 # Calculate PnL percentage against margin invested (correct for futures)
                 pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0

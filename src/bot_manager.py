@@ -487,10 +487,10 @@ class BotManager:
                     else:  # Short position (SELL)
                         pnl = (entry_price - current_price) * quantity
 
-                    # Use the configured margin as the actual margin invested (matches web dashboard)
-                    margin_invested = strategy_config.get('margin', 50.0)
+                    # Use actual margin used for this specific position, fallback to configured margin
+                    margin_invested = getattr(position, 'actual_margin_used', None) or strategy_config.get('margin', 50.0)
 
-                    # Calculate PnL percentage against margin invested (matches web dashboard)
+                    # Calculate PnL percentage against actual margin invested
                     pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
 
                     # Display the position with clean, single formatting
