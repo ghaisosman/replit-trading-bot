@@ -355,7 +355,7 @@
                                             <th>Symbol</th>
                                             <th>Side</th>
                                             <th>Entry Price</th>
-                                            <th>Position (USDT)</th>
+                                            <th>Margin (USDT)</th>
                                             <th>Current Price</th>
                                             <th>PnL (USDT)</th>
                                             <th>PnL (%)</th>
@@ -1325,7 +1325,6 @@
                 data.positions.forEach(position => {
                     // Validate and sanitize position data
                     const entryPrice = position.entry_price || 0;
-                    const positionValueUsdt = position.position_value_usdt || 0;
                     const currentPrice = position.current_price || 0;
                     const pnl = position.pnl || 0;
                     const pnlPercent = position.pnl_percent || 0;
@@ -1335,7 +1334,7 @@
                             '<td>' + (position.symbol || 'Unknown') + '</td>' +
                             '<td>' + (position.side || 'Unknown') + '</td>' +
                             '<td>' + formatNumber(entryPrice) + '</td>' +
-                            '<td>' + formatNumber(positionValueUsdt) + '</td>' +
+                            '<td>' + formatNumber(position.margin_invested || 0) + '</td>' +
                             '<td>' + formatNumber(currentPrice) + '</td>' +
                             '<td class="' + (pnl >= 0 ? 'text-success' : 'text-danger') + '">' + formatNumber(pnl) + '</td>' +
                             '<td class="' + (pnlPercent >= 0 ? 'text-success' : 'text-danger') + '">' + formatNumber(pnlPercent) + '%</td>' +
