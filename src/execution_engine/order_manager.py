@@ -813,8 +813,12 @@ class OrderManager:
                 return False
                 
             # Get partial TP configuration
-            partial_tp_pnl_threshold = strategy_config.get('partial_tp_pnl_threshold', 50.0)  # % of margin
-            partial_tp_position_percentage = strategy_config.get('partial_tp_position_percentage', 50.0)  # % of position
+            partial_tp_pnl_threshold = strategy_config.get('partial_tp_pnl_threshold', 0.0)  # % of margin
+            partial_tp_position_percentage = strategy_config.get('partial_tp_position_percentage', 0.0)  # % of position
+            
+            # Check if partial TP is actually enabled (both values must be > 0)
+            if partial_tp_pnl_threshold <= 0 or partial_tp_position_percentage <= 0:
+                return False  # Partial TP is disabled
             
             # Calculate current PnL and PnL percentage against margin invested
             pnl, pnl_percentage = self._calculate_profit_loss(position, current_price)

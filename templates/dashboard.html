@@ -678,15 +678,45 @@
                             <input type="number" class="form-control" id="cooldownPeriod" step="1" min="30" max="3600" placeholder="e.g., 300">
                             <div class="form-text">Time to wait before allowing another trade on the same symbol/strategy (30-3600 seconds)</div>
                         </div>
-						<div class="mb-3">
-                            <label for="partialTpPnlThreshold" class="form-label">Partial TP PnL Threshold %</label>
-                            <input type="number" class="form-control" id="partialTpPnlThreshold" step="0.1" min="1" max="100" placeholder="e.g., 50">
-                            <div class="form-text">Percentage of unrealized PNL target for partial TP</div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="partialTpPositionPercentage" class="form-label">Partial TP Position Size %</label>
-                            <input type="number" class="form-control" id="partialTpPositionPercentage" step="0.1" min="1" max="100" placeholder="e.g., 25">
-                            <div class="form-text">Percentage of the invested margin to take profit on</div>
+						<!-- Partial Take Profit Master Toggle -->
+                        <div class="mb-4">
+                            <h6 class="text-success mt-3">🎯 Partial Take Profit Configuration</h6>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="partialTpEnabled" onchange="togglePartialTpConfig()">
+                                <label class="form-check-label" for="partialTpEnabled">
+                                    <strong>Enable Partial Take Profit</strong>
+                                </label>
+                                <div class="form-text">Enable to configure automatic partial profit taking</div>
+                            </div>
+                            
+                            <!-- Partial TP Configuration Fields (disabled by default) -->
+                            <div id="partialTpConfigSection" class="mt-3" style="opacity: 0.5;">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="partialTpPnlThreshold" class="form-label">Partial TP PnL Threshold %</label>
+                                            <input type="number" class="form-control" id="partialTpPnlThreshold" step="0.1" min="1" max="1000" placeholder="e.g., 50" disabled oninput="updatePartialTpExample()">
+                                            <div class="form-text">Percentage of margin profit to trigger partial TP</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="partialTpPositionPercentage" class="form-label">Partial TP Position Size %</label>
+                                            <input type="number" class="form-control" id="partialTpPositionPercentage" step="0.1" min="1" max="99" placeholder="e.g., 50" disabled oninput="updatePartialTpExample()">
+                                            <div class="form-text">Percentage of position to close for partial TP</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Example Calculation Display -->
+                                <div class="alert alert-info mt-2" id="partialTpExample">
+                                    <small>
+                                        <strong>Example:</strong> With 50% PnL threshold and 50% position size:<br>
+                                        • When profit reaches 50% of margin → Close 50% of position<br>
+                                        • Remaining 50% continues until stop loss or manual exit
+                                    </small>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- RSI Strategy Parameters (shown only for RSI strategies) -->
@@ -1887,6 +1917,82 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
         // Strategy management functions
         let currentStrategyName = '';
 
+        function togglePartialTpConfig() {
+            const toggle = document.getElementById('partialTpEnabled');
+            const configSection = document.getElementById('partialTpConfigSection');
+            const thresholdInput = document.getElementById('partialTpPnlThreshold');
+            const positionInput = document.getElementById('partialTpPositionPercentage');
+            const exampleDiv = document.getElementById('partialTpExample');
+            
+            if (toggle.checked) {
+                // Enable partial TP configuration
+                configSection.style.opacity = '1';
+                configSection.style.pointerEvents = 'auto';
+                thresholdInput.disabled = false;
+                positionInput.disabled = false;
+                
+                // Set default values if empty
+                if (!thresholdInput.value) {
+                    thresholdInput.value = 50;
+                }
+                if (!positionInput.value) {
+                    positionInput.value = 50;
+                }
+                
+                console.log('✅ Partial TP enabled - configuration unlocked');
+            } else {
+                // Disable partial TP configuration
+                configSection.style.opacity = '0.5';
+                configSection.style.pointerEvents = 'none';
+                thresholdInput.disabled = true;
+                positionInput.disabled = true;
+                
+                // Clear values when disabled to prevent accidental saving
+                thresholdInput.value = '';
+                positionInput.value = '';
+                
+                console.log('❌ Partial TP disabled - configuration locked');
+            }
+            
+            // Update example calculation
+            updatePartialTpExample();
+        }
+
+        function updatePartialTpExample() {
+            const toggle = document.getElementById('partialTpEnabled');
+            const threshold = document.getElementById('partialTpPnlThreshold').value;
+            const position = document.getElementById('partialTpPositionPercentage').value;
+            const exampleDiv = document.getElementById('partialTpExample');
+            
+            if (toggle.checked && threshold && position) {
+                exampleDiv.innerHTML = `
+                    <small>
+                        <strong>Your Configuration:</strong> ${threshold}% PnL threshold, ${position}% position size<br>
+                        • When profit reaches ${threshold}% of margin → Close ${position}% of position<br>
+                        • Remaining ${100 - position}% continues until stop loss or manual exit
+                    </small>
+                `;
+                exampleDiv.className = 'alert alert-success mt-2';
+            } else if (toggle.checked) {
+                exampleDiv.innerHTML = `
+                    <small>
+                        <strong>Example:</strong> With 50% PnL threshold and 50% position size:<br>
+                        • When profit reaches 50% of margin → Close 50% of position<br>
+                        • Remaining 50% continues until stop loss or manual exit
+                    </small>
+                `;
+                exampleDiv.className = 'alert alert-info mt-2';
+            } else {
+                exampleDiv.innerHTML = `
+                    <small>
+                        <strong>Partial Take Profit is disabled.</strong><br>
+                        Enable the toggle above to configure automatic partial profit taking.
+                    </small>
+                `;
+                exampleDiv.className = 'alert alert-secondary mt-2';
+            }
+        }
+
         function editStrategyConfig(strategyName) {
             currentStrategyName = strategyName;
 
@@ -1909,12 +2015,24 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                             }
 
                             // Partial Take Profit Configuration
-                            if (config.partial_tp_pnl_threshold !== undefined) {
+                            const hasPartialTpConfig = config.partial_tp_pnl_threshold !== undefined && 
+                                                     config.partial_tp_position_percentage !== undefined &&
+                                                     config.partial_tp_pnl_threshold > 0 && 
+                                                     config.partial_tp_position_percentage > 0;
+                            
+                            const partialTpToggle = document.getElementById('partialTpEnabled');
+                            partialTpToggle.checked = hasPartialTpConfig;
+                            
+                            if (hasPartialTpConfig) {
                                 document.getElementById('partialTpPnlThreshold').value = config.partial_tp_pnl_threshold;
-                            }
-                            if (config.partial_tp_position_percentage !== undefined) {
                                 document.getElementById('partialTpPositionPercentage').value = config.partial_tp_position_percentage;
+                            } else {
+                                document.getElementById('partialTpPnlThreshold').value = '';
+                                document.getElementById('partialTpPositionPercentage').value = '';
                             }
+                            
+                            // Apply toggle state
+                            togglePartialTpConfig();
 
                         // Hide all strategy-specific sections first
                         document.getElementById('rsiParameters').style.display = 'none';
@@ -1970,11 +2088,25 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
             };
 
             // Partial Take Profit Configuration
-            if (document.getElementById('partialTpPnlThreshold').value) {
-                updates.partial_tp_pnl_threshold = parseFloat(document.getElementById('partialTpPnlThreshold').value);
-            }
-            if (document.getElementById('partialTpPositionPercentage').value) {
-                updates.partial_tp_position_percentage = parseFloat(document.getElementById('partialTpPositionPercentage').value);
+            const partialTpEnabled = document.getElementById('partialTpEnabled').checked;
+            
+            if (partialTpEnabled) {
+                const threshold = document.getElementById('partialTpPnlThreshold').value;
+                const positionSize = document.getElementById('partialTpPositionPercentage').value;
+                
+                if (threshold && positionSize) {
+                    updates.partial_tp_pnl_threshold = parseFloat(threshold);
+                    updates.partial_tp_position_percentage = parseFloat(positionSize);
+                    console.log('✅ Partial TP config saved:', updates.partial_tp_pnl_threshold + '% threshold, ' + updates.partial_tp_position_percentage + '% position');
+                } else {
+                    alert('⚠️ Partial TP is enabled but missing configuration values.\nPlease fill both threshold and position size, or disable partial TP.');
+                    return;
+                }
+            } else {
+                // Explicitly disable partial TP by setting to 0
+                updates.partial_tp_pnl_threshold = 0;
+                updates.partial_tp_position_percentage = 0;
+                console.log('❌ Partial TP disabled - saved as 0');
             }
 
             // Add strategy-specific parameters

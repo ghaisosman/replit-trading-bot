@@ -253,13 +253,15 @@ class TradingConfigManager:
         # Partial Take Profit Parameters - NEW FEATURE
         if 'partial_tp_pnl_threshold' in updates:
             validated_updates['partial_tp_pnl_threshold'] = float(updates['partial_tp_pnl_threshold'])
-            if validated_updates['partial_tp_pnl_threshold'] < 1.0 or validated_updates['partial_tp_pnl_threshold'] > 1000.0:
-                validated_updates['partial_tp_pnl_threshold'] = 50.0  # Default 50% PnL target
+            # Allow 0 to explicitly disable partial TP
+            if validated_updates['partial_tp_pnl_threshold'] < 0.0 or validated_updates['partial_tp_pnl_threshold'] > 1000.0:
+                validated_updates['partial_tp_pnl_threshold'] = 0.0  # Disable if invalid range
 
         if 'partial_tp_position_percentage' in updates:
             validated_updates['partial_tp_position_percentage'] = float(updates['partial_tp_position_percentage'])
-            if validated_updates['partial_tp_position_percentage'] < 1.0 or validated_updates['partial_tp_position_percentage'] > 99.0:
-                validated_updates['partial_tp_position_percentage'] = 50.0  # Default 50% of position
+            # Allow 0 to explicitly disable partial TP
+            if validated_updates['partial_tp_position_percentage'] < 0.0 or validated_updates['partial_tp_position_percentage'] > 99.0:
+                validated_updates['partial_tp_position_percentage'] = 0.0  # Disable if invalid range
 
 
         # Universal Strategy Parameters (for any future strategy type)
