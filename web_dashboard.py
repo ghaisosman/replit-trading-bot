@@ -498,8 +498,9 @@ def stop_bot():
 
         stopped = False
         
-        # Debug current state
-        logger.info(f"🔍 DEBUG: Current state - bot_running: {bot_running}")
+        # Debug current state - ensure bot_running is properly initialized
+        current_bot_running = bot_running if 'bot_running' in globals() and bot_running is not None else False
+        logger.info(f"🔍 DEBUG: Current state - bot_running: {current_bot_running}")
         logger.info(f"🔍 DEBUG: Bot thread alive: {bot_thread.is_alive() if bot_thread else 'No thread'}")
         logger.info(f"🔍 DEBUG: Shared bot manager exists: {shared_bot_manager is not None}")
         logger.info(f"🔍 DEBUG: Local bot manager exists: {bot_manager is not None}")
@@ -575,12 +576,15 @@ def stop_bot():
 
     except Exception as e:
         logger.error(f"Error stopping bot: {e}")
-        # Force cleanup - all variables are already declared as global at function start
-        bot_running = False
-        if shared_bot_manager:
-            shared_bot_manager.is_running = False
-        if bot_manager:
-            bot_manager.is_running = False
+        # Force cleanup - ensure safe global variable access
+        try:
+            bot_running = False
+            if shared_bot_manager:
+                shared_bot_manager.is_running = False
+            if bot_manager:
+                bot_manager.is_running = False
+        except Exception as cleanup_error:
+            logger.error(f"Error during cleanup: {cleanup_error}")
 
         return jsonify({'success': False, 'message': f'Error stopping bot: {e}'})
 
