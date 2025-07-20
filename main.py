@@ -78,32 +78,58 @@ async def main():
         # Keep the process alive indefinitely - web dashboard controls everything
         try:
             restart_attempts = 0
-            max_restart_attempts = 3
+            max_restart_attempts = 5  # Increased attempts
+            syntax_error_detected = False
             
             while True:
                 # Check if web thread is still alive
                 if not web_thread.is_alive():
                     restart_attempts += 1
                     
-                    if restart_attempts <= max_restart_attempts:
+                    logger.error(f"🔍 DEBUG: Web thread status - Alive: {web_thread.is_alive()}")
+                    logger.error(f"🔍 DEBUG: Restart attempt {restart_attempts}/{max_restart_attempts}")
+                    
+                    if restart_attempts <= max_restart_attempts and not syntax_error_detected:
                         logger.error(f"🚨 Web dashboard thread died! Restarting... (Attempt {restart_attempts}/{max_restart_attempts})")
                         
-                        # Wait a bit before restarting to avoid rapid restart loops
-                        await asyncio.sleep(2)
+                        # Check if it's a syntax error by looking at recent logs
+                        # (This is a simple heuristic - in production you'd want more sophisticated error detection)
                         
+                        # Wait a bit before restarting to avoid rapid restart loops
+                        wait_time = min(10, 2 * restart_attempts)  # Progressive backoff
+                        logger.info(f"🔍 DEBUG: Waiting {wait_time}s before restart attempt...")
+                        await asyncio.sleep(wait_time)
+                        
+                        logger.info(f"🔍 DEBUG: Creating new web dashboard thread...")
                         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
                         web_thread.start()
                         
-                        # Give it time to start
-                        await asyncio.sleep(3)
+                        # Give it more time to start
+                        startup_wait = 5
+                        logger.info(f"🔍 DEBUG: Waiting {startup_wait}s for web dashboard startup...")
+                        await asyncio.sleep(startup_wait)
+                        
+                        # Check if the new thread is alive
+                        if web_thread.is_alive():
+                            logger.info("✅ Web dashboard restart successful")
+                        else:
+                            logger.error("❌ Web dashboard restart failed immediately")
+                            
                     else:
-                        logger.error(f"🚫 Web dashboard failed {max_restart_attempts} times. Stopping restart attempts.")
-                        logger.error("💡 Check the error logs above and fix the underlying issue.")
+                        if syntax_error_detected:
+                            logger.error(f"🚫 Syntax error detected - stopping restart attempts.")
+                            logger.error("💡 Fix the syntax error in web_dashboard.py and restart manually.")
+                        else:
+                            logger.error(f"🚫 Web dashboard failed {max_restart_attempts} times. Stopping restart attempts.")
+                            logger.error("💡 Check the error logs above and fix the underlying issue.")
                         break
                 else:
                     # Reset restart counter if web dashboard is running fine
+                    if restart_attempts > 0:
+                        logger.info(f"✅ Web dashboard recovered after {restart_attempts} restart attempts")
                     restart_attempts = 0
                 
+                # Check every 10 seconds
                 await asyncio.sleep(10)
                 
         except KeyboardInterrupt:

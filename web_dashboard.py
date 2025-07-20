@@ -283,6 +283,35 @@ except ImportError as e:
 def healthz():
     return 'OK', 200
 
+@app.route('/api/dashboard/health')
+def dashboard_health():
+    """Health check endpoint for debugging dashboard status"""
+    try:
+        current_time = datetime.now().strftime('%H:%M:%S')
+        current_bot = get_shared_bot_manager()
+        
+        health_status = {
+            'dashboard_status': 'healthy',
+            'timestamp': current_time,
+            'bot_manager_available': current_bot is not None,
+            'bot_running': getattr(current_bot, 'is_running', False) if current_bot else False,
+            'imports_available': IMPORTS_AVAILABLE,
+            'web_thread_id': threading.current_thread().ident,
+            'can_start_bot': True,
+            'can_stop_bot': True
+        }
+        
+        logger.info(f"🔍 DEBUG: Dashboard health check - {health_status}")
+        return jsonify(health_status)
+        
+    except Exception as e:
+        logger.error(f"🔍 DEBUG: Dashboard health check failed: {e}")
+        return jsonify({
+            'dashboard_status': 'error',
+            'error': str(e),
+            'timestamp': datetime.now().strftime('%H:%M:%S')
+        }), 500
+
 @app.route('/')
 def dashboard():
     """Main dashboard page"""
@@ -383,15 +412,23 @@ def start_bot():
 
     try:
         logger = logging.getLogger(__name__)
+        logger.info("🔍 DEBUG: Bot start request received via web dashboard")
 
         # Check if any bot is currently running
         current_bot = get_shared_bot_manager()
-        if current_bot and getattr(current_bot, 'is_running', False):
-            return jsonify({'success': False, 'message': 'Bot is already running'})
+        logger.info(f"🔍 DEBUG: Shared bot manager status: {current_bot is not None}")
+        if current_bot:
+            is_running = getattr(current_bot, 'is_running', False)
+            logger.info(f"🔍 DEBUG: Shared bot is_running: {is_running}")
+            if is_running:
+                return jsonify({'success': False, 'message': 'Bot is already running'})
 
+        logger.info(f"🔍 DEBUG: Bot thread status - Running: {bot_running}, Thread alive: {bot_thread.is_alive() if bot_thread else 'No thread'}")
         if bot_running and bot_thread and bot_thread.is_alive():
             return jsonify({'success': False, 'message': 'Bot is already running in web dashboard'})
+            
         logger.info("🌐 WEB INTERFACE: Starting bot from dashboard")
+        logger.info("🔍 DEBUG: Setting bot_running = True")
         bot_running = True
 
         # Start bot in separate thread with proper cleanup
@@ -457,8 +494,15 @@ def stop_bot():
     try:
         logger = logging.getLogger(__name__)
         logger.info("🌐 WEB INTERFACE: Stop request received")
+        logger.info("🔍 DEBUG: Beginning bot stop procedure...")
 
         stopped = False
+        
+        # Debug current state
+        logger.info(f"🔍 DEBUG: Current state - bot_running: {bot_running}")
+        logger.info(f"🔍 DEBUG: Bot thread alive: {bot_thread.is_alive() if bot_thread else 'No thread'}")
+        logger.info(f"🔍 DEBUG: Shared bot manager exists: {shared_bot_manager is not None}")
+        logger.info(f"🔍 DEBUG: Local bot manager exists: {bot_manager is not None}")
 
         # Try to stop shared bot manager first
         shared_bot_manager = get_shared_bot_manager()
@@ -513,12 +557,21 @@ def stop_bot():
         if stopped:
             logger.info("🔴 BOT STOPPED VIA WEB INTERFACE")
             logger.info("💡 Web dashboard remains active - you can restart the bot anytime")
+            logger.info("🔍 DEBUG: Bot stop successful, web dashboard continuing...")
             return jsonify({
                 'success': True, 
-                'message': 'Bot stopped successfully. You can restart it from the dashboard.'
+                'message': 'Bot stopped successfully. You can restart it from the dashboard.',
+                'dashboard_status': 'active',
+                'can_restart': True
             })
         else:
-            return jsonify({'success': False, 'message': 'No running bot found to stop'})
+            logger.warning("🔍 DEBUG: No running bot found to stop")
+            return jsonify({
+                'success': False, 
+                'message': 'No running bot found to stop',
+                'dashboard_status': 'active',
+                'can_restart': True
+            })
 
     except Exception as e:
         logger.error(f"Error stopping bot: {e}")
@@ -1433,7 +1486,7 @@ def get_rsi(symbol):
             logger.error(f"Binance API error for {symbol}: {api_error}")
             # Return a reasonable fallback RSI value based on symbol
             fallback_rsi = 50.0  # Neutral RSI
-            if 'BTCin symbol.upper():
+            if 'BTC' in symbol.upper():
                 fallback_rsi = 45.0
             elif 'ETH' in symbol.upper():
                 fallback_rsi = 48.0
@@ -2097,28 +2150,80 @@ def update_trading_environment():
 
 # Add other required imports at the top if not already present
 def run_web_dashboard():
-    """Run web dashboard in separate thread with enhanced error handling"""
+    """Run web dashboard in separate thread with bulletproof error handling"""
     import logging
     logger = logging.getLogger(__name__)
 
     try:
+        logger.info("🔍 DEBUG: Starting web dashboard initialization...")
+        
         # Import here to avoid circular imports
         from web_dashboard import app
 
         # Get port from environment
         port = int(os.environ.get('PORT', 5000))
-
+        
+        logger.info(f"🔍 DEBUG: Port configured: {port}")
         logger.info(f"🌐 Starting web dashboard on port {port}")
 
-        # Run Flask app with enhanced error handling
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
+        # Add comprehensive error handlers to Flask app
+        @app.errorhandler(500)
+        def handle_internal_error(e):
+            logger.error(f"🔍 DEBUG: Flask 500 error: {e}")
+            return "Internal Server Error - Dashboard will recover", 500
+
+        @app.errorhandler(404)
+        def handle_not_found(e):
+            logger.warning(f"🔍 DEBUG: Flask 404 error: {e}")
+            return "Page not found", 404
+
+        @app.errorhandler(Exception)
+        def handle_exception(e):
+            logger.error(f"🔍 DEBUG: Flask unhandled exception: {e}")
+            import traceback
+            logger.error(f"🔍 DEBUG: Exception traceback: {traceback.format_exc()}")
+            return "Error occurred - Dashboard recovering", 500
+
+        logger.info("🔍 DEBUG: Flask error handlers configured")
+
+        # Run Flask app with maximum stability
+        app.run(
+            host='0.0.0.0', 
+            port=port, 
+            debug=False, 
+            use_reloader=False, 
+            threaded=True,
+            use_evalex=False  # Disable interactive debugger for security
+        )
+
+    except SyntaxError as e:
+        logger.error(f"❌ SYNTAX ERROR in web dashboard: {e}")
+        logger.error(f"🔍 DEBUG: Syntax error at line {e.lineno}: {e.text}")
+        import traceback
+        logger.error(f"❌ Full syntax traceback: {traceback.format_exc()}")
+        
+        # Don't restart on syntax errors - they need manual fixing
+        logger.error("🚫 SYNTAX ERROR DETECTED - Dashboard cannot start until fixed")
+        return
+
+    except ImportError as e:
+        logger.error(f"❌ IMPORT ERROR in web dashboard: {e}")
+        import traceback
+        logger.error(f"❌ Import traceback: {traceback.format_exc()}")
+        
+        # Wait and try again for import errors
+        import time
+        time.sleep(3)
+        logger.info("🔄 Retrying after import error...")
+        return
 
     except Exception as e:
         logger.error(f"❌ Web dashboard critical error: {e}")
+        logger.error(f"🔍 DEBUG: Error type: {type(e).__name__}")
         import traceback
         logger.error(f"❌ Web dashboard traceback: {traceback.format_exc()}")
 
-        # Don't let the web dashboard crash completely - try to restart it
+        # Don't let the web dashboard crash completely
         import time
         time.sleep(5)  # Wait before potential restart
         logger.info("🔄 Web dashboard attempting restart after error...")
