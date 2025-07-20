@@ -1995,6 +1995,12 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                        'This will stop the bot from scanning for new trades for this strategy.\n' +
                        'Existing positions will remain active.')) {
 
+                // Show loading state
+                const button = event.target;
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Disabling...';
+                button.disabled = true;
+
                 fetch('/api/strategies/' + strategyName + '/disable', {
                     method: 'POST',
                     headers: {
@@ -2004,15 +2010,25 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                 .then(response => response.json())
                 .then(result => {
                     if (result.success) {
-                        showAlert('✅ Strategy disabled successfully!\n\n' + result.note, 'success');
-                        location.reload();
+                        showAlert('✅ Strategy disabled successfully!\n\n' + (result.note || ''), 'success');
+                        
+                        // Wait a moment for the alert to show, then reload
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
                     } else {
                         showAlert('❌ Error disabling strategy:\n\n' + result.message, 'danger');
+                        // Restore button state
+                        button.innerHTML = originalText;
+                        button.disabled = false;
                     }
                 })
                 .catch(error => {
                     console.error('Error disabling strategy:', error);
                     showAlert('❌ Error disabling strategy: ' + error.message, 'danger');
+                    // Restore button state
+                    button.innerHTML = originalText;
+                    button.disabled = false;
                 });
             }
         }
@@ -2021,6 +2037,12 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
         function enableStrategy(strategyName) {
             if (confirm('Are you sure you want to enable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n' +
                        'This will resume scanning for new trades for this strategy.')) {
+
+                // Show loading state
+                const button = event.target;
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enabling...';
+                button.disabled = true;
 
                 fetch('/api/strategies/' + strategyName + '/enable', {
                     method: 'POST',
@@ -2032,14 +2054,24 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                 .then(result => {
                     if (result.success) {
                         showAlert('✅ Strategy enabled successfully!', 'success');
-                        location.reload();
+                        
+                        // Wait a moment for the alert to show, then reload
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
                     } else {
                         showAlert('❌ Error enabling strategy:\n\n' + result.message, 'danger');
+                        // Restore button state
+                        button.innerHTML = originalText;
+                        button.disabled = false;
                     }
                 })
                 .catch(error => {
                     console.error('Error enabling strategy:', error);
                     showAlert('❌ Error enabling strategy: ' + error.message, 'danger');
+                    // Restore button state
+                    button.innerHTML = originalText;
+                    button.disabled = false;
                 });
             }
         }
