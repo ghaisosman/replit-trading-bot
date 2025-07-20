@@ -94,52 +94,38 @@ async def main():
     else:
         logger.info("🛠️ DEVELOPMENT MODE: Starting bot + web dashboard")
 
-        # Start web dashboard in background thread
-        web_thread = threading.Thread(target=run_web_dashboard, daemon=True)
+        # Start web dashboard in background thread (NON-DAEMON for persistence)
+        web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
 
         # Give web dashboard time to start
         await asyncio.sleep(2)
 
+        # Initialize bot manager but don't start it automatically in development mode
+        bot_manager = BotManager()
+
+        # Make bot manager available to web dashboard
+        sys.modules['__main__'].bot_manager = bot_manager
+        globals()['bot_manager'] = bot_manager
+
+        logger.info("🌐 DEVELOPMENT MODE: Web dashboard active - Bot can be controlled via web interface")
+        logger.info("🎯 DEVELOPMENT MODE: Access your dashboard to start/stop the bot")
+
+        # Keep the process alive indefinitely - web dashboard controls everything
         try:
-            # Initialize bot manager
-            bot_manager = BotManager()
-
-            # Make bot manager available to web dashboard
-            sys.modules['__main__'].bot_manager = bot_manager
-            
-            # Also make it available globally for web dashboard
-            globals()['bot_manager'] = bot_manager
-
-            # Start bot
-            logger.info("🚀 Starting trading bot...")
-            bot_task = asyncio.create_task(bot_manager.start())
-            shutdown_task = asyncio.create_task(shutdown_event.wait())
-
-            done, pending = await asyncio.wait(
-                [bot_task, shutdown_task],
-                return_when=asyncio.FIRST_COMPLETED
-            )
-
-            if shutdown_task in done:
-                logger.info("🛑 Shutdown signal received, stopping bot...")
-                await bot_manager.stop("Manual shutdown")
-
-            for task in pending:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-
+            while True:
+                # Check if web thread is still alive
+                if not web_thread.is_alive():
+                    logger.error("🚨 Web dashboard thread died! Restarting...")
+                    web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
+                    web_thread.start()
+                
+                await asyncio.sleep(10)
+                
         except KeyboardInterrupt:
-            logger.info("🔴 Keyboard interrupt received")
-            if bot_manager:
-                await bot_manager.stop("Keyboard interrupt")
-        except Exception as e:
-            logger.error(f"Bot error: {e}")
-            if bot_manager:
-                await bot_manager.stop(f"Error: {e}")
+            logger.info("🔴 Development mode shutdown")
+            if bot_manager and bot_manager.is_running:
+                await bot_manager.stop("Development shutdown")
 
 if __name__ == "__main__":
     asyncio.run(main())

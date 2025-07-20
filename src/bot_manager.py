@@ -282,7 +282,7 @@ class BotManager:
             self.logger.info("Bot is already stopped")
             return
 
-        self.logger.info(f"Stopping trading bot: {reason}")
+        self.logger.info(f"🛑 Stopping trading bot: {reason}")
         self.is_running = False
 
         try:
@@ -299,10 +299,14 @@ class BotManager:
             if hasattr(self, 'order_manager') and self.order_manager.active_positions:
                 self.logger.info("🔄 Bot has active positions - they will continue running")
 
-            # Send shutdown notification to Telegram
-            self.telegram_reporter.report_bot_stopped(reason)
+            # Send shutdown notification to Telegram (non-blocking)
+            try:
+                self.telegram_reporter.report_bot_stopped(reason)
+                self.logger.info("📱 Telegram shutdown notification sent")
+            except Exception as e:
+                self.logger.warning(f"Could not send Telegram notification: {e}")
 
-            # Close database connections
+            # Close database connections safely
             if hasattr(self, 'anomaly_detector') and hasattr(self.anomaly_detector, 'db'):
                 try:
                     if hasattr(self.anomaly_detector.db, 'close'):
@@ -311,23 +315,16 @@ class BotManager:
                 except Exception as e:
                     self.logger.warning(f"Could not close anomaly detector database: {e}")
 
-            # Remove web log handler to prevent memory leaks
-            if hasattr(self, 'log_handler'):
-                try:
-                    root_logger = logging.getLogger()
-                    root_logger.removeHandler(self.log_handler)
-                    self.logger.removeHandler(self.log_handler)
-                    self.logger.info("🔄 Removed web log handler")
-                except Exception as e:
-                    self.logger.warning(f"Could not remove web log handler: {e}")
+            # DON'T remove web log handler - keep it for dashboard
+            self.logger.info("🌐 Keeping web log handler active for dashboard")
 
             # Small delay to ensure cleanup completes
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)  # Reduced delay
 
         except Exception as e:
             self.logger.error(f"Error during shutdown: {e}")
         finally:
-            self.logger.info("🔴 Bot manager shutdown complete")
+            self.logger.info("🔴 Bot manager shutdown complete - Web dashboard remains active")
 
     async def _main_trading_loop(self):
         """Main trading loop with enhanced error handling and restart prevention"""

@@ -480,19 +480,44 @@ def stop_bot():
                 if hasattr(shared_bot_manager, 'logger'):
                     shared_bot_manager.logger.info("🌐 WEB INTERFACE: Bot stopped via web dashboard")
 
-                # Stop the shared bot by setting is_running to False
-                shared_bot_manager.is_running = False
-
-                # Send stop notification
+                # Gracefully stop the bot using asyncio
                 try:
-                    shared_bot_manager.telegram_reporter.report_bot_stopped("Manual stop via web interface")
-                    logger.info("🔴 BOT STOPPED VIA WEB INTERFACE (Dashboard remains active)")
+                    import asyncio
+                    
+                    # Create a new event loop if one doesn't exist
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_closed():
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                    except RuntimeError:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                    
+                    # Stop the bot gracefully
+                    if hasattr(shared_bot_manager, 'stop'):
+                        # Run the stop method in the event loop
+                        def stop_bot_task():
+                            try:
+                                loop.run_until_complete(shared_bot_manager.stop("Manual stop via web interface"))
+                            except Exception as e:
+                                logger.error(f"Error during bot stop: {e}")
+                        
+                        # Start stop task in a separate thread to avoid blocking the web response
+                        import threading
+                        stop_thread = threading.Thread(target=stop_bot_task, daemon=True)
+                        stop_thread.start()
+                    else:
+                        # Fallback: just set is_running to False
+                        shared_bot_manager.is_running = False
+                        
                 except Exception as e:
-                    logger.warning(f"Failed to send stop notification: {e}")
+                    logger.error(f"Error stopping bot gracefully: {e}")
+                    # Fallback: just set is_running to False
+                    shared_bot_manager.is_running = False
 
                 bot_running = False
-
-                # Important: Don't terminate the process, just stop the bot
+                logger.info("🔴 BOT STOPPED VIA WEB INTERFACE (Dashboard remains active)")
                 logger.info("💡 Web interface remains active - you can restart the bot anytime")
 
                 return jsonify({
@@ -500,7 +525,7 @@ def stop_bot():
                     'message': 'Bot stopped successfully. Web interface remains active for restart.'
                 })
             else:
-                return jsonify({'success': False, 'message': 'Bot is not running in console'})
+                return jsonify({'success': False, 'message': 'Bot is not running'})
 
         # Fallback to standalone bot
         if not bot_running or not bot_manager:
@@ -513,14 +538,7 @@ def stop_bot():
             bot_manager.is_running = False
 
         bot_running = False
-
-        # Send stop notification for standalone bot
-        try:
-            bot_manager.telegram_reporter.report_bot_stopped("Manual stop via web interface")
-            logger.info("🔴 STANDALONE BOT STOPPED VIA WEB INTERFACE (Dashboard remains active)")
-        except Exception as e:
-            logger.warning(f"Failed to send stop notification: {e}")
-
+        logger.info("🔴 STANDALONE BOT STOPPED VIA WEB INTERFACE (Dashboard remains active)")
         logger.info("💡 Web interface remains active - you can restart the bot anytime")
 
         return jsonify({
