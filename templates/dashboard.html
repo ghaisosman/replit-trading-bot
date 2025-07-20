@@ -1568,6 +1568,18 @@
 
                 if (!response.ok) {
                     console.error('❌ DEBUG [' + requestId + ']: HTTP error ' + response.status + ': ' + response.statusText);
+                    
+                    // Try to get error response text safely
+                    try {
+                        const errorText = await response.text();
+                        if (errorText.startsWith('<')) {
+                            console.error('❌ DEBUG [' + requestId + ']: Server returned HTML error page');
+                            throw new Error('Server error (HTML response)');
+                        }
+                    } catch (readError) {
+                        console.error('❌ DEBUG [' + requestId + ']: Could not read error response');
+                    }
+                    
                     throw new Error('HTTP ' + response.status + ': ' + response.statusText);
                 }
 
@@ -1575,6 +1587,12 @@
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
                     console.error('❌ DEBUG [' + requestId + ']: Invalid content type: ' + contentType);
+                    
+                    // If it's HTML, don't try to parse as JSON
+                    if (contentType && contentType.includes('text/html')) {
+                        throw new Error('Server returned HTML instead of JSON');
+                    }
+                    
                     throw new Error('Invalid content type: ' + contentType);
                 }
 
@@ -1590,6 +1608,11 @@
                     throw new Error('Empty response body');
                 }
 
+                if (responseText.startsWith('<')) {
+                    console.error('❌ DEBUG [' + requestId + ']: Response is HTML, not JSON');
+                    throw new Error('Server returned HTML instead of JSON');
+                }
+
                 if (!responseText.startsWith('{') && !responseText.startsWith('[')) {
                     console.error('❌ DEBUG [' + requestId + ']: Response does not start with JSON character: "' + responseText.charAt(0) + '"');
                     throw new Error('Invalid JSON start character: "' + responseText.charAt(0) + '"');
@@ -1602,7 +1625,7 @@
                     return data;
                 } catch (parseError) {
                     console.error('❌ DEBUG [' + requestId + ']: JSON parse error:', parseError);
-                    console.error('❌ DEBUG [' + requestId + ']: Problematic text:', responseText);
+                    console.error('❌ DEBUG [' + requestId + ']: Problematic text:', responseText.substring(0, 500));
                     throw new Error('JSON parse error: ' + parseError.message);
                 }
 
@@ -1610,11 +1633,6 @@
                 console.error('❌ DEBUG [' + requestId + ']: API request failed for ' + url);
                 console.error('❌ DEBUG [' + requestId + ']: Error type: ' + error.constructor.name);
                 console.error('❌ DEBUG [' + requestId + ']: Error message: ' + error.message);
-                console.error('❌ DEBUG [' + requestId + ']: Full error:', error);
-
-                // Log additional context
-                console.error('❌ DEBUG [' + requestId + ']: URL: ' + url);
-                console.error('❌ DEBUG [' + requestId + ']: Options:', options);
 
                 return null;
             } finally {
@@ -2008,7 +2026,12 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                         'Content-Type': 'application/json'
                     }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                })
                 .then(result => {
                     if (result.success) {
                         showAlert('✅ Strategy disabled successfully!\n\n' + (result.note || ''), 'success');
@@ -2033,7 +2056,7 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                 })
                 .catch(error => {
                     console.error('Error disabling strategy:', error);
-                    showAlert('❌ Error disabling strategy: ' + error.message, 'danger');
+                    showAlert('❌ Error disabling strategy: ' + (error.message || 'Unknown error'), 'danger');
                     // Restore button state
                     button.innerHTML = originalText;
                     button.disabled = false;
@@ -2058,7 +2081,12 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                         'Content-Type': 'application/json'
                     }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                })
                 .then(result => {
                     if (result.success) {
                         showAlert('✅ Strategy enabled successfully!', 'success');
@@ -2083,7 +2111,7 @@ function initializeDashboardWithRetry(attempt, maxAttempts) {
                 })
                 .catch(error => {
                     console.error('Error enabling strategy:', error);
-                    showAlert('❌ Error enabling strategy: ' + error.message, 'danger');
+                    showAlert('❌ Error enabling strategy: ' + (error.message || 'Unknown error'), 'danger');
                     // Restore button state
                     button.innerHTML = originalText;
                     button.disabled = false;
