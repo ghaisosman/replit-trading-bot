@@ -1805,6 +1805,14 @@
                        'This will stop the bot from scanning for new trades for this strategy.\n' +
                        'Existing positions will remain active.')) {
 
+                // Immediately update button state to show feedback
+                const buttons = document.querySelectorAll(`[onclick="disableStrategy('${strategyName}')"]`);
+                buttons.forEach(btn => {
+                    btn.textContent = 'Disabling...';
+                    btn.disabled = true;
+                    btn.className = 'btn btn-warning btn-sm';
+                });
+
                 fetch('/api/strategies/' + strategyName + '/disable', {
                     method: 'POST',
                     headers: {
@@ -1814,15 +1822,44 @@
                 .then(response => response.json())
                 .then(result => {
                     if (result.success) {
-                        alert('✅ Strategy disabled successfully!');
-                        location.reload();
+                        // Update button to enable state
+                        buttons.forEach(btn => {
+                            btn.innerHTML = '<i class="fas fa-play"></i> Enable';
+                            btn.disabled = false;
+                            btn.className = 'btn btn-outline-success btn-sm';
+                            btn.setAttribute('onclick', `enableStrategy('${strategyName}')`);
+                        });
+                        
+                        // Show success message
+                        showAlert('Strategy disabled successfully!', 'success');
+                        
+                        // Update strategy status badge if exists
+                        const statusBadges = document.querySelectorAll('.badge');
+                        statusBadges.forEach(badge => {
+                            if (badge.textContent.includes('Active')) {
+                                badge.innerHTML = '<i class="fas fa-pause"></i> Disabled';
+                                badge.className = 'badge bg-secondary';
+                            }
+                        });
                     } else {
-                        alert('❌ Error disabling strategy: ' + result.message);
+                        // Revert button state on error
+                        buttons.forEach(btn => {
+                            btn.innerHTML = '<i class="fas fa-pause"></i> Disable';
+                            btn.disabled = false;
+                            btn.className = 'btn btn-outline-danger btn-sm';
+                        });
+                        showAlert('Error disabling strategy: ' + result.message, 'error');
                     }
                 })
                 .catch(error => {
                     console.error('Error disabling strategy:', error);
-                    alert('❌ Error disabling strategy: ' + error.message);
+                    // Revert button state on error
+                    buttons.forEach(btn => {
+                        btn.innerHTML = '<i class="fas fa-pause"></i> Disable';
+                        btn.disabled = false;
+                        btn.className = 'btn btn-outline-danger btn-sm';
+                    });
+                    showAlert('Error disabling strategy: ' + error.message, 'error');
                 });
             }
         }
@@ -1831,6 +1868,14 @@
         function enableStrategy(strategyName) {
             if (confirm('Are you sure you want to enable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n' +
                        'This will resume scanning for new trades for this strategy.')) {
+
+                // Immediately update button state to show feedback
+                const buttons = document.querySelectorAll(`[onclick="enableStrategy('${strategyName}')"]`);
+                buttons.forEach(btn => {
+                    btn.textContent = 'Enabling...';
+                    btn.disabled = true;
+                    btn.className = 'btn btn-warning btn-sm';
+                });
 
                 fetch('/api/strategies/' + strategyName + '/enable', {
                     method: 'POST',
@@ -1841,15 +1886,44 @@
                 .then(response => response.json())
                 .then(result => {
                     if (result.success) {
-                        alert('✅ Strategy enabled successfully!');
-                        location.reload();
+                        // Update button to disable state
+                        buttons.forEach(btn => {
+                            btn.innerHTML = '<i class="fas fa-pause"></i> Disable';
+                            btn.disabled = false;
+                            btn.className = 'btn btn-outline-danger btn-sm';
+                            btn.setAttribute('onclick', `disableStrategy('${strategyName}')`);
+                        });
+                        
+                        // Show success message
+                        showAlert('Strategy enabled successfully!', 'success');
+                        
+                        // Update strategy status badge if exists
+                        const statusBadges = document.querySelectorAll('.badge');
+                        statusBadges.forEach(badge => {
+                            if (badge.textContent.includes('Disabled')) {
+                                badge.innerHTML = '<i class="fas fa-play"></i> Active';
+                                badge.className = 'badge bg-success';
+                            }
+                        });
                     } else {
-                        alert('❌ Error enabling strategy: ' + result.message);
+                        // Revert button state on error
+                        buttons.forEach(btn => {
+                            btn.innerHTML = '<i class="fas fa-play"></i> Enable';
+                            btn.disabled = false;
+                            btn.className = 'btn btn-outline-success btn-sm';
+                        });
+                        showAlert('Error enabling strategy: ' + result.message, 'error');
                     }
                 })
                 .catch(error => {
                     console.error('Error enabling strategy:', error);
-                    alert('❌ Error enabling strategy: ' + error.message);
+                    // Revert button state on error
+                    buttons.forEach(btn => {
+                        btn.innerHTML = '<i class="fas fa-play"></i> Enable';
+                        btn.disabled = false;
+                        btn.className = 'btn btn-outline-success btn-sm';
+                    });
+                    showAlert('Error enabling strategy: ' + error.message, 'error');
                 });
             }
         }
@@ -2220,6 +2294,32 @@
                     '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: ON' :
                     '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: OFF';
             }
+        }
+
+        // Show alert function for better user feedback
+        function showAlert(message, type) {
+            // Remove existing alerts
+            const existingAlerts = document.querySelectorAll('.dynamic-alert');
+            existingAlerts.forEach(alert => alert.remove());
+            
+            // Create new alert
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} dynamic-alert position-fixed`;
+            alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            alertDiv.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
+                ${message}
+                <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
+            `;
+            
+            document.body.appendChild(alertDiv);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
         }
 
         // Utility functions
