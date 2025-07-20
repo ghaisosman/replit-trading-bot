@@ -571,7 +571,7 @@
                                         <option value="3m">3 minutes</option>
                                         <option value="5m">5 minutes</option>
                                         <option value="15m" selected>15 minutes</option>
-                                        <option value="30m">30 minutes</minutes</option>
+                                        <option value="30m">30 minutes</option>
                                         <option value="1h">1 hour</option>
                                         <option value="4h">4 hours</option>
                                         <option value="1d">1 day</option>
@@ -717,6 +717,7 @@
                         </div>
 
                         <!-- MACD Strategy Parameters (shown only for MACD strategies) -->
+                        <!-- MACD Strategy Parameters (shown only for MACD strategies) -->
                         <div id="macdParameters" style="display: none;">
                             <h6 class="text-primary mt-3">MACD Strategy Parameters</h6>
                             <div class="row">
@@ -775,8 +776,6 @@
                                         <div class="form-text">Minimum divergence strength (0.1-1.0)</div>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="histogramDivergenceLookback" class="form-label">Histogram Divergence Lookback</label>
@@ -784,6 +783,8 @@
                                         <div class="form-text">Periods to check for divergence</div>
                                     </div>
                                 </div>
+                            </div>
+                            <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="priceDivergenceLookback" class="form-label">Price Divergence Lookback</label>
@@ -791,8 +792,6 @@
                                         <div class="form-text">Periods to check for price action</div>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="confirmationCandles" class="form-label">Confirmation Candles</label>
@@ -1637,7 +1636,6 @@
         }
 
         // Refresh data function with complete cache invalidation and adaptive reset
-```text
         function refreshData() {
             // Clear all caches to force fresh data
             Object.keys(apiCache).forEach(key => {
@@ -1678,7 +1676,7 @@
             console.log('🚀 Dashboard initialization started with intelligent polling system');
 
             // Add initialization delay to prevent premature API calls
-setTimeout(() => {
+            setTimeout(() => {
                 console.log('⏳ Starting dashboard initialization after delay...');
 
                 // Initial load with controlled startup and retry logic
@@ -1834,6 +1832,16 @@ setTimeout(() => {
                 .then(strategies => {
                     const config = strategies[strategyName];
                     if (config) {
+                        editStrategyConfig(strategyName);
+                    } else {
+                        alert('Strategy not found: ' + strategyName);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading strategy:', error);
+                    alert('Error loading strategy: ' + error);
+                });
+        }
 
         // View strategy statistics function
         function viewStrategyStats(strategyName) {
