@@ -433,7 +433,7 @@ def start_bot():
 def stop_bot():
     """Stop the trading bot completely"""
     global bot_manager, bot_running, shared_bot_manager, bot_thread
-
+    
     try:
         logger = logging.getLogger(__name__)
         logger.info("🌐 WEB INTERFACE: Stop request received")
@@ -2017,6 +2017,7 @@ def enable_strategy(strategy_name):
 def update_trading_environment():
     """Update trading environment (testnet/mainnet)"""
     global bot_running, shared_bot_manager, bot_manager
+    
     try:
         if not IMPORTS_AVAILABLE:
             return jsonify({'success': False, 'message': 'Configuration update not available in demo mode'})
