@@ -292,7 +292,7 @@ def dashboard():
                 }
             if 'macd_divergence' not in strategies:
                 strategies['macd_divergence'] = {
-                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m',
+                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '5m',
                     'max_loss_pct': 10, 'assessment_interval': 60, 'decimals': 3,
                     'cooldown_period': 300, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
                     'min_histogram_threshold': 0.0001, 'macd_entry_threshold': 0.05,
@@ -303,7 +303,7 @@ def dashboard():
             balance = 100.0  # Default for demo
             strategies = {
                 'rsi_oversold': {'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
-                'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '15m'}
+                'macd_divergence': {'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '5m'}
             }
 
         # Get active positions from both shared and standalone bot
@@ -527,6 +527,7 @@ import sys
 @rate_limit('bot_status', max_requests=20, window_seconds=60)
 def get_bot_status():
     """Get current bot status with bulletproof error handling and comprehensive debugging"""
+    global bot_running
     current_time = datetime.now().strftime('%H:%M:%S')
     request_id = f"status_{int(time.time() * 1000)}"
 
@@ -754,7 +755,7 @@ def create_strategy():
     """Create a new strategy - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
     try:
         if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'message': 'Strategy creation not available in demo mode'})
+            return jsonify({'success': False, 'message':'Strategy creation not available in demo mode'})
 
         data = request.get_json()
 
@@ -2034,18 +2035,18 @@ def update_trading_environment():
         try:
             env_file = "trading_data/environment.json"
             os.makedirs(os.path.dirname(env_file), exist_ok=True)
-            
+
             env_data = {
                 'BINANCE_TESTNET': is_testnet,
                 'BINANCE_FUTURES': global_config.BINANCE_FUTURES,
                 'updated_at': datetime.now().isoformat()
             }
-            
+
             with open(env_file, 'w') as f:
                 json.dump(env_data, f, indent=2)
-                
+
             logger.info(f"Environment config saved to {env_file}")
-            
+
         except Exception as save_error:
             logger.warning(f"Could not save environment config: {save_error}")
 
