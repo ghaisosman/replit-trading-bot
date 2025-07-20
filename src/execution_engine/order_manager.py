@@ -407,15 +407,42 @@ class OrderManager:
             try:
                 from src.execution_engine.trade_database import TradeDatabase
                 trade_db = TradeDatabase()
-                trade_db.update_trade(position.trade_id, {
-                    'trade_status': 'CLOSED',
-                    'exit_price': current_price,
-                    'exit_reason': reason,
-                    'pnl_usdt': pnl,
-                    'pnl_percentage': pnl_percentage,
-                    'duration_minutes': duration_minutes
-                })
-                self.logger.debug(f"✅ Trade database updated for {position.trade_id}")
+                
+                # Ensure we have a trade ID to update
+                if position.trade_id:
+                    trade_db.update_trade(position.trade_id, {
+                        'trade_status': 'CLOSED',
+                        'exit_price': current_price,
+                        'exit_reason': reason,
+                        'pnl_usdt': pnl,
+                        'pnl_percentage': pnl_percentage,
+                        'duration_minutes': duration_minutes
+                    })
+                    self.logger.debug(f"✅ Trade database updated for {position.trade_id}")
+                else:
+                    # Fallback: Try to find and close any open trade for this position
+                    matching_trade_id = trade_db.find_trade_by_position(
+                        position.strategy_name, 
+                        position.symbol, 
+                        position.side, 
+                        position.quantity, 
+                        position.entry_price,
+                        tolerance=0.05  # 5% tolerance
+                    )
+                    
+                    if matching_trade_id:
+                        trade_db.update_trade(matching_trade_id, {
+                            'trade_status': 'CLOSED',
+                            'exit_price': current_price,
+                            'exit_reason': reason,
+                            'pnl_usdt': pnl,
+                            'pnl_percentage': pnl_percentage,
+                            'duration_minutes': duration_minutes
+                        })
+                        self.logger.info(f"✅ Found and closed matching trade in database: {matching_trade_id}")
+                    else:
+                        self.logger.warning(f"⚠️ No matching trade ID found in database for closed position {position.symbol}")
+                        
             except Exception as db_error:
                 self.logger.error(f"❌ Error updating trade database: {db_error}")
 

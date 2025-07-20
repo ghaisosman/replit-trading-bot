@@ -535,7 +535,7 @@ class TradeDatabase:
                     quantity = abs(position_amt)
                     
                     # COMPREHENSIVE CHECK: Look for ANY existing trade for this position
-                    # Check across ALL strategies, not just 'UNKNOWN'
+                    # STEP 1: Try to find by position details first (primary method)
                     position_already_tracked = False
                     existing_trade_id = None
                     
@@ -557,6 +557,29 @@ class TradeDatabase:
                                 existing_trade_id = trade_id
                                 self.logger.debug(f"🛡️ RECOVERY: Position {symbol} already tracked as {trade_id}")
                                 break
+                    
+                    # STEP 2: If creating a recovery trade, check if a recovery already exists for this exact position
+                    # This prevents multiple RECOVERY entries for the same Binance position
+                    if not position_already_tracked:
+                        for trade_id, trade_data in self.trades.items():
+                            if (trade_data.get('strategy_name') == 'RECOVERY' and
+                                trade_data.get('symbol') == symbol and 
+                                trade_data.get('trade_status') == 'OPEN'):
+                                
+                                # Check if this recovery matches the Binance position exactly
+                                db_quantity = trade_data.get('quantity', 0)
+                                db_side = trade_data.get('side')
+                                db_entry_price = trade_data.get('entry_price', 0)
+                                
+                                quantity_match = abs(db_quantity - quantity) < 0.01  # Stricter tolerance for recovery
+                                side_match = db_side == side
+                                price_match = abs(db_entry_price - entry_price) < (entry_price * 0.02)  # 2% tolerance
+                                
+                                if quantity_match and side_match and price_match:
+                                    position_already_tracked = True
+                                    existing_trade_id = trade_id
+                                    self.logger.info(f"🛡️ RECOVERY: Recovery trade {trade_id} already exists for this Binance position")
+                                    break
                     
                     # Only create recovery entry if position is NOT already tracked
                     if not position_already_tracked:
