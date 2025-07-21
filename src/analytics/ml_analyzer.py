@@ -349,12 +349,8 @@ class MLTradeAnalyzer:
             self.logger.info(f"🔧 Analyzing {len(recent_trades)} trades for optimization")
 
             for trade in recent_trades:
-                # Handle both timestamp and entry_time attributes
-                trade_time = None
-                if hasattr(trade, 'timestamp') and trade.timestamp:
-                    trade_time = trade.timestamp
-                elif hasattr(trade, 'entry_time') and trade.entry_time:
-                    trade_time = trade.entry_time
+                # Handle multiple possible timestamp attributes safely
+                trade_time = getattr(trade, 'timestamp', None) or getattr(trade, 'entry_time', None) or getattr(trade, 'entry_timestamp', None)
 
                 trade_dict = {
                     'strategy': getattr(trade, 'strategy_name', 'rsi_oversold'),
@@ -710,21 +706,23 @@ ACTIVE TRADES: {len(open_trades)}
 """
                 for trade in open_trades:
                     unrealized_pnl = getattr(trade, 'unrealized_pnl_percentage', 0)
-                    # Try different possible timestamp attributes
+                    # Try different possible timestamp attributes safely
                     entry_time = getattr(trade, 'timestamp', None) or getattr(trade, 'entry_time', None) or getattr(trade, 'entry_timestamp', None)
                     minutes_open = int((datetime.now() - entry_time).total_seconds() / 60) if entry_time else 0
 
+                    strategy_name = getattr(trade, 'strategy', getattr(trade, 'strategy_name', 'Unknown'))
+                    
                     report += f"""
 🔄 OPEN TRADE:
-   • Strategy: {trade.strategy.upper()}
-   • Symbol: {trade.symbol}
-   • Side: {trade.side}
-   • Entry Price: ${trade.entry_price:.4f}
-   • Position Size: ${trade.position_size_usdt:.2f} USDT
-   • Leverage: {trade.leverage}x
+   • Strategy: {strategy_name.upper()}
+   • Symbol: {getattr(trade, 'symbol', 'Unknown')}
+   • Side: {getattr(trade, 'side', 'Unknown')}
+   • Entry Price: ${getattr(trade, 'entry_price', 0):.4f}
+   • Position Size: ${getattr(trade, 'position_size_usdt', 0):.2f} USDT
+   • Leverage: {getattr(trade, 'leverage', 1)}x
    • Time Open: {minutes_open:.0f} minutes
    • Unrealized PnL: {unrealized_pnl:+.2f}%
-   • RSI at Entry: {trade.rsi_at_entry or 'N/A'}
+   • RSI at Entry: {getattr(trade, 'rsi_at_entry', 'N/A')}
 """
 
             # AI Analysis Prompt
@@ -825,6 +823,13 @@ END OF REPORT - Ready for AI Analysis
             # Process each closed trade with safe attribute access
             for trade in closed_trades:
                 try:
+                    # Get timestamp safely with multiple fallbacks
+                    trade_timestamp = getattr(trade, 'timestamp', None) or getattr(trade, 'entry_time', None) or getattr(trade, 'entry_timestamp', None)
+                    if trade_timestamp and hasattr(trade_timestamp, 'isoformat'):
+                        timestamp_str = trade_timestamp.isoformat()
+                    else:
+                        timestamp_str = str(trade_timestamp) if trade_timestamp else 'Unknown'
+                    
                     trade_details = {
                         "trade_id": getattr(trade, 'trade_id', 'Unknown'),
                         "strategy": getattr(trade, 'strategy', getattr(trade, 'strategy_name', 'Unknown')),
@@ -835,7 +840,7 @@ END OF REPORT - Ready for AI Analysis
                         "quantity": getattr(trade, 'quantity', 0),
                         "pnl_percentage": getattr(trade, 'pnl_percentage', 0),
                         "duration_minutes": getattr(trade, 'duration_minutes', 0),
-                        "timestamp": getattr(trade, 'timestamp', getattr(trade, 'entry_time', 'Unknown'))
+                        "timestamp": timestamp_str
                     }
 
                     export_data["trade_details"].append(trade_details)
