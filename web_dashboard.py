@@ -1874,6 +1874,452 @@ def get_ml_insights():
         logger.error(f"Error getting ML insights: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/ml_system_status')
+def get_ml_system_status():
+    """Get ML system status"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+        from src.analytics.trade_logger import trade_logger
+
+        total_trades = len(trade_logger.trades)
+        closed_trades = len([t for t in trade_logger.trades if t.trade_status == "CLOSED"])
+        
+        status = {
+            'data_available': closed_trades >= 3,
+            'models_trained': ml_analyzer.profitability_model is not None,
+            'total_trades': total_trades,
+            'closed_trades': closed_trades,
+            'ml_ready': closed_trades >= 3 and ml_analyzer.profitability_model is not None
+        }
+
+        return jsonify({'success': True, 'status': status})
+
+    except Exception as e:
+        logger.error(f"Error getting ML system status: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/ml_model_performance')
+def get_ml_model_performance():
+    """Get ML model performance metrics"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Try to get model performance
+        dataset = ml_analyzer.prepare_ml_dataset()
+        
+        performance = {
+            'accuracy': 0.0,
+            'dataset_size': 0,
+            'features_count': 0
+        }
+
+        if dataset is not None:
+            performance['dataset_size'] = len(dataset)
+            performance['features_count'] = len(dataset.columns)
+
+        if hasattr(ml_analyzer, 'feature_importance') and 'profitability' in ml_analyzer.feature_importance:
+            # Model has been trained, try to get accuracy
+            performance['accuracy'] = ml_analyzer.feature_importance.get('profitability_accuracy', 0.0)
+
+        return jsonify({'success': True, 'performance': performance})
+
+    except Exception as e:
+        logger.error(f"Error getting model performance: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/train_models', methods=['POST'])
+def train_ml_models():
+    """Train ML models"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Train models
+        results = ml_analyzer.train_models()
+
+        if "error" in results:
+            return jsonify({'success': False, 'error': results['error']})
+
+        return jsonify({'success': True, 'results': results})
+
+    except Exception as e:
+        logger.error(f"Error training ML models: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/generate_insights', methods=['POST'])
+def generate_ml_insights():
+    """Generate ML insights"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Generate insights
+        insights = ml_analyzer.generate_insights()
+
+        if "error" in insights:
+            return jsonify({'success': False, 'error': insights['error']})
+
+        return jsonify({'success': True, 'insights': insights})
+
+    except Exception as e:
+        logger.error(f"Error generating insights: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/test_prediction', methods=['POST'])
+def test_ml_prediction():
+    """Test ML prediction with sample data"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Sample trade features
+        sample_features = {
+            'strategy': 'rsi_oversold',
+            'symbol': 'SOLUSDT',
+            'side': 'BUY',
+            'leverage': 5,
+            'position_size_usdt': 100,
+            'rsi_entry': 25,
+            'macd_entry': -0.5,
+            'hour_of_day': 14,
+            'day_of_week': 2,
+            'month': 12,
+            'market_trend': 'BULLISH',
+            'volatility_score': 0.3,
+            'signal_strength': 0.8
+        }
+
+        prediction = ml_analyzer.predict_trade_outcome(sample_features)
+
+        if "error" in prediction:
+            return jsonify({'success': False, 'error': prediction['error']})
+
+        return jsonify({'success': True, 'prediction': prediction})
+
+    except Exception as e:
+        logger.error(f"Error testing prediction: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/export_trade_data', methods=['POST'])
+def export_ml_trade_data():
+    """Export trade data for ML analysis"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.trade_logger import trade_logger
+
+        filename = trade_logger.export_for_ml()
+        
+        if filename:
+            import os
+            records = 0
+            if os.path.exists(filename):
+                import pandas as pd
+                try:
+                    df = pd.read_csv(filename)
+                    records = len(df)
+                except:
+                    pass
+            
+            return jsonify({
+                'success': True, 
+                'filename': filename,
+                'records': records
+            })
+        else:
+            return jsonify({'success': False, 'error': 'No data to export'})
+
+    except Exception as e:
+        logger.error(f"Error exporting trade data: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/parameter_optimization', methods=['POST'])
+def run_parameter_optimization():
+    """Run parameter optimization"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+        from src.analytics.trade_logger import trade_logger
+
+        closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
+        
+        if len(closed_trades) < 3:
+            return jsonify({'success': False, 'error': 'Need at least 3 closed trades for optimization'})
+
+        results = ml_analyzer.simulate_parameter_optimization(closed_trades)
+
+        if not results:
+            return jsonify({'success': False, 'error': 'No optimization results generated'})
+
+        return jsonify({'success': True, 'results': results})
+
+    except Exception as e:
+        logger.error(f"Error running parameter optimization: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/what_if_scenarios', methods=['POST'])
+def analyze_what_if_scenarios():
+    """Analyze what-if scenarios"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        results = ml_analyzer.analyze_what_if_scenarios_for_commands()
+
+        if "error" in results:
+            return jsonify({'success': False, 'error': results['error']})
+
+        return jsonify({'success': True, 'results': results})
+
+    except Exception as e:
+        logger.error(f"Error analyzing what-if scenarios: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/enhanced_insights', methods=['POST'])
+def get_enhanced_ml_insights():
+    """Get enhanced ML insights"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        insights = ml_analyzer.get_enhanced_insights()
+
+        if "error" in insights:
+            return jsonify({'success': False, 'error': insights['error']})
+
+        return jsonify({'success': True, 'insights': insights})
+
+    except Exception as e:
+        logger.error(f"Error getting enhanced insights: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/market_analysis', methods=['POST'])
+def generate_market_analysis():
+    """Generate market analysis"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Generate basic market analysis from insights
+        insights = ml_analyzer.generate_insights()
+        
+        if "error" in insights:
+            return jsonify({'success': False, 'error': insights['error']})
+
+        # Extract market conditions from insights
+        analysis = {
+            'market_conditions': {}
+        }
+        
+        if 'market_trend_performance' in insights:
+            for trend, stats in insights['market_trend_performance'].items():
+                analysis['market_conditions'][trend] = {
+                    'performance': stats['win_rate'],
+                    'trades': stats['total_trades']
+                }
+
+        return jsonify({'success': True, 'analysis': analysis})
+
+    except Exception as e:
+        logger.error(f"Error generating market analysis: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/generate_ai_report', methods=['POST'])
+def generate_ai_ready_report():
+    """Generate comprehensive AI-ready report"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+        from pathlib import Path
+        from datetime import datetime
+
+        # Generate detailed report
+        report = ml_analyzer.generate_detailed_ai_report("comprehensive")
+        
+        # Save to file
+        reports_dir = Path("trading_data/ai_reports")
+        reports_dir.mkdir(exist_ok=True, parents=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"ai_ready_report_{timestamp}.txt"
+        filepath = reports_dir / filename
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(report)
+        
+        return jsonify({
+            'success': True, 
+            'filename': str(filepath),
+            'length': len(report)
+        })
+
+    except Exception as e:
+        logger.error(f"Error generating AI report: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/export_structured_data', methods=['POST'])
+def export_structured_ml_data():
+    """Export structured data for AI analysis"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+        from pathlib import Path
+        from datetime import datetime
+        import json
+
+        # Export structured data
+        structured_data = ml_analyzer.export_ai_ready_data("json")
+
+        if "error" in structured_data:
+            return jsonify({'success': False, 'error': structured_data['error']})
+
+        # Save to file
+        reports_dir = Path("trading_data/ai_reports")
+        reports_dir.mkdir(exist_ok=True, parents=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"structured_data_{timestamp}.json"
+        filepath = reports_dir / filename
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(structured_data, f, indent=2, ensure_ascii=False)
+        
+        # Extract summary
+        summary = {
+            'total_trades': structured_data.get('report_metadata', {}).get('total_trades', 0),
+            'win_rate': structured_data.get('performance_summary', {}).get('win_rate', 0),
+            'total_pnl': structured_data.get('performance_summary', {}).get('total_pnl_percentage', 0),
+            'strategies': len(structured_data.get('strategy_breakdown', {}))
+        }
+        
+        return jsonify({
+            'success': True, 
+            'filename': str(filepath),
+            'summary': summary
+        })
+
+    except Exception as e:
+        logger.error(f"Error exporting structured data: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/copy_report_clipboard', methods=['POST'])
+def copy_report_to_clipboard():
+    """Generate and copy report to clipboard"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+        from pathlib import Path
+        from datetime import datetime
+
+        # Generate the report
+        report = ml_analyzer.generate_detailed_ai_report("comprehensive")
+        
+        # Try to copy to clipboard (this would require pyperclip)
+        copied_to_clipboard = False
+        try:
+            import pyperclip
+            pyperclip.copy(report)
+            copied_to_clipboard = True
+        except ImportError:
+            # Save to file as fallback
+            reports_dir = Path("trading_data/ai_reports")
+            reports_dir.mkdir(exist_ok=True, parents=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"clipboard_report_{timestamp}.txt"
+            filepath = reports_dir / filename
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(report)
+        
+        stats = {
+            'length': len(report),
+            'words': len(report.split())
+        }
+        
+        result = {
+            'success': True,
+            'copied_to_clipboard': copied_to_clipboard,
+            'stats': stats
+        }
+        
+        if not copied_to_clipboard:
+            result['filename'] = str(filepath)
+        
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Error copying report to clipboard: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/ai_insights', methods=['POST'])
+def get_ai_advisor_insights():
+    """Get insights from AI advisor (requires API key)"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        data = request.get_json()
+        api_key = data.get('api_key')
+        
+        if not api_key:
+            return jsonify({'success': False, 'error': 'API key required'})
+
+        # This is a placeholder for AI advisor integration
+        # In a real implementation, you would integrate with external AI services
+        
+        # For now, return a mock response
+        analysis = {
+            'performance_assessment': {
+                'overall_rating': 'Good',
+                'profitability_trend': 'Improving'
+            },
+            'recommendations': [
+                'Consider reducing leverage during high volatility periods',
+                'Focus on RSI oversold conditions during morning hours',
+                'Implement partial profit taking for better risk management'
+            ]
+        }
+        
+        return jsonify({'success': True, 'analysis': analysis})
+
+    except Exception as e:
+        logger.error(f"Error getting AI insights: {e}")
+        return jsonify({'success': False, 'error': str(e)})ror']})
+
+        return jsonify({'success': True, 'insights': insights})
+
+    except Exception as e:
+        logger.error(f"Error getting ML insights: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/ml_predictions')
 def get_ml_predictions():
     """Get ML predictions for current market conditions"""

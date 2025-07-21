@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -51,7 +52,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 2rem auto;
             padding: 0 1rem;
         }
@@ -122,10 +123,28 @@
             cursor: pointer;
             font-weight: 600;
             transition: transform 0.2s;
+            margin: 0.25rem;
         }
 
         .btn:hover {
             transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .btn-danger {
+            background: #dc3545;
         }
 
         .loading {
@@ -175,230 +194,759 @@
             color: #666;
             margin-top: 0.5rem;
         }
+
+        .function-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .function-btn {
+            padding: 1rem;
+            text-align: left;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .function-btn:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .function-title {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 0.5rem;
+        }
+
+        .function-desc {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        .output-section {
+            background: #1e1e1e;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #dee2e6;
+            margin-bottom: 1rem;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            border-bottom-color: #4299e1;
+            color: #4299e1;
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
     <nav class="navbar">
-        <h1>🧠 ML Reports - Trading Bot</h1>
+        <h1>🧠 ML Analytics Center - Trading Bot</h1>
         <div class="nav-links">
             <a href="/" class="nav-link">← Dashboard</a>
-            <a href="#insights" class="nav-link">Insights</a>
-            <a href="#predictions" class="nav-link">Predictions</a>
-            <a href="#models" class="nav-link">Models</a>
+            <a href="#overview" class="nav-link">Overview</a>
+            <a href="#functions" class="nav-link">Functions</a>
+            <a href="#results" class="nav-link">Results</a>
         </div>
     </nav>
 
     <div class="container">
-        <div class="ml-grid">
-            <!-- ML Insights Card -->
-            <div class="ml-card" id="insights-card">
-                <h3>📊 Trading Insights</h3>
-                <div id="insights-content">
-                    <div class="loading">Loading insights...</div>
-                </div>
-                <button class="btn" onclick="refreshInsights()">Refresh Insights</button>
-            </div>
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('overview')">📊 Overview</div>
+            <div class="tab" onclick="showTab('core-ml')">🤖 Core ML</div>
+            <div class="tab" onclick="showTab('advanced')">🚀 Advanced</div>
+            <div class="tab" onclick="showTab('ai-ready')">🎯 AI Reports</div>
+            <div class="tab" onclick="showTab('results')">📈 Results</div>
+        </div>
 
-            <!-- ML Predictions Card -->
-            <div class="ml-card" id="predictions-card">
-                <h3>🔮 Market Predictions</h3>
-                <div id="predictions-content">
-                    <div class="loading">Loading predictions...</div>
-                </div>
-                <button class="btn" onclick="refreshPredictions()">Get New Predictions</button>
-            </div>
-
-            <!-- Model Training Card -->
-            <div class="ml-card" id="training-card">
-                <h3>🎯 Model Training</h3>
-                <div id="training-content">
-                    <p>Train ML models with your latest trading data to improve predictions.</p>
-                    <div class="model-performance" id="model-performance">
-                        <!-- Performance metrics will be loaded here -->
+        <!-- Overview Tab -->
+        <div id="overview-tab" class="tab-content active">
+            <div class="ml-grid">
+                <!-- System Status Card -->
+                <div class="ml-card">
+                    <h3>🔧 ML System Status</h3>
+                    <div id="system-status">
+                        <div class="loading">Checking system status...</div>
                     </div>
+                    <button class="btn" onclick="checkSystemStatus()">🔍 Check Status</button>
                 </div>
-                <button class="btn" onclick="trainModels()">Train Models</button>
+
+                <!-- Quick Insights Card -->
+                <div class="ml-card">
+                    <h3>📊 Quick Insights</h3>
+                    <div id="quick-insights">
+                        <div class="loading">Loading insights...</div>
+                    </div>
+                    <button class="btn" onclick="getQuickInsights()">📈 Refresh Insights</button>
+                </div>
+
+                <!-- Model Performance Card -->
+                <div class="ml-card">
+                    <h3>🎯 Model Performance</h3>
+                    <div id="model-performance">
+                        <div class="model-performance">
+                            <div class="performance-metric">
+                                <div class="metric-value" id="accuracy-metric">--</div>
+                                <div class="metric-label">Prediction Accuracy</div>
+                            </div>
+                            <div class="performance-metric">
+                                <div class="metric-value" id="trades-metric">--</div>
+                                <div class="metric-label">Training Data Size</div>
+                            </div>
+                            <div class="performance-metric">
+                                <div class="metric-value" id="features-metric">--</div>
+                                <div class="metric-label">Feature Count</div>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn" onclick="checkModelPerformance()">⚡ Check Performance</button>
+                </div>
             </div>
         </div>
 
-        <!-- Detailed Analysis Section -->
-        <div class="ml-card">
-            <h3>📈 Detailed Analysis</h3>
-            <div id="detailed-analysis">
-                <p>Select an option above to view detailed ML analysis of your trading data.</p>
+        <!-- Core ML Tab -->
+        <div id="core-ml-tab" class="tab-content">
+            <div class="ml-card">
+                <h3>🤖 Core ML Functions</h3>
+                <div class="function-grid">
+                    <div class="function-btn" onclick="trainModels()">
+                        <div class="function-title">🧠 Train ML Models</div>
+                        <div class="function-desc">Train profitability, PnL, and duration prediction models</div>
+                    </div>
+                    <div class="function-btn" onclick="generateInsights()">
+                        <div class="function-title">📊 Generate Insights</div>
+                        <div class="function-desc">Analyze strategy performance and trading patterns</div>
+                    </div>
+                    <div class="function-btn" onclick="testPrediction()">
+                        <div class="function-title">🔮 Test Prediction</div>
+                        <div class="function-desc">Test ML prediction with sample trade data</div>
+                    </div>
+                    <div class="function-btn" onclick="exportTradeData()">
+                        <div class="function-title">📤 Export Trade Data</div>
+                        <div class="function-desc">Export trading data for external analysis</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Tab -->
+        <div id="advanced-tab" class="tab-content">
+            <div class="ml-card">
+                <h3>🚀 Advanced Analytics</h3>
+                <div class="function-grid">
+                    <div class="function-btn" onclick="runParameterOptimization()">
+                        <div class="function-title">🎯 Parameter Optimization</div>
+                        <div class="function-desc">Simulate optimal parameters for better performance</div>
+                    </div>
+                    <div class="function-btn" onclick="analyzeWhatIfScenarios()">
+                        <div class="function-title">🔄 What-If Scenarios</div>
+                        <div class="function-desc">Analyze alternative trade parameters and outcomes</div>
+                    </div>
+                    <div class="function-btn" onclick="getEnhancedInsights()">
+                        <div class="function-title">📈 Enhanced Insights</div>
+                        <div class="function-desc">Advanced analytics with market regime analysis</div>
+                    </div>
+                    <div class="function-btn" onclick="generateMarketAnalysis()">
+                        <div class="function-title">🌊 Market Analysis</div>
+                        <div class="function-desc">Analyze market conditions and trading effectiveness</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Ready Tab -->
+        <div id="ai-ready-tab" class="tab-content">
+            <div class="ml-card">
+                <h3>🎯 AI-Ready Reports</h3>
+                <div class="function-grid">
+                    <div class="function-btn" onclick="generateAIReport()">
+                        <div class="function-title">📋 Comprehensive AI Report</div>
+                        <div class="function-desc">Generate detailed report ready for AI analysis</div>
+                    </div>
+                    <div class="function-btn" onclick="exportStructuredData()">
+                        <div class="function-title">📊 Export Structured Data</div>
+                        <div class="function-desc">Export JSON data for AI tools and analysis</div>
+                    </div>
+                    <div class="function-btn" onclick="copyReportToClipboard()">
+                        <div class="function-title">📋 Copy to Clipboard</div>
+                        <div class="function-desc">Generate and copy report for external AI services</div>
+                    </div>
+                    <div class="function-btn" onclick="getAIInsights()">
+                        <div class="function-title">🤖 AI Advisory</div>
+                        <div class="function-desc">Get insights from external AI advisor (requires API key)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Tab -->
+        <div id="results-tab" class="tab-content">
+            <div class="ml-card">
+                <h3>📈 Execution Results</h3>
+                <div id="execution-output" class="output-section">
+                    Select a function from the other tabs to see results here...
+                </div>
+                <div style="margin-top: 1rem;">
+                    <button class="btn btn-secondary" onclick="clearOutput()">🗑️ Clear Output</button>
+                    <button class="btn btn-success" onclick="downloadOutput()">💾 Download Results</button>
+                    <button class="btn btn-warning" onclick="copyOutput()">📋 Copy Output</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Load initial data
-        document.addEventListener('DOMContentLoaded', function() {
-            loadInsights();
-            loadPredictions();
-        });
+        // Tab functionality
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName + '-tab').classList.add('active');
+            
+            // Add active to clicked tab
+            event.target.classList.add('active');
+        }
 
-        async function loadInsights() {
+        // Output management
+        function appendOutput(message) {
+            const output = document.getElementById('execution-output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.innerHTML += `[${timestamp}] ${message}\n`;
+            output.scrollTop = output.scrollHeight;
+            
+            // Auto-switch to results tab
+            showTab('results');
+        }
+
+        function clearOutput() {
+            document.getElementById('execution-output').innerHTML = 'Output cleared.\n';
+        }
+
+        function copyOutput() {
+            const output = document.getElementById('execution-output');
+            navigator.clipboard.writeText(output.innerHTML.replace(/<br>/g, '\n')).then(() => {
+                alert('Output copied to clipboard!');
+            });
+        }
+
+        function downloadOutput() {
+            const output = document.getElementById('execution-output');
+            const blob = new Blob([output.innerHTML.replace(/<br>/g, '\n')], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ml_results_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        // System status functions
+        async function checkSystemStatus() {
+            appendOutput('🔍 Checking ML system status...');
+            try {
+                const response = await fetch('/api/ml_system_status');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const status = data.status;
+                    document.getElementById('system-status').innerHTML = `
+                        <div class="insight-item">
+                            <span class="insight-label">Data Available:</span>
+                            <span class="insight-value">${status.data_available ? '✅ Yes' : '❌ No'}</span>
+                        </div>
+                        <div class="insight-item">
+                            <span class="insight-label">Models Trained:</span>
+                            <span class="insight-value">${status.models_trained ? '✅ Yes' : '❌ No'}</span>
+                        </div>
+                        <div class="insight-item">
+                            <span class="insight-label">Total Trades:</span>
+                            <span class="insight-value">${status.total_trades}</span>
+                        </div>
+                        <div class="insight-item">
+                            <span class="insight-label">Closed Trades:</span>
+                            <span class="insight-value">${status.closed_trades}</span>
+                        </div>
+                    `;
+                    appendOutput(`✅ System Status: ${status.closed_trades} closed trades, models ${status.models_trained ? 'trained' : 'need training'}`);
+                } else {
+                    appendOutput(`❌ Error checking status: ${data.error}`);
+                }
+            } catch (error) {
+                appendOutput(`❌ Failed to check system status: ${error.message}`);
+            }
+        }
+
+        async function getQuickInsights() {
+            appendOutput('📊 Generating quick insights...');
             try {
                 const response = await fetch('/api/ml_insights');
                 const data = await response.json();
-
+                
                 if (data.success) {
                     displayInsights(data.insights);
+                    appendOutput('✅ Quick insights generated successfully');
                 } else {
-                    showError('insights-content', data.error);
+                    appendOutput(`❌ Error generating insights: ${data.error}`);
                 }
             } catch (error) {
-                showError('insights-content', 'Failed to load insights');
+                appendOutput(`❌ Failed to get insights: ${error.message}`);
             }
         }
 
-        async function loadPredictions() {
+        async function checkModelPerformance() {
+            appendOutput('🎯 Checking model performance...');
             try {
-                const response = await fetch('/api/ml_predictions');
+                const response = await fetch('/api/ml_model_performance');
                 const data = await response.json();
-
+                
                 if (data.success) {
-                    displayPredictions(data.predictions);
+                    const perf = data.performance;
+                    document.getElementById('accuracy-metric').textContent = 
+                        perf.accuracy ? `${(perf.accuracy * 100).toFixed(1)}%` : '--';
+                    document.getElementById('trades-metric').textContent = 
+                        perf.dataset_size || '--';
+                    document.getElementById('features-metric').textContent = 
+                        perf.features_count || '--';
+                    
+                    appendOutput(`✅ Model Performance: ${(perf.accuracy * 100).toFixed(1)}% accuracy, ${perf.dataset_size} trades, ${perf.features_count} features`);
                 } else {
-                    showError('predictions-content', data.error);
+                    appendOutput(`❌ Error checking performance: ${data.error}`);
                 }
             } catch (error) {
-                showError('predictions-content', 'Failed to load predictions');
+                appendOutput(`❌ Failed to check model performance: ${error.message}`);
             }
         }
 
-        function displayInsights(insights) {
-            const container = document.getElementById('insights-content');
-
-            if (!insights || Object.keys(insights).length === 0) {
-                container.innerHTML = '<p>No insights available. Train models first.</p>';
-                return;
-            }
-
-            let html = '';
-
-            // Strategy Performance
-            if (insights.strategy_performance) {
-                html += '<h4>Strategy Performance</h4>';
-                for (const [strategy, perf] of Object.entries(insights.strategy_performance)) {
-                    html += '<div class="insight-item">' +
-                            '<span class="insight-label">' + strategy + '</span>' +
-                            '<span class="insight-value">' + (perf.win_rate || 'N/A') + '% Win Rate</span>' +
-                        '</div>';
-                }
-            }
-
-            // Best Trading Times
-            if (insights.best_trading_times) {
-                html += '<h4>Best Trading Times</h4>';
-                insights.best_trading_times.forEach(time => {
-                    html += `
-                        <div class="insight-item">
-                            <span class="insight-label">${time.hour}:00</span>
-                            <span class="insight-value">${time.profitability}% Success</span>
-                        </div>
-                    `;
-                });
-            }
-
-            // Feature Importance
-            if (insights.feature_importance) {
-                html += '<h4>Important Indicators</h4>';
-                insights.feature_importance.forEach(feature => {
-                    html += `
-                        <div class="insight-item">
-                            <span class="insight-label">${feature.feature}</span>
-                            <span class="insight-value">${(feature.importance * 100).toFixed(1)}%</span>
-                        </div>
-                    `;
-                });
-            }
-
-            container.innerHTML = html || '<p>No insights available yet.</p>';
-        }
-
-        function displayPredictions(predictions) {
-            const container = document.getElementById('predictions-content');
-
-            if (!predictions || predictions.length === 0) {
-                container.innerHTML = '<p>No predictions available. Train models first.</p>';
-                return;
-            }
-
-            let html = '';
-            predictions.forEach(pred => {
-                const statusClass = pred.predicted_profitable ? 'profitable' : 'unprofitable';
-                html += `
-                    <div class="prediction-item">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <strong>${pred.symbol || 'Market'}</strong>
-                            <span class="status ${statusClass}">
-                                ${pred.predicted_profitable ? 'Profitable' : 'Risky'}
-                            </span>
-                        </div>
-                        <div style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
-                            Expected PnL: ${pred.predicted_pnl ? pred.predicted_pnl.toFixed(2) : 'N/A'}%<br>
-                            Confidence: ${pred.confidence ? (pred.confidence * 100).toFixed(1) : 'N/A'}%
-                        </div>
-                    </div>
-                `;
-            });
-
-            container.innerHTML = html;
-        }
-
-        async function refreshInsights() {
-            document.getElementById('insights-content').innerHTML = '<div class="loading">Refreshing insights...</div>';
-            await loadInsights();
-        }
-
-        async function refreshPredictions() {
-            document.getElementById('predictions-content').innerHTML = '<div class="loading">Getting new predictions...</div>';
-            await loadPredictions();
-        }
-
+        // Core ML functions
         async function trainModels() {
-            const button = event.target;
-            const originalText = button.textContent;
-            button.textContent = 'Training...';
-            button.disabled = true;
-
+            appendOutput('🧠 Training ML models...');
             try {
-                const response = await fetch('/api/train_models');
+                const response = await fetch('/api/train_models', { method: 'POST' });
                 const data = await response.json();
-
+                
                 if (data.success) {
-                    showSuccess('training-content', 'Models trained successfully!');
-                    // Refresh other sections
-                    loadInsights();
-                    loadPredictions();
+                    const results = data.results;
+                    appendOutput(`✅ ML models trained successfully!`);
+                    if (results.profitability_accuracy) {
+                        appendOutput(`📊 Profitability accuracy: ${(results.profitability_accuracy * 100).toFixed(1)}%`);
+                    }
+                    if (results.pnl_r2_score) {
+                        appendOutput(`📈 PnL R² score: ${results.pnl_r2_score.toFixed(3)}`);
+                    }
+                    if (results.dataset_size) {
+                        appendOutput(`📊 Training dataset: ${results.dataset_size} trades`);
+                    }
                 } else {
-                    showError('training-content', data.error);
+                    appendOutput(`❌ Training failed: ${data.error}`);
                 }
             } catch (error) {
-                showError('training-content', 'Failed to train models');
-            } finally {
-                button.textContent = originalText;
-                button.disabled = false;
+                appendOutput(`❌ Training error: ${error.message}`);
             }
         }
 
-        function showError(containerId, message) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = `<div class="error">❌ ${message}</div>`;
+        async function generateInsights() {
+            appendOutput('📊 Generating trading insights...');
+            try {
+                const response = await fetch('/api/generate_insights', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const insights = data.insights;
+                    appendOutput('✅ Insights generated successfully!');
+                    
+                    if (insights.strategy_performance) {
+                        appendOutput('\n🎯 Strategy Performance:');
+                        for (const [strategy, stats] of Object.entries(insights.strategy_performance)) {
+                            appendOutput(`  📊 ${strategy}: ${stats.win_rate}% win rate (${stats.total_trades} trades, ${stats.avg_pnl > 0 ? '+' : ''}${stats.avg_pnl.toFixed(2)}% avg PnL)`);
+                        }
+                    }
+                    
+                    if (insights.best_trading_times) {
+                        appendOutput('\n⏰ Best Trading Hours:');
+                        insights.best_trading_times.forEach(time => {
+                            appendOutput(`  🕐 ${time.hour.toString().padStart(2, '0')}:00 - ${time.profitability.toFixed(1)}% profitable`);
+                        });
+                    }
+                } else {
+                    appendOutput(`❌ Insights failed: ${data.error}`);
+                }
+            } catch (error) {
+                appendOutput(`❌ Insights error: ${error.message}`);
+            }
         }
 
-        function showSuccess(containerId, message) {
-            const container = document.getElementById(containerId);
-            const existingContent = container.innerHTML;
-            container.innerHTML = `<div class="success">✅ ${message}</div>` + existingContent;
-
-            // Remove success message after 3 seconds
-            setTimeout(() => {
-                const successDiv = container.querySelector('.success');
-                if (successDiv) successDiv.remove();
-            }, 3000);
+        async function testPrediction() {
+            appendOutput('🔮 Testing ML prediction...');
+            try {
+                const response = await fetch('/api/test_prediction', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const pred = data.prediction;
+                    appendOutput('✅ Prediction test completed!');
+                    appendOutput(`📈 Profit probability: ${(pred.profit_probability * 100).toFixed(1)}%`);
+                    if (pred.predicted_pnl_percentage !== undefined) {
+                        appendOutput(`💰 Predicted PnL: ${pred.predicted_pnl_percentage > 0 ? '+' : ''}${pred.predicted_pnl_percentage.toFixed(2)}%`);
+                    }
+                    if (pred.predicted_duration_minutes !== undefined) {
+                        appendOutput(`⏱️ Predicted duration: ${Math.round(pred.predicted_duration_minutes)} minutes`);
+                    }
+                    appendOutput(`🎯 Recommendation: ${pred.recommendation}`);
+                    appendOutput(`🔮 Confidence: ${(pred.confidence * 100).toFixed(1)}%`);
+                } else {
+                    appendOutput(`❌ Prediction test failed: ${data.error}`);
+                }
+            } catch (error) {
+                appendOutput(`❌ Prediction error: ${error.message}`);
+            }
         }
+
+        async function exportTradeData() {
+            appendOutput('📤 Exporting trade data...');
+            try {
+                const response = await fetch('/api/export_trade_data', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    appendOutput(`✅ Data exported successfully!`);
+                    if (data.filename) {
+                        appendOutput(`📄 File: ${data.filename}`);
+                        appendOutput(`📊 Records: ${data.records || 'N/A'}`);
+                    }
+                } else {
+                    appendOutput(`❌ Export failed: ${data.error}`);
+                }
+            } catch (error) {
+                appendOutput(`❌ Export error: ${error.message}`);
+            }
+        }
+
+        // Advanced functions
+        async function runParameterOptimization() {
+            appendOutput('🎯 Running parameter optimization...');
+            try {
+                const response = await fetch('/api/parameter_optimization', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const results = data.results;
+                    appendOutput('✅ Parameter optimization completed!');
+                    
+                    for (const [scenario, data] of Object.entries(results)) {
+                        appendOutput(`\n🔧 ${scenario.toUpperCase().replace('_', ' ')}:`);
+                        appendOutput(`  Average improvement: ${data.avg_improvement > 0 ? '+' : ''}${data.avg_improvement.toFixed(2)}%`);
+                        appendOutput(`  Best improvement: ${data.best_improvement > 0 ? '+' : ''}${data.best_improvement.toFixed(2)}%`);
+                        appendOutput(`  Scenarios analyzed: ${data.scenario_count}`);
+                    }
+                } else {
+                    appendOutput(`❌ Optimization failed: ${data.error}`);
+                }
+            } catch (error) {
+                appendOutput(`❌ Optimization error: ${error.message}`);
+            }
+        }
+
+        async function analyzeWhatIfScenarios() {
+            appendOutput('🔄 Analyzing what-if scenarios...');
+            try {
+                const response = await fetch('/api/what_if_scenarios', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const results = data.results;
+                    appendOutput(`✅ What-if analysis completed for trade: ${results.base_trade_id}`);
+                    appendOutput(`🎯 Actual PnL: ${results.actual_pnl > 0 ? '+' : ''}${results.actual_pnl.toFixed(2)}%`);
+                    
+                    for (const [scenario_type, scenarios] of Object.entries(results.scenario_results)) {
+                        if (scenarios.length > 0) {
+                            appendOutput(`\n📋 ${scenario_type.toUpperCase()} SCENARIOS:`);
+                            scenarios.forEach((result, index) => {
+                                const scenario = result.scenario;
+                                const improvement = result.improvement;
+                                appendOutput(`  ${index + 1}. Predicted PnL: ${result.predicted_pnl > 0 ? '+' : ''}${result.predicted_pnl.toFixed(2)}% (${improvement > 0 ? '+' : ''}${improvement.toFixed(2)}% improvement)`);
+                            });
+                        }
+                    }
+                } else {
+                    appendOutput(`❌ What-if analysis failed: ${data.error}`);
+                }
+            } catch (error) {
+                appendOutput(`❌ What-if error: ${error.message}`);
+            }
+        }
+
+        async function getEnhancedInsights() {
+            appendOutput('📈 Generating enhanced insights...');
+            try {
+                const response = await fetch('/api/enhanced_insights', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const insights = data.insights;
+                    appendOutput('✅ Enhanced insights generated!');
+                    
+                    if (insights.optimization_scenarios) {
+                        appendOutput('\n🎯 Parameter Optimization Results:');
+                        for (const [scenario, data] of Object.entries(insights.optimization_scenarios)) {
+                            appendOutput(`  📊 ${scenario}: ${data.avg_improvement > 0 ? '+' : ''}${data.avg_improvement.toFixed(2)}% avg improvement`);
+                        }
+                    }
+                    
+                    if (insights.market_regime_analysis) {
+                        appendOutput('\n🌊 Market Regime Analysis:');
+                        for (const [regime, stats] of Object.entries(insights.market_regime_analysis)) {
+                            appendOutput(`  📈 ${regime}: ${(stats.win_rate * 100).toFixed(1)}% win rate (${stats.trade_count} trades)`);
+                        }
+                    }
+                    
+                    if (insights.strategy_performance) {
+                        appendOutput('\n🏆 Strategy Performance:');
+                        for (const [strategy, stats] of Object.entries(insights.strategy_performance)) {
+                            appendOutput(`  📊 ${strategy}: ${stats.win_rate.toFixed(1)}% win rate, ${stats.avg_pnl > 0 ? '+' : ''}${stats.avg_pnl.toFixed(2)}% avg PnL`);
+                        }
+                    }
+                } else {
+                    appendOutput(`❌ Enhanced insights failed: ${data.error}`);
+                }
+            } catch (error) {
+                appendOutput(`❌ Enhanced insights error: ${error.message}`);
+            }
+        }
+
+        async function generateMarketAnalysis() {
+            appendOutput('🌊 Generating market analysis...');
+            try {
+                const response = await fetch('/api/market_analysis', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const analysis = data.analysis;
+                    appendOutput('✅ Market analysis completed!');
+                    
+                    if (analysis.market_conditions) {
+                        appendOutput('\n🌍 Market Conditions:');
+                        for (const [condition, stats] of Object.entries(analysis.market_conditions)) {
+                            appendOutput(`  📊 ${condition}: ${stats.performance}% success rate (${stats.trades} trades)`);
+                        }
+                    }
+                } else {
+                    appendOutput(`❌ Market analysis failed: ${data.error}`);
+                }
+            } catch (error) {
+                appendOutput(`❌ Market analysis error: ${error.message}`);
+            }
+        }
+
+        // AI-Ready functions
+        async function generateAIReport() {
+            appendOutput('📋 Generating comprehensive AI report...');
+            try {
+                const response = await fetch('/api/generate_ai_report', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    appendOutput('✅ AI report generated successfully!');
+                    if (data.filename) {
+                        appendOutput(`📄 Saved to: ${data.filename}`);
+                    }
+                    appendOutput(`📊 Report length: ${data.length || 'N/A'} characters`);
+                    appendOutput('\n💡 HOW TO USE THIS REPORT:');
+                    appendOutput('1. 📋 Copy the entire report from the saved file');
+                    appendOutput('2. 🤖 Paste it into ChatGPT, Claude, or Gemini');
+                    appendOutput('3. 📝 Ask for specific analysis or recommendations');
+                    appendOutput('4. 🎯 Use AI suggestions to optimize your trading strategy');
+                } else {
+                    appendOutput(`❌ AI report generation failed: ${data.error}`);
+                }
+            } catch (error) {
+                appendOutput(`❌ AI report error: ${error.message}`);
+            }
+        }
+
+        async function exportStructuredData() {
+            appendOutput('📊 Exporting structured data for AI analysis...');
+            try {
+                const response = await fetch('/api/export_structured_data', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    appendOutput('✅ Structured data exported successfully!');
+                    if (data.filename) {
+                        appendOutput(`📄 Saved to: ${data.filename}`);
+                    }
+                    if (data.summary) {
+                        const summary = data.summary;
+                        appendOutput(`\n📊 Export Summary:`);
+                        appendOutput(`  • Total Trades: ${summary.total_trades || 0}`);
+                        appendOutput(`  • Win Rate: ${summary.win_rate || 0}%`);
+                        appendOutput(`  • Total PnL: ${summary.total_pnl > 0 ? '+' : ''}${summary.total_pnl || 0}%`);
+                        appendOutput(`  • Strategies: ${summary.strategies || 0}`);
+                    }
+                } else {
+                    appendOutput(`❌ Structured data export failed: ${data.error}`);
+                }
+            } catch (error) {
+                appendOutput(`❌ Structured data error: ${error.message}`);
+            }
+        }
+
+        async function copyReportToClipboard() {
+            appendOutput('📋 Generating report for clipboard...');
+            try {
+                const response = await fetch('/api/copy_report_clipboard', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (data.copied_to_clipboard) {
+                        appendOutput('✅ Report copied to clipboard!');
+                        appendOutput('🤖 You can now paste directly into AI services');
+                    } else {
+                        appendOutput('✅ Report generated - manual copy required');
+                        if (data.filename) {
+                            appendOutput(`📂 Saved to: ${data.filename}`);
+                        }
+                    }
+                    if (data.stats) {
+                        appendOutput(`📊 Report Stats:`);
+                        appendOutput(`  • Length: ${data.stats.length || 0} characters`);
+                        appendOutput(`  • Words: ${data.stats.words || 0}`);
+                    }
+                } else {
+                    appendOutput(`❌ Clipboard report failed: ${data.error}`);
+                }
+            } catch (error) {
+                appendOutput(`❌ Clipboard report error: ${error.message}`);
+            }
+        }
+
+        async function getAIInsights() {
+            const apiKey = prompt('Enter your OpenAI API key (or press Cancel to skip):');
+            if (!apiKey) {
+                appendOutput('⚠️ Skipping AI insights - no API key provided');
+                return;
+            }
+            
+            appendOutput('🤖 Getting AI advisor insights...');
+            try {
+                const response = await fetch('/api/ai_insights', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ api_key: apiKey })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const analysis = data.analysis;
+                    appendOutput('✅ AI analysis completed!');
+                    
+                    if (analysis.performance_assessment) {
+                        appendOutput('\n🎯 AI Performance Assessment:');
+                        appendOutput(`  Overall Rating: ${analysis.performance_assessment.overall_rating}`);
+                        appendOutput(`  Trend: ${analysis.performance_assessment.profitability_trend}`);
+                    }
+                    
+                    if (analysis.recommendations) {
+                        appendOutput('\n💡 AI Recommendations:');
+                        analysis.recommendations.forEach((rec, index) => {
+                            appendOutput(`  ${index + 1}. ${rec}`);
+                        });
+                    }
+                } else {
+                    appendOutput(`❌ AI insights failed: ${data.error}`);
+                }
+            } catch (error) {
+                appendOutput(`❌ AI insights error: ${error.message}`);
+            }
+        }
+
+        // Helper function for displaying insights
+        function displayInsights(insights) {
+            const container = document.getElementById('quick-insights');
+            
+            if (!insights || Object.keys(insights).length === 0) {
+                container.innerHTML = '<div class="text-muted">No insights available yet.</div>';
+                return;
+            }
+
+            let html = '';
+            
+            if (insights.strategy_performance) {
+                html += '<h6>🎯 Strategy Performance:</h6>';
+                for (const [strategy, stats] of Object.entries(insights.strategy_performance)) {
+                    html += `
+                        <div class="insight-item">
+                            <span class="insight-label">${strategy}:</span>
+                            <span class="insight-value">${stats.win_rate}% (${stats.total_trades} trades)</span>
+                        </div>
+                    `;
+                }
+            }
+
+            if (insights.best_trading_times) {
+                html += '<h6 style="margin-top: 1rem;">⏰ Best Trading Times:</h6>';
+                insights.best_trading_times.slice(0, 3).forEach(time => {
+                    html += `
+                        <div class="insight-item">
+                            <span class="insight-label">${time.hour.toString().padStart(2, '0')}:00:</span>
+                            <span class="insight-value">${time.profitability.toFixed(1)}% success</span>
+                        </div>
+                    `;
+                });
+            }
+
+            container.innerHTML = html || '<div class="text-muted">No insights available yet.</div>';
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            checkSystemStatus();
+            getQuickInsights();
+            checkModelPerformance();
+        });
     </script>
 </body>
 </html>
