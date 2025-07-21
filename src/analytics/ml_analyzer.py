@@ -342,10 +342,10 @@ class MLTradeAnalyzer:
                 return {}
 
             optimization_results = {}
-            
+
             # Use all available trades, but limit to recent ones if many
             recent_trades = historical_trades[-min(10, len(historical_trades)):]
-            
+
             self.logger.info(f"🔧 Analyzing {len(recent_trades)} trades for optimization")
 
             for trade in recent_trades:
@@ -374,7 +374,7 @@ class MLTradeAnalyzer:
                             optimization_results[scenario_type] = []
 
                         improvement = prediction['predicted_pnl_percentage'] - trade_dict['actual_pnl']
-                        
+
                         optimization_results[scenario_type].append({
                             'parameters': scenario,
                             'predicted_pnl': prediction['predicted_pnl_percentage'],
@@ -388,7 +388,7 @@ class MLTradeAnalyzer:
                 if results and len(results) > 0:
                     best_result = max(results, key=lambda x: x['improvement'])
                     avg_improvement = sum(r['improvement'] for r in results) / len(results)
-                    
+
                     optimal_params[scenario_type] = {
                         'parameters': best_result['parameters'],
                         'avg_improvement': avg_improvement,
@@ -397,10 +397,10 @@ class MLTradeAnalyzer:
                     }
 
             self.optimal_parameters = optimal_params
-            
+
             if not optimal_params:
                 self.logger.warning("⚠️ No optimization results generated - model may need more training data")
-                
+
             return optimal_params
 
         except Exception as e:
@@ -804,7 +804,7 @@ END OF REPORT - Ready for AI Analysis
 
             # Strategy analysis
             for trade in closed_trades:
-                strategy = getattr(trade, 'strategy', 'unknown_strategy')
+                strategy = getattr(trade, 'strategy_name', 'unknown_strategy')
                 if strategy not in export_data["strategy_breakdown"]:
                     export_data["strategy_breakdown"][strategy] = {
                         "total_trades": 0,
@@ -828,7 +828,7 @@ END OF REPORT - Ready for AI Analysis
             for trade in closed_trades[-20:]:  # Last 20 trades for detailed analysis
                 trade_data = {
                     "trade_id": trade.trade_id,
-                    "strategy": trade.strategy,
+                    "strategy": trade.strategy_name,
                     "symbol": trade.symbol,
                     "side": trade.side,
                     "entry_time": trade.entry_time.isoformat() if trade.entry_time else None,
@@ -1101,7 +1101,7 @@ END OF REPORT - Ready for AI Analysis
 
             recent_trade = closed_trades[-1]
             base_trade = {
-                'strategy': getattr(recent_trade, 'strategy', 'unknown_strategy'),
+                'strategy': getattr(recent_trade, 'strategy_name', 'unknown_strategy'),
                 'symbol': getattr(recent_trade, 'symbol', 'UNKNOWN'),
                 'side': getattr(recent_trade, 'side', 'BUY'),
                 'leverage': getattr(recent_trade, 'leverage', 1),
