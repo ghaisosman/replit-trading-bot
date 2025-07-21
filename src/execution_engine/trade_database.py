@@ -714,7 +714,9 @@ class TradeDatabase:
         try:
             recovery_report = {
                 'matched_existing_trades': [],
-                'orphaned_positions': []
+                'orphaned_positions': [],
+                'recovered_trades': [],
+                'verification_failures': []
             }
 
             from src.binance_client.client import BinanceClientWrapper
