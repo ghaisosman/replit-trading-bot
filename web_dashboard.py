@@ -776,7 +776,7 @@ def get_strategies():
                     config.setdefault('max_daily_trades', 3)
                     config.setdefault('session_filter_enabled', True)
                     config.setdefault('allowed_sessions', ['LONDON', 'NEW_YORK'])
-                    config.setdefault('trend_filter_enabled', True)
+                    config.setdefault('trend_filter_enabled',True)
                     config.setdefault('min_volume', 100000)
                     config.setdefault('decimals', 2)
                     config.setdefault('cooldown_period', 300)
@@ -1420,10 +1420,10 @@ def get_positions():
                         margin_invested = strategy_config.get('margin', 50.0)  # Last resort fallback
 
                     if margin_invested > 0:
-                        pnl_percent = (pnl / margin_invested) * 100
+                        pnl_percent = (pnl / margin_invested) * 10```python
+0
 
-                # Ensure position_value_usdt is calculated and```python
-handled correctly
+                # Ensure position_value_usdt is calculated and handled correctly
                 position_value_usdt = float(position.entry_price) * float(position.quantity) if hasattr(position, 'entry_price') and hasattr(position, 'quantity') else 0.0
 
                 position_data = {
@@ -2293,3 +2293,101 @@ def export_structured_ml_data():
 @app.route('/api/copy_report_clipboard', methods=['POST'])
 def copy_report_to_clipboard():
     """Generate and copy report to clipboard"""
+    return jsonify({'success': False, 'error': 'Not implemented'}), 501
+
+    # Future implementation:
+    # 1. Generate detailed report using ml_analyzer.generate_detailed_ai_report()
+    # 2. Return report content for the frontend to copy to clipboard
+
+# Auto-Restart Mechanism
+restart_attempts = 0  # Global counter for restart attempts
+
+async def auto_restart_bot(delay=3600):
+    """Automatically restart the bot periodically"""
+    global bot_running, restart_attempts
+
+    try:
+        while True:
+            # Simple check if bot is running (can be expanded later)
+            if not bot_running:
+                logger.warning("🌐 WEB INTERFACE: Auto-restart triggered - bot is NOT running")
+
+                # Reset bot_running flag
+                globals()['bot_running'] = False
+                bot_running = False
+
+                # Basic exponential backoff - cap at 10 seconds
+                restart_attempts += 1
+
+                if restart_attempts > 3:
+                    logger.critical("Auto restart failed too many times")
+                    return  # Stop if too many failures
+
+                logger.info("🌐 WEB INTERFACE: Attempting to start bot again...")
+
+                # This simulates the bot start - replace with actual start procedure
+                try:
+                    from src.bot_manager import BotManager
+                    bot_instance = BotManager()
+
+                    # Update global references
+                    import sys
+                    sys.modules['__main__'].bot_manager = bot_instance
+                    globals()['bot_manager'] = bot_instance
+
+                    logger.info("🚀 AUTO-RESTARTING BOT FROM WEB INTERFACE")
+
+                    # Try running bot - wrap in try block
+                    try:
+                        await bot_instance.start()
+                        logger.info("🌐 WEB INTERFACE: Bot started successfully after auto-restart")
+                    except Exception as start_error:
+                        logger.error(f"Bot auto-restart failed: {start_error}")
+                    finally:
+                        if bot_instance:
+                            bot_instance.is_running = False
+
+                except Exception as e:
+                    logger.error(f"Failed to auto-restart bot: {e}")
+                    try:
+                        # More robust error reporting (if possible)
+                        if bot_instance and hasattr(bot_instance, 'telegram_reporter'):
+                            bot_instance.telegram_reporter.report_bot_stopped(f"Auto-restart failed: {str(e)}")
+                    except Exception as tele_error:
+                        logger.error(f"Telegram reporting error during auto-restart: {tele_error}")
+                finally:
+                    logger.info("🔴 AUTO-RESTART COMPLETE")
+
+                    # Wait a bit before restarting to avoid rapid restart loops
+                    wait_time = min(10, 2 * restart_attempts)  # Progressive backoff
+                    logger.info(f"🔍 DEBUG: Waiting {wait_time}s before restart attempt...")
+                    await asyncio.sleep(wait_time)
+            else:
+                # Bot is running - just sleep
+                await asyncio.sleep(delay)
+
+    except Exception as e:
+        logger.error(f"Auto-restart loop error: {e}")
+        # Stop auto-restart on critical errors
+        return
+
+# Web Interface Safe Start
+def start_web_dashboard(debug=False, use_reloader=False):
+    """Start the Flask web dashboard with more reliable settings"""
+    try:
+        logger.info("🌐 WEB INTERFACE: Starting Flask web dashboard...")
+
+        # Try to start auto-restart loop as a background task
+        try:
+            asyncio.ensure_future(auto_restart_bot())  # Schedule immediately
+        except Exception as async_error:
+            logger.error(f"Failed to start auto-restart task: {async_error}")
+
+        app.run(debug=debug, use_reloader=use_reloader, host='0.0.0.0', port=5000)
+
+    except Exception as e:
+        logger.critical(f"Failed to start web dashboard: {e}")
+
+if __name__ == '__main__':
+    # Set debug to True only during development - NEVER in production
+    start_web_dashboard(debug=False, use_reloader=False)
