@@ -766,30 +766,30 @@ def get_strategies():
                     config.setdefault('min_distance_threshold', 0.005)
                     config.setdefault('confirmation_candles', 2)
 
-                # Liquidity Reversal Strategy Specific Parameters
-                elif 'liquidity' in name.lower() or 'reversal' in name.lower():
-                    config.setdefault('lookback_candles', 100)
-                    config.setdefault('liquidity_threshold', 0.02)
-                    config.setdefault('reclaim_timeout', 5)
-                    config.setdefault('min_volume_spike', 1.5)
-                    config.setdefault('max_risk_per_trade', 0.5)
-                    config.setdefault('stop_loss_buffer', 0.1)
-                    config.setdefault('profit_target_multiplier', 2.0)
-                    config.setdefault('swing_strength', 3)
-                    config.setdefault('min_wick_ratio', 0.6)
-                    config.setdefault('min_volume', 5000000)
-                    config.setdefault('decimals', 2)
-                    config.setdefault('cooldown_period', 600)
-
-                # Universal Strategy Parameters (for any future strategy)
-                else:
+                # Smart Money Strategy Specific Parameters
+                elif 'smart' in name.lower() and 'money' in name.lower():
+                    config.setdefault('swing_lookback_period', 25)
+                    config.setdefault('sweep_threshold_pct', 0.1)
+                    config.setdefault('reversion_candles', 3)
+                    config.setdefault('volume_spike_multiplier', 2.0)
+                    config.setdefault('min_swing_distance_pct', 1.0)
+                    config.setdefault('max_daily_trades', 3)
+                    config.setdefault('session_filter_enabled', True)
+                    config.setdefault('allowed_sessions', ['LONDON', 'NEW_YORK'])
+                    config.setdefault('trend_filter_enabled', True)
+                    config.setdefault('min_volume', 1000000)
                     config.setdefault('decimals', 2)
                     config.setdefault('cooldown_period', 300)
-                    config.setdefault('min_volume', 1000000)
-                    config.setdefault('entry_threshold', 0.1)
-                    config.setdefault('exit_threshold', 0.05)
-                    config.setdefault('signal_period', 14)
-                    config.setdefault('confirmation_period', 2)
+
+        # Universal Strategy Parameters (for any future strategy)
+        else:
+            config.setdefault('decimals', 2)
+            config.setdefault('cooldown_period', 300)
+            config.setdefault('min_volume', 1000000)
+            config.setdefault('entry_threshold', 0.1)
+            config.setdefault('exit_threshold', 0.05)
+            config.setdefault('signal_period', 14)
+            config.setdefault('confirmation_period', 2)
 
             logger.info(f"🌐 WEB DASHBOARD: Serving COMPLETE configurations for {len(strategies)} strategies")
             logger.info(f"📋 All parameters available for manual configuration via dashboard")
@@ -1422,7 +1422,7 @@ def get_positions():
                     if margin_invested > 0:
                         pnl_percent = (pnl / margin_invested) * 100
 
-                # Ensure position_value is calculated and handled correctly
+                # Ensure position_value_usdt is calculated and handled correctly
                 position_value_usdt = float(position.entry_price) * float(position.quantity) if hasattr(position, 'entry_price') and hasattr(position, 'quantity') else 0.0
 
                 position_data = {
@@ -1796,13 +1796,13 @@ def ml_reports():
             'closed_trades': 0,
             'ml_ready': False
         }
-        
+
         if IMPORTS_AVAILABLE:
             try:
                 from src.analytics.trade_logger import trade_logger
                 total_trades = len(trade_logger.trades)
                 closed_trades = len([t for t in trade_logger.trades if getattr(t, 'trade_status', None) == "CLOSED"])
-                
+
                 ml_status.update({
                     'total_trades': total_trades,
                     'closed_trades': closed_trades,
@@ -1812,7 +1812,7 @@ def ml_reports():
                 })
             except Exception as e:
                 logger.error(f"Error getting ML status: {e}")
-        
+
         return render_template('ml_reports.html', ml_status=ml_status)
     except Exception as e:
         logger.error(f"Error loading ML reports page: {e}")
@@ -1931,13 +1931,13 @@ def get_ml_system_status():
             logger.error(f"Error accessing trade data: {trade_error}")
             total_trades = 0
             closed_trades = 0
-        
+
         # Check if models are trained
         models_trained = (
             hasattr(ml_analyzer, 'profitability_model') and 
             ml_analyzer.profitability_model is not None
         )
-        
+
         status = {
             'data_available': closed_trades >= 3,
             'models_trained': models_trained,
@@ -1974,7 +1974,7 @@ def get_ml_model_performance():
 
         # Try to get model performance
         dataset = ml_analyzer.prepare_ml_dataset()
-        
+
         performance = {
             'accuracy': 0.0,
             'dataset_size': 0,
@@ -2084,7 +2084,7 @@ def export_ml_trade_data():
         from src.analytics.trade_logger import trade_logger
 
         filename = trade_logger.export_for_ml()
-        
+
         if filename:
             import os
             records = 0
@@ -2095,7 +2095,7 @@ def export_ml_trade_data():
                     records = len(df)
                 except:
                     pass
-            
+
             return jsonify({
                 'success': True, 
                 'filename': filename,
@@ -2119,7 +2119,7 @@ def run_parameter_optimization():
         from src.analytics.trade_logger import trade_logger
 
         closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
-        
+
         if len(closed_trades) < 3:
             return jsonify({'success': False, 'error': 'Need at least 3 closed trades for optimization'})
 
@@ -2185,7 +2185,7 @@ def generate_market_analysis():
 
         # Generate basic market analysis from insights
         insights = ml_analyzer.generate_insights()
-        
+
         if "error" in insights:
             return jsonify({'success': False, 'error': insights['error']})
 
@@ -2193,7 +2193,7 @@ def generate_market_analysis():
         analysis = {
             'market_conditions': {}
         }
-        
+
         if 'market_trend_performance' in insights:
             for trend, stats in insights['market_trend_performance'].items():
                 analysis['market_conditions'][trend] = {
@@ -2220,18 +2220,18 @@ def generate_ai_ready_report():
 
         # Generate detailed report
         report = ml_analyzer.generate_detailed_ai_report("comprehensive")
-        
+
         # Save to file
         reports_dir = Path("trading_data/ai_reports")
         reports_dir.mkdir(exist_ok=True, parents=True)
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"ai_ready_report_{timestamp}.txt"
         filepath = reports_dir / filename
-        
+
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(report)
-        
+
         return jsonify({
             'success': True, 
             'filename': str(filepath),
@@ -2263,14 +2263,14 @@ def export_structured_ml_data():
         # Save to file
         reports_dir = Path("trading_data/ai_reports")
         reports_dir.mkdir(exist_ok=True, parents=True)
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"structured_data_{timestamp}.json"
         filepath = reports_dir / filename
-        
+
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(structured_data, f, indent=2, ensure_ascii=False)
-        
+
         # Extract summary
         summary = {
             'total_trades': structured_data.get('report_metadata', {}).get('total_trades', 0),
@@ -2278,7 +2278,7 @@ def export_structured_ml_data():
             'total_pnl': structured_data.get('performance_summary', {}).get('total_pnl_percentage', 0),
             'strategies': len(structured_data.get('strategy_breakdown', {}))
         }
-        
+
         return jsonify({
             'success': True, 
             'filename': str(filepath),
@@ -2302,7 +2302,7 @@ def copy_report_to_clipboard():
 
         # Generate the report
         report = ml_analyzer.generate_detailed_ai_report("comprehensive")
-        
+
         # Try to copy to clipboard (this would require pyperclip)
         copied_to_clipboard = False
         try:
@@ -2313,28 +2313,28 @@ def copy_report_to_clipboard():
             # Save to file as fallback
             reports_dir = Path("trading_data/ai_reports")
             reports_dir.mkdir(exist_ok=True, parents=True)
-            
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"clipboard_report_{timestamp}.txt"
             filepath = reports_dir / filename
-            
+
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(report)
-        
+
         stats = {
             'length': len(report),
             'words': len(report.split())
         }
-        
+
         result = {
             'success': True,
             'copied_to_clipboard': copied_to_clipboard,
             'stats': stats
         }
-        
+
         if not copied_to_clipboard:
             result['filename'] = str(filepath)
-        
+
         return jsonify(result)
 
     except Exception as e:
@@ -2350,13 +2350,13 @@ def get_ai_advisor_insights():
 
         data = request.get_json()
         api_key = data.get('api_key')
-        
+
         if not api_key:
             return jsonify({'success': False, 'error': 'API key required'})
 
         # This is a placeholder for AI advisor integration
         # In a real implementation, you would integrate with external AI services
-        
+
         # For now, return a mock response
         analysis = {
             'performance_assessment': {
@@ -2369,7 +2369,7 @@ def get_ai_advisor_insights():
                 'Implement partial profit taking for better risk management'
             ]
         }
-        
+
         return jsonify({'success': True, 'analysis': analysis})
 
     except Exception as e:

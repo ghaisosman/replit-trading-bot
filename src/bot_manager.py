@@ -1693,3 +1693,192 @@ class BotManager:
         except Exception as e:
             self.logger.error(f"Error checking stop loss for {strategy_name}: {e}")
             return False
+
+    async def _process_strategy(self, strategy_name: str, strategy_config: Dict):
+        """Process a single strategy with improved error handling"""
+        try:
+            # Check if it's time to assess this strategy
+            if not self._should_assess_strategy(strategy_name, strategy_config):
+                return
+
+            # Update last assessment time
+            self.strategy_last_assessment[strategy_name] = datetime.now()
+
+            # Check if strategy has blocking anomaly
+            if self.anomaly_detector.has_blocking_anomaly(strategy_name):
+                anomaly_status = self.anomaly_detector.get_anomaly_status(strategy_name)
+                self.logger.info(f"⚠️ STRATEGY BLOCKED | {strategy_name.upper()} | {strategy_config['symbol']} | Status: {anomaly_status}")
+                return
+
+            # Check if strategy already has an active position
+            if strategy_name in self.order_manager.active_positions:
+                return  # Position status already logged in throttled method
+
+            # Check for conflicting positions on the same symbol
+            symbol = strategy_config['symbol']
+            existing_position = self.order_manager.get_position_on_symbol(symbol)
+            if existing_position:
+                self.logger.info(f"⚠️ SYMBOL CONFLICT | {strategy_name.upper()} | {symbol} | Already trading via {existing_position.strategy_name} | Skipping duplicate")
+                return
+
+            # CRITICAL: Also check if there's already a position on Binance for this symbol
+            try:
+                if self.binance_client.is_futures:
+                    positions = self.binance_client.client.futures_position_information(symbol=symbol)
+                    for position in positions:
+                        position_amt = float(position.get('positionAmt', 0))
+                        if abs(position_amt) > 0:
+                            self.logger.warning(f"⚠️ BINANCE POSITION EXISTS | {strategy_name.upper()} | {symbol} | Position: {position_amt} | Skipping new trade to prevent duplicates")
+                            return
+            except Exception as e:
+                self.logger.error(f"Error checking Binance positions for {symbol}: {e}")
+                # Continue execution despite error
+
+            # Check balance requirements
+            if not self._check_balance_requirements(strategy_config):
+                return
+
+            # Log market assessment start
+            margin = strategy_config.get('margin', 50.0)
+            leverage = strategy_config.get('leverage', 5)
+            self.logger.info(f"🔍 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x")
+
+            # Enhanced market data fetching with timeframe-specific optimization
+            timeframe = strategy_config['timeframe']
+
+            # Optimize data limit based on timeframe for better indicator accuracy
+            if timeframe in ['1m', '3m', '5m']:
+                data_limit = 300  # Short timeframes need more recent data
+            elif timeframe in ['15m', '30m', '1h']:
+                data_limit = 200  # Medium timeframes
+            else:
+                data_limit = 150  # Longer timeframes
+
+            df = await self.price_fetcher.get_market_data(
+                symbol=strategy_config['symbol'],
+                interval=timeframe,
+                limit=data_limit
+            )
+            if df is None or df.empty:
+                self.logger.warning(f"No data for {strategy_config['symbol']}")
+                return
+
+            # Calculate indicators with error handling
+            try:
+                df = self.price_fetcher.calculate_indicators(df)
+            except Exception as e:
+                self.logger.error(f"Error calculating indicators for {strategy_config['symbol']}: {e}")
+                return
+
+            # Get current market info
+            current_price = df['close'].iloc[-1]
+
+            # Ensure strategy name is in config for signal processor
+            strategy_config_with_name = strategy_config.copy()
+            strategy_config_with_name['name'] = strategy_name
+
+            # Initialize strategy based on type
+            if 'rsi' in strategy_name.lower():
+                strategy_processor = RSIOversoldConfig(config)
+            elif 'macd' in strategy_name.lower():
+                strategy_processor = MACDDivergenceConfig(config)
+            elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
+                strategy_processor = SmartMoneyStrategy(config)
+            else:
+                self.logger.warning(f"Unknown strategy type: {strategy_name}")
+                continue
+
+            # Evaluate entry conditions
+            signal = self.signal_processor.evaluate_entry_conditions(df, strategy_config_with_name)
+
+            if signal:
+                # Check signal cooldown to prevent spam
+                signal_key = f"{strategy_name}_{strategy_config['symbol']}_{signal.signal_type.value}"
+                current_time = datetime.now()
+
+                if signal_key in self.last_signal_time:
+                    time_since_last_signal = (current_time - self.last_signal_time[signal_key]).total_seconds()
+                    if time_since_last_signal < (self.signal_cooldown_minutes * 60):
+                        remaining_cooldown = (self.signal_cooldownminutes * 60) - time_since_last_signal
+                        self.logger.info(f"🔄 SIGNAL COOLDOWN | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | {remaining_cooldown:.0f}s remaining")
+                        return
+
+                # Record this signal time
+                self.last_signal_time[signal_key] = current_time
+
+                # Entry signal detection format
+                entry_signal_message = f"""╔═══════════════════════════════════════════════════╗
+║ 🚨 ENTRY SIGNAL DETECTED                         ║
+║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
+║                                                   ║
+║ 🎯 Strategy: {strategy_name.upper()}                        ║
+║ 💱 Symbol: {strategy_config['symbol']}                              ║
+║ 📊 Signal Type: {signal.signal_type.value}                         ║
+║ 💵 Entry Price: ${signal.entry_price:,.1f}                          ║
+║ 📝 Reason: {signal.reason}                         ║
+║                                                   ║
+╚═══════════════════════════════════════════════════╝"""
+                self.logger.info(entry_signal_message)
+
+                # Execute the signal with the config that includes the strategy name
+                position = self.order_manager.execute_signal(signal, strategy_config_with_name)
+
+                if position:
+                    self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:,.1f} | Qty: {position.quantity:,.1f} | SL: ${position.stop_loss:,.1f} | TP: ${position.take_profit:,.1f}")
+
+                    # Send ONLY position opened notification (no separate entry signal notification)
+                    # Add a small delay to ensure position is fully stored before sending notification
+                    import asyncio
+                    await asyncio.sleep(0.1)
+
+                    from dataclasses import asdict
+                    position_dict = asdict(position)
+                    # Add current leverage info to the position data
+                    position_dict['leverage'] = strategy_config.get('leverage', 5)
+                    self.telegram_reporter.report_position_opened(position_dict)
+                else:
+                    self.logger.warning(f"❌ POSITION FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not execute signal")
+            else:
+                # Get assessment interval for logging
+                assessment_interval = strategy_config.get('assessment_interval', 300)
+
+                # Get additional indicators for consolidated logging
+                margin = strategy_config.get('margin', 50.0)
+                leverage = strategy_config.get('leverage', 5)
+
+                # Get current RSI for consolidated logging (with NaN check)
+                current_rsi = None
+                if 'rsi' in df.columns:
+                    rsi_value = df['rsi'].iloc[-1]
+                    if not pd.isna(rsi_value):
+                        current_rsi = rsi_value
+                    else:
+                        # Force recalculation if RSI is NaN
+                        try:
+                            df = self.price_fetcher.calculate_indicators(df)
+                            rsi_value = df['rsi'].iloc[-1]
+                            if not pd.isna(rsi_value):
+                                current_rsi = rsi_value
+                        except Exception as e:
+                            self.logger.debug(f"RSI recalculation failed for {strategy_config['symbol']}: {e}")
+
+                # Strategy-specific consolidated market assessment - single message
+                if 'macd' in strategy_name.lower():
+                    # Get MACD values for display
+                    macd_line = df['macd'].iloc[-1] if 'macd' in df.columns else 0.0
+                    macd_signal = df['macd_signal'].iloc[-1] if 'macd_signal' in df.columns else 0.0
+                    macd_histogram = df['macd_histogram'].iloc[-1] if 'macd_histogram' in df.columns else 0.0
+
+                    # Consolidated MACD market assessment - single line for dashboard display
+                    assessment_message = f"📈 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | ${margin:.1f}@{leverage}x | Price: ${current_price:,.1f} | MACD: {macd_line:.2f}/{macd_signal:.2f} | H: {macd_histogram:.2f} | Every {assessment_interval}s"
+                    self.logger.info(assessment_message)
+
+                elif 'rsi' in strategy_name.lower():
+                    # Consolidated RSI market assessment - single line for dashboard display
+                    rsi_text = f"{current_rsi:.1f}" if current_rsi is not None else "N/A"
+                    assessment_message = f"📈 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | ${margin:.1f}@{leverage}x | Price: ${current_price:,.1f} | RSI: {rsi_text} | Every {assessment_interval}s"
+                    self.logger.info(assessment_message)
+
+        except Exception as e:
+            self.logger.error(f"Error processing strategy {strategy_name}: {e}")
+            self.telegram_reporter.report_error("Strategy Processing Error", str(e), strategy_name)

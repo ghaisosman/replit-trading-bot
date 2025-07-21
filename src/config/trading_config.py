@@ -126,14 +126,14 @@ class TradingConfigManager:
         if validation_safety and validation_safety.lock_mechanism_enabled:
             # Use validation safety system
             pre_validated_updates, safety_errors = validation_safety.validate_multiple_parameters(updates)
-            
+
             # Log any safety corrections
             if safety_errors:
                 import logging
                 logging.getLogger(__name__).warning(f"🛡️ SAFETY VALIDATION APPLIED to {strategy_name}")
                 for param, error in safety_errors.items():
                     logging.getLogger(__name__).warning(f"   🚫 {param}: {error}")
-            
+
             # Use safety-validated updates as base
             updates = pre_validated_updates
 
@@ -280,7 +280,55 @@ class TradingConfigManager:
             if validated_updates['macd_exit_threshold'] < 0.001 or validated_updates['macd_exit_threshold'] > 1.0:
                 validated_updates['macd_exit_threshold'] = 0.02
 
-        # Partial Take Profit Parameters - NEW FEATURE
+        # Smart Money Strategy Parameters - NEW FEATURE
+        if 'swing_lookback_period' in updates:
+            validated_updates['swing_lookback_period'] = int(updates['swing_lookback_period'])
+            if validated_updates['swing_lookback_period'] < 10 or validated_updates['swing_lookback_period'] > 100:
+                validated_updates['swing_lookback_period'] = 25
+
+        if 'sweep_threshold_pct' in updates:
+            validated_updates['sweep_threshold_pct'] = float(updates['sweep_threshold_pct'])
+            if validated_updates['sweep_threshold_pct'] < 0.01 or validated_updates['sweep_threshold_pct'] > 1.0:
+                validated_updates['sweep_threshold_pct'] = 0.1
+
+        if 'reversion_candles' in updates:
+            validated_updates['reversion_candles'] = int(updates['reversion_candles'])
+            if validated_updates['reversion_candles'] < 1 or validated_updates['reversion_candles'] > 10:
+                validated_updates['reversion_candles'] = 3
+
+        if 'volume_spike_multiplier' in updates:
+            validated_updates['volume_spike_multiplier'] = float(updates['volume_spike_multiplier'])
+            if validated_updates['volume_spike_multiplier'] < 1.0 or validated_updates['volume_spike_multiplier'] > 10.0:
+                validated_updates['volume_spike_multiplier'] = 2.0
+
+        if 'min_swing_distance_pct' in updates:
+            validated_updates['min_swing_distance_pct'] = float(updates['min_swing_distance_pct'])
+            if validated_updates['min_swing_distance_pct'] < 0.1 or validated_updates['min_swing_distance_pct'] > 5.0:
+                validated_updates['min_swing_distance_pct'] = 1.0
+
+        if 'max_daily_trades' in updates:
+            validated_updates['max_daily_trades'] = int(updates['max_daily_trades'])
+            if validated_updates['max_daily_trades'] < 1 or validated_updates['max_daily_trades'] > 20:
+                validated_updates['max_daily_trades'] = 3
+
+        if 'session_filter_enabled' in updates:
+            validated_updates['session_filter_enabled'] = bool(updates['session_filter_enabled'])
+
+        if 'allowed_sessions' in updates:
+            # Handle both list and string formats
+            if isinstance(updates['allowed_sessions'], str):
+                if updates['allowed_sessions'] == 'DISABLED':
+                    validated_updates['allowed_sessions'] = ['LONDON', 'NEW_YORK', 'ASIAN', 'OVERLAP']
+                    validated_updates['session_filter_enabled'] = False
+                else:
+                    validated_updates['allowed_sessions'] = [updates['allowed_sessions']]
+            else:
+                validated_updates['allowed_sessions'] = list(updates['allowed_sessions'])
+
+        if 'trend_filter_enabled' in updates:
+            validated_updates['trend_filter_enabled'] = bool(updates['trend_filter_enabled'])
+
+        # Partial Take Profit Parameters
         if 'partial_tp_pnl_threshold' in updates:
             validated_updates['partial_tp_pnl_threshold'] = float(updates['partial_tp_pnl_threshold'])
             # Allow 0 to explicitly disable partial TP
@@ -339,7 +387,7 @@ class TradingConfigManager:
         logging.getLogger(__name__).info(f"🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - ALL CONFIG FILES IGNORED")
         if 'assessment_interval' in validated_updates:
             logging.getLogger(__name__).info(f"📅 {strategy_name} assessment interval set to {validated_updates['assessment_interval']} seconds")
-        
+
         # Return safety validation results for web dashboard feedback
         return safety_errors
 
@@ -397,6 +445,30 @@ class TradingConfigManager:
                     strategies[strategy_name].setdefault('macd_entry_threshold', 0.05)
                     strategies[strategy_name].setdefault('macd_exit_threshold', 0.02)
 
+                # Smart Money Strategy Specific Parameters
+                elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
+                    strategies[strategy_name].setdefault('swing_lookback_period', 25)
+                    strategies[strategy_name].setdefault('sweep_threshold_pct', 0.1)
+                    strategies[strategy_name].setdefault('reversion_candles', 3)
+                    strategies[strategy_name].setdefault('volume_spike_multiplier', 2.0)
+                    strategies[strategy_name].setdefault('min_swing_distance_pct', 1.0)
+                    strategies[strategy_name].setdefault('max_daily_trades', 3)
+                    strategies[strategy_name].setdefault('session_filter_enabled', True)
+                    strategies[strategy_name].setdefault('allowed_sessions', ['LONDON', 'NEW_YORK'])
+                    strategies[strategy_name].setdefault('trend_filter_enabled', True)
+
+                # Liquidity Reversal Strategy Specific Parameters
+                elif 'liquidity' in strategy_name.lower() or 'reversal' in strategy_name.lower():
+                    strategies[strategy_name].setdefault('lookback_candles', 100)
+                    strategies[strategy_name].setdefault('liquidity_threshold', 0.02)
+                    strategies[strategy_name].setdefault('reclaim_timeout', 5)
+                    strategies[strategy_name].setdefault('min_volume_spike', 1.5)
+                    strategies[strategy_name].setdefault('max_risk_per_trade', 0.5)
+                    strategies[strategy_name].setdefault('stop_loss_buffer', 0.1)
+                    strategies[strategy_name].setdefault('profit_target_multiplier', 2.0)
+                    strategies[strategy_name].setdefault('swing_strength', 3)
+                    strategies[strategy_name].setdefault('min_wick_ratio', 0.6)
+
                 # Set common defaults only if not already set
                 strategies[strategy_name].setdefault('min_volume', 1000000)
                 strategies[strategy_name].setdefault('decimals', 2)
@@ -442,6 +514,26 @@ class TradingConfigManager:
                 'macd_exit_threshold': 0.02,
                 'min_volume': 1000000,
             },
+            'smart_money_reversal': {
+                **self.default_params.to_dict(),
+                'symbol': 'ETHUSDT',
+                'margin': 30.0,
+                'leverage': 10,
+                'timeframe': '15m',
+                'assessment_interval': 45,
+                'decimals': 2,
+                'cooldown_period': 300,
+                'swing_lookback_period': 25,
+                'sweep_threshold_pct': 0.1,
+                'reversion_candles': 3,
+                'volume_spike_multiplier': 2.0,
+                'min_swing_distance_pct': 1.0,
+                'max_daily_trades': 3,
+                'session_filter_enabled': True,
+                'allowed_sessions': ['LONDON', 'NEW_YORK'],
+                'trend_filter_enabled': True,
+                'min_volume': 1000000,
+            }
         }
 
         # Only add fallback strategies if they don't exist from web dashboard
