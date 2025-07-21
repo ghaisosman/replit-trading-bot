@@ -846,7 +846,7 @@ END OF REPORT - Ready for AI Analysis
                 # Market regime classification
                 if 'volatility_score' in df.columns:
                     vol_regimes = pd.qcut(df['volatility_score'], q=3, labels=['Low', 'Medium', 'High'])
-                    regime_performance = df.groupby(vol_regimes)['was_profitable'].agg(['mean', 'count'])
+                    regime_performance = df.groupby(vol_regimes, observed=True)['was_profitable'].agg(['mean', 'count'])
 
                     insights['market_regime_analysis'] = {
                         'low_volatility': {
@@ -997,7 +997,7 @@ END OF REPORT - Ready for AI Analysis
                         feature_df[feature] = 0.0
 
             # Select only the features used during training, in the same order
-            X = feature_df[training_features].fillna(0)
+            X = feature_df[training_features].fillna(0).infer_objects(copy=False)
 
             predictions = {}
 
