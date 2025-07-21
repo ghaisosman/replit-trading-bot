@@ -451,28 +451,24 @@ class TradeDatabase:
                     should_close = False
                     close_reason = 'Stale Trade - Auto Closed'
 
-                    # AGGRESSIVE METHOD 1: Check if position exists on Binance (PRIMARY METHOD)
+                    # SIMPLE CHECK: Does this trade have a matching position on Binance?
                     if sync_with_binance and symbol:
                         position_exists_on_binance = False
 
                         if symbol in actual_binance_positions:
                             binance_pos = actual_binance_positions[symbol]
-                            # Check if position details match with tolerance
+                            # Simple match check
                             quantity_match = abs(binance_pos['quantity'] - db_quantity) < 0.1
                             side_match = binance_pos['side'] == db_side
 
                             if quantity_match and side_match:
                                 position_exists_on_binance = True
-                                self.logger.debug(f"🔄 AGGRESSIVE CLEANUP: {trade_id} - Position confirmed on Binance")
-                            else:
-                                self.logger.info(f"🔄 AGGRESSIVE CLEANUP: {trade_id} - Position mismatch on Binance (Qty: {binance_pos['quantity']} vs {db_quantity}, Side: {binance_pos['side']} vs {db_side})")
-                        else:
-                            self.logger.info(f"🔄 AGGRESSIVE CLEANUP: {trade_id} - Symbol {symbol} not found on Binance")
+                                self.logger.debug(f"✅ {trade_id} - Position confirmed on Binance")
 
                         if not position_exists_on_binance:
                             should_close = True
-                            close_reason = 'Position not found on Binance - Aggressive cleanup'
-                            self.logger.warning(f"🔄 AGGRESSIVE CLEANUP: {trade_id} ({strategy_name}) - No matching position on Binance, marking as CLOSED")
+                            close_reason = 'No matching position on Binance'
+                            self.logger.info(f"🔄 {trade_id} - Closing orphaned database entry")
 
                     # AGGRESSIVE METHOD 2: Recovery trades older than 1 hour (SUPER AGGRESSIVE)
                     if not should_close and strategy_name == 'RECOVERY':
@@ -707,12 +703,11 @@ class TradeDatabase:
             self.logger.error(f"🚨 Failed to log critical error: {e}")
 
     def recover_missing_positions(self) -> Dict[str, Any]:
-        """INTELLIGENT recovery that follows position recovery logic - find existing trades FIRST"""
+        """SIMPLIFIED recovery - match Binance positions to existing database trades"""
         try:
             recovery_report = {
-                'recovered_trades': [],
                 'matched_existing_trades': [],
-                'verification_failures': []
+                'orphaned_positions': []
             }
 
             from src.binance_client.client import BinanceClientWrapper

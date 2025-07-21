@@ -185,7 +185,13 @@ class OrderManager:
                 self.logger.debug(f"🔍 BOT TRADE REGISTERED: {position.symbol} | Anomaly detection paused for 120 seconds")
 
             # Log trade entry for analytics with confirmed trade ID
-            self._log_trade_entry(position)
+            # self._log_trade_entry(position)
+
+            # Generate Trade ID
+            position.trade_id = self._generate_trade_id(strategy_name, symbol)
+
+            # Immediate trade recording
+            self._record_trade_immediately(position, strategy_config)
 
             # Log trade for validation purposes
             self._log_trade_for_validation(position)
@@ -939,6 +945,71 @@ class OrderManager:
         except Exception:
             return 0.0
 
+    def _generate_trade_id(self, strategy_name: str, symbol: str) -> str:
+        """Generate consistent trade ID"""
+        return f"{strategy_name}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+    def _record_trade_immediately(self, position: Position, strategy_config: Dict) -> bool:
+        """Record trade in database immediately after Binance confirmation"""
+        try:
+            from src.execution_engine.trade_database import TradeDatabase
+            trade_db = TradeDatabase()
+
+            # Calculate values
+            position_value = position.entry_price * position.quantity
+            leverage = strategy_config.get('leverage', 1)
+            margin_used = position_value / leverage
+
+            # Create complete trade data
+            trade_data = {
+                'strategy_name': position.strategy_name,
+                'symbol': position.symbol,
+                'side': position.side,
+                'quantity': position.quantity,
+                'entry_price': position.entry_price,
+                'trade_status': 'OPEN',
+                'position_value_usdt': position_value,
+                'leverage': leverage,
+                'margin_used': margin_used,
+                'order_id': position.order_id,
+                'stop_loss': position.stop_loss,
+                'take_profit': position.take_profit,
+                'position_side': position.position_side
+            }
+
+            # Record in database
+            success = trade_db.add_trade(position.trade_id, trade_data)
+            if success:
+                self.logger.info(f"✅ TRADE RECORDED: {position.trade_id}")
+            else:
+                self.logger.error(f"❌ TRADE RECORDING FAILED: {position.trade_id}")
+
+            return success
+
+        except Exception as e:
+            self.logger.error(f"❌ Error recording trade immediately: {e}")
+            return False
+
+    def _log_trade_for_analytics(self, position: Position):
+        """Secondary logging for analytics"""
+        try:
+            if position.trade_id:
+                from src.analytics.trade_logger import trade_logger
+                trade_logger.log_trade_entry(
+                    trade_id=position.trade_id,
+                    strategy_name=position.strategy_name,
+                    symbol=position.symbol,
+                    side=position.side,
+                    entry_price=position.entry_price,
+                    quantity=position.quantity,
+                    margin_used=(position.entry_price * position.quantity) / (position.strategy_config.get('leverage', 5) if hasattr(position, 'strategy_config') and position.strategy_config else 5),
+                    leverage=position.strategy_config.get('leverage', 5) if hasattr(position, 'strategy_config') and position.strategy_config else 5,
+                    technical_indicators={},  # Placeholder - add indicator calculation here
+                    market_conditions={}  # Placeholder - add market condition analysis here
+                )
+        except Exception as e:
+            self.logger.error(f"❌ Error logging trade for analytics: {e}")
+
     def _log_trade_entry(self, position: Position) -> None:
         """Log trade entry for analytics with error handling"""
         try:
@@ -1128,7 +1199,7 @@ class OrderManager:
                             'leverage': int(actual_leverage),
                             'position_value_usdt': float(position.entry_price * position.quantity)
                         }
-                        
+
                         self.logger.warning(f"🔄 EMERGENCY FALLBACK: Attempting minimal trade save for {generated_trade_id}")
                         emergency_success = trade_db.add_trade(generated_trade_id, minimal_trade_data)
                         if emergency_success:
@@ -1140,7 +1211,7 @@ class OrderManager:
                 self.logger.error(f"❌ CRITICAL: Error recording trade in database: {db_error}")
                 import traceback
                 self.logger.error(f"❌ Database error traceback: {traceback.format_exc()}")
-                
+
                 # EMERGENCY PROTOCOL: Create a recovery file for manual intervention
                 try:
                     recovery_data = {
@@ -1154,19 +1225,19 @@ class OrderManager:
                         'error': str(db_error),
                         'recovery_needed': True
                     }
-                    
+
                     import json
                     import os
                     recovery_file = f"trading_data/recovery_{generated_trade_id}.json"
                     os.makedirs(os.path.dirname(recovery_file), exist_ok=True)
                     with open(recovery_file, 'w') as f:
                         json.dump(recovery_data, f, indent=2)
-                    
+
                     self.logger.error(f"🚨 RECOVERY FILE CREATED: {recovery_file}")
-                    
+
                 except Exception as recovery_error:
                     self.logger.error(f"❌ Even recovery file creation failed: {recovery_error}")
-                
+
                 # Don't fail the entire trade entry if database fails
 
             self.logger.info(f"📊 TRADE ENTRY LOGGED | ID: {generated_trade_id} | {position.strategy_name} | {position.symbol}")
