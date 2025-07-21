@@ -777,19 +777,20 @@ def get_strategies():
                     config.setdefault('session_filter_enabled', True)
                     config.setdefault('allowed_sessions', ['LONDON', 'NEW_YORK'])
                     config.setdefault('trend_filter_enabled',True)
-                    config.setdefault('min_volume', 100000)
+                    config```python
+.setdefault('min_volume', 100000)
                     config.setdefault('decimals', 2)
                     config.setdefault('cooldown_period', 300)
 
-        # Universal Strategy Parameters (for any future strategy)
-        else:
-            config.setdefault('decimals', 2)
-            config.setdefault('cooldown_period', 300)
-            config.setdefault('min_volume', 1000000)
-            config.setdefault('entry_threshold', 0.1)
-            config.setdefault('exit_threshold', 0.05)
-            config.setdefault('signal_period', 14)
-            config.setdefault('confirmation_period', 2)
+                # Universal Strategy Parameters (for any future strategy)
+                else:
+                    config.setdefault('decimals', 2)
+                    config.setdefault('cooldown_period', 300)
+                    config.setdefault('min_volume', 1000000)
+                    config.setdefault('entry_threshold', 0.1)
+                    config.setdefault('exit_threshold', 0.05)
+                    config.setdefault('signal_period', 14)
+                    config.setdefault('confirmation_period', 2)
 
             logger.info(f"🌐 WEB DASHBOARD: Serving COMPLETE configurations for {len(strategies)} strategies")
             logger.info(f"📋 All parameters available for manual configuration via dashboard")
@@ -2291,7 +2292,7 @@ def export_structured_ml_data():
 
 @app.route('/api/copy_report_clipboard', methods=['POST'])
 def copy_report_to_clipboard():
-    """Generate and copy report to clipboard"""
+    """""Generate and copy report to clipboard"""
     return jsonify({'success': False, 'error': 'Not implemented'}), 501
 
     # Future implementation:
