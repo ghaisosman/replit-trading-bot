@@ -265,6 +265,103 @@ class TelegramReporter:
             self.logger.error(f"❌ TELEGRAM: Error sending anomaly notification: {e}")
             return False
 
+    def report_orphan_trade_detected(self, strategy_name: str, symbol: str, side: str, entry_price: float) -> bool:
+        """Send orphan trade detection notification"""
+        try:
+            timestamp = datetime.now().strftime('%H:%M:%S')
+
+            message = f"""
+👻 <b>ORPHAN TRADE DETECTED</b>
+⏰ <b>Time:</b> {timestamp}
+
+🎯 <b>Strategy:</b> {strategy_name.upper()}
+💱 <b>Symbol:</b> {symbol}
+📊 <b>Side:</b> {side}
+💵 <b>Entry Price:</b> ${entry_price:.4f}
+
+📝 <b>Description:</b> Bot opened position but it was closed manually
+🔍 <b>Action:</b> System will auto-clear in 2-3 detection cycles
+💡 <b>Note:</b> Strategy temporarily blocked from new trades
+"""
+
+            return self.send_message(message)
+
+        except Exception as e:
+            self.logger.error(f"❌ TELEGRAM: Error sending orphan detection notification: {e}")
+            return False
+
+    def report_orphan_trade_cleared(self, strategy_name: str, symbol: str) -> bool:
+        """Send orphan trade cleared notification"""
+        try:
+            timestamp = datetime.now().strftime('%H:%M:%S')
+
+            message = f"""
+🧹 <b>ORPHAN TRADE CLEARED</b>
+⏰ <b>Time:</b> {timestamp}
+
+🎯 <b>Strategy:</b> {strategy_name.upper()}
+💱 <b>Symbol:</b> {symbol}
+
+✅ <b>Status:</b> Orphan trade automatically cleared
+🎯 <b>Result:</b> Strategy is now available for new trades
+🔄 <b>Action:</b> Automatic - no manual intervention needed
+"""
+
+            return self.send_message(message)
+
+        except Exception as e:
+            self.logger.error(f"❌ TELEGRAM: Error sending orphan cleared notification: {e}")
+            return False
+
+    def report_ghost_trade_detected(self, strategy_name: str, symbol: str, side: str, quantity: float, current_price: float = None) -> bool:
+        """Send ghost trade detection notification"""
+        try:
+            timestamp = datetime.now().strftime('%H:%M:%S')
+            price_info = f"💵 <b>Current Price:</b> ${current_price:.4f}" if current_price else ""
+
+            message = f"""
+🔍 <b>GHOST TRADE DETECTED</b>
+⏰ <b>Time:</b> {timestamp}
+
+🎯 <b>Strategy:</b> {strategy_name.upper()}
+💱 <b>Symbol:</b> {symbol}
+📊 <b>Side:</b> {side}
+📦 <b>Quantity:</b> {quantity:.6f}
+{price_info}
+
+📝 <b>Description:</b> Manual position detected on bot-managed symbol
+🔍 <b>Action:</b> Monitoring for manual closure
+💡 <b>Note:</b> Close manually when ready
+"""
+
+            return self.send_message(message)
+
+        except Exception as e:
+            self.logger.error(f"❌ TELEGRAM: Error sending ghost detection notification: {e}")
+            return False
+
+    def report_ghost_trade_cleared(self, strategy_name: str, symbol: str) -> bool:
+        """Send ghost trade cleared notification"""
+        try:
+            timestamp = datetime.now().strftime('%H:%M:%S')
+
+            message = f"""
+🧹 <b>GHOST TRADE CLEARED</b>
+⏰ <b>Time:</b> {timestamp}
+
+🎯 <b>Strategy:</b> {strategy_name.upper()}
+💱 <b>Symbol:</b> {symbol}
+
+✅ <b>Status:</b> Manual position closed
+🔄 <b>Action:</b> Automatic detection - no intervention needed
+"""
+
+            return self.send_message(message)
+
+        except Exception as e:
+            self.logger.error(f"❌ TELEGRAM: Error sending ghost cleared notification: {e}")
+            return False
+
     def test_connection(self) -> bool:
         """Test Telegram bot connection"""
         if not self.enabled:

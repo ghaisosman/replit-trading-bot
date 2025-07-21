@@ -348,14 +348,13 @@ class BotManager:
                 # Check exit conditions for open positions
                 await self._check_exit_conditions()
 
-                # Check for trade anomalies (orphan/ghost trades) - throttled for performance
-                current_time = datetime.now()
-                if (current_time - last_anomaly_check).total_seconds() >= anomaly_check_interval:
+                # Run anomaly detection continuously for automatic orphan/ghost trade management
+                if hasattr(self, 'anomaly_detector') and self.anomaly_detector:
                     try:
-                        self.anomaly_detector.run_detection()
-                        last_anomaly_check = current_time
+                        self.anomaly_detector.run_detection(suppress_notifications=False)
                     except Exception as e:
-                        self.logger.error(f"Error in anomaly detection: {e}")
+                        self.logger.error(f"❌ Anomaly detection error: {e}")
+                        # Continue running despite anomaly detection errors
 
                 # Reset error counter on successful iteration
                 consecutive_errors = 0
@@ -504,7 +503,7 @@ class BotManager:
                             if df is not None and not df.empty:
                                 # Calculate indicators
                                 df = self.price_fetcher.calculate_indicators(df)
-                                
+
                                 # Display strategy-specific indicators
                                 if 'rsi' in strategy_name.lower():
                                     # RSI Strategy - show current RSI
@@ -731,7 +730,7 @@ class BotManager:
                 if signal_key in self.last_signal_time:
                     time_since_last_signal = (current_time - self.last_signal_time[signal_key]).total_seconds()
                     if time_since_last_signal < (self.signal_cooldown_minutes * 60):
-                        remaining_cooldown = (self.signal_cooldown_minutes * 60) - time_since_last_signal
+                        remaining_cooldown = (self.signal_cooldownminutes * 60) - time_since_last_signal
                         self.logger.info(f"🔄 SIGNAL COOLDOWN | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | {remaining_cooldown:.0f}s remaining")
                         return
 
@@ -759,7 +758,7 @@ class BotManager:
                     self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:,.1f} | Qty: {position.quantity:,.1f} | SL: ${position.stop_loss:,.1f} | TP: ${position.take_profit:,.1f}")
 
                     # Send ONLY position opened notification (no separate entry signal notification)
-                    # Add a small delay to ensure position is fully stored before sending notification<previous_generation>```python
+                    # Add a small delay to ensure position is fully stored before sending notification
                     import asyncio
                     await asyncio.sleep(0.1)
 

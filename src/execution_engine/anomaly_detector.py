@@ -216,7 +216,7 @@ class AnomalyDetector:
         self.startup_time = datetime.now()
 
         # Detection settings
-        self.detection_interval = 60  # Run detection every 60 seconds
+        self.detection_interval = 30  # Run detection every 30 seconds for faster response
         self.last_detection_run = datetime.now()
 
         # Position tolerance for rounding differences
@@ -487,24 +487,33 @@ class AnomalyDetector:
         """Process orphan trade lifecycle"""
         # Decrement cycles
         anomaly.cycles_remaining -= 1
+        self.logger.info(f"🔍 ORPHAN LIFECYCLE: {anomaly.strategy_name} | {anomaly.symbol} | "
+                        f"Cycles remaining: {anomaly.cycles_remaining}")
 
         if anomaly.cycles_remaining <= 0:
             # Clear orphan from bot's memory
-            self.order_manager.clear_orphan_position(anomaly.strategy_name)
+            cleared = self.order_manager.clear_orphan_position(anomaly.strategy_name)
+            
+            if cleared:
+                # Update database
+                self.db.update_anomaly(anomaly.id, 
+                                     status=AnomalyStatus.CLEARED,
+                                     cleared_at=datetime.now())
 
-            # Update database
-            self.db.update_anomaly(anomaly.id, 
-                                 status=AnomalyStatus.CLEARED,
-                                 cleared_at=datetime.now())
+                # Send clear notification
+                if not suppress_notifications:
+                    self._send_orphan_clear_notification(anomaly)
 
-            # Send clear notification
-            if not suppress_notifications:
-                self._send_orphan_clear_notification(anomaly)
-
-            self.logger.info(f"🧹 ORPHAN CLEARED: {anomaly.strategy_name} | {anomaly.symbol} | "
-                           f"Strategy can trade again")
+                self.logger.info(f"🧹 ORPHAN AUTO-CLEARED: {anomaly.strategy_name} | {anomaly.symbol} | "
+                               f"Strategy can trade again")
+            else:
+                # If clearing failed, try one more cycle
+                self.db.update_anomaly(anomaly.id, cycles_remaining=1)
+                self.logger.warning(f"⚠️ ORPHAN CLEAR RETRY: {anomaly.strategy_name} | {anomaly.symbol}")
         else:
             self.db.update_anomaly(anomaly.id, cycles_remaining=anomaly.cycles_remaining)
+            self.logger.debug(f"🔍 ORPHAN MONITORING: {anomaly.strategy_name} | {anomaly.symbol} | "
+                            f"{anomaly.cycles_remaining} cycles remaining")
 
     def _process_ghost_lifecycle(self, anomaly: TradeAnomaly, 
                                binance_positions_map: Dict, suppress_notifications: bool):
@@ -543,22 +552,36 @@ class AnomalyDetector:
     def _send_orphan_notification(self, anomaly: TradeAnomaly):
         """Send orphan trade notification"""
         try:
-            self.telegram_reporter.report_orphan_trade_detected(
-                strategy_name=anomaly.strategy_name,
-                symbol=anomaly.symbol,
-                side=anomaly.side,
-                entry_price=anomaly.entry_price or 0
-            )
+            message = f"""👻 **ORPHAN TRADE DETECTED**
+
+Strategy: {anomaly.strategy_name.upper()}
+Symbol: {anomaly.symbol}
+Side: {anomaly.side}
+Entry Price: ${anomaly.entry_price or 0:.4f}
+
+📝 Description: Bot opened position but it was closed manually
+🔍 Action: System will auto-clear in 2-3 detection cycles
+💡 Note: Strategy is temporarily blocked from new trades"""
+
+            self.telegram_reporter.send_message(message)
+            self.logger.info(f"📱 TELEGRAM: Orphan trade notification sent for {anomaly.strategy_name}")
         except Exception as e:
             self.logger.error(f"Error sending orphan notification: {e}")
 
     def _send_orphan_clear_notification(self, anomaly: TradeAnomaly):
         """Send orphan trade clear notification"""
         try:
-            self.telegram_reporter.report_orphan_trade_cleared(
-                strategy_name=anomaly.strategy_name,
-                symbol=anomaly.symbol
-            )
+            message = f"""🧹 **ORPHAN TRADE CLEARED**
+
+Strategy: {anomaly.strategy_name.upper()}
+Symbol: {anomaly.symbol}
+
+✅ Status: Orphan trade automatically cleared
+🎯 Result: Strategy is now available for new trades
+🔄 Action: Automatic - no manual intervention needed"""
+
+            self.telegram_reporter.send_message(message)
+            self.logger.info(f"📱 TELEGRAM: Orphan clear notification sent for {anomaly.strategy_name}")
         except Exception as e:
             self.logger.error(f"Error sending orphan clear notification: {e}")
 
