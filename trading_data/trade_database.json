@@ -1045,7 +1045,7 @@
       "entry_price": 197.78,
       "trade_status": "OPEN",
       "created_at": "2025-07-21T15:12:14.573917",
-      "last_verified": "2025-07-21T18:47:59.456501",
+      "last_verified": "2025-07-21T19:01:13.355748",
       "sync_status": "BINANCE_VERIFIED",
       "position_value_usdt": 29.666999999999998,
       "leverage": 5,
@@ -1054,7 +1054,26 @@
       "recovery_source": "MATCHED_EXISTING",
       "binance_entry_price": 197.78,
       "binance_quantity": 0.15
+    },
+    "RSI_ETH_ETHUSDT_20250721_190111_RECOVERED": {
+      "trade_id": "RSI_ETH_ETHUSDT_20250721_190111_RECOVERED",
+      "strategy_name": "RSI_ETH",
+      "symbol": "ETHUSDT",
+      "side": "BUY",
+      "quantity": 0.01,
+      "entry_price": 3741.12,
+      "trade_status": "OPEN",
+      "created_at": "2025-07-21T19:01:11.371582",
+      "last_verified": "2025-07-21T19:01:13.356299",
+      "sync_status": "BINANCE_VERIFIED",
+      "position_value_usdt": 37.4112,
+      "leverage": 5,
+      "margin_used": 7.48224,
+      "timestamp": "2025-07-21T23:01:11.371576",
+      "recovery_source": "MATCHED_EXISTING",
+      "binance_entry_price": 3741.12,
+      "binance_quantity": 0.01
     }
   },
-  "last_updated": "2025-07-21T18:47:59.457099"
+  "last_updated": "2025-07-21T19:01:13.356770"
 }
