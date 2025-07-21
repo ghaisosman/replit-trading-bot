@@ -628,7 +628,28 @@
       "take_profit": 0.0,
       "position_side": "SHORT",
       "entry_time": "2025-07-21T04:03:19.066019"
+    },
+    "rsi_oversold_SOLUSDT_20250721_083008": {
+      "trade_id": "rsi_oversold_SOLUSDT_20250721_083008",
+      "strategy_name": "rsi_oversold",
+      "symbol": "SOLUSDT",
+      "side": "SELL",
+      "quantity": 0.16,
+      "entry_price": 191.16666666666666,
+      "trade_status": "OPEN",
+      "created_at": "2025-07-21T08:30:11.448854",
+      "last_verified": "2025-07-21T08:30:11.448857",
+      "sync_status": "VERIFIED",
+      "position_value_usdt": 30.586666666666666,
+      "leverage": 3,
+      "margin_used": 10.195555555555556,
+      "timestamp": "2025-07-21T12:30:11.448846",
+      "stop_loss": 194.35277777777776,
+      "take_profit": 181.60833333333332,
+      "position_side": "SHORT",
+      "order_id": 130258298774,
+      "entry_time": "2025-07-21T08:30:08.418753"
     }
   },
-  "last_updated": "2025-07-21T04:06:12.434594"
+  "last_updated": "2025-07-21T08:30:11.768123"
 }
