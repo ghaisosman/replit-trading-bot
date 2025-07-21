@@ -1423,7 +1423,6 @@ def get_positions():
                     if margin_invested > 0:
                         pnl_percent = (pnl / margin_invested) * 100
 
-                ```python
                 # Ensure position_value is calculated and handled correctly
                 position_value_usdt = float(position.entry_price) * float(position.quantity) if hasattr(position, 'entry_price') and hasattr(position, 'quantity') else 0.0
 
