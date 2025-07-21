@@ -1787,7 +1787,36 @@ def get_trading_environment():
 @app.route('/ml_reports')
 def ml_reports():
     """ML Reports page"""
-    return render_template('ml_reports.html')
+    try:
+        # Get ML system status
+        ml_status = {
+            'data_available': False,
+            'models_trained': False,
+            'total_trades': 0,
+            'closed_trades': 0,
+            'ml_ready': False
+        }
+        
+        if IMPORTS_AVAILABLE:
+            try:
+                from src.analytics.trade_logger import trade_logger
+                total_trades = len(trade_logger.trades)
+                closed_trades = len([t for t in trade_logger.trades if getattr(t, 'trade_status', None) == "CLOSED"])
+                
+                ml_status.update({
+                    'total_trades': total_trades,
+                    'closed_trades': closed_trades,
+                    'data_available': closed_trades >= 3,
+                    'models_trained': closed_trades >= 3,
+                    'ml_ready': closed_trades >= 3
+                })
+            except Exception as e:
+                logger.error(f"Error getting ML status: {e}")
+        
+        return render_template('ml_reports.html', ml_status=ml_status)
+    except Exception as e:
+        logger.error(f"Error loading ML reports page: {e}")
+        return f"Error loading ML reports: {e}"
 
 @app.route('/trades_database')
 def trades_database():
@@ -1879,27 +1908,60 @@ def get_ml_system_status():
     """Get ML system status"""
     try:
         if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+            return jsonify({
+                'success': False, 
+                'error': 'ML features not available in demo mode',
+                'status': {
+                    'data_available': False,
+                    'models_trained': False,
+                    'total_trades': 0,
+                    'closed_trades': 0,
+                    'ml_ready': False
+                }
+            })
 
         from src.analytics.ml_analyzer import ml_analyzer
         from src.analytics.trade_logger import trade_logger
 
-        total_trades = len(trade_logger.trades)
-        closed_trades = len([t for t in trade_logger.trades if t.trade_status == "CLOSED"])
+        # Safe access to trade data
+        try:
+            total_trades = len(trade_logger.trades)
+            closed_trades = len([t for t in trade_logger.trades if getattr(t, 'trade_status', None) == "CLOSED"])
+        except Exception as trade_error:
+            logger.error(f"Error accessing trade data: {trade_error}")
+            total_trades = 0
+            closed_trades = 0
+        
+        # Check if models are trained
+        models_trained = (
+            hasattr(ml_analyzer, 'profitability_model') and 
+            ml_analyzer.profitability_model is not None
+        )
         
         status = {
             'data_available': closed_trades >= 3,
-            'models_trained': ml_analyzer.profitability_model is not None,
+            'models_trained': models_trained,
             'total_trades': total_trades,
             'closed_trades': closed_trades,
-            'ml_ready': closed_trades >= 3 and ml_analyzer.profitability_model is not None
+            'ml_ready': closed_trades >= 3 and models_trained,
+            'feature_count': len(ml_analyzer.training_feature_names) if hasattr(ml_analyzer, 'training_feature_names') and ml_analyzer.training_feature_names else 0
         }
 
         return jsonify({'success': True, 'status': status})
 
     except Exception as e:
         logger.error(f"Error getting ML system status: {e}")
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'status': {
+                'data_available': False,
+                'models_trained': False,
+                'total_trades': 0,
+                'closed_trades': 0,
+                'ml_ready': False
+            }
+        })
 
 @app.route('/api/ml_model_performance')
 def get_ml_model_performance():

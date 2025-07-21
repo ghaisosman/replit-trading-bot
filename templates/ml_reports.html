@@ -441,10 +441,22 @@
             });
             
             // Show selected tab content
-            document.getElementById(tabName + '-tab').classList.add('active');
+            const tabContent = document.getElementById(tabName + '-tab');
+            if (tabContent) {
+                tabContent.classList.add('active');
+            }
             
-            // Add active to clicked tab
-            event.target.classList.add('active');
+            // Add active to clicked tab - fix event target
+            if (window.event && window.event.target) {
+                window.event.target.classList.add('active');
+            } else {
+                // Fallback - find the tab by name
+                document.querySelectorAll('.tab').forEach(tab => {
+                    if (tab.textContent.toLowerCase().includes(tabName.replace('-', ' '))) {
+                        tab.classList.add('active');
+                    }
+                });
+            }
         }
 
         // Output management
@@ -487,33 +499,60 @@
             appendOutput('🔍 Checking ML system status...');
             try {
                 const response = await fetch('/api/ml_system_status');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
                 
                 if (data.success) {
                     const status = data.status;
-                    document.getElementById('system-status').innerHTML = `
-                        <div class="insight-item">
-                            <span class="insight-label">Data Available:</span>
-                            <span class="insight-value">${status.data_available ? '✅ Yes' : '❌ No'}</span>
-                        </div>
-                        <div class="insight-item">
-                            <span class="insight-label">Models Trained:</span>
-                            <span class="insight-value">${status.models_trained ? '✅ Yes' : '❌ No'}</span>
-                        </div>
-                        <div class="insight-item">
-                            <span class="insight-label">Total Trades:</span>
-                            <span class="insight-value">${status.total_trades}</span>
-                        </div>
-                        <div class="insight-item">
-                            <span class="insight-label">Closed Trades:</span>
-                            <span class="insight-value">${status.closed_trades}</span>
-                        </div>
-                    `;
-                    appendOutput(`✅ System Status: ${status.closed_trades} closed trades, models ${status.models_trained ? 'trained' : 'need training'}`);
+                    const statusElement = document.getElementById('system-status');
+                    
+                    if (statusElement) {
+                        statusElement.innerHTML = `
+                            <div class="insight-item">
+                                <span class="insight-label">Data Available:</span>
+                                <span class="insight-value">${status.data_available ? '✅ Yes' : '❌ No'}</span>
+                            </div>
+                            <div class="insight-item">
+                                <span class="insight-label">Models Trained:</span>
+                                <span class="insight-value">${status.models_trained ? '✅ Yes' : '❌ No'}</span>
+                            </div>
+                            <div class="insight-item">
+                                <span class="insight-label">Total Trades:</span>
+                                <span class="insight-value">${status.total_trades || 0}</span>
+                            </div>
+                            <div class="insight-item">
+                                <span class="insight-label">Closed Trades:</span>
+                                <span class="insight-value">${status.closed_trades || 0}</span>
+                            </div>
+                            <div class="insight-item">
+                                <span class="insight-label">ML Ready:</span>
+                                <span class="insight-value">${status.ml_ready ? '✅ Ready' : '❌ Not Ready'}</span>
+                            </div>
+                        `;
+                    }
+                    
+                    appendOutput(`✅ System Status: ${status.closed_trades || 0} closed trades, models ${status.models_trained ? 'trained' : 'need training'}`);
+                    
+                    if (!status.data_available) {
+                        appendOutput('💡 Need at least 3 closed trades to train ML models');
+                    }
+                    
                 } else {
-                    appendOutput(`❌ Error checking status: ${data.error}`);
+                    const statusElement = document.getElementById('system-status');
+                    if (statusElement) {
+                        statusElement.innerHTML = `<div class="error">❌ ${data.error || 'Unknown error'}</div>`;
+                    }
+                    appendOutput(`❌ Error checking status: ${data.error || 'Unknown error'}`);
                 }
             } catch (error) {
+                const statusElement = document.getElementById('system-status');
+                if (statusElement) {
+                    statusElement.innerHTML = `<div class="error">❌ Connection failed</div>`;
+                }
                 appendOutput(`❌ Failed to check system status: ${error.message}`);
             }
         }
@@ -522,15 +561,35 @@
             appendOutput('📊 Generating quick insights...');
             try {
                 const response = await fetch('/api/ml_insights');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
                 
-                if (data.success) {
+                if (data.success && data.insights) {
                     displayInsights(data.insights);
                     appendOutput('✅ Quick insights generated successfully');
+                    
+                    // Log insights summary
+                    if (data.insights.strategy_performance) {
+                        const strategyCount = Object.keys(data.insights.strategy_performance).length;
+                        appendOutput(`📊 Analyzed ${strategyCount} trading strategies`);
+                    }
+                    
                 } else {
-                    appendOutput(`❌ Error generating insights: ${data.error}`);
+                    const insightsElement = document.getElementById('quick-insights');
+                    if (insightsElement) {
+                        insightsElement.innerHTML = `<div class="error">❌ ${data.error || 'No insights available'}</div>`;
+                    }
+                    appendOutput(`❌ Error generating insights: ${data.error || 'No data available'}`);
                 }
             } catch (error) {
+                const insightsElement = document.getElementById('quick-insights');
+                if (insightsElement) {
+                    insightsElement.innerHTML = `<div class="error">❌ Connection failed</div>`;
+                }
                 appendOutput(`❌ Failed to get insights: ${error.message}`);
             }
         }
@@ -539,22 +598,51 @@
             appendOutput('🎯 Checking model performance...');
             try {
                 const response = await fetch('/api/ml_model_performance');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
                 
-                if (data.success) {
+                if (data.success && data.performance) {
                     const perf = data.performance;
-                    document.getElementById('accuracy-metric').textContent = 
-                        perf.accuracy ? `${(perf.accuracy * 100).toFixed(1)}%` : '--';
-                    document.getElementById('trades-metric').textContent = 
-                        perf.dataset_size || '--';
-                    document.getElementById('features-metric').textContent = 
-                        perf.features_count || '--';
                     
-                    appendOutput(`✅ Model Performance: ${(perf.accuracy * 100).toFixed(1)}% accuracy, ${perf.dataset_size} trades, ${perf.features_count} features`);
+                    const accuracyElement = document.getElementById('accuracy-metric');
+                    const tradesElement = document.getElementById('trades-metric');
+                    const featuresElement = document.getElementById('features-metric');
+                    
+                    if (accuracyElement) {
+                        accuracyElement.textContent = perf.accuracy ? `${(perf.accuracy * 100).toFixed(1)}%` : '--';
+                    }
+                    
+                    if (tradesElement) {
+                        tradesElement.textContent = perf.dataset_size || '--';
+                    }
+                    
+                    if (featuresElement) {
+                        featuresElement.textContent = perf.features_count || '--';
+                    }
+                    
+                    const accuracy = perf.accuracy ? (perf.accuracy * 100).toFixed(1) : 'N/A';
+                    appendOutput(`✅ Model Performance: ${accuracy}% accuracy, ${perf.dataset_size || 0} trades, ${perf.features_count || 0} features`);
+                    
                 } else {
-                    appendOutput(`❌ Error checking performance: ${data.error}`);
+                    // Update UI with error state
+                    ['accuracy-metric', 'trades-metric', 'features-metric'].forEach(id => {
+                        const element = document.getElementById(id);
+                        if (element) element.textContent = 'Error';
+                    });
+                    
+                    appendOutput(`❌ Error checking performance: ${data.error || 'No performance data available'}`);
                 }
             } catch (error) {
+                // Update UI with error state
+                ['accuracy-metric', 'trades-metric', 'features-metric'].forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) element.textContent = '--';
+                });
+                
                 appendOutput(`❌ Failed to check model performance: ${error.message}`);
             }
         }
