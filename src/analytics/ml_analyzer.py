@@ -350,14 +350,14 @@ class MLTradeAnalyzer:
 
             for trade in recent_trades:
                 trade_dict = {
-                    'strategy': getattr(trade, 'strategy', 'rsi_oversold'),
+                    'strategy': getattr(trade, 'strategy_name', 'rsi_oversold'),
                     'symbol': getattr(trade, 'symbol', 'BTCUSDT'),
                     'side': getattr(trade, 'side', 'BUY'),
                     'leverage': getattr(trade, 'leverage', 5),
-                    'position_size_usdt': getattr(trade, 'position_size_usdt', 100),
+                    'position_size_usdt': getattr(trade, 'position_value_usdt', 100),
                     'rsi_entry': getattr(trade, 'rsi_at_entry', 50),
-                    'hour_of_day': trade.entry_time.hour if trade.entry_time else 12,
-                    'day_of_week': trade.entry_time.weekday() if trade.entry_time else 1,
+                    'hour_of_day': trade.timestamp.hour if hasattr(trade, 'timestamp') and trade.timestamp else 12,
+                    'day_of_week': trade.timestamp.weekday() if hasattr(trade, 'timestamp') and trade.timestamp else 1,
                     'market_trend': getattr(trade, 'market_trend', 'NEUTRAL'),
                     'actual_pnl': getattr(trade, 'pnl_percentage', 0)
                 }
