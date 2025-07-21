@@ -334,13 +334,13 @@ class MLTradeAnalyzer:
 
             for trade in historical_trades[-20:]:  # Use recent 20 trades
                 trade_dict = {
-                    'strategy': trade.strategy,
-                    'symbol': trade.symbol,
-                    'side': trade.side,
-                    'leverage': trade.leverage,
-                    'position_size_usdt': trade.position_size_usdt,
-                    'rsi_entry': trade.rsi_at_entry,
-                    'actual_pnl': trade.pnl_percentage
+                    'strategy': getattr(trade, 'strategy', 'unknown_strategy'),
+                    'symbol': getattr(trade, 'symbol', 'UNKNOWN'),
+                    'side': getattr(trade, 'side', 'BUY'),
+                    'leverage': getattr(trade, 'leverage', 1),
+                    'position_size_usdt': getattr(trade, 'position_size_usdt', 100),
+                    'rsi_entry': getattr(trade, 'rsi_at_entry', 50),
+                    'actual_pnl': getattr(trade, 'pnl_percentage', 0)
                 }
 
                 scenarios = self.generate_what_if_scenarios(trade_dict)
@@ -399,13 +399,15 @@ class MLTradeAnalyzer:
             # Strategy breakdown
             strategy_performance = {}
             for trade in closed_trades:
-                if trade.strategy not in strategy_performance:
-                    strategy_performance[trade.strategy] = {'wins': 0, 'total': 0, 'pnl': 0}
+                strategy = getattr(trade, 'strategy', 'unknown_strategy')
+                if strategy not in strategy_performance:
+                    strategy_performance[strategy] = {'wins': 0, 'total': 0, 'pnl': 0}
 
-                strategy_performance[trade.strategy]['total'] += 1
-                strategy_performance[trade.strategy]['pnl'] += trade.pnl_percentage
-                if trade.pnl_percentage > 0:
-                    strategy_performance[trade.strategy]['wins'] += 1
+                strategy_performance[strategy]['total'] += 1
+                strategy_performance[strategy]['pnl'] += getattr(trade, 'pnl_percentage', 0)
+                pnl = getattr(trade, 'pnl_percentage', 0)
+                if pnl > 0:
+                    strategy_performance[strategy]['wins'] += 1
 
             # Generate insights
             insights = self.generate_insights()
@@ -784,11 +786,13 @@ END OF REPORT - Ready for AI Analysis
 
                 stats = export_data["strategy_breakdown"][strategy]
                 stats["total_trades"] += 1
-                stats["total_pnl"] += trade.pnl_percentage
-                if trade.pnl_percentage > 0:
+                pnl = getattr(trade, 'pnl_percentage', 0)
+                stats["total_pnl"] += pnl
+                if pnl > 0:
                     stats["wins"] += 1
-                if trade.symbol not in stats["symbols"]:
-                    stats["symbols"].append(trade.symbol)
+                symbol = getattr(trade, 'symbol', 'UNKNOWN')
+                if symbol not in stats["symbols"]:
+                    stats["symbols"].append(symbol)
 
             # Add detailed trade data
             for trade in closed_trades[-20:]:  # Last 20 trades for detailed analysis

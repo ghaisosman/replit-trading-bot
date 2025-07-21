@@ -70,6 +70,14 @@ def generate_insights():
 def test_prediction():
     """Test ML prediction with sample data"""
     print("🔮 Testing ML prediction...")
+    
+    # Check if models are trained, if not, train them first
+    if not ml_analyzer.profitability_model:
+        print("📚 No trained models found. Training models first...")
+        train_results = ml_analyzer.train_models()
+        if "error" in train_results:
+            print(f"❌ Failed to train models: {train_results['error']}")
+            return
 
     # Sample trade features
     sample_features = {
@@ -354,17 +362,19 @@ def analyze_what_if_scenarios():
     
     recent_trade = closed_trades[-1]
     base_trade = {
-        'strategy': recent_trade.strategy,
-        'symbol': recent_trade.symbol,
-        'side': recent_trade.side,
-        'leverage': recent_trade.leverage,
-        'position_size_usdt': recent_trade.position_size_usdt,
-        'rsi_entry': recent_trade.rsi_at_entry,
-        'actual_pnl': recent_trade.pnl_percentage
+        'strategy': getattr(recent_trade, 'strategy', 'unknown_strategy'),
+        'symbol': getattr(recent_trade, 'symbol', 'UNKNOWN'),
+        'side': getattr(recent_trade, 'side', 'BUY'),
+        'leverage': getattr(recent_trade, 'leverage', 1),
+        'position_size_usdt': getattr(recent_trade, 'position_size_usdt', 100),
+        'rsi_entry': getattr(recent_trade, 'rsi_at_entry', 50),
+        'actual_pnl': getattr(recent_trade, 'pnl_percentage', 0)
     }
     
-    print(f"📊 Analyzing scenarios for trade: {recent_trade.trade_id}")
-    print(f"🎯 Actual PnL: {recent_trade.pnl_percentage:.2f}%")
+    trade_id = getattr(recent_trade, 'trade_id', 'unknown')
+    actual_pnl = getattr(recent_trade, 'pnl_percentage', 0)
+    print(f"📊 Analyzing scenarios for trade: {trade_id}")
+    print(f"🎯 Actual PnL: {actual_pnl:.2f}%")
     
     scenarios = ml_analyzer.generate_what_if_scenarios(base_trade)
     
