@@ -1415,7 +1415,7 @@ Interval: every {assessment_interval} seconds
 
     def _notify_position_closed(self, strategy_name, result):
         """Helper method to notify position closed via Telegram"""
-        try:```python
+        try:
             position = self.order_manager.active_positions.get(strategy_name)
             if position:
                 from dataclasses import asdict
