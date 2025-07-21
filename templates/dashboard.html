@@ -1436,20 +1436,15 @@
 
                         const rsiElement = document.getElementById('rsi-' + index);
                         if (rsiElement) {
-                            rsiElement.className = 'badge ' + rsiClass;
+                            rsiElement.className = `badge ${rsiClass}`;
                             rsiElement.textContent = rsiText;
-
-                            // Add tooltip if there's a note
-                            if (data.note) {
-                                rsiElement.title = data.note;
-                            }
                         }
                     } else {
                         const rsiElement = document.getElementById('rsi-' + index);
                         if (rsiElement) {
-                            rsiElement.className = 'badge bg-warning';
-                            rsiElement.textContent = 'RSI: N/A';
-                            rsiElement.title = 'RSI data temporarily unavailable';
+                            rsiElement.className = 'badge bg-danger';
+                            rsiElement.textContent = 'RSI: Error';
+                            rsiElement.title = data.error || 'Failed to calculate RSI';
                         }
                     }
                 })
@@ -1834,13 +1829,13 @@
                         button.className = 'btn btn-outline-success btn-sm strategy-toggle-btn';
                         button.setAttribute('onclick', `enableStrategy('${strategyName}')`);
                         button.setAttribute('data-state', 'disabled');
-                        
+
                         // Store state in localStorage for persistence across page reloads
                         localStorage.setItem(`strategy_${strategyName}_state`, 'disabled');
-                        
+
                         // Show success message
                         showAlert('Strategy disabled successfully!', 'success');
-                        
+
                         // Update strategy status badge
                         updateStrategyStatusBadge(strategyName, 'disabled');
                     } else {
@@ -1898,13 +1893,13 @@
                         button.className = 'btn btn-outline-danger btn-sm strategy-toggle-btn';
                         button.setAttribute('onclick', `disableStrategy('${strategyName}')`);
                         button.setAttribute('data-state', 'enabled');
-                        
+
                         // Store state in localStorage for persistence across page reloads
                         localStorage.setItem(`strategy_${strategyName}_state`, 'enabled');
-                        
+
                         // Show success message
                         showAlert('Strategy enabled successfully!', 'success');
-                        
+
                         // Update strategy status badge
                         updateStrategyStatusBadge(strategyName, 'enabled');
                     } else {
@@ -1956,7 +1951,7 @@
             buttons.forEach(button => {
                 const strategyName = button.getAttribute('data-strategy');
                 const storedState = localStorage.getItem(`strategy_${strategyName}_state`);
-                
+
                 if (storedState) {
                     // Override server-side state with client-side stored state
                     if (storedState === 'disabled') {
@@ -2349,7 +2344,7 @@
             // Remove existing alerts
             const existingAlerts = document.querySelectorAll('.dynamic-alert');
             existingAlerts.forEach(alert => alert.remove());
-            
+
             // Create new alert
             const alertDiv = document.createElement('div');
             alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} dynamic-alert position-fixed`;
@@ -2359,9 +2354,9 @@
                 ${message}
                 <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
             `;
-            
+
             document.body.appendChild(alertDiv);
-            
+
             // Auto-remove after 5 seconds
             setTimeout(() => {
                 if (alertDiv.parentNode) {

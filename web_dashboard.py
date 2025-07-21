@@ -289,7 +289,7 @@ def dashboard_health():
     try:
         current_time = datetime.now().strftime('%H:%M:%S')
         current_bot = get_shared_bot_manager()
-        
+
         health_status = {
             'dashboard_status': 'healthy',
             'timestamp': current_time,
@@ -300,10 +300,10 @@ def dashboard_health():
             'can_start_bot': True,
             'can_stop_bot': True
         }
-        
+
         logger.info(f"🔍 DEBUG: Dashboard health check - {health_status}")
         return jsonify(health_status)
-        
+
     except Exception as e:
         logger.error(f"🔍 DEBUG: Dashboard health check failed: {e}")
         return jsonify({
@@ -426,7 +426,7 @@ def start_bot():
         logger.info(f"🔍 DEBUG: Bot thread status - Running: {bot_running}, Thread alive: {bot_thread.is_alive() if bot_thread else 'No thread'}")
         if bot_running and bot_thread and bot_thread.is_alive():
             return jsonify({'success': False, 'message': 'Bot is already running in web dashboard'})
-            
+
         logger.info("🌐 WEB INTERFACE: Starting bot from dashboard")
         logger.info("🔍 DEBUG: Setting bot_running = True")
         bot_running = True
@@ -496,7 +496,7 @@ def stop_bot():
         logger.info("🔍 DEBUG: Beginning bot stop procedure...")
 
         stopped = False
-        
+
         # Debug current state - bot_running is now safely accessible
         logger.info(f"🔍 DEBUG: Current state - bot_running: {bot_running}")
         logger.info(f"🔍 DEBUG: Bot thread alive: {bot_thread.is_alive() if bot_thread else 'No thread'}")
@@ -1475,7 +1475,7 @@ def get_rsi(symbol):
 
         # Try to get klines with proper error handling
         try:
-            klines = binance_client.getlines(symbol=symbol, interval='15m', limit=100)
+            klines = binance_client.get_klines(symbol=symbol, interval='15m', limit=100)
 
             if not klines or len(klines) < 15:
                 # Fallback: Try different timeframe
@@ -1484,22 +1484,9 @@ def get_rsi(symbol):
             if not klines or len(klines) < 15:
                 return jsonify({'success': False, 'error': f'Insufficient market data for {symbol}'})
 
-        except Exception as api_error:
-            logger.error(f"Binance API error for {symbol}: {api_error}")
-            # Return a reasonable fallback RSI value based on symbol
-            fallback_rsi = 50.0  # Neutral RSI
-            if 'BTC' in symbol.upper():
-                fallback_rsi = 45.0
-            elif 'ETH' in symbol.upper():
-                fallback_rsi = 48.0
-            elif 'SOL' in symbol.upper():
-                fallback_rsi = 52.0
-
-            return jsonify({
-                'success': True, 
-                'rsi': fallback_rsi,
-                'note': 'Estimated RSI (API temporarily unavailable)'
-            })
+        except Exception as e:
+            logger.error(f"Error fetching klines for {symbol}: {e}")
+            return jsonify({'success': False, 'error': f'Failed to fetch market data for {symbol}'})
 
         # Convert to closes
         closes = []
@@ -1530,72 +1517,68 @@ def get_rsi(symbol):
     except Exception as e:
         logger.error(f"Error in get_rsi endpoint for {symbol}: {e}")
         # Return a fallback RSI instead of error to prevent infinite loading
-        return jsonify({
-            'success': True, 
-            'rsi': 50.0,
-            'note': 'Fallback RSI due to technical issue'
-        })
+        return jsonify({'success': False, 'error': f'Failed to get RSI for {symbol}'})
 
-def calculate_rsi(closes, period=14):
-    """Calculate RSI (Relative Strength Index) - matches bot's calculation with enhanced error handling"""
+def calculate_rsi(prices, period=14):
+    """Calculate RSI indicator with enhanced validation"""
     try:
-        if not closes or len(closes) < period + 1:
-            return 50.0  # Default RSI if not enough data
+        # Ensure we have enough data points
+        if len(prices) < period + 1:
+            logger.warning(f"Insufficient price data for RSI calculation: {len(prices)} < {period + 1}")
+            return None
 
-        # Validate closes data
-        valid_closes = []
-        for close in closes:
-            if isinstance(close, (int, float)) and close > 0:
-                valid_closes.append(float(close))
-
-        if len(valid_closes) < period + 1:
-            return 50.0
+        # Convert to float and validate all prices
+        try:
+            prices = [float(p) for p in prices]
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid price data for RSI calculation: {e}")
+            return None
 
         # Calculate price changes
         deltas = []
-        for i in range(1, len(valid_closes)):
-            delta = valid_closes[i] - valid_closes[i-1]
+        for i in range(1, len(prices)):
+            delta = prices[i] - prices[i-1]
+            if not isinstance(delta, (int, float)) or not (-1000 < delta < 1000):  # Sanity check
+                logger.warning(f"Suspicious price delta: {delta}")
             deltas.append(delta)
 
         # Separate gains and losses
-        gains = []
-        losses = []
-        for delta in deltas:
-            if delta > 0:
-                gains.append(delta)
-                losses.append(0)
-            else:
-                gains.append(0)
-                losses.append(abs(delta))
+        gains = [max(delta, 0) for delta in deltas]
+        losses = [max(-delta, 0) for delta in deltas]
 
-        # Use exponential moving average like the bot does
+        # Calculate initial averages (Wilder's smoothing method)
         if len(gains) < period:
-            return 50.0
+            logger.warning(f"Insufficient gain/loss data for RSI: {len(gains)} < {period}")
+            return None
 
-        # Calculate initial averages
         avg_gain = sum(gains[:period]) / period
         avg_loss = sum(losses[:period]) / period
 
-        # Calculate RSI using smoothed averages for remaining periods
+        # Calculate smoothed averages for remaining periods
         for i in range(period, len(gains)):
             avg_gain = (avg_gain * (period - 1) + gains[i]) / period
             avg_loss = (avg_loss * (period - 1) + losses[i]) / period
 
+        # Handle edge cases
         if avg_loss == 0:
-            return 100.0
+            return 100.0 if avg_gain > 0 else 50.0
 
+        # Calculate RSI
         rs = avg_gain / avg_loss
         rsi = 100 - (100 / (1 + rs))
 
-        # Validate final RSI value
-        if rsi < 0 or rsi > 100 or not isinstance(rsi, (int, float)):
-            return 50.0
+        # Final validation - RSI must be between 0 and 100
+        if not isinstance(rsi, (int, float)) or rsi < 0 or rsi > 100:
+            logger.error(f"Invalid RSI calculation result: {rsi}")
+            return None
 
         return rsi
 
     except Exception as e:
-        logger.error(f"RSI calculation error: {e}")
-        return 50.0  # Safe fallback
+        logger.error(f"Error calculating RSI: {e}")
+        import traceback
+        logger.error(f"RSI calculation traceback: {traceback.format_exc()}")
+        return None
 
 def get_bot_manager():
     """Get the current bot manager with improved detection"""
@@ -2158,10 +2141,10 @@ def run_web_dashboard():
 
     try:
         logger.info("🔍 DEBUG: Starting web dashboard initialization...")
-        
+
         # Get port from environment
         port = int(os.environ.get('PORT', 5000))
-        
+
         logger.info(f"🔍 DEBUG: Port configured: {port}")
         logger.info(f"🌐 Starting web dashboard on port {port}")
 
@@ -2200,7 +2183,7 @@ def run_web_dashboard():
         logger.error(f"🔍 DEBUG: Syntax error at line {e.lineno}: {e.text}")
         import traceback
         logger.error(f"❌ Full syntax traceback: {traceback.format_exc()}")
-        
+
         # Don't restart on syntax errors - they need manual fixing
         logger.error("🚫 SYNTAX ERROR DETECTED - Dashboard cannot start until fixed")
         return
@@ -2209,7 +2192,7 @@ def run_web_dashboard():
         logger.error(f"❌ IMPORT ERROR in web dashboard: {e}")
         import traceback
         logger.error(f"❌ Import traceback: {traceback.format_exc()}")
-        
+
         # Wait and try again for import errors
         import time
         time.sleep(3)
