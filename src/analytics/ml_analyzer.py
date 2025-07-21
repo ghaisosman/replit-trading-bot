@@ -815,51 +815,6 @@ END OF REPORT - Ready for AI Analysis
             self.logger.error(f"❌ Error exporting AI-ready data: {e}")
             return {"error": str(e)}
 
-    async def get_external_ai_insights(self, api_key: str = None, provider: str = "openai") -> Dict:
-        """Get insights from external AI service"""
-        try:
-            if not api_key:
-                return {"error": "API key required for external AI integration"}
-
-            context = self.prepare_ai_context()
-
-            # Prepare the prompt for AI analysis
-            prompt = f"""
-As an expert trading advisor, analyze this algorithmic trading bot's performance data:
-
-{context}
-
-Please provide:
-1. 🎯 PERFORMANCE ANALYSIS: Key patterns you observe
-2. ⚠️ RISK WARNINGS: Potential issues or concerns  
-3. 💡 OPTIMIZATION SUGGESTIONS: Specific improvements
-4. 🔧 TECHNICAL RECOMMENDATIONS: Code or parameter adjustments
-5. 📈 STRATEGY INSIGHTS: Market timing or setup improvements
-
-Format your response as structured insights that can guide algorithmic improvements.
-"""
-
-            # Note: In a real implementation, you would make an API call here
-            # For now, we'll return a structured template for the response
-
-            return {
-                "success": True,
-                "provider": provider,
-                "analysis": {
-                    "performance_analysis": "AI analysis would appear here",
-                    "risk_warnings": "AI risk assessment would appear here", 
-                    "optimization_suggestions": "AI optimization ideas would appear here",
-                    "technical_recommendations": "AI technical advice would appear here",
-                    "strategy_insights": "AI strategy recommendations would appear here"
-                },
-                "context_used": context,
-                "timestamp": datetime.now().isoformat()
-            }
-
-        except Exception as e:
-            self.logger.error(f"❌ Error getting external AI insights: {e}")
-            return {"error": str(e)}
-
     def get_enhanced_insights(self) -> Dict[str, Any]:
         """Generate enhanced insights with advanced analytics"""
         try:
