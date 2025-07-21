@@ -1420,8 +1420,7 @@ def get_positions():
                         margin_invested = strategy_config.get('margin', 50.0)  # Last resort fallback
 
                     if margin_invested > 0:
-                        pnl_percent = (pnl / margin_invested) * 10```python
-0
+                        pnl_percent = (pnl / margin_invested) * 100
 
                 # Ensure position_value_usdt is calculated and handled correctly
                 position_value_usdt = float(position.entry_price) * float(position.quantity) if hasattr(position, 'entry_price') and hasattr(position, 'quantity') else 0.0
