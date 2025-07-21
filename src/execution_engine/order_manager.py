@@ -768,6 +768,177 @@ class OrderManager:
             self.logger.error(f"Error getting latest price for {symbol}: {e}")
             return None
 
+    def _calculate_entry_indicators(self, symbol: str) -> dict:
+        """Calculate technical indicators at trade entry"""
+        try:
+            # Get recent klines for indicator calculation
+            klines = self.binance_client.client.futures_klines(
+                symbol=symbol,
+                interval='1h',
+                limit=100
+            )
+
+            if not klines or len(klines) < 50:
+                self.logger.warning(f"Insufficient data for indicators on {symbol}")
+                return {}
+
+            # Extract prices and volumes
+            closes = [float(kline[4]) for kline in klines]
+            volumes = [float(kline[5]) for kline in klines]
+
+            indicators = {}
+
+            # Calculate RSI
+            if len(closes) >= 14:
+                indicators['rsi'] = self._calculate_rsi(closes)
+
+            # Calculate MACD
+            if len(closes) >= 26:
+                indicators['macd'] = self._calculate_simple_macd(closes)
+
+            # Calculate SMAs
+            if len(closes) >= 20:
+                indicators['sma_20'] = sum(closes[-20:]) / 20
+            if len(closes) >= 50:
+                indicators['sma_50'] = sum(closes[-50:]) / 50
+
+            # Volume analysis
+            if volumes:
+                indicators['volume'] = sum(volumes[-20:]) / min(20, len(volumes))
+
+            # Signal strength (basic calculation)
+            indicators['signal_strength'] = self._calculate_signal_strength(indicators)
+
+            self.logger.info(f"📊 Calculated indicators for {symbol}: RSI={indicators.get('rsi', 'N/A')}, MACD={indicators.get('macd', 'N/A')}")
+            return indicators
+
+        except Exception as e:
+            self.logger.error(f"Error calculating entry indicators for {symbol}: {e}")
+            return {}
+
+    def _analyze_market_conditions(self, symbol: str) -> dict:
+        """Analyze current market conditions"""
+        try:
+            # Get recent price data
+            klines = self.binance_client.client.futures_klines(
+                symbol=symbol,
+                interval='1h',
+                limit=20
+            )
+
+            if not klines or len(klines) < 20:
+                return {}
+
+            closes = [float(kline[4]) for kline in klines]
+            conditions = {}
+
+            # Market trend analysis
+            recent_trend = (closes[-1] - closes[-20]) / closes[-20]
+            if recent_trend > 0.02:
+                conditions['trend'] = 'BULLISH'
+            elif recent_trend < -0.02:
+                conditions['trend'] = 'BEARISH'
+            else:
+                conditions['trend'] = 'SIDEWAYS'
+
+            # Volatility score
+            price_changes = [abs(closes[i] - closes[i-1]) / closes[i-1] for i in range(1, len(closes))]
+            conditions['volatility'] = sum(price_changes) / len(price_changes)
+
+            # Market phase (based on time)
+            from datetime import datetime
+            current_hour = datetime.now().hour
+            if 8 <= current_hour <= 16:
+                conditions['phase'] = 'LONDON'
+            elif 13 <= current_hour <= 21:
+                conditions['phase'] = 'NEW_YORK'
+            else:
+                conditions['phase'] = 'ASIAN'
+
+            return conditions
+
+        except Exception as e:
+            self.logger.error(f"Error analyzing market conditions for {symbol}: {e}")
+            return {}
+
+    def _calculate_rsi(self, prices: list, period: int = 14) -> float:
+        """Calculate RSI indicator"""
+        try:
+            if len(prices) < period + 1:
+                return None
+
+            gains, losses = [], []
+            for i in range(1, len(prices)):
+                change = prices[i] - prices[i-1]
+                gains.append(max(change, 0))
+                losses.append(max(-change, 0))
+
+            if len(gains) < period:
+                return None
+
+            avg_gain = sum(gains[-period:]) / period
+            avg_loss = sum(losses[-period:]) / period
+
+            if avg_loss == 0:
+                return 100
+
+            rs = avg_gain / avg_loss
+            rsi = 100 - (100 / (1 + rs))
+            return round(rsi, 2)
+
+        except Exception:
+            return None
+
+    def _calculate_simple_macd(self, prices: list) -> float:
+        """Calculate simplified MACD"""
+        try:
+            if len(prices) < 26:
+                return None
+
+            ema_12 = sum(prices[-12:]) / 12
+            ema_26 = sum(prices[-26:]) / 26
+            macd = ema_12 - ema_26
+            return round(macd, 4)
+
+        except Exception:
+            return None
+
+    def _calculate_signal_strength(self, indicators: dict) -> float:
+        """Calculate signal strength based on indicators"""
+        try:
+            strength = 0.0
+            total_weight = 0.0
+
+            # RSI contribution
+            rsi = indicators.get('rsi')
+            if rsi is not None:
+                if rsi < 30:  # Oversold
+                    strength += 0.8
+                elif rsi > 70:  # Overbought
+                    strength += 0.8
+                else:
+                    strength += 0.3
+                total_weight += 1.0
+
+            # MACD contribution
+            macd = indicators.get('macd')
+            if macd is not None:
+                strength += min(abs(macd) * 100, 1.0)  # Normalize MACD
+                total_weight += 1.0
+
+            # SMA trend contribution
+            sma_20 = indicators.get('sma_20')
+            sma_50 = indicators.get('sma_50')
+            if sma_20 and sma_50:
+                trend_strength = abs(sma_20 - sma_50) / sma_50
+                strength += min(trend_strength * 10, 1.0)
+                total_weight += 1.0
+
+            return round(strength / max(total_weight, 1.0), 2)
+
+        except Exception:
+            return 0.0
+
     def _log_trade_entry(self, position: Position) -> None:
         """Log trade entry for analytics with error handling"""
         try:
@@ -1102,3 +1273,14 @@ Remaining Position: {position.remaining_quantity} {position.symbol.replace('USDT
             self.logger.debug(f"📜 TRADE DATA: {json.dumps(trade_data, indent=2)}")
         except Exception as e:
             self.logger.error(f"Error logging trade validation data: {e}")
+
+    def _validate_position_details(self, symbol: str, side: str, quantity: float, entry_price: float) -> bool:
+        """Validate position details"""
+        try:
+            if not all([symbol, side, quantity, entry_price]):
+                self.logger.error("Missing position details")
+                return False
+            return True
+        except Exception as e:
+            self.logger.error(f"Error validating position details: {e}")
+            return False
