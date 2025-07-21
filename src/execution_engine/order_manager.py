@@ -190,11 +190,8 @@ class OrderManager:
             # Generate Trade ID
             position.trade_id = self._generate_trade_id(strategy_name, symbol)
 
-            # Immediate trade recording
-            self._record_trade_immediately(position, strategy_config)
-
-            # Log trade for validation purposes
-            self._log_trade_for_validation(position)
+            # Single database recording with actual order confirmation data
+            self._record_confirmed_trade(position, order_result, strategy_config)
 
             # Record the time of this order for ghost detection timing
             self.last_order_time = datetime.now()
@@ -967,312 +964,62 @@ class OrderManager:
         """Generate consistent trade ID"""
         return f"{strategy_name}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-    def _record_trade_immediately(self, position: Position, strategy_config: Dict) -> bool:
-        """Record trade in database immediately after Binance confirmation with complete data"""
+    def _record_confirmed_trade(self, position: Position, order_result: dict, strategy_config: Dict) -> bool:
+        """Record trade in database using ACTUAL order confirmation data from Binance"""
         try:
             from src.execution_engine.trade_database import TradeDatabase
             trade_db = TradeDatabase()
 
-            # Use actual margin from position calculation or calculate it
-            if hasattr(position, 'actual_margin_used') and position.actual_margin_used:
-                margin_used = position.actual_margin_used
-            else:
-                position_value = position.entry_price * position.quantity
-                leverage = strategy_config.get('leverage', 1)
-                margin_used = position_value / leverage
-
-            position_value = position.entry_price * position.quantity
+            # Use ACTUAL values from order confirmation
+            actual_quantity = float(order_result.get('executedQty', position.quantity))
+            actual_price = float(order_result.get('avgPrice', position.entry_price))
+            
+            # Calculate actual margin used from confirmed order
+            position_value = actual_price * actual_quantity
             leverage = strategy_config.get('leverage', 1)
+            actual_margin_used = position_value / leverage
 
-            # Create complete trade data with all required fields
+            # Store actual margin in position for PnL calculations
+            position.actual_margin_used = actual_margin_used
+
+            # Create complete trade data with CONFIRMED order details
             trade_data = {
                 'strategy_name': position.strategy_name,
                 'symbol': position.symbol,
                 'side': position.side,
-                'quantity': position.quantity,
-                'entry_price': position.entry_price,
+                'quantity': actual_quantity,
+                'entry_price': actual_price,
                 'trade_status': 'OPEN',
                 'position_value_usdt': position_value,
                 'leverage': leverage,
-                'margin_used': margin_used,
-                'order_id': position.order_id,
+                'margin_used': actual_margin_used,
+                'order_id': order_result.get('orderId', position.order_id),
                 'stop_loss': position.stop_loss,
                 'take_profit': position.take_profit,
                 'position_side': position.position_side,
                 'entry_time': position.entry_time.isoformat() if position.entry_time else datetime.now().isoformat(),
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now().isoformat(),
+                'binance_order_status': order_result.get('status', 'FILLED'),
+                'commission_paid': order_result.get('commission', 0)
             }
 
-            # Record in database
+            # Single database recording with verified data
             success = trade_db.add_trade(position.trade_id, trade_data)
             if success:
-                self.logger.info(f"✅ TRADE RECORDED WITH COMPLETE DATA: {position.trade_id}")
-                self.logger.info(f"   💰 Margin Used: ${margin_used:.2f} USDT")
-                self.logger.info(f"   📊 Position Value: ${position_value:.2f} USDT")
-                self.logger.info(f"   ⚡ Leverage: {leverage}x")
+                self.logger.info(f"✅ TRADE RECORDED FROM ORDER CONFIRMATION: {position.trade_id}")
+                self.logger.info(f"   💰 Actual Margin: ${actual_margin_used:.2f} USDT")
+                self.logger.info(f"   📊 Confirmed Qty: {actual_quantity} @ ${actual_price:.4f}")
+                self.logger.info(f"   🔗 Order ID: {order_result.get('orderId')}")
             else:
                 self.logger.error(f"❌ TRADE RECORDING FAILED: {position.trade_id}")
 
             return success
 
         except Exception as e:
-            self.logger.error(f"❌ Error recording trade immediately: {e}")
+            self.logger.error(f"❌ Error recording confirmed trade: {e}")
             return False
 
-    def _log_trade_for_analytics(self, position: Position):
-        """Secondary logging for analytics"""
-        try:
-            if position.trade_id:
-                from src.analytics.trade_logger import trade_logger
-                trade_logger.log_trade_entry(
-                    trade_id=position.trade_id,
-                    strategy_name=position.strategy_name,
-                    symbol=position.symbol,
-                    side=position.side,
-                    entry_price=position.entry_price,
-                    quantity=position.quantity,
-                    margin_used=(position.entry_price * position.quantity) / (position.strategy_config.get('leverage', 5) if hasattr(position, 'strategy_config') and position.strategy_config else 5),
-                    leverage=position.strategy_config.get('leverage', 5) if hasattr(position, 'strategy_config') and position.strategy_config else 5,
-                    technical_indicators={},  # Placeholder - add indicator calculation here
-                    market_conditions={}  # Placeholder - add market condition analysis here
-                )
-        except Exception as e:
-            self.logger.error(f"❌ Error logging trade for analytics: {e}")
-
-    def _log_trade_entry(self, position: Position) -> None:
-        """Log trade entry for analytics with error handling"""
-        try:
-            # Calculate margin used (position value / leverage)
-            leverage = position.strategy_config.get('leverage', 5) if hasattr(position, 'strategy_config') and position.strategy_config else 5
-            margin_used = (position.entry_price * position.quantity) / leverage
-
-            # Log trade entry for analytics - trade_logger generates its own ID
-            from src.analytics.trade_logger import trade_logger
-            # Get actual leverage from strategy config
-            actual_leverage = position.strategy_config.get('leverage', 5) if hasattr(position, 'strategy_config') and position.strategy_config else 5
-
-            # Collect technical indicators for ML
-            technical_indicators = {}
-            market_conditions = {}
-
-            try:
-                # Get current market data for indicators
-                klines = self.binance_client.client.futures_klines(
-                    symbol=position.symbol,
-                    interval='1h',
-                    limit=50
-                )
-
-                if klines:
-                    closes = [float(kline[4]) for kline in klines]
-                    volumes = [float(kline[5]) for kline in klines]
-
-                    # Calculate technical indicators
-                    if len(closes) >= 14:
-                        # RSI calculation
-                        gains = []
-                        losses = []
-                        for i in range(1, len(closes)):
-                            change = closes[i] - closes[i-1]
-                            if change > 0:
-                                gains.append(change)
-                                losses.append(0)
-                            else:
-                                gains.append(0)
-                                losses.append(abs(change))
-
-                        if len(gains) >= 14:
-                            avg_gain = sum(gains[-14:]) / 14
-                            avg_loss = sum(losses[-14:]) / 14
-                            if avg_loss > 0:
-                                rs = avg_gain / avg_loss
-                                rsi = 100 - (100 / (1 + rs))
-                                technical_indicators['rsi'] = round(rsi, 2)
-
-                    # Moving averages
-                    if len(closes) >= 20:
-                        technical_indicators['sma_20'] = sum(closes[-20:]) / 20
-                    if len(closes) >= 50:
-                        technical_indicators['sma_50'] = sum(closes[-50:]) / 50
-
-                    # MACD (simplified)
-                    if len(closes) >= 26:
-                        ema_12 = sum(closes[-12:]) / 12
-                        ema_26 = sum(closes[-26:]) / 26
-                        technical_indicators['macd'] = round(ema_12 - ema_26, 4)
-
-                    # Volume
-                    if volumes:
-                        technical_indicators['volume'] = sum(volumes[-20:]) / min(20, len(volumes))
-
-                    # Market trend
-                    if len(closes) >= 20:
-                        recent_trend = (closes[-1] - closes[-20]) / closes[-20]
-                        if recent_trend > 0.02:
-                            market_conditions['trend'] = 'BULLISH'
-                        elif recent_trend < -0.02:
-                            market_conditions['trend'] = 'BEARISH'
-                        else:
-                            market_conditions['trend'] = 'SIDEWAYS'
-
-                    # Volatility
-                    if len(closes) >= 10:
-                        price_changes = [abs(closes[i] - closes[i-1]) / closes[i-1] for i in range(1, min(10, len(closes)))]
-                        market_conditions['volatility'] = sum(price_changes) / len(price_changes)
-
-                    # Market phase
-                    from datetime import datetime
-                    current_hour = datetime.now().hour
-                    if 8 <= current_hour <= 16:
-                        market_conditions['phase'] = 'LONDON'
-                    elif 13 <= current_hour <= 21:
-                        market_conditions['phase'] = 'NEW_YORK'
-                    else:
-                        market_conditions['phase'] = 'ASIAN'
-
-                    # Signal strength (based on strategy)
-                    if 'rsi' in position.strategy_name.lower() and 'rsi' in technical_indicators:
-                        rsi_val = technical_indicators['rsi']
-                        if rsi_val < 30:
-                            technical_indicators['signal_strength'] = 0.8  # Strong oversold
-                        elif rsi_val < 35:
-                            technical_indicators['signal_strength'] = 0.6  # Moderate oversold
-                        else:
-                            technical_indicators['signal_strength'] = 0.4  # Weak signal
-
-            except Exception as e:
-                self.logger.warning(f"⚠️ Could not collect technical indicators: {e}")
-
-            generated_trade_id = trade_logger.log_trade_entry(
-                strategy_name=position.strategy_name,
-                symbol=position.symbol,
-                side=position.side,
-                entry_price=position.entry_price,
-                quantity=position.quantity,
-                margin_used=margin_used,
-                leverage=actual_leverage,
-                technical_indicators=technical_indicators,
-                market_conditions=market_conditions
-            )
-
-            # Store the generated trade ID in the position
-            position.trade_id = generated_trade_id
-
-            # CRITICAL FIX: Also record trade in database for position validation
-            try:
-                from src.execution_engine.trade_database import TradeDatabase
-                trade_db = TradeDatabase()
-
-                # Create comprehensive trade data for database with all required fields
-                trade_data = {
-                    'trade_id': generated_trade_id,
-                    'strategy_name': position.strategy_name,
-                    'symbol': position.symbol,
-                    'side': position.side,
-                    'entry_price': float(position.entry_price),
-                    'quantity': float(position.quantity),
-                    'trade_status': 'OPEN',
-                    'stop_loss': float(position.stop_loss) if position.stop_loss else None,
-                    'take_profit': float(position.take_profit) if position.take_profit else None,
-                    'position_side': position.position_side,
-                    'order_id': position.order_id,
-                    'entry_time': position.entry_time.isoformat() if position.entry_time else datetime.now().isoformat(),
-                    'timestamp': position.entry_time.isoformat() if position.entry_time else datetime.now().isoformat(),
-                    'margin_used': float(margin_used),
-                    'leverage': int(actual_leverage),
-                    'position_value_usdt': float(position.entry_price * position.quantity),
-                    # Add technical indicators to database
-                    'rsi_at_entry': technical_indicators.get('rsi'),
-                    'macd_at_entry': technical_indicators.get('macd'),
-                    'sma_20_at_entry': technical_indicators.get('sma_20'),
-                    'sma_50_at_entry': technical_indicators.get('sma_50'),
-                    'volume_at_entry': technical_indicators.get('volume'),
-                    'entry_signal_strength': technical_indicators.get('signal_strength'),
-                    # Add market conditions to database
-                    'market_trend': market_conditions.get('trend'),
-                    'volatility_score': market_conditions.get('volatility'),
-                    'market_phase': market_conditions.get('phase')
-                }
-
-                # Validate all required data is present before adding
-                required_check = ['strategy_name', 'symbol', 'side', 'entry_price', 'quantity', 'trade_status']
-                missing = [f for f in required_check if f not in trade_data or trade_data[f] is None]
-
-                if missing:
-                    self.logger.error(f"❌ Cannot save trade to database - missing: {missing}")
-                    self.logger.error(f"❌ Trade data: {trade_data}")
-                else:
-                    # FORCE IMMEDIATE DATABASE SAVE - Don't rely on background processes
-                    self.logger.info(f"🔄 FORCE SAVING trade to database: {generated_trade_id}")
-                    success = trade_db.add_trade(generated_trade_id, trade_data)
-                    if success:
-                        # VERIFY it was actually saved by checking immediately
-                        verification_trade = trade_db.get_trade(generated_trade_id)
-                        if verification_trade:
-                            self.logger.info(f"✅ Trade successfully recorded and verified in database: {generated_trade_id}")
-                        else:
-                            self.logger.error(f"❌ Trade save reported success but verification failed: {generated_trade_id}")
-                    else:
-                        self.logger.error(f"❌ Failed to record trade in database: {generated_trade_id}")
-                        # EMERGENCY FALLBACK: Try one more time with minimal data
-                        minimal_trade_data = {
-                            'trade_id': generated_trade_id,
-                            'strategy_name': position.strategy_name,
-                            'symbol': position.symbol,
-                            'side': position.side,
-                            'entry_price': float(position.entry_price),
-                            'quantity': float(position.quantity),
-                            'trade_status': 'OPEN',
-                            'timestamp': datetime.now().isoformat(),
-                            'margin_used': float(margin_used),
-                            'leverage': int(actual_leverage),
-                            'position_value_usdt': float(position.entry_price * position.quantity)
-                        }
-
-                        self.logger.warning(f"🔄 EMERGENCY FALLBACK: Attempting minimal trade save for {generated_trade_id}")
-                        emergency_success = trade_db.add_trade(generated_trade_id, minimal_trade_data)
-                        if emergency_success:
-                            self.logger.info(f"✅ Emergency fallback successful: {generated_trade_id}")
-                        else:
-                            self.logger.error(f"❌ Emergency fallback also failed: {generated_trade_id}")
-
-            except Exception as db_error:
-                self.logger.error(f"❌ CRITICAL: Error recording trade in database: {db_error}")
-                import traceback
-                self.logger.error(f"❌ Database error traceback: {traceback.format_exc()}")
-
-                # EMERGENCY PROTOCOL: Create a recovery file for manual intervention
-                try:
-                    recovery_data = {
-                        'trade_id': generated_trade_id,
-                        'strategy_name': position.strategy_name,
-                        'symbol': position.symbol,
-                        'side': position.side,
-                        'entry_price': float(position.entry_price),
-                        'quantity': float(position.quantity),
-                        'timestamp': datetime.now().isoformat(),
-                        'error': str(db_error),
-                        'recovery_needed': True
-                    }
-
-                    import json
-                    import os
-                    recovery_file = f"trading_data/recovery_{generated_trade_id}.json"
-                    os.makedirs(os.path.dirname(recovery_file), exist_ok=True)
-                    with open(recovery_file, 'w') as f:
-                        json.dump(recovery_data, f, indent=2)
-
-                    self.logger.error(f"🚨 RECOVERY FILE CREATED: {recovery_file}")
-
-                except Exception as recovery_error:
-                    self.logger.error(f"❌ Even recovery file creation failed: {recovery_error}")
-
-                # Don't fail the entire trade entry if database fails
-
-            self.logger.info(f"📊 TRADE ENTRY LOGGED | ID: {generated_trade_id} | {position.strategy_name} | {position.symbol}")
-
-        except Exception as e:
-            self.logger.error(f"❌ Error logging trade entry: {e}")
+    
 
     def check_partial_take_profit(self, strategy_name: str, current_price: float) -> bool:
         """Check and execute partial take profit if conditions are met"""
