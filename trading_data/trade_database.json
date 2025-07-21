@@ -1035,7 +1035,26 @@
       "pnl_percentage": 0.0,
       "duration_minutes": 0,
       "closed_at": "2025-07-21T15:04:23.534573"
+    },
+    "rsi_oversold_SOLUSDT_20250721_151214_RECOVERED": {
+      "trade_id": "rsi_oversold_SOLUSDT_20250721_151214_RECOVERED",
+      "strategy_name": "rsi_oversold",
+      "symbol": "SOLUSDT",
+      "side": "SELL",
+      "quantity": 0.15,
+      "entry_price": 197.78,
+      "trade_status": "OPEN",
+      "created_at": "2025-07-21T15:12:14.573917",
+      "last_verified": "2025-07-21T15:12:38.905225",
+      "sync_status": "BINANCE_VERIFIED",
+      "position_value_usdt": 29.666999999999998,
+      "leverage": 5,
+      "margin_used": 5.9334,
+      "timestamp": "2025-07-21T19:12:14.573913",
+      "recovery_source": "MATCHED_EXISTING",
+      "binance_entry_price": 197.78,
+      "binance_quantity": 0.15
     }
   },
-  "last_updated": "2025-07-21T15:04:24.786187"
+  "last_updated": "2025-07-21T15:12:38.905502"
 }
