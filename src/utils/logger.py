@@ -507,22 +507,22 @@ class WebLogHandler(logging.Handler):
                 if not record or not hasattr(record, 'created'):
                     return
 
-                # Format the log message safely (never log from here!)
-                try:
-                    log_msg = self.format(record)
-                except Exception:
-                    log_msg = str(getattr(record, 'msg', ''))
-
+                # Get the original message for processing
+                original_msg = record.getMessage()
                 timestamp = datetime.fromtimestamp(record.created).strftime('%H:%M:%S')
 
-                # Clean up the message for web display
-                if log_msg:
-                    clean_msg = str(log_msg)
+                # Don't filter messages - capture everything for dashboard
+                if original_msg and original_msg.strip():
+                    # Clean up box drawing characters but preserve the content
+                    clean_msg = str(original_msg).strip()
                     box_chars = ['┌', '┐', '└', '┘', '├', '┤', '│', '─', '╔', '╗', '╚', '╝', '║', '═']
                     for char in box_chars:
                         clean_msg = clean_msg.replace(char, '')
-                    clean_msg = clean_msg.strip()
-                    if clean_msg and len(clean_msg) > 2 and clean_msg not in ['ℹ️  INFO', 'INFO', '']:
+                    
+                    # Remove empty lines and clean whitespace
+                    clean_msg = ' '.join(clean_msg.split())
+                    
+                    if clean_msg and clean_msg not in ['ℹ️  INFO', 'INFO', 'ERROR', 'WARNING']:
                         formatted_log = f'[{timestamp}] {clean_msg}'
                         self.logs.append(formatted_log)
         except Exception:

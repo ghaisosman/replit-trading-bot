@@ -169,6 +169,86 @@
             background: #777;
         }
 
+        /* Strategy Block Styles */
+        .log-strategy-block {
+            border: 1px solid #444;
+            border-radius: 8px;
+            margin: 12px 0;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .strategy-block-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #444;
+        }
+
+        .strategy-name {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .strategy-block-content {
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .strategy-data-row {
+            margin: 3px 0;
+            color: #a4b0be;
+        }
+
+        .strategy-data-row span {
+            font-weight: bold;
+        }
+
+        /* Active Position Block Styles */
+        .log-position-block {
+            border-radius: 12px;
+            margin: 15px 0;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .position-block-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid currentColor;
+        }
+
+        .position-title {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .position-block-content {
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .position-data-row {
+            margin: 5px 0;
+            color: #ffffff;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .position-data-row span {
+            font-weight: bold;
+        }
+
         /* Positions Table Styles */
         #positionsTable .table {
             margin-bottom: 0;
@@ -1458,45 +1538,68 @@
 
         function formatConsoleLogs(logs) {
             if (!logs || logs.length === 0) {
-                return '<div class="log-entry info">No logs available</div>';
+                return '<div class="log-entry log-info">No logs available</div>';
             }
 
             let formattedOutput = '';
-            let currentGroup = '';
-            let groupCount = 0;
+            let currentStrategyBlock = null;
+            let blockBuffer = [];
 
             logs.forEach((log, index) => {
                 if (!log || typeof log !== 'string') return;
 
-                // Clean the log entry
                 const cleanLog = log.trim();
                 if (!cleanLog) return;
 
-                // Detect log type and format accordingly
                 const logType = detectLogType(cleanLog);
                 const timestamp = extractTimestamp(cleanLog);
                 const message = extractMessage(cleanLog);
-                const category = detectCategory(cleanLog);
+                const strategyInfo = extractStrategyInfo(cleanLog);
 
-                // Group related logs
-                if (category !== currentGroup) {
-                    if (currentGroup && groupCount > 0) {
-                        formattedOutput += '<div class="log-separator"></div>';
+                // Check if this is a strategy scanning message
+                if (isStrategyScanning(cleanLog)) {
+                    // Close previous block if different strategy
+                    if (currentStrategyBlock && currentStrategyBlock !== strategyInfo.strategy) {
+                        formattedOutput += formatStrategyBlock(currentStrategyBlock, blockBuffer);
+                        blockBuffer = [];
                     }
-                    currentGroup = category;
-                    groupCount++;
                     
-                    // Add category header
-                    if (category !== 'general') {
-                        formattedOutput += `<div class="log-category-header">${getCategoryIcon(category)} ${category.toUpperCase()}</div>`;
+                    currentStrategyBlock = strategyInfo.strategy;
+                    blockBuffer.push({
+                        type: 'scanning',
+                        data: strategyInfo,
+                        timestamp: timestamp,
+                        message: message
+                    });
+                } else if (isActivePosition(cleanLog)) {
+                    // Close any strategy scanning block
+                    if (currentStrategyBlock) {
+                        formattedOutput += formatStrategyBlock(currentStrategyBlock, blockBuffer);
+                        blockBuffer = [];
+                        currentStrategyBlock = null;
                     }
+                    
+                    // Format active position as special block
+                    const positionInfo = extractPositionInfo(cleanLog);
+                    formattedOutput += formatActivePositionBlock(positionInfo, timestamp, message);
+                } else {
+                    // Close any strategy block and add regular message
+                    if (currentStrategyBlock) {
+                        formattedOutput += formatStrategyBlock(currentStrategyBlock, blockBuffer);
+                        blockBuffer = [];
+                        currentStrategyBlock = null;
+                    }
+                    
+                    formattedOutput += formatLogEntry(cleanLog, logType, timestamp, message);
                 }
-
-                // Format the log entry
-                formattedOutput += formatLogEntry(cleanLog, logType, timestamp, message, category);
             });
 
-            return formattedOutput || '<div class="log-entry info">Console initialized</div>';
+            // Close any remaining strategy block
+            if (currentStrategyBlock) {
+                formattedOutput += formatStrategyBlock(currentStrategyBlock, blockBuffer);
+            }
+
+            return formattedOutput || '<div class="log-entry log-info">Console initialized</div>';
         }
 
         function detectLogType(log) {
@@ -1565,7 +1668,7 @@
             return message;
         }
 
-        function formatLogEntry(fullLog, type, timestamp, message, category) {
+        function formatLogEntry(fullLog, type, timestamp, message, category = 'general') {
             const timeStr = timestamp ? `<span class="log-timestamp">${timestamp}</span>` : '';
             const typeIcon = getTypeIcon(type);
             
@@ -1597,6 +1700,184 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function isStrategyScanning(log) {
+            return log.includes('SCANNING') && (log.includes('|') || log.includes('Strategy:'));
+        }
+
+        function isActivePosition(log) {
+            return log.includes('TRADE IN PROGRESS') || log.includes('ACTIVE POSITION');
+        }
+
+        function extractStrategyInfo(log) {
+            const info = {
+                strategy: 'UNKNOWN',
+                symbol: '',
+                timeframe: '',
+                margin: '',
+                leverage: '',
+                price: '',
+                indicator: ''
+            };
+
+            try {
+                // Extract strategy name patterns
+                let strategyMatch = log.match(/🔍 SCANNING [A-Z]+ \| ([A-Z_]+)/);
+                if (!strategyMatch) {
+                    strategyMatch = log.match(/📈 SCANNING [A-Z]+ \| ([A-Z_]+)/);
+                }
+                if (!strategyMatch) {
+                    strategyMatch = log.match(/Strategy: ([A-Z_]+)/);
+                }
+                
+                if (strategyMatch) {
+                    info.strategy = strategyMatch[1];
+                }
+
+                // Extract symbol
+                const symbolMatch = log.match(/SCANNING ([A-Z]+)/);
+                if (symbolMatch) {
+                    info.symbol = symbolMatch[1];
+                }
+
+                // Extract timeframe
+                const timeframeMatch = log.match(/(\d+[mh])/);
+                if (timeframeMatch) {
+                    info.timeframe = timeframeMatch[1];
+                }
+
+                // Extract margin and leverage
+                const marginMatch = log.match(/\$(\d+\.?\d*)/);
+                if (marginMatch) {
+                    info.margin = marginMatch[1];
+                }
+
+                const leverageMatch = log.match(/(\d+)x/);
+                if (leverageMatch) {
+                    info.leverage = leverageMatch[1];
+                }
+
+                // Extract price
+                const priceMatch = log.match(/Price: \$([0-9,]+\.?\d*)/);
+                if (priceMatch) {
+                    info.price = priceMatch[1];
+                }
+
+                // Extract indicator (RSI or MACD)
+                const rsiMatch = log.match(/RSI: ([\d\.]+)/);
+                const macdMatch = log.match(/MACD: ([-\d\.]+)\/([-\d\.]+)/);
+                const histogramMatch = log.match(/H: ([-\d\.]+)/);
+
+                if (rsiMatch) {
+                    info.indicator = `RSI: ${rsiMatch[1]}`;
+                } else if (macdMatch && histogramMatch) {
+                    info.indicator = `MACD: ${macdMatch[1]}/${macdMatch[2]} | H: ${histogramMatch[1]}`;
+                }
+
+            } catch (e) {
+                // Fallback to basic parsing
+            }
+
+            return info;
+        }
+
+        function extractPositionInfo(log) {
+            const info = {
+                strategy: '',
+                symbol: '',
+                side: '',
+                entry: '',
+                current: '',
+                pnl: '',
+                indicator: ''
+            };
+
+            try {
+                const strategyMatch = log.match(/Strategy: ([A-Z_]+)/);
+                if (strategyMatch) info.strategy = strategyMatch[1];
+
+                const symbolMatch = log.match(/Symbol: ([A-Z]+)/);
+                if (symbolMatch) info.symbol = symbolMatch[1];
+
+                const sideMatch = log.match(/Side: ([A-Z]+)/);
+                if (sideMatch) info.side = sideMatch[1];
+
+                const entryMatch = log.match(/Entry: \$([0-9,]+\.?\d*)/);
+                if (entryMatch) info.entry = entryMatch[1];
+
+                const currentMatch = log.match(/Current: \$([0-9,]+\.?\d*)/);
+                if (currentMatch) info.current = currentMatch[1];
+
+                const pnlMatch = log.match(/PnL: \$([+-]?[0-9,]+\.?\d*) USDT \(([+-]?[\d\.]+)%\)/);
+                if (pnlMatch) info.pnl = `$${pnlMatch[1]} (${pnlMatch[2]}%)`;
+
+                const indicatorMatch = log.match(/Indicator: ([^║]+)/);
+                if (indicatorMatch) info.indicator = indicatorMatch[1].trim();
+            } catch (e) {
+                // Fallback
+            }
+
+            return info;
+        }
+
+        function formatStrategyBlock(strategy, blockData) {
+            if (!blockData || blockData.length === 0) return '';
+
+            const strategyColor = getStrategyColor(strategy);
+            const latestData = blockData[blockData.length - 1].data;
+            const timestamp = blockData[blockData.length - 1].timestamp;
+
+            return `
+                <div class="log-entry log-strategy-block" style="border-left-color: ${strategyColor}; background: linear-gradient(90deg, ${strategyColor}15, transparent);">
+                    <div class="strategy-block-header" style="color: ${strategyColor};">
+                        <span class="log-timestamp">${timestamp}</span>
+                        <span class="strategy-name">🔍 ${strategy} SCANNING</span>
+                    </div>
+                    <div class="strategy-block-content">
+                        <div class="strategy-data-row">💱 Symbol: <span style="color: ${strategyColor};">${latestData.symbol}</span></div>
+                        <div class="strategy-data-row">⏱️ Timeframe: <span style="color: ${strategyColor};">${latestData.timeframe}</span></div>
+                        <div class="strategy-data-row">💵 Margin: <span style="color: ${strategyColor};">$${latestData.margin} USDT</span></div>
+                        <div class="strategy-data-row">⚡ Leverage: <span style="color: ${strategyColor};">${latestData.leverage}x</span></div>
+                        <div class="strategy-data-row">📊 Price: <span style="color: ${strategyColor};">$${latestData.price}</span></div>
+                        ${latestData.indicator ? `<div class="strategy-data-row">📈 ${latestData.indicator}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function formatActivePositionBlock(positionInfo, timestamp, message) {
+            const strategyColor = getStrategyColor(positionInfo.strategy);
+            const pnlColor = positionInfo.pnl && positionInfo.pnl.includes('+') ? '#2ed573' : '#ff4757';
+
+            return `
+                <div class="log-entry log-position-block" style="border: 2px solid ${strategyColor}; background: linear-gradient(135deg, ${strategyColor}20, transparent);">
+                    <div class="position-block-header" style="color: ${strategyColor};">
+                        <span class="log-timestamp">${timestamp}</span>
+                        <span class="position-title">📊 ACTIVE POSITION</span>
+                    </div>
+                    <div class="position-block-content">
+                        <div class="position-data-row">🎯 Strategy: <span style="color: ${strategyColor}; font-weight: bold;">${positionInfo.strategy}</span></div>
+                        <div class="position-data-row">💱 Symbol: <span style="color: ${strategyColor};">${positionInfo.symbol}</span></div>
+                        <div class="position-data-row">📊 Side: <span style="color: ${strategyColor};">${positionInfo.side}</span></div>
+                        <div class="position-data-row">💵 Entry: <span style="color: ${strategyColor};">$${positionInfo.entry}</span></div>
+                        <div class="position-data-row">📊 Current: <span style="color: ${strategyColor};">$${positionInfo.current}</span></div>
+                        ${positionInfo.indicator ? `<div class="position-data-row">📈 ${positionInfo.indicator}</div>` : ''}
+                        ${positionInfo.pnl ? `<div class="position-data-row">💰 PnL: <span style="color: ${pnlColor}; font-weight: bold;">${positionInfo.pnl}</span></div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function getStrategyColor(strategy) {
+            const colors = {
+                'RSI_OVERSOLD': '#e74c3c',
+                'RSI_ETH': '#3498db', 
+                'MACD_DIVERGENCE': '#9b59b6',
+                'MACD_BTC': '#f39c12',
+                'DEFAULT': '#95a5a6'
+            };
+            return colors[strategy] || colors['DEFAULT'];
         }
 
         function updateConsoleLogErrorUI() {
