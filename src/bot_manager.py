@@ -722,7 +722,6 @@ class BotManager:
                     self.telegram_reporter.report_position_opened(position_dict)
                 else:
                     self.logger.warning(f"❌ POSITION FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not execute signal")
-```python
             else:
                 # Get assessment interval for logging
                 assessment_interval = strategy_config.get('assessment_interval', 300)
