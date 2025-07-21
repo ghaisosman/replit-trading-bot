@@ -263,7 +263,7 @@ class TradeLogger:
         try:
             from src.execution_engine.trade_database import TradeDatabase
             trade_db = TradeDatabase()
-            
+
             # Update database with complete exit data
             exit_updates = {
                 'trade_status': 'CLOSED',
@@ -276,10 +276,10 @@ class TradeLogger:
                 'risk_reward_ratio': trade_record.risk_reward_ratio,
                 'max_drawdown': max_drawdown
             }
-            
+
             trade_db.update_trade(trade_id, exit_updates)
             self.logger.debug(f"✅ Trade exit data synced to database: {trade_id}")
-            
+
         except Exception as e:
             self.logger.error(f"❌ Failed to sync exit data to database for {trade_id}: {e}")
 
@@ -425,6 +425,216 @@ class TradeLogger:
         except Exception as e:
             self.logger.error(f"❌ Error exporting ML dataset: {e}")
             return None
+
+    def _enhance_trade_with_indicators(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Enhance trade data with current technical indicators for ML"""
+        try:
+            enhanced_data = trade_data.copy()
+            symbol = trade_data.get('symbol', '')
+
+            if not symbol:
+                return enhanced_data
+
+            # Fetch current market data for indicators
+            try:
+                from src.binance_client.client import BinanceClientWrapper
+                binance_client = BinanceClientWrapper()
+
+                # Get recent klines for indicator calculation
+                klines = binance_client.client.futures_klines(
+                    symbol=symbol,
+                    interval='1h',  # 1-hour timeframe
+                    limit=100  # Get enough data for indicators
+                )
+
+                if klines and len(klines) >= 50:
+                    # Extract prices
+                    closes = [float(kline[4]) for kline in klines]  # Close prices
+                    volumes = [float(kline[5]) for kline in klines]  # Volumes
+
+                    # Calculate RSI (simplified)
+                    rsi = self._calculate_rsi(closes)
+                    enhanced_data['rsi_at_entry'] = rsi
+
+                    # Calculate simple moving averages
+                    if len(closes) >= 20:
+                        sma_20 = sum(closes[-20:]) / 20
+                        enhanced_data['sma_20_at_entry'] = sma_20
+
+                    if len(closes) >= 50:
+                        sma_50 = sum(closes[-50:]) / 50
+                        enhanced_data['sma_50_at_entry'] = sma_50
+
+                    # Calculate MACD (simplified)
+                    macd = self._calculate_simple_macd(closes)
+                    enhanced_data['macd_at_entry'] = macd
+
+                    # Volume analysis
+                    if volumes:
+                        avg_volume = sum(volumes[-20:]) / min(20, len(volumes))
+                        enhanced_data['volume_at_entry'] = avg_volume
+
+                    # Market trend analysis
+                    if len(closes) >= 20:
+                        recent_trend = (closes[-1] - closes[-20]) / closes[-20]
+                        if recent_trend > 0.02:
+                            enhanced_data['market_trend'] = 'BULLISH'
+                        elif recent_trend < -0.02:
+                            enhanced_data['market_trend'] = 'BEARISH'
+                        else:
+                            enhanced_data['market_trend'] = 'SIDEWAYS'
+
+                    # Volatility score (simplified)
+                    if len(closes) >= 10:
+                        price_changes = [abs(closes[i] - closes[i-1]) / closes[i-1] for i in range(1, min(10, len(closes)))]
+                        volatility = sum(price_changes) / len(price_changes)
+                        enhanced_data['volatility_score'] = volatility
+
+                    # Market phase
+                    current_hour = datetime.now().hour
+                    if 8 <= current_hour <= 16:
+                        enhanced_data['market_phase'] = 'LONDON'
+                    elif 13 <= current_hour <= 21:
+                        enhanced_data['market_phase'] = 'NEW_YORK'
+                    else:
+                        enhanced_data['market_phase'] = 'ASIAN'
+
+                    self.logger.info(f"📊 Enhanced trade data with indicators for {symbol}")
+
+            except Exception as e:
+                self.logger.warning(f"⚠️ Could not fetch indicators for {symbol}: {e}")
+
+            return enhanced_data
+
+        except Exception as e:
+            self.logger.error(f"❌ Error enhancing trade data: {e}")
+            return trade_data
+
+    def _calculate_rsi(self, prices: List[float], period: int = 14) -> Optional[float]:
+        """Calculate RSI indicator"""
+        try:
+            if len(prices) < period + 1:
+                return None
+
+            gains = []
+            losses = []
+
+            for i in range(1, len(prices)):
+                change = prices[i] - prices[i-1]
+                if change > 0:
+                    gains.append(change)
+                    losses.append(0)
+                else:
+                    gains.append(0)
+                    losses.append(abs(change))
+
+            if len(gains) < period:
+                return None
+
+            avg_gain = sum(gains[-period:]) / period
+            avg_loss = sum(losses[-period:]) / period
+
+            if avg_loss == 0:
+                return 100
+
+            rs = avg_gain / avg_loss
+            rsi = 100 - (100 / (1 + rs))
+
+            return round(rsi, 2)
+
+        except Exception:
+            return None
+
+    def _calculate_simple_macd(self, prices: List[float]) -> Optional[float]:
+        """Calculate simplified MACD"""
+        try:
+            if len(prices) < 26:
+                return None
+
+            # Simple EMA approximation
+            ema_12 = sum(prices[-12:]) / 12
+            ema_26 = sum(prices[-26:]) / 26
+
+            macd = ema_12 - ema_26
+            return round(macd, 4)
+
+        except Exception:
+            return None
+
+    def log_trade(self, trade_data: Dict[str, Any]):
+        """Log a trade with enhanced ML-ready data collection"""
+        try:
+            # Enhance trade data with current technical indicators
+            enhanced_trade_data = self._enhance_trade_with_indicators(trade_data)
+
+            # Create trade entry with complete timestamp
+            trade_entry = TradeRecord(
+                trade_id=enhanced_trade_data.get('trade_id', ''),
+                strategy_name=enhanced_trade_data.get('strategy_name', ''),
+                symbol=enhanced_trade_data.get('symbol', ''),
+                side=enhanced_trade_data.get('side', ''),
+                quantity=enhanced_trade_data.get('quantity', 0),
+                entry_price=enhanced_trade_data.get('entry_price', 0),
+                trade_status=enhanced_trade_data.get('trade_status', 'OPEN'),
+                leverage=enhanced_trade_data.get('leverage', 1),
+                position_size_usdt=enhanced_trade_data.get('position_size_usdt', 0),
+
+                # Entry timestamp
+                entry_time=enhanced_trade_data.get('entry_time', datetime.now().isoformat()),
+
+                # Technical indicators at entry (now populated)
+                rsi_at_entry=enhanced_trade_data.get('rsi_at_entry'),
+                macd_at_entry=enhanced_trade_data.get('macd_at_entry'),
+                sma_20_at_entry=enhanced_trade_data.get('sma_20_at_entry'),
+                sma_50_at_entry=enhanced_trade_data.get('sma_50_at_entry'),
+                volume_at_entry=enhanced_trade_data.get('volume_at_entry'),
+
+                # Market conditions (now populated)
+                market_trend=enhanced_trade_data.get('market_trend'),
+                volatility_score=enhanced_trade_data.get('volatility_score'),
+                market_phase=enhanced_trade_data.get('market_phase')
+            )
+
+            # Log the trade details
+            self.trades.append(trade_entry)
+            self._save_trades()  # Ensure trades are saved after logging
+
+            self.logger.info(f"📝 ML TRADE LOGGED | {trade_entry.trade_id} | {trade_entry.symbol} | {trade_entry.side} | ${trade_entry.entry_price:.4f}")
+            self.logger.debug(f"📝 ML TRADE DETAILS: {trade_entry.to_dict()}")
+
+        except Exception as e:
+            self.logger.error(f"❌ Error logging ML trade: {e}")
+
+    def _save_trades(self):
+        """Save trades to both JSON and CSV files"""
+        try:
+            # Save to JSON
+            trades_data = [trade.to_dict() for trade in self.trades]
+            with open(self.trades_json_file, 'w') as f:
+                json.dump(trades_data, f, indent=2, default=str)
+
+            # Save to CSV
+            if trades_data:
+                df = pd.DataFrame(trades_data)
+                df.to_csv(self.trades_csv_file, index=False)
+
+        except Exception as e:
+            self.logger.error(f"❌ Error saving trades: {e}")
+
+    def _save_to_file(self):
+        """Save trades to file for persistence"""
+        try:
+            data = {
+                'trades': [self._trade_to_dict(trade) for trade in self.trades],
+                'last_updated': datetime.now().isoformat()
+            }
+
+            with open(self.log_file, 'w') as f:
+                json.dump(data, f, indent=2)
+
+            self.logger.debug(f"💾 Saved {len(self.trades)} trades to {self.log_file}")
+        except Exception as e:
+            self.logger.error(f"❌ Error saving trades to file: {e}")
 
 # Global trade logger instance
 trade_logger = TradeLogger()

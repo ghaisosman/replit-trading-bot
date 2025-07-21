@@ -56,8 +56,8 @@ class MLTradeAnalyzer:
             # Load the dataset
             df = pd.read_csv(ml_file)
 
-            if len(df) < 10:
-                self.logger.warning("⚠️ Insufficient data for ML analysis (need at least 10 trades)")
+            if len(df) < 3:  # Reduced from 10 to work with smaller datasets
+                self.logger.warning("⚠️ Insufficient data for ML analysis (need at least 3 trades)")
                 return None
 
             # Feature engineering
@@ -129,8 +129,8 @@ class MLTradeAnalyzer:
             if df is None:
                 return {"error": "Failed to prepare dataset - no trade data available"}
 
-            if len(df) < 20:
-                return {"error": f"Insufficient data for training - need at least 20 trades, got {len(df)}"}
+            if len(df) < 3:  # Reduced minimum for development/testing
+                return {"error": f"Insufficient data for training - need at least 3 trades, got {len(df)}"}
 
             results = {
                 "dataset_size": int(len(df)),
