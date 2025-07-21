@@ -777,8 +777,7 @@ def get_strategies():
                     config.setdefault('profit_target_multiplier', 2.0)
                     config.setdefault('swing_strength', 3)
                     config.setdefault('min_wick_ratio', 0.6)
-                    config.setdefault```python
-('min_volume', 5000000)
+                    config.setdefault('min_volume', 5000000)
                     config.setdefault('decimals', 2)
                     config.setdefault('cooldown_period', 600)
 
