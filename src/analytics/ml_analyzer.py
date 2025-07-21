@@ -349,6 +349,13 @@ class MLTradeAnalyzer:
             self.logger.info(f"🔧 Analyzing {len(recent_trades)} trades for optimization")
 
             for trade in recent_trades:
+                # Handle both timestamp and entry_time attributes
+                trade_time = None
+                if hasattr(trade, 'timestamp') and trade.timestamp:
+                    trade_time = trade.timestamp
+                elif hasattr(trade, 'entry_time') and trade.entry_time:
+                    trade_time = trade.entry_time
+                
                 trade_dict = {
                     'strategy': getattr(trade, 'strategy_name', 'rsi_oversold'),
                     'symbol': getattr(trade, 'symbol', 'BTCUSDT'),
@@ -356,8 +363,8 @@ class MLTradeAnalyzer:
                     'leverage': getattr(trade, 'leverage', 5),
                     'position_size_usdt': getattr(trade, 'position_value_usdt', 100),
                     'rsi_entry': getattr(trade, 'rsi_at_entry', 50),
-                    'hour_of_day': trade.timestamp.hour if hasattr(trade, 'timestamp') and trade.timestamp else 12,
-                    'day_of_week': trade.timestamp.weekday() if hasattr(trade, 'timestamp') and trade.timestamp else 1,
+                    'hour_of_day': trade_time.hour if trade_time else 12,
+                    'day_of_week': trade_time.weekday() if trade_time else 1,
                     'market_trend': getattr(trade, 'market_trend', 'NEUTRAL'),
                     'actual_pnl': getattr(trade, 'pnl_percentage', 0)
                 }
