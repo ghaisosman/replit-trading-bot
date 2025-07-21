@@ -22,25 +22,39 @@ def check_latest_trade_data():
     # Load both systems
     trade_db = TradeDatabase()
 
-    # Find the most recent trade (should be the SOLUSDT trade that just opened)
-    latest_trade_id = None
-    latest_timestamp = None
-
+    # Find ALL open trades first
+    open_trades = []
     for trade_id, trade_data in trade_db.trades.items():
         if trade_data.get('trade_status') == 'OPEN':
             timestamp_str = trade_data.get('timestamp', trade_data.get('created_at', ''))
-            if timestamp_str:
-                try:
-                    timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-                    if latest_timestamp is None or timestamp > latest_timestamp:
-                        latest_timestamp = timestamp
-                        latest_trade_id = trade_id
-                except:
-                    continue
+            try:
+                timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00')) if timestamp_str else datetime.min
+            except:
+                timestamp = datetime.min
+            open_trades.append((trade_id, trade_data, timestamp))
 
-    if not latest_trade_id:
-        print("❌ No recent open trades found")
+    if not open_trades:
+        print("❌ No open trades found in database")
         return False
+
+    # Sort by timestamp (newest first) 
+    open_trades.sort(key=lambda x: x[2], reverse=True)
+
+    print(f"📊 FOUND {len(open_trades)} OPEN TRADES")
+    print("-" * 30)
+
+    # Show all open trades for analysis
+    for i, (trade_id, trade_data, timestamp) in enumerate(open_trades, 1):
+        print(f"\n🔍 TRADE #{i}: {trade_id}")
+        print(f"   Strategy: {trade_data.get('strategy_name', 'N/A')}")
+        print(f"   Symbol: {trade_data.get('symbol', 'N/A')}")
+        print(f"   Side: {trade_data.get('side', 'N/A')}")
+        print(f"   Entry Price: ${trade_data.get('entry_price', 0):.4f}")
+        print(f"   Quantity: {trade_data.get('quantity', 0)}")
+        print(f"   Timestamp: {timestamp}")
+
+    # Use the most recent trade for detailed analysis
+    latest_trade_id, latest_trade, latest_timestamp = open_trades[0]
 
     print(f"📊 LATEST TRADE ANALYSIS")
     print("-" * 30)
