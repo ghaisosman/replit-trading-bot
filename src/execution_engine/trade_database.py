@@ -694,11 +694,11 @@ class TradeDatabase:
             self.logger.error(f"🚨 Failed to log critical error: {e}")
 
     def recover_missing_positions(self) -> Dict[str, Any]:
-        """Bulletproof recovery of missing positions from Binance"""
+        """INTELLIGENT recovery that follows position recovery logic - find existing trades FIRST"""
         try:
             recovery_report = {
                 'recovered_trades': [],
-                'orphaned_positions': [],
+                'matched_existing_trades': [],
                 'verification_failures': []
             }
 
@@ -706,11 +706,13 @@ class TradeDatabase:
 
             binance_client = BinanceClientWrapper()
             if not binance_client.is_futures:
-                self.logger.info("🛡️ RECOVERY: Spot trading mode - skipping position recovery")
+                self.logger.info("🛡️ SMART RECOVERY: Spot trading mode - skipping position recovery")
                 return recovery_report
 
             account_info = binance_client.client.futures_account()
             positions = account_info.get('positions', [])
+
+            self.logger.info(f"🛡️ SMART RECOVERY: Starting intelligent recovery scan for {len(positions)} positions")
 
             for position in positions:
                 symbol = position.get('symbol')
@@ -721,110 +723,149 @@ class TradeDatabase:
                     side = 'BUY' if position_amt > 0 else 'SELL'
                     quantity = abs(position_amt)
 
-                    # COMPREHENSIVE CHECK: Look for ANY existing trade for this position
-                    # STEP 1: Try to find by position details first (primary method)
-                    position_already_tracked = False
-                    existing_trade_id = None
+                    self.logger.debug(f"🛡️ SMART RECOVERY: Analyzing {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price}")
 
-                    for trade_id, trade_data in self.trades.items():
-                        if (trade_data.get('symbol') == symbol and 
-                            trade_data.get('trade_status') == 'OPEN'):
+                    # STEP 1: INTELLIGENT SEARCH - Find existing trade by position details (PRIMARY)
+                    # This matches the logic in order_manager.py for position recovery
+                    existing_trade_id = self.find_trade_by_position(
+                        'UNKNOWN',  # Search across ALL strategies like position recovery does
+                        symbol, 
+                        side, 
+                        quantity, 
+                        entry_price,
+                        tolerance=0.05  # 5% tolerance to handle price variations
+                    )
 
-                            # Check if quantities and sides match with tolerance
-                            db_quantity = trade_data.get('quantity', 0)
-                            db_side = trade_data.get('side')
-                            db_entry_price = trade_data.get('entry_price', 0)
-
-                            quantity_match = abs(db_quantity - quantity) < 0.1
-                            side_match = db_side == side
-                            price_match = abs(db_entry_price - entry_price) < (entry_price * 0.05)  # 5% tolerance
-
-                            if quantity_match and side_match and price_match:
-                                position_already_tracked = True
-                                existing_trade_id = trade_id
-                                self.logger.debug(f"🛡️ RECOVERY: Position {symbol} already tracked as {trade_id}")
-                                break
-
-                    # STEP 2: If creating a recovery trade, check if a recovery already exists for this exact position
-                    # This prevents multiple RECOVERY entries for the same Binance position
-                    if not position_already_tracked:
-                        for trade_id, trade_data in self.trades.items():
-                            if (trade_data.get('strategy_name') == 'RECOVERY' and
-                                trade_data.get('symbol') == symbol and 
-                                trade_data.get('trade_status') == 'OPEN'):
-
-                                # Check if this recovery matches the Binance position exactly
-                                db_quantity = trade_data.get('quantity', 0)
-                                db_side = trade_data.get('side')
-                                db_entry_price = trade_data.get('entry_price', 0)
-
-                                quantity_match = abs(db_quantity - quantity) < 0.01  # Stricter tolerance for recovery
-                                side_match = db_side == side
-                                price_match = abs(db_entry_price - entry_price) < (entry_price * 0.02)  # 2% tolerance
-
-                                if quantity_match and side_match and price_match:
-                                    position_already_tracked = True
-                                    existing_trade_id = trade_id
-                                    self.logger.info(f"🛡️ RECOVERY: Recovery trade {trade_id} already exists for this Binance position")
-                                    break
-
-                    # Only create recovery entry if position is NOT already tracked
-                    if not position_already_tracked:
-                        # Create recovery trade entry with complete data
-                        recovery_trade_id = f"RECOVERY_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-
-                        # Calculate complete trade data for recovery
-                        position_value_usdt = entry_price * quantity
-                        leverage = 1  # Default leverage for recovery trades
-                        margin_used = position_value_usdt / leverage
-
-                        # Record trade time in Dubai timezone (UTC+4)
-                        from src.config.global_config import global_config
-                        if global_config.USE_LOCAL_TIMEZONE:
-                            dubai_time = datetime.utcnow() + timedelta(hours=global_config.TIMEZONE_OFFSET_HOURS)
-                            timestamp = dubai_time.isoformat()
-                        else:
-                            timestamp = datetime.now().isoformat()
-
-                        recovery_trade_data = {
-                            'strategy_name': 'RECOVERY',
-                            'symbol': symbol,
-                            'side': side,
-                            'quantity': quantity,
-                            'entry_price': entry_price,
-                            'trade_status': 'OPEN',
-                            'timestamp': timestamp,
-                            'recovery_source': 'BINANCE_SYNC',
-                            'sync_status': 'RECOVERED',
-                            'created_at': datetime.now().isoformat(),
+                    if existing_trade_id:
+                        # FOUND EXISTING TRADE - Update and verify it
+                        existing_trade = self.trades[existing_trade_id]
+                        original_strategy = existing_trade.get('strategy_name', 'UNKNOWN')
+                        
+                        # Update trade with Binance data to ensure accuracy
+                        self.trades[existing_trade_id].update({
+                            'sync_status': 'BINANCE_VERIFIED',
                             'last_verified': datetime.now().isoformat(),
+                            'recovery_source': 'MATCHED_EXISTING',
+                            'binance_entry_price': entry_price,
+                            'binance_quantity': quantity
+                        })
 
-                            # MANDATORY complete data for recovered positions
-                            'position_value_usdt': position_value_usdt,
-                            'leverage': leverage,
-                            'margin_used': margin_used,
-                            'trade_id': recovery_trade_id
-                        }
+                        recovery_report['matched_existing_trades'].append({
+                            'trade_id': existing_trade_id,
+                            'original_strategy': original_strategy,
+                            'symbol': symbol,
+                            'status': 'MATCHED_AND_VERIFIED'
+                        })
 
-                        self.trades[recovery_trade_id] = recovery_trade_data
-                        recovery_report['recovered_trades'].append(recovery_trade_id)
+                        self.logger.info(f"✅ SMART RECOVERY: Found existing trade {existing_trade_id} for {symbol} | Strategy: {original_strategy}")
+                        continue
 
-                        self.logger.warning(f"🛡️ RECOVERY: Created complete trade entry {recovery_trade_id} for {symbol}")
-                        self.logger.warning(f"   💰 Value: ${position_value_usdt:.2f} USDT | Margin: ${margin_used:.2f} | Leverage: {leverage}x")
+                    # STEP 2: NO EXISTING TRADE FOUND - Create recovery trade with complete data
+                    # Only reach here if no existing trade was found (same logic as position recovery)
+                    
+                    # Try to determine original strategy from symbol (enhanced logic)
+                    original_strategy = self._determine_original_strategy(symbol)
+                    
+                    recovery_trade_id = f"{original_strategy}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_RECOVERED"
+
+                    # Calculate complete trade data for recovery
+                    position_value_usdt = entry_price * quantity
+                    leverage = 5  # Use reasonable default leverage
+                    margin_used = position_value_usdt / leverage
+
+                    # Record trade time in Dubai timezone (UTC+4)
+                    from src.config.global_config import global_config
+                    if global_config.USE_LOCAL_TIMEZONE:
+                        dubai_time = datetime.utcnow() + timedelta(hours=global_config.TIMEZONE_OFFSET_HOURS)
+                        timestamp = dubai_time.isoformat()
                     else:
-                        self.logger.info(f"🛡️ RECOVERY: Position {symbol} already tracked as {existing_trade_id} - skipping duplicate recovery")
+                        timestamp = datetime.now().isoformat()
 
-            if recovery_report['recovered_trades']:
+                    recovery_trade_data = {
+                        'strategy_name': original_strategy,  # Use original strategy, not "RECOVERY"
+                        'symbol': symbol,
+                        'side': side,
+                        'quantity': quantity,
+                        'entry_price': entry_price,
+                        'trade_status': 'OPEN',
+                        'timestamp': timestamp,
+                        'recovery_source': 'SMART_RECOVERY',
+                        'sync_status': 'RECOVERED',
+                        'created_at': datetime.now().isoformat(),
+                        'last_verified': datetime.now().isoformat(),
+
+                        # MANDATORY complete data for recovered positions
+                        'position_value_usdt': position_value_usdt,
+                        'leverage': leverage,
+                        'margin_used': margin_used,
+                        'trade_id': recovery_trade_id,
+                        
+                        # Recovery metadata
+                        'recovery_method': 'INTELLIGENT_DATABASE_RECOVERY',
+                        'binance_verified': True
+                    }
+
+                    # Use the bulletproof add_trade method to ensure data integrity
+                    success = self.add_trade(recovery_trade_id, recovery_trade_data)
+                    
+                    if success:
+                        recovery_report['recovered_trades'].append({
+                            'trade_id': recovery_trade_id,
+                            'strategy': original_strategy,
+                            'symbol': symbol,
+                            'method': 'SMART_RECOVERY'
+                        })
+
+                        self.logger.warning(f"🛡️ SMART RECOVERY: Created new trade {recovery_trade_id} for {symbol}")
+                        self.logger.warning(f"   📊 Strategy: {original_strategy} | Value: ${position_value_usdt:.2f} USDT | Margin: ${margin_used:.2f}")
+                    else:
+                        self.logger.error(f"🚨 SMART RECOVERY: Failed to create recovery trade for {symbol}")
+                        recovery_report['verification_failures'].append(f"Failed to create trade for {symbol}")
+
+            # Save database if any changes were made
+            if recovery_report['recovered_trades'] or recovery_report['matched_existing_trades']:
                 self._save_database()
-                self.logger.info(f"🛡️ RECOVERY: Recovered {len(recovery_report['recovered_trades'])} missing positions")
-            else:
-                self.logger.info(f"🛡️ RECOVERY: No missing positions found - all Binance positions are already tracked")
+                
+            # Summary logging
+            matched_count = len(recovery_report['matched_existing_trades'])
+            recovered_count = len(recovery_report['recovered_trades'])
+            total_positions = len([p for p in positions if abs(float(p.get('positionAmt', 0))) > 0.0001])
+            
+            self.logger.info(f"🛡️ SMART RECOVERY COMPLETE:")
+            self.logger.info(f"   📊 Total Binance positions: {total_positions}")
+            self.logger.info(f"   ✅ Matched existing trades: {matched_count}")
+            self.logger.info(f"   🆕 Created new recoveries: {recovered_count}")
+            self.logger.info(f"   ❌ Failed recoveries: {len(recovery_report['verification_failures'])}")
 
             return recovery_report
 
         except Exception as e:
-            self.logger.error(f"🚨 RECOVERY ERROR: {e}")
+            self.logger.error(f"🚨 SMART RECOVERY ERROR: {e}")
             return {'error': str(e)}
+
+    def _determine_original_strategy(self, symbol: str) -> str:
+        """Intelligently determine the original strategy for a symbol"""
+        try:
+            # Look for any existing closed trades for this symbol to infer strategy
+            for trade_id, trade_data in self.trades.items():
+                if (trade_data.get('symbol') == symbol and 
+                    trade_data.get('strategy_name') not in ['RECOVERY', 'UNKNOWN']):
+                    original_strategy = trade_data.get('strategy_name')
+                    self.logger.debug(f"🧠 STRATEGY INFERENCE: {symbol} -> {original_strategy} (from historical data)")
+                    return original_strategy
+            
+            # Symbol-based strategy inference as fallback
+            symbol_upper = symbol.upper()
+            if 'SOL' in symbol_upper:
+                return 'rsi_oversold'  # SOL typically uses RSI strategy
+            elif 'ETH' in symbol_upper:
+                return 'macd_divergence'  # ETH typically uses MACD strategy
+            else:
+                return 'AUTO_RECOVERED'  # Generic strategy for unknown symbols
+                
+        except Exception as e:
+            self.logger.warning(f"Error determining strategy for {symbol}: {e}")
+            return 'AUTO_RECOVERED'
 
     def run_bulletproof_health_check(self) -> Dict[str, Any]:
         """Comprehensive health check with automatic fixes"""
