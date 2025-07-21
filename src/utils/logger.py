@@ -361,11 +361,7 @@ class ColoredFormatter(logging.Formatter):
                 formatted_lines = "│\n".join([f"│ {line}" for line in msg_lines])
                 formatted_message = f"""{separator}{text_color}┌─────────────────────────────────────────────────┐
 │ 📈 MARKET ASSESSMENT                           │
-│ ⏰ {timestamp}                                      │
-│                                                 │
-{formatted_lines}
-│                                                 │
-└─────────────────────────────────────────────────┘{reset}
+│ ⏰ {timestamp}                                      │\n│                                                 │\n{formatted_lines}\n│                                                 │\n└─────────────────────────────────────────────────┘{reset}
 """
         elif "TRADE ENTRY" in message or "POSITION OPENED" in message:
             # Trade entry - highlighted
@@ -547,3 +543,42 @@ class WebLogHandler(logging.Handler):
                 return validated_logs if validated_logs else [f'[{datetime.now().strftime("%H:%M:%S")}] [INFO] Logs initializing...']
         except Exception:
             return [f'[{datetime.now().strftime("%H:%M:%S")}] [ERROR] Could not retrieve logs.']
+
+    def _categorize_message(self, message: str, level: str) -> str:
+        """Categorize log message for dashboard display styling"""
+        try:
+            message_lower = message.lower()
+
+            # Error messages
+            if level == 'ERROR' or '❌' in message or 'error' in message_lower or 'failed' in message_lower:
+                return 'log-error'
+
+            # Warning messages
+            if level == 'WARNING' or '⚠️' in message or 'warning' in message_lower:
+                return 'log-warning'
+
+            # Success messages
+            if '✅' in message or 'success' in message_lower or 'completed' in message_lower:
+                return 'log-success'
+
+            # Trade-related messages
+            if any(keyword in message_lower for keyword in ['position', 'trade', 'entry', 'exit', 'pnl', 'signal']):
+                return 'log-trade'
+
+            # Strategy messages - ENHANCED to catch all scanning activities
+            if any(keyword in message_lower for keyword in [
+                'strategy', 'rsi', 'macd', 'scanning', 'assessment', 
+                'market assessment', 'interval:', 'symbol:', 'margin:', 'leverage:',
+                'scanning for entry', 'btcusdt', 'ethusdt', 'solusdt'
+            ]):
+                return 'log-strategy'
+
+            # Info messages
+            if level == 'INFO' or 'ℹ️' in message or '🔍' in message:
+                return 'log-info'
+
+            # Default
+            return 'log-default'
+
+        except Exception:
+            return 'log-default'

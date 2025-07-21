@@ -800,26 +800,14 @@ class BotManager:
                     macd_signal = df['macd_signal'].iloc[-1] if 'macd_signal' in df.columns else 0.0
                     macd_histogram = df['macd_histogram'].iloc[-1] if 'macd_histogram' in df.columns else 0.0
 
-                    # Consolidated MACD market assessment - single message
-                    assessment_message = f"""📈 MARKET ASSESSMENT
-Interval: every {assessment_interval} seconds
-💱 Symbol: {strategy_config['symbol']}
-🎯 {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x
-💵 Price: ${current_price:,.1f}
-📈 MACD: {macd_line:.6f} | Signal: {macd_signal:.6f} | Histogram: {macd_histogram:.6f}
-🔍 SCANNING FOR ENTRY"""
+                    # Consolidated MACD market assessment - single line for dashboard display
+                    assessment_message = f"📈 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | ${margin:.1f}@{leverage}x | Price: ${current_price:,.1f} | MACD: {macd_line:.2f}/{macd_signal:.2f} | H: {macd_histogram:.2f} | Every {assessment_interval}s"
                     self.logger.info(assessment_message)
 
                 elif 'rsi' in strategy_name.lower():
-                    # Consolidated RSI market assessment - single message for ALL RSI strategies
-                    rsi_text = f"📈 RSI: {current_rsi:.2f}" if current_rsi is not None else "📈 RSI: N/A"
-                    assessment_message = f"""📈 MARKET ASSESSMENT
-Interval: every {assessment_interval} seconds
-💱 Symbol: {strategy_config['symbol']}
-🎯 {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x
-💵 Price: ${current_price:,.1f}
-{rsi_text}
-🔍 SCANNING FOR ENTRY"""
+                    # Consolidated RSI market assessment - single line for dashboard display
+                    rsi_text = f"{current_rsi:.1f}" if current_rsi is not None else "N/A"
+                    assessment_message = f"📈 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | ${margin:.1f}@{leverage}x | Price: ${current_price:,.1f} | RSI: {rsi_text} | Every {assessment_interval}s"
                     self.logger.info(assessment_message)
 
         except Exception as e:
