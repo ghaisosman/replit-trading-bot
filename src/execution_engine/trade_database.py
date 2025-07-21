@@ -1,9 +1,8 @@
-
 import json
 import os
 import logging
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
-from datetime import datetime
 
 class TradeDatabase:
     """Simple trade database for tracking bot trades and validating positions"""
@@ -30,13 +29,13 @@ class TradeDatabase:
 
                     # Bulletproof startup sequence
                     self.logger.info(f"🛡️ BULLETPROOF: Running comprehensive startup verification...")
-                    
+
                     # Step 1: Clean up stale trades
                     self.cleanup_stale_open_trades(hours=6, sync_with_binance=True)
-                    
+
                     # Step 2: Run health check and recovery
                     health_report = self.run_bulletproof_health_check()
-                    
+
                     # Step 3: Log startup summary
                     open_count = len([t for t in self.trades.values() if t.get('trade_status') == 'OPEN'])
                     self.logger.info(f"🛡️ BULLETPROOF STARTUP COMPLETE:")
@@ -44,7 +43,7 @@ class TradeDatabase:
                     self.logger.info(f"   🔓 Open trades: {open_count}")
                     self.logger.info(f"   🔧 Issues fixed: {len(health_report.get('fixed_issues', []))}")
                     self.logger.info(f"   ⚠️ Issues remaining: {len(health_report.get('remaining_issues', []))}")
-                    
+
             else:
                 self.logger.info("🛡️ BULLETPROOF: Trade database file not found, starting with empty database")
                 self.trades = {}
@@ -81,15 +80,15 @@ class TradeDatabase:
                 if not isinstance(trade_data['quantity'], (int, float)) or trade_data['quantity'] <= 0:
                     self.logger.error(f"🚨 BULLETPROOF: Invalid quantity {trade_data['quantity']} in trade {trade_id}")
                     return False
-                
+
                 if not isinstance(trade_data['entry_price'], (int, float)) or trade_data['entry_price'] <= 0:
                     self.logger.error(f"🚨 BULLETPROOF: Invalid entry_price {trade_data['entry_price']} in trade {trade_id}")
                     return False
-                    
+
                 if trade_data['side'] not in ['BUY', 'SELL']:
                     self.logger.error(f"🚨 BULLETPROOF: Invalid side {trade_data['side']} in trade {trade_id}")
                     return False
-                    
+
             except (KeyError, TypeError, ValueError) as e:
                 self.logger.error(f"🚨 BULLETPROOF: Data validation failed for trade {trade_id}: {e}")
                 return False
@@ -97,7 +96,7 @@ class TradeDatabase:
             # Calculate missing critical fields if not provided
             entry_price = float(trade_data['entry_price'])
             quantity = float(trade_data['quantity'])
-            
+
             # Calculate position value in USDT
             position_value_usdt = entry_price * quantity
             if 'position_value_usdt' not in trade_data or trade_data['position_value_usdt'] is None:
@@ -113,6 +112,14 @@ class TradeDatabase:
                 trade_data['margin_used'] = position_value_usdt / leverage
 
             # Create a complete trade data copy to avoid reference issues
+            # Record trade time in Dubai timezone (UTC+4)
+            from src.config.global_config import global_config
+            if global_config.USE_LOCAL_TIMEZONE:
+                dubai_time = datetime.utcnow() + timedelta(hours=global_config.TIMEZONE_OFFSET_HOURS)
+                timestamp = dubai_time.isoformat()
+            else:
+                timestamp = datetime.now().isoformat()
+
             complete_trade_data = {
                 'trade_id': trade_id,
                 'strategy_name': str(trade_data['strategy_name']),
@@ -124,21 +131,21 @@ class TradeDatabase:
                 'created_at': datetime.now().isoformat(),
                 'last_verified': datetime.now().isoformat(),
                 'sync_status': 'PENDING_VERIFICATION',
-                
+
                 # MANDATORY fields for complete trade tracking
                 'position_value_usdt': float(trade_data['position_value_usdt']),
                 'leverage': int(trade_data['leverage']),
                 'margin_used': float(trade_data['margin_used']),
-                'timestamp': trade_data.get('timestamp', datetime.now().isoformat())
+                'timestamp': timestamp
             }
-            
+
             # Add optional fields if present
             optional_fields = ['stop_loss', 'take_profit', 'position_side', 'order_id', 'entry_time', 
                              'exit_price', 'exit_reason', 'pnl_usdt', 'pnl_percentage', 'duration_minutes']
             for field in optional_fields:
                 if field in trade_data and trade_data[field] is not None:
                     complete_trade_data[field] = trade_data[field]
-            
+
             # Check for existing trade with same position details (prevent duplicates)
             existing_trade_id = self.find_existing_trade_by_position(
                 complete_trade_data['symbol'], 
@@ -146,26 +153,26 @@ class TradeDatabase:
                 complete_trade_data['quantity'], 
                 complete_trade_data['entry_price']
             )
-            
+
             if existing_trade_id and existing_trade_id != trade_id:
                 self.logger.warning(f"🔄 DUPLICATE PREVENTION: Trade {trade_id} matches existing {existing_trade_id}")
                 self.logger.warning(f"🔄 UPDATING existing trade instead of creating duplicate")
-                
+
                 # Update existing trade with any new information
                 self.trades[existing_trade_id].update(complete_trade_data)
                 self.trades[existing_trade_id]['trade_id'] = existing_trade_id  # Keep original ID
                 self._save_database()
                 return existing_trade_id
-            
+
             # Add to database
             self.trades[trade_id] = complete_trade_data
             self._save_database()
-            
+
             # Log successful addition with complete data
             self.logger.info(f"🛡️ TRADE ADDED: {trade_id} | {complete_trade_data['symbol']} | {complete_trade_data['side']}")
             self.logger.info(f"   💰 Value: ${complete_trade_data['position_value_usdt']:.2f} USDT | Margin: ${complete_trade_data['margin_used']:.2f} | Leverage: {complete_trade_data['leverage']}x")
             self.logger.debug(f"🛡️ COMPLETE DATA: {complete_trade_data}")
-            
+
             # Immediate verification with Binance
             if self._verify_trade_on_binance(trade_id, complete_trade_data):
                 self.trades[trade_id]['sync_status'] = 'VERIFIED'
@@ -173,7 +180,7 @@ class TradeDatabase:
                 self.logger.info(f"🛡️ BULLETPROOF: Added and verified trade {trade_id}")
             else:
                 self.logger.warning(f"⚠️ BULLETPROOF: Trade {trade_id} added but verification pending")
-            
+
             return True
         except Exception as e:
             self.logger.error(f"🚨 BULLETPROOF: Error adding trade to database: {e}")
@@ -192,7 +199,7 @@ class TradeDatabase:
                 # Otherwise, match specific strategy
                 strategy_match = (strategy_name == 'UNKNOWN' or 
                                 trade_data.get('strategy_name') == strategy_name)
-                
+
                 if (strategy_match and 
                     trade_data.get('symbol') == symbol and
                     trade_data.get('side') == side and
@@ -263,37 +270,37 @@ class TradeDatabase:
                 # Add update metadata
                 updates['last_updated'] = datetime.now().isoformat()
                 updates['last_verified'] = datetime.now().isoformat()
-                
+
                 # Critical status changes require verification and complete data
                 if 'trade_status' in updates and updates['trade_status'] == 'CLOSED':
                     trade_data = self.trades[trade_id]
-                    
+
                     # Ensure all closure data is complete
                     if 'exit_price' not in updates or updates['exit_price'] is None:
                         updates['exit_price'] = trade_data.get('entry_price', 0)  # Default to entry price
                         self.logger.warning(f"⚠️ CLOSURE: No exit price provided for {trade_id}, using entry price")
-                    
+
                     # Calculate P&L if not provided
                     if 'pnl_usdt' not in updates or updates['pnl_usdt'] is None:
                         entry_price = trade_data.get('entry_price', 0)
                         exit_price = updates.get('exit_price', entry_price)
                         quantity = trade_data.get('quantity', 0)
                         side = trade_data.get('side', 'BUY')
-                        
+
                         if side == 'BUY':
                             pnl_usdt = (exit_price - entry_price) * quantity
                         else:  # SELL
                             pnl_usdt = (entry_price - exit_price) * quantity
-                        
+
                         updates['pnl_usdt'] = pnl_usdt
-                        
+
                         # Calculate P&L percentage
                         position_value = trade_data.get('position_value_usdt', entry_price * quantity)
                         if position_value > 0:
                             updates['pnl_percentage'] = (pnl_usdt / position_value) * 100
                         else:
                             updates['pnl_percentage'] = 0.0
-                    
+
                     # Calculate duration if not provided
                     if 'duration_minutes' not in updates:
                         entry_time_str = trade_data.get('timestamp', trade_data.get('created_at'))
@@ -304,10 +311,10 @@ class TradeDatabase:
                                 updates['duration_minutes'] = int(duration.total_seconds() / 60)
                             except:
                                 updates['duration_minutes'] = 0
-                    
+
                     # Add closure timestamp
                     updates['closed_at'] = datetime.now().isoformat()
-                    
+
                     # Verify closure with Binance if trade was marked as closed
                     if self._verify_trade_closure_on_binance(trade_id, self.trades[trade_id]):
                         updates['closure_verified'] = True
@@ -317,7 +324,7 @@ class TradeDatabase:
                         updates['closure_verified'] = False
                         updates['sync_status'] = 'CLOSURE_PENDING'
                         self.logger.warning(f"⚠️ BULLETPROOF: Trade closure not verified for {trade_id}")
-                    
+
                     # Log complete closure information
                     symbol = trade_data.get('symbol', 'UNKNOWN')
                     side = trade_data.get('side', 'UNKNOWN')
@@ -325,10 +332,10 @@ class TradeDatabase:
                     pnl_pct = updates.get('pnl_percentage', 0)
                     duration = updates.get('duration_minutes', 0)
                     exit_reason = updates.get('exit_reason', 'Unknown')
-                    
+
                     self.logger.info(f"🔒 TRADE CLOSED: {trade_id} | {symbol} {side}")
                     self.logger.info(f"   💰 P&L: ${pnl_usdt:.2f} USDT ({pnl_pct:+.2f}%) | Duration: {duration}min | Reason: {exit_reason}")
-                
+
                 self.trades[trade_id].update(updates)
                 self._save_database()
                 self.logger.info(f"🛡️ BULLETPROOF: Updated trade {trade_id} with complete data")
@@ -382,12 +389,12 @@ class TradeDatabase:
                 try:
                     from src.binance_client.client import BinanceClientWrapper
                     from src.config.global_config import global_config
-                    
+
                     binance_client = BinanceClientWrapper()
                     if binance_client.is_futures:
                         account_info = binance_client.client.futures_account()
                         positions = account_info.get('positions', [])
-                        
+
                         for position in positions:
                             symbol = position.get('symbol')
                             position_amt = float(position.get('positionAmt', 0))
@@ -398,7 +405,7 @@ class TradeDatabase:
                                     'side': 'BUY' if position_amt > 0 else 'SELL',
                                     'quantity': abs(position_amt)
                                 }
-                        
+
                         self.logger.info(f"🔄 AGGRESSIVE CLEANUP: Found {len(actual_binance_positions)} active Binance positions")
                         self.logger.info(f"🔄 AGGRESSIVE CLEANUP: Binance positions: {list(actual_binance_positions.keys())}")
                 except Exception as e:
@@ -412,20 +419,20 @@ class TradeDatabase:
                     db_side = trade_data.get('side')
                     db_quantity = trade_data.get('quantity', 0)
                     strategy_name = trade_data.get('strategy_name', 'UNKNOWN')
-                    
+
                     should_close = False
                     close_reason = 'Stale Trade - Auto Closed'
-                    
+
                     # AGGRESSIVE METHOD 1: Check if position exists on Binance (PRIMARY METHOD)
                     if sync_with_binance and symbol:
                         position_exists_on_binance = False
-                        
+
                         if symbol in actual_binance_positions:
                             binance_pos = actual_binance_positions[symbol]
                             # Check if position details match with tolerance
                             quantity_match = abs(binance_pos['quantity'] - db_quantity) < 0.1
                             side_match = binance_pos['side'] == db_side
-                            
+
                             if quantity_match and side_match:
                                 position_exists_on_binance = True
                                 self.logger.debug(f"🔄 AGGRESSIVE CLEANUP: {trade_id} - Position confirmed on Binance")
@@ -433,12 +440,12 @@ class TradeDatabase:
                                 self.logger.info(f"🔄 AGGRESSIVE CLEANUP: {trade_id} - Position mismatch on Binance (Qty: {binance_pos['quantity']} vs {db_quantity}, Side: {binance_pos['side']} vs {db_side})")
                         else:
                             self.logger.info(f"🔄 AGGRESSIVE CLEANUP: {trade_id} - Symbol {symbol} not found on Binance")
-                        
+
                         if not position_exists_on_binance:
                             should_close = True
                             close_reason = 'Position not found on Binance - Aggressive cleanup'
                             self.logger.warning(f"🔄 AGGRESSIVE CLEANUP: {trade_id} ({strategy_name}) - No matching position on Binance, marking as CLOSED")
-                    
+
                     # AGGRESSIVE METHOD 2: Recovery trades older than 1 hour (SUPER AGGRESSIVE)
                     if not should_close and strategy_name == 'RECOVERY':
                         entry_time_str = trade_data.get('timestamp')
@@ -455,7 +462,7 @@ class TradeDatabase:
                                 # If timestamp parsing fails, consider it stale
                                 should_close = True
                                 close_reason = 'RECOVERY trade - Invalid timestamp'
-                    
+
                     # AGGRESSIVE METHOD 3: Standard trades older than specified hours
                     if not should_close:
                         entry_time_str = trade_data.get('timestamp')
@@ -472,7 +479,7 @@ class TradeDatabase:
                                 # If timestamp parsing fails, consider it stale
                                 should_close = True
                                 close_reason = 'Stale Trade - Invalid timestamp'
-                    
+
                     # AGGRESSIVE METHOD 4: Duplicate RECOVERY entries for same symbol
                     if not should_close and strategy_name == 'RECOVERY':
                         # Count how many RECOVERY entries exist for this symbol
@@ -482,7 +489,7 @@ class TradeDatabase:
                                 other_trade_data.get('strategy_name') == 'RECOVERY' and
                                 other_trade_data.get('trade_status') == 'OPEN'):
                                 recovery_count_for_symbol += 1
-                        
+
                         if recovery_count_for_symbol > 1:
                             # Keep only the newest RECOVERY entry for each symbol
                             recovery_trades_for_symbol = []
@@ -496,16 +503,16 @@ class TradeDatabase:
                                         recovery_trades_for_symbol.append((other_trade_id, timestamp))
                                     except:
                                         recovery_trades_for_symbol.append((other_trade_id, datetime.min))
-                            
+
                             # Sort by timestamp (newest first)
                             recovery_trades_for_symbol.sort(key=lambda x: x[1], reverse=True)
-                            
+
                             # If this trade is not the newest, mark it for closure
                             if trade_id != recovery_trades_for_symbol[0][0]:
                                 should_close = True
                                 close_reason = f'Duplicate RECOVERY entry - Keeping newest only ({recovery_count_for_symbol} found)'
                                 self.logger.warning(f"🔄 AGGRESSIVE CLEANUP: {trade_id} - Duplicate RECOVERY for {symbol}, keeping only newest")
-                    
+
                     # Close the trade if any criteria met
                     if should_close:
                         trades_to_close.append((trade_id, close_reason))
@@ -539,36 +546,36 @@ class TradeDatabase:
         """Verify trade exists on Binance with bulletproof error handling"""
         try:
             from src.binance_client.client import BinanceClientWrapper
-            
+
             binance_client = BinanceClientWrapper()
             if not binance_client.is_futures:
                 return True  # Skip verification for spot trading
-            
+
             account_info = binance_client.client.futures_account()
             positions = account_info.get('positions', [])
-            
+
             symbol = trade_data.get('symbol')
             expected_side = trade_data.get('side')
             expected_quantity = trade_data.get('quantity', 0)
-            
+
             for position in positions:
                 if position.get('symbol') == symbol:
                     position_amt = float(position.get('positionAmt', 0))
                     if abs(position_amt) > 0.0001:  # Position exists
                         actual_side = 'BUY' if position_amt > 0 else 'SELL'
                         actual_quantity = abs(position_amt)
-                        
+
                         # Check if matches with tolerance
                         quantity_match = abs(actual_quantity - expected_quantity) < 0.1
                         side_match = actual_side == expected_side
-                        
+
                         if quantity_match and side_match:
                             self.logger.debug(f"🛡️ VERIFICATION: {trade_id} confirmed on Binance")
                             return True
-            
+
             self.logger.warning(f"⚠️ VERIFICATION: {trade_id} not found on Binance")
             return False
-            
+
         except Exception as e:
             self.logger.error(f"🚨 VERIFICATION ERROR for {trade_id}: {e}")
             return False
@@ -577,26 +584,26 @@ class TradeDatabase:
         """Verify trade is actually closed on Binance"""
         try:
             from src.binance_client.client import BinanceClientWrapper
-            
+
             binance_client = BinanceClientWrapper()
             if not binance_client.is_futures:
                 return True  # Skip verification for spot trading
-            
+
             account_info = binance_client.client.futures_account()
             positions = account_info.get('positions', [])
-            
+
             symbol = trade_data.get('symbol')
-            
+
             for position in positions:
                 if position.get('symbol') == symbol:
                     position_amt = float(position.get('positionAmt', 0))
                     if abs(position_amt) > 0.0001:  # Position still exists
                         self.logger.warning(f"⚠️ CLOSURE VERIFICATION: {trade_id} still open on Binance")
                         return False
-            
+
             self.logger.info(f"🛡️ CLOSURE VERIFICATION: {trade_id} confirmed closed on Binance")
             return True
-            
+
         except Exception as e:
             self.logger.error(f"🚨 CLOSURE VERIFICATION ERROR for {trade_id}: {e}")
             return False
@@ -606,7 +613,7 @@ class TradeDatabase:
         try:
             orphan_log_file = "trading_data/orphan_operations.json"
             os.makedirs(os.path.dirname(orphan_log_file), exist_ok=True)
-            
+
             orphan_entry = {
                 'trade_id': trade_id,
                 'operation': operation,
@@ -614,25 +621,25 @@ class TradeDatabase:
                 'timestamp': datetime.now().isoformat(),
                 'severity': 'HIGH'
             }
-            
+
             # Load existing orphan log
             orphan_log = []
             if os.path.exists(orphan_log_file):
                 with open(orphan_log_file, 'r') as f:
                     existing_data = json.load(f)
                     orphan_log = existing_data.get('orphan_operations', [])
-            
+
             orphan_log.append(orphan_entry)
-            
+
             # Save updated log
             with open(orphan_log_file, 'w') as f:
                 json.dump({
                     'orphan_operations': orphan_log[-100:],  # Keep last 100 entries
                     'last_updated': datetime.now().isoformat()
                 }, f, indent=2)
-            
+
             self.logger.error(f"🚨 ORPHAN LOGGED: {operation} for {trade_id}")
-            
+
         except Exception as e:
             self.logger.error(f"🚨 Failed to log orphan operation: {e}")
 
@@ -641,7 +648,7 @@ class TradeDatabase:
         try:
             error_log_file = "trading_data/critical_errors.json"
             os.makedirs(os.path.dirname(error_log_file), exist_ok=True)
-            
+
             error_entry = {
                 'operation': operation,
                 'trade_id': trade_id,
@@ -649,25 +656,25 @@ class TradeDatabase:
                 'timestamp': datetime.now().isoformat(),
                 'severity': 'CRITICAL'
             }
-            
+
             # Load existing error log
             error_log = []
             if os.path.exists(error_log_file):
                 with open(error_log_file, 'r') as f:
                     existing_data = json.load(f)
                     error_log = existing_data.get('critical_errors', [])
-            
+
             error_log.append(error_entry)
-            
+
             # Save updated log
             with open(error_log_file, 'w') as f:
                 json.dump({
                     'critical_errors': error_log[-50:],  # Keep last 50 entries
                     'last_updated': datetime.now().isoformat()
                 }, f, indent=2)
-            
+
             self.logger.error(f"🚨 CRITICAL ERROR LOGGED: {operation} for {trade_id}")
-            
+
         except Exception as e:
             self.logger.error(f"🚨 Failed to log critical error: {e}")
 
@@ -679,50 +686,50 @@ class TradeDatabase:
                 'orphaned_positions': [],
                 'verification_failures': []
             }
-            
+
             from src.binance_client.client import BinanceClientWrapper
-            
+
             binance_client = BinanceClientWrapper()
             if not binance_client.is_futures:
                 self.logger.info("🛡️ RECOVERY: Spot trading mode - skipping position recovery")
                 return recovery_report
-            
+
             account_info = binance_client.client.futures_account()
             positions = account_info.get('positions', [])
-            
+
             for position in positions:
                 symbol = position.get('symbol')
                 position_amt = float(position.get('positionAmt', 0))
-                
+
                 if abs(position_amt) > 0.0001:  # Active position
                     entry_price = float(position.get('entryPrice', 0))
                     side = 'BUY' if position_amt > 0 else 'SELL'
                     quantity = abs(position_amt)
-                    
+
                     # COMPREHENSIVE CHECK: Look for ANY existing trade for this position
                     # STEP 1: Try to find by position details first (primary method)
                     position_already_tracked = False
                     existing_trade_id = None
-                    
+
                     for trade_id, trade_data in self.trades.items():
                         if (trade_data.get('symbol') == symbol and 
                             trade_data.get('trade_status') == 'OPEN'):
-                            
+
                             # Check if quantities and sides match with tolerance
                             db_quantity = trade_data.get('quantity', 0)
                             db_side = trade_data.get('side')
                             db_entry_price = trade_data.get('entry_price', 0)
-                            
+
                             quantity_match = abs(db_quantity - quantity) < 0.1
                             side_match = db_side == side
                             price_match = abs(db_entry_price - entry_price) < (entry_price * 0.05)  # 5% tolerance
-                            
+
                             if quantity_match and side_match and price_match:
                                 position_already_tracked = True
                                 existing_trade_id = trade_id
                                 self.logger.debug(f"🛡️ RECOVERY: Position {symbol} already tracked as {trade_id}")
                                 break
-                    
+
                     # STEP 2: If creating a recovery trade, check if a recovery already exists for this exact position
                     # This prevents multiple RECOVERY entries for the same Binance position
                     if not position_already_tracked:
@@ -730,32 +737,40 @@ class TradeDatabase:
                             if (trade_data.get('strategy_name') == 'RECOVERY' and
                                 trade_data.get('symbol') == symbol and 
                                 trade_data.get('trade_status') == 'OPEN'):
-                                
+
                                 # Check if this recovery matches the Binance position exactly
                                 db_quantity = trade_data.get('quantity', 0)
                                 db_side = trade_data.get('side')
                                 db_entry_price = trade_data.get('entry_price', 0)
-                                
+
                                 quantity_match = abs(db_quantity - quantity) < 0.01  # Stricter tolerance for recovery
                                 side_match = db_side == side
                                 price_match = abs(db_entry_price - entry_price) < (entry_price * 0.02)  # 2% tolerance
-                                
+
                                 if quantity_match and side_match and price_match:
                                     position_already_tracked = True
                                     existing_trade_id = trade_id
                                     self.logger.info(f"🛡️ RECOVERY: Recovery trade {trade_id} already exists for this Binance position")
                                     break
-                    
+
                     # Only create recovery entry if position is NOT already tracked
                     if not position_already_tracked:
                         # Create recovery trade entry with complete data
                         recovery_trade_id = f"RECOVERY_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                        
+
                         # Calculate complete trade data for recovery
                         position_value_usdt = entry_price * quantity
                         leverage = 1  # Default leverage for recovery trades
                         margin_used = position_value_usdt / leverage
-                        
+
+                        # Record trade time in Dubai timezone (UTC+4)
+                        from src.config.global_config import global_config
+                        if global_config.USE_LOCAL_TIMEZONE:
+                            dubai_time = datetime.utcnow() + timedelta(hours=global_config.TIMEZONE_OFFSET_HOURS)
+                            timestamp = dubai_time.isoformat()
+                        else:
+                            timestamp = datetime.now().isoformat()
+
                         recovery_trade_data = {
                             'strategy_name': 'RECOVERY',
                             'symbol': symbol,
@@ -763,35 +778,35 @@ class TradeDatabase:
                             'quantity': quantity,
                             'entry_price': entry_price,
                             'trade_status': 'OPEN',
-                            'timestamp': datetime.now().isoformat(),
+                            'timestamp': timestamp,
                             'recovery_source': 'BINANCE_SYNC',
                             'sync_status': 'RECOVERED',
                             'created_at': datetime.now().isoformat(),
                             'last_verified': datetime.now().isoformat(),
-                            
+
                             # MANDATORY complete data for recovered positions
                             'position_value_usdt': position_value_usdt,
                             'leverage': leverage,
                             'margin_used': margin_used,
                             'trade_id': recovery_trade_id
                         }
-                        
+
                         self.trades[recovery_trade_id] = recovery_trade_data
                         recovery_report['recovered_trades'].append(recovery_trade_id)
-                        
+
                         self.logger.warning(f"🛡️ RECOVERY: Created complete trade entry {recovery_trade_id} for {symbol}")
                         self.logger.warning(f"   💰 Value: ${position_value_usdt:.2f} USDT | Margin: ${margin_used:.2f} | Leverage: {leverage}x")
                     else:
                         self.logger.info(f"🛡️ RECOVERY: Position {symbol} already tracked as {existing_trade_id} - skipping duplicate recovery")
-            
+
             if recovery_report['recovered_trades']:
                 self._save_database()
                 self.logger.info(f"🛡️ RECOVERY: Recovered {len(recovery_report['recovered_trades'])} missing positions")
             else:
                 self.logger.info(f"🛡️ RECOVERY: No missing positions found - all Binance positions are already tracked")
-            
+
             return recovery_report
-            
+
         except Exception as e:
             self.logger.error(f"🚨 RECOVERY ERROR: {e}")
             return {'error': str(e)}
@@ -807,13 +822,13 @@ class TradeDatabase:
                 'fixed_issues': [],
                 'remaining_issues': []
             }
-            
+
             for trade_id, trade_data in self.trades.items():
                 status = trade_data.get('trade_status', 'UNKNOWN')
-                
+
                 if status == 'OPEN':
                     health_report['open_trades'] += 1
-                    
+
                     # Check if trade needs verification
                     sync_status = trade_data.get('sync_status', 'UNKNOWN')
                     if sync_status in ['PENDING_VERIFICATION', 'UNKNOWN']:
@@ -824,21 +839,21 @@ class TradeDatabase:
                         else:
                             health_report['unverified_trades'] += 1
                             health_report['remaining_issues'].append(f"Cannot verify {trade_id}")
-                
+
                 elif status == 'CLOSED':
                     health_report['closed_trades'] += 1
-            
+
             # Run recovery for missing positions
             recovery_report = self.recover_missing_positions()
             if recovery_report.get('recovered_trades'):
                 health_report['fixed_issues'].extend([f"Recovered {trade_id}" for trade_id in recovery_report['recovered_trades']])
-            
+
             if health_report['fixed_issues']:
                 self._save_database()
-                
+
             self.logger.info(f"🛡️ HEALTH CHECK: {health_report}")
             return health_report
-            
+
         except Exception as e:
             self.logger.error(f"🚨 HEALTH CHECK ERROR: {e}")
             return {'error': str(e)}

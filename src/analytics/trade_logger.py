@@ -159,7 +159,7 @@ class TradeLogger:
             from src.execution_engine.trade_database import TradeDatabase
             trade_db = TradeDatabase()
             trade_dict = trade_record.to_dict()
-            
+
             # Ensure all required fields are present for database
             if 'margin_used' not in trade_dict or trade_dict['margin_used'] is None:
                 trade_dict['margin_used'] = margin_used
@@ -167,7 +167,7 @@ class TradeLogger:
                 trade_dict['leverage'] = leverage
             if 'position_value_usdt' not in trade_dict or trade_dict['position_value_usdt'] is None:
                 trade_dict['position_value_usdt'] = position_value_usdt
-            
+
             success = trade_db.add_trade(trade_id, trade_dict)
             if not success:
                 self.logger.error(f"❌ Failed to add trade to database: {trade_id}")

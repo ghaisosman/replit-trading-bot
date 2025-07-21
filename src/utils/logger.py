@@ -5,7 +5,7 @@ Logging utilities for the trading bot
 import logging
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from collections import deque
 import threading
@@ -148,9 +148,16 @@ class ColoredFormatter(logging.Formatter):
         self._load_strategy_colors()
 
     def format(self, record):
-        # Format timestamp
-        timestamp = datetime.fromtimestamp(record.created).strftime('%H:%M:%S')
-        current_time = datetime.fromtimestamp(record.created)
+        # Format timestamp in Dubai time (UTC+4)
+        from src.config.global_config import global_config
+        utc_time = datetime.fromtimestamp(record.created)
+        if global_config.USE_LOCAL_TIMEZONE:
+            local_time = utc_time + timedelta(hours=global_config.TIMEZONE_OFFSET_HOURS)
+            timestamp = local_time.strftime('%H:%M:%S')
+            current_time = local_time
+        else:
+            timestamp = utc_time.strftime('%H:%M:%S')
+            current_time = utc_time
 
         # Get message
         message = record.getMessage()
