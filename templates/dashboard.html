@@ -1517,6 +1517,7 @@
                 });
         }
 
+        ```text
         function getDefaultResponse(url){
             const currentTime = new Date().toLocaleTimeString();
 
@@ -2111,8 +2112,8 @@
                             document.getElementById('macdSlow').value = config.macd_slow || 26;
                             document.getElementById('macdSignal').value = config.macd_signal || 9;
                             document.getElementById('minHistogramThreshold').value = config.min_histogram_threshold || 0.0001;
-                            document.getElementById('macdEntryThreshold').value = config.macd_entry_threshold || 0.05;
-                            document.getElementById('macdExitThreshold').value = config.macd_exit_threshold || 0.02;
+                            document.getElementById('macdEntryThreshold').value = config.macd_entry_threshold || config.min_distance_threshold || 0.0015;
+                            document.getElementById('macdExitThreshold').value = config.macd_exit_threshold || 0.002;
                             document.getElementById('histogramDivergenceLookback').value = config.histogram_divergence_lookback || 10;
                             document.getElementById('priceDivergenceLookback').value = config.price_divergence_lookback || 10;
                             document.getElementById('confirmationCandles').value = config.confirmation_candles || 2;

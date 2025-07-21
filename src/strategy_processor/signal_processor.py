@@ -143,71 +143,83 @@ class SignalProcessor:
             return None
 
     def _evaluate_macd_divergence(self, df: pd.DataFrame, current_price: float, config: Dict) -> Optional[TradingSignal]:
-        """MACD Divergence strategy evaluation"""
+        """MACD Divergence strategy evaluation - FOLLOWS DASHBOARD CONFIGURATION"""
         try:
             if 'macd' not in df.columns or 'macd_signal' not in df.columns or 'macd_histogram' not in df.columns:
                 return None
 
-            # Get configuration parameters
+            # Get configuration parameters FROM DASHBOARD
             margin = config.get('margin', 50.0)
             leverage = config.get('leverage', 5)
             max_loss_pct = config.get('max_loss_pct', 10)
             min_histogram_threshold = config.get('min_histogram_threshold', 0.0001)
-            confirmation_candles = config.get('confirmation_candles', 2)
-            min_distance_threshold = config.get('min_distance_threshold', 0.005)
+            confirmation_candles = config.get('confirmation_candles', 1)
+            
+            # FIXED: Use correct dashboard parameters
+            entry_threshold = config.get('macd_entry_threshold', config.get('min_distance_threshold', 0.0015))
+            exit_threshold = config.get('macd_exit_threshold', 0.002)
 
-            # Calculate stop loss based on PnL (8% of margin by default)
+            self.logger.debug(f"🔧 MACD Config: entry_threshold={entry_threshold}, histogram_threshold={min_histogram_threshold}, confirmation={confirmation_candles}")
+
+            # Calculate stop loss based on PnL
             max_loss_amount = margin * (max_loss_pct / 100)
             notional_value = margin * leverage
             stop_loss_pct = (max_loss_amount / notional_value) * 100
 
             # Ensure stop loss percentage is properly bounded
-            if stop_loss_pct < 1.0:
-                stop_loss_pct = 1.0  # Minimum 1% stop loss
-            elif stop_loss_pct > 15.0:
-                stop_loss_pct = 15.0  # Maximum 15% stop loss
+            stop_loss_pct = max(1.0, min(stop_loss_pct, 15.0))
 
             # Get recent MACD data
-            macd_line = df['macd'].iloc[-confirmation_candles-1:]
-            signal_line = df['macd_signal'].iloc[-confirmation_candles-1:]
-            histogram = df['macd_histogram'].iloc[-confirmation_candles-1:]
+            lookback_period = confirmation_candles + 3  # Need extra data for trend analysis
+            macd_line = df['macd'].iloc[-lookback_period:]
+            signal_line = df['macd_signal'].iloc[-lookback_period:]
+            histogram = df['macd_histogram'].iloc[-lookback_period:]
 
             # Check if we have enough data
-            if len(histogram) < confirmation_candles + 1:
+            if len(histogram) < lookback_period:
                 return None
 
-            # Calculate distance between MACD lines (as percentage of price)
-            current_distance = abs(macd_line.iloc[-1] - signal_line.iloc[-1]) / current_price
-
-            # Apply distance filter - avoid trading when lines are too close (noisy)
-            if current_distance < min_distance_threshold:
-                return None
-
-            # Check for bullish divergence (before crossing)
-            # MACD line moving toward signal line from below, but hasn't crossed yet
+            # Current values
             macd_current = macd_line.iloc[-1]
-            macd_prev = macd_line.iloc[-2]
             signal_current = signal_line.iloc[-1]
-            signal_prev = signal_line.iloc[-2]
             histogram_current = histogram.iloc[-1]
+            
+            # Previous values for trend detection
             histogram_prev = histogram.iloc[-2]
+            
+            # Calculate momentum strength (histogram change rate)
+            histogram_momentum = abs(histogram_current - histogram_prev)
+            
+            # Calculate distance between MACD lines (normalized by price for consistency)
+            line_distance = abs(macd_current - signal_current) / current_price
 
-            # Bullish divergence: histogram increasing (but still negative) - approaching cross from below
-            if (macd_current < signal_current and  # MACD still below signal (no cross yet)
-                histogram_current > histogram_prev and  # Histogram increasing (bullish momentum)
-                histogram_current < 0 and  # Still negative (no cross yet)
-                abs(histogram_current - histogram_prev) > min_histogram_threshold):  # Significant change
+            self.logger.debug(f"📊 MACD Analysis: MACD={macd_current:.6f}, Signal={signal_current:.6f}, Histogram={histogram_current:.6f}")
+            self.logger.debug(f"📊 Entry Logic: distance={line_distance:.6f} vs threshold={entry_threshold}, momentum={histogram_momentum:.6f} vs {min_histogram_threshold}")
 
-                # Check confirmation over multiple candles
-                bullish_confirmation = all(
-                    histogram.iloc[i] > histogram.iloc[i-1] 
-                    for i in range(-confirmation_candles, 0)
-                    if i < 0
-                )
+            # YOUR STRATEGY LOGIC: Enter when divergence starts BEFORE crossover
+            
+            # BULLISH ENTRY: MACD below signal but gaining momentum (approaching crossover from below)
+            if (macd_current < signal_current and  # Still below signal (before crossover)
+                histogram_current > histogram_prev and  # Momentum building (divergence starting)
+                histogram_current < 0 and  # Still negative (confirms no crossover yet)
+                histogram_momentum >= min_histogram_threshold and  # Significant momentum change
+                line_distance >= entry_threshold):  # Sufficient separation for meaningful signal
 
-                if bullish_confirmation:
+                # Check confirmation over specified candles
+                if confirmation_candles > 1:
+                    momentum_confirmed = all(
+                        histogram.iloc[-i-1] > histogram.iloc[-i-2] 
+                        for i in range(confirmation_candles)
+                    )
+                else:
+                    momentum_confirmed = True
+
+                if momentum_confirmed:
                     stop_loss = current_price * (1 - stop_loss_pct / 100)
-                    take_profit = current_price * 1.05  # Placeholder, real TP is MACD-based
+                    take_profit = current_price * 1.05  # Will be overridden by exit logic
+
+                    self.logger.info(f"🟢 MACD BULLISH ENTRY: Divergence momentum building before crossover")
+                    self.logger.info(f"📊 Entry Details: Histogram {histogram_current:.6f} → {histogram_prev:.6f} (momentum: {histogram_momentum:.6f})")
 
                     return TradingSignal(
                         signal_type=SignalType.BUY,
@@ -215,25 +227,31 @@ class SignalProcessor:
                         entry_price=current_price,
                         stop_loss=stop_loss,
                         take_profit=take_profit,
-                        reason=f"MACD BULLISH DIVERGENCE: Histogram increasing {histogram_current:.6f} (approaching cross from below)"
+                        reason=f"MACD BULLISH DIVERGENCE: Pre-crossover momentum building (H:{histogram_current:.6f}→{histogram_prev:.6f})"
                     )
 
-            # Bearish divergence: histogram decreasing (but still positive) - approaching cross from above
-            elif (macd_current > signal_current and  # MACD still above signal (no cross yet)
-                  histogram_current < histogram_prev and  # Histogram decreasing (bearish momentum)
-                  histogram_current > 0 and  # Still positive (no cross yet)
-                  abs(histogram_current - histogram_prev) > min_histogram_threshold):  # Significant change
+            # BEARISH ENTRY: MACD above signal but losing momentum (approaching crossover from above)
+            elif (macd_current > signal_current and  # Still above signal (before crossover)
+                  histogram_current < histogram_prev and  # Momentum weakening (divergence starting)
+                  histogram_current > 0 and  # Still positive (confirms no crossover yet)
+                  histogram_momentum >= min_histogram_threshold and  # Significant momentum change
+                  line_distance >= entry_threshold):  # Sufficient separation for meaningful signal
 
-                # Check confirmation over multiple candles
-                bearish_confirmation = all(
-                    histogram.iloc[i] < histogram.iloc[i-1] 
-                    for i in range(-confirmation_candles, 0)
-                    if i < 0
-                )
+                # Check confirmation over specified candles
+                if confirmation_candles > 1:
+                    momentum_confirmed = all(
+                        histogram.iloc[-i-1] < histogram.iloc[-i-2] 
+                        for i in range(confirmation_candles)
+                    )
+                else:
+                    momentum_confirmed = True
 
-                if bearish_confirmation:
+                if momentum_confirmed:
                     stop_loss = current_price * (1 + stop_loss_pct / 100)
-                    take_profit = current_price * 0.95  # Placeholder, real TP is MACD-based
+                    take_profit = current_price * 0.95  # Will be overridden by exit logic
+
+                    self.logger.info(f"🔴 MACD BEARISH ENTRY: Divergence momentum building before crossover")
+                    self.logger.info(f"📊 Entry Details: Histogram {histogram_current:.6f} → {histogram_prev:.6f} (momentum: {histogram_momentum:.6f})")
 
                     return TradingSignal(
                         signal_type=SignalType.SELL,
@@ -241,7 +259,7 @@ class SignalProcessor:
                         entry_price=current_price,
                         stop_loss=stop_loss,
                         take_profit=take_profit,
-                        reason=f"MACD BEARISH DIVERGENCE: Histogram decreasing {histogram_current:.6f} (approaching cross from above)"
+                        reason=f"MACD BEARISH DIVERGENCE: Pre-crossover momentum building (H:{histogram_current:.6f}→{histogram_prev:.6f})"
                     )
 
             return None
@@ -284,23 +302,42 @@ class SignalProcessor:
                     self.logger.info(f"SHORT TAKE PROFIT: RSI {rsi_current:.2f} <= {rsi_short_exit}")
                     return f"Take Profit (RSI {rsi_short_exit}-)"
 
-            # MACD-based exit conditions for any MACD strategy
+            # MACD-based exit conditions - FOLLOWS YOUR STRATEGY LOGIC
             elif 'macd' in strategy_name.lower() and 'macd_histogram' in df.columns:
-                histogram = df['macd_histogram'].iloc[-2:]  # Get last 2 values
+                # Get exit threshold from dashboard configuration
+                exit_threshold = strategy_config.get('macd_exit_threshold', 0.002)
+                
+                histogram = df['macd_histogram'].iloc[-3:]  # Get last 3 values for better trend detection
 
-                if len(histogram) >= 2:
+                if len(histogram) >= 3:
                     histogram_current = histogram.iloc[-1]
                     histogram_prev = histogram.iloc[-2]
+                    histogram_prev2 = histogram.iloc[-3]
+                    
+                    # Calculate momentum change strength
+                    momentum_change = abs(histogram_current - histogram_prev)
+                    
+                    # YOUR EXIT LOGIC: Exit when divergence starts turning in opposite direction
 
-                    # Long position: Take profit when histogram starts decreasing (diverging bearish)
-                    if position_side == 'BUY' and histogram_current < histogram_prev and histogram_current > 0:
-                        self.logger.info(f"LONG TAKE PROFIT: MACD histogram decreasing {histogram_current:.6f} (bearish divergence detected)")
-                        return "Take Profit (MACD Bearish Divergence)"
+                    # LONG POSITION EXIT: When bullish momentum starts reversing (peak detection)
+                    if (position_side == 'BUY' and 
+                        histogram_current < histogram_prev and  # Momentum decreasing
+                        histogram_prev > histogram_prev2 and  # Previous was increasing (confirms peak)
+                        momentum_change >= exit_threshold):    # Significant change per dashboard config
 
-                    # Short position: Take profit when histogram starts increasing (diverging bullish)
-                    elif position_side == 'SELL' and histogram_current > histogram_prev and histogram_current < 0:
-                        self.logger.info(f"SHORT TAKE PROFIT: MACD histogram increasing {histogram_current:.6f} (bullish divergence detected)")
-                        return "Take Profit (MACD Bullish Divergence)"
+                        self.logger.info(f"🟢→🔴 LONG TAKE PROFIT: MACD momentum reversing at peak")
+                        self.logger.info(f"📊 Exit Details: Histogram peak detected {histogram_prev2:.6f}→{histogram_prev:.6f}→{histogram_current:.6f}")
+                        return "Take Profit (MACD Peak - Momentum Reversal)"
+
+                    # SHORT POSITION EXIT: When bearish momentum starts reversing (bottom detection)
+                    elif (position_side == 'SELL' and 
+                          histogram_current > histogram_prev and  # Momentum increasing
+                          histogram_prev < histogram_prev2 and  # Previous was decreasing (confirms bottom)
+                          momentum_change >= exit_threshold):    # Significant change per dashboard config
+
+                        self.logger.info(f"🔴→🟢 SHORT TAKE PROFIT: MACD momentum reversing at bottom")
+                        self.logger.info(f"📊 Exit Details: Histogram bottom detected {histogram_prev2:.6f}→{histogram_prev:.6f}→{histogram_current:.6f}")
+                        return "Take Profit (MACD Bottom - Momentum Reversal)"
 
             # Fallback to traditional TP/SL for non-RSI strategies
             elif 'rsi' not in strategy_name.lower():
