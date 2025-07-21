@@ -119,21 +119,193 @@ def export_data():
     else:
         print("❌ No data to export")
 
+def run_parameter_optimization():
+    """Run parameter optimization simulation"""
+    print("🔧 Running parameter optimization...")
+    from src.analytics.trade_logger import trade_logger
+    
+    closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
+    if len(closed_trades) < 5:
+        print("❌ Need at least 5 closed trades for optimization")
+        return
+    
+    results = ml_analyzer.simulate_parameter_optimization(closed_trades)
+    
+    if results:
+        print("✅ Optimization complete!")
+        for scenario_type, data in results.items():
+            print(f"\n🎯 {scenario_type.upper()}:")
+            print(f"  Average improvement: {data['avg_improvement']:.2f}%")
+            print(f"  Best improvement: {data['best_improvement']:.2f}%")
+            
+            # Show best parameters
+            best_params = data['parameters']
+            for key, value in best_params.items():
+                if key not in ['scenario_type']:
+                    print(f"  Optimal {key}: {value}")
+    else:
+        print("❌ No optimization results generated")
+
+def get_ai_insights():
+    """Get insights from external AI advisor"""
+    print("🤖 Getting AI advisor insights...")
+    
+    # Check if API key is set
+    api_key = input("Enter OpenAI API key (or press Enter to skip): ").strip()
+    
+    if not api_key:
+        print("⚠️ Skipping AI insights - no API key provided")
+        print("💡 To enable AI insights, get an API key from OpenAI, Claude, or Gemini")
+        return
+    
+    try:
+        from src.analytics.ai_advisor import ai_advisor
+        
+        # Set API key
+        ai_advisor.set_api_key('openai', api_key)
+        
+        # Prepare context
+        context = ml_analyzer.prepare_ai_context()
+        
+        # Get AI analysis (mock for now)
+        import asyncio
+        
+        async def get_analysis():
+            return await ai_advisor.analyze_trading_performance(context)
+        
+        response = asyncio.run(get_analysis())
+        
+        if response.get('success'):
+            analysis = response['analysis']
+            
+            print("\n🎯 AI PERFORMANCE ASSESSMENT:")
+            perf = analysis['performance_assessment']
+            print(f"  Overall Rating: {perf['overall_rating']}")
+            print(f"  Trend: {perf['profitability_trend']}")
+            
+            print("\n💪 KEY STRENGTHS:")
+            for strength in perf['key_strengths']:
+                print(f"  ✅ {strength}")
+            
+            print("\n⚠️ AREAS FOR IMPROVEMENT:")
+            for weakness in perf['main_weaknesses']:
+                print(f"  📋 {weakness}")
+            
+            print("\n🔧 IMMEDIATE ACTIONS:")
+            for action in analysis['optimization_recommendations']['immediate_actions']:
+                print(f"  🎯 {action}")
+            
+            print("\n💡 TECHNICAL IMPROVEMENTS:")
+            for improvement in analysis['technical_improvements']['ml_enhancements']:
+                print(f"  🚀 {improvement}")
+                
+        else:
+            print(f"❌ AI analysis failed: {response.get('error', 'Unknown error')}")
+            
+    except Exception as e:
+        print(f"❌ Error getting AI insights: {e}")
+
+def analyze_what_if_scenarios():
+    """Analyze what-if scenarios for trade optimization"""
+    print("🔮 Analyzing what-if scenarios...")
+    
+    # Get a recent trade for analysis
+    from src.analytics.trade_logger import trade_logger
+    closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
+    
+    if not closed_trades:
+        print("❌ No closed trades available for analysis")
+        return
+    
+    recent_trade = closed_trades[-1]
+    base_trade = {
+        'strategy': recent_trade.strategy,
+        'symbol': recent_trade.symbol,
+        'side': recent_trade.side,
+        'leverage': recent_trade.leverage,
+        'position_size_usdt': recent_trade.position_size_usdt,
+        'rsi_entry': recent_trade.rsi_at_entry,
+        'actual_pnl': recent_trade.pnl_percentage
+    }
+    
+    print(f"📊 Analyzing scenarios for trade: {recent_trade.trade_id}")
+    print(f"🎯 Actual PnL: {recent_trade.pnl_percentage:.2f}%")
+    
+    scenarios = ml_analyzer.generate_what_if_scenarios(base_trade)
+    
+    print(f"\n🔍 Generated {len(scenarios)} scenarios:")
+    
+    # Group by scenario type
+    scenario_groups = {}
+    for scenario in scenarios:
+        scenario_type = scenario['scenario_type']
+        if scenario_type not in scenario_groups:
+            scenario_groups[scenario_type] = []
+        scenario_groups[scenario_type].append(scenario)
+    
+    for scenario_type, group in scenario_groups.items():
+        print(f"\n📋 {scenario_type.upper()} SCENARIOS:")
+        
+        for scenario in group[:3]:  # Show top 3 scenarios
+            prediction = ml_analyzer.predict_trade_outcome(scenario)
+            if 'predicted_pnl_percentage' in prediction:
+                improvement = prediction['predicted_pnl_percentage'] - base_trade['actual_pnl']
+                print(f"  🔄 {scenario}: Predicted PnL: {prediction['predicted_pnl_percentage']:.2f}% (improvement: {improvement:+.2f}%)")
+
+def generate_enhanced_insights():
+    """Generate enhanced insights with advanced analytics"""
+    print("📊 Generating enhanced insights...")
+    
+    insights = ml_analyzer.get_enhanced_insights()
+    
+    if "error" in insights:
+        print(f"❌ Error: {insights['error']}")
+        return
+    
+    print("✅ Enhanced insights generated!")
+    
+    # Show parameter optimization results
+    if 'optimization_scenarios' in insights:
+        print("\n🎯 PARAMETER OPTIMIZATION RESULTS:")
+        for scenario_type, data in insights['optimization_scenarios'].items():
+            print(f"  📊 {scenario_type}: {data['avg_improvement']:+.2f}% avg improvement")
+    
+    # Show market regime analysis  
+    if 'market_regime_analysis' in insights:
+        print("\n🌊 MARKET REGIME ANALYSIS:")
+        regimes = insights['market_regime_analysis']
+        for regime, stats in regimes.items():
+            print(f"  📈 {regime}: {stats['win_rate']:.1%} win rate ({stats['trade_count']} trades)")
+    
+    # Show traditional insights
+    if 'strategy_performance' in insights:
+        print("\n🏆 STRATEGY PERFORMANCE:")
+        for strategy, stats in insights['strategy_performance'].items():
+            print(f"  📊 {strategy}: {stats['win_rate']:.1f}% win rate, {stats['avg_pnl']:+.2f}% avg PnL")
+
 def main():
-    """Main menu for ML commands"""
-    print("🤖 TRADING BOT ML ANALYTICS")
-    print("=" * 40)
+    """Enhanced main menu for ML commands"""
+    print("🤖 ENHANCED TRADING BOT ML ANALYTICS")
+    print("=" * 50)
 
     while True:
-        print("\nOptions:")
+        print("\n🎯 CORE ML FUNCTIONS:")
         print("1. Train ML models")
-        print("2. Generate insights")
+        print("2. Generate basic insights") 
         print("3. Test prediction")
-        print("4. Send manual daily report")
-        print("5. Export trade data")
-        print("6. Exit")
+        
+        print("\n🚀 ADVANCED ANALYTICS:")
+        print("4. Generate enhanced insights")
+        print("5. Run parameter optimization")
+        print("6. Analyze what-if scenarios")
+        print("7. Get external AI insights")
+        
+        print("\n📊 REPORTING & DATA:")
+        print("8. Send manual daily report")
+        print("9. Export trade data")
+        print("10. Exit")
 
-        choice = input("\nSelect option (1-6): ")
+        choice = input("\nSelect option (1-10): ")
 
         if choice == "1":
             train_ml_models()
@@ -142,10 +314,18 @@ def main():
         elif choice == "3":
             test_prediction()
         elif choice == "4":
-            send_manual_report()
+            generate_enhanced_insights()
         elif choice == "5":
-            export_data()
+            run_parameter_optimization()
         elif choice == "6":
+            analyze_what_if_scenarios()
+        elif choice == "7":
+            get_ai_insights()
+        elif choice == "8":
+            send_manual_report()
+        elif choice == "9":
+            export_data()
+        elif choice == "10":
             break
         else:
             print("Invalid option")
