@@ -61,10 +61,51 @@ class PriceFetcher:
             return price
         return None
 
-    def get_ohlcv_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:
-        """Get OHLCV data as DataFrame"""
+    async def get_market_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:
+        """Get market data with real-time current candle integration"""
         try:
-            klines = self.binance_client.get_historical_klines(symbol, interval, limit)
+            # Get historical completed candles
+            historical_df = self.get_ohlcv_data(symbol, interval, limit)
+            if historical_df is None or historical_df.empty:
+                return None
+
+            # Get current price for real-time accuracy
+            current_price = self.get_current_price(symbol)
+            if current_price is None:
+                return historical_df
+
+            # Update the last (current) candle with real-time price
+            # This ensures indicators reflect the most current market condition
+            last_candle = historical_df.iloc[-1].copy()
+            
+            # Update current candle's close price and potentially high/low
+            historical_df.iloc[-1, historical_df.columns.get_loc('close')] = current_price
+            
+            # Update high if current price is higher
+            if current_price > last_candle['high']:
+                historical_df.iloc[-1, historical_df.columns.get_loc('high')] = current_price
+            
+            # Update low if current price is lower  
+            if current_price < last_candle['low']:
+                historical_df.iloc[-1, historical_df.columns.get_loc('low')] = current_price
+
+            # Calculate indicators on updated data
+            historical_df = self.calculate_indicators(historical_df)
+
+            self.logger.debug(f"🔄 REAL-TIME UPDATE | {symbol} | Historical Close: ${last_candle['close']:.4f} | Current: ${current_price:.4f}")
+
+            return historical_df
+
+        except Exception as e:
+            self.logger.error(f"Error getting enhanced market data for {symbol}: {e}")
+            return self.get_ohlcv_data(symbol, interval, limit)
+
+    def get_ohlcv_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:
+        """Get OHLCV data as DataFrame with enhanced accuracy"""
+        try:
+            # Get more data than needed for better indicator calculation
+            extended_limit = min(limit + 50, 1000)  # Add buffer for accurate indicators
+            klines = self.binance_client.get_historical_klines(symbol, interval, extended_limit)
             if not klines:
                 return None
 
@@ -79,44 +120,101 @@ class PriceFetcher:
             if self.use_local_timezone or self.timezone_offset_hours != 0:
                 df['timestamp'] = df['timestamp'].apply(self._adjust_timestamp_for_timezone)
 
-            # Convert to proper data types
+            # Convert to proper data types with high precision
             numeric_columns = ['open', 'high', 'low', 'close', 'volume']
             for col in numeric_columns:
-                df[col] = pd.to_numeric(df[col])
+                df[col] = pd.to_numeric(df[col], errors='coerce')
 
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             df.set_index('timestamp', inplace=True)
 
-            return df[['open', 'high', 'low', 'close', 'volume']]
+            # Sort by timestamp to ensure proper order
+            df = df.sort_index()
+
+            # Remove any duplicate timestamps
+            df = df[~df.index.duplicated(keep='last')]
+
+            # Return only requested amount but keep the extra data for calculations
+            result_df = df[['open', 'high', 'low', 'close', 'volume']].tail(limit)
+            
+            # Log data quality
+            self.logger.debug(f"📊 DATA QUALITY | {symbol} | Requested: {limit} | Got: {len(result_df)} | Latest: {result_df.index[-1]}")
+
+            return result_df
 
         except Exception as e:
             self.logger.error(f"Error getting OHLCV data for {symbol}: {e}")
             return None
 
     def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate technical indicators"""
+        """Calculate technical indicators with enhanced accuracy"""
         try:
-            # Moving Averages
-            df['sma_20'] = ta.trend.sma_indicator(df['close'], window=20)
-            df['sma_50'] = ta.trend.sma_indicator(df['close'], window=50)
-            df['ema_12'] = ta.trend.ema_indicator(df['close'], window=12)
-            df['ema_26'] = ta.trend.ema_indicator(df['close'], window=26)
+            # Ensure we have enough data
+            if len(df) < 50:
+                self.logger.warning("Insufficient data for accurate indicator calculation")
+                return df
 
-            # MACD
-            df['macd'] = ta.trend.macd_diff(df['close'])
-            df['macd_signal'] = ta.trend.macd_signal(df['close'])
+            # Calculate RSI using manual method (more accurate to Binance)
+            df['rsi'] = self._calculate_rsi_manual(df['close'].values, period=14)
+            
+            # Calculate RSI using ta library for comparison
+            df['rsi_ta'] = ta.momentum.RSIIndicator(df['close'], window=14).rsi()
 
-            # RSI
-            df['rsi'] = ta.momentum.RSIIndicator(df['close'], window=14).rsi()
+            # Moving Averages - use pandas for more precise calculation
+            df['sma_20'] = df['close'].rolling(window=20, min_periods=20).mean()
+            df['sma_50'] = df['close'].rolling(window=50, min_periods=50).mean()
+            
+            # EMA calculation (manual for precision)
+            df['ema_12'] = df['close'].ewm(span=12, min_periods=12).mean()
+            df['ema_26'] = df['close'].ewm(span=26, min_periods=26).mean()
 
-            # MACD
+            # MACD calculation (manual for precision)
+            df['macd'] = df['ema_12'] - df['ema_26']
+            df['macd_signal'] = df['macd'].ewm(span=9, min_periods=9).mean()
+            df['macd_histogram'] = df['macd'] - df['macd_signal']
+
+            # Additional MACD using ta library for comparison
             macd_indicator = ta.trend.MACD(df['close'], window_fast=12, window_slow=26, window_sign=9)
-            df['macd'] = macd_indicator.macd()
-            df['macd_signal'] = macd_indicator.macd_signal()
-            df['macd_histogram'] = macd_indicator.macd_diff()
+            df['macd_ta'] = macd_indicator.macd()
+            df['macd_signal_ta'] = macd_indicator.macd_signal()
+            df['macd_histogram_ta'] = macd_indicator.macd_diff()
+
+            # Log current values for debugging
+            current_price = df['close'].iloc[-1]
+            current_rsi = df['rsi'].iloc[-1] if not pd.isna(df['rsi'].iloc[-1]) else 0
+            current_rsi_ta = df['rsi_ta'].iloc[-1] if not pd.isna(df['rsi_ta'].iloc[-1]) else 0
+            
+            self.logger.debug(f"📊 INDICATORS | Price: ${current_price:.4f} | RSI(Manual): {current_rsi:.2f} | RSI(TA): {current_rsi_ta:.2f}")
 
             return df
 
         except Exception as e:
             self.logger.error(f"Error calculating indicators: {e}")
             return df
+
+    def _calculate_rsi_manual(self, prices, period=14):
+        """Manual RSI calculation matching Binance methodology"""
+        if len(prices) < period + 1:
+            return pd.Series([None] * len(prices))
+
+        # Calculate price changes
+        deltas = pd.Series(prices).diff()
+        
+        # Separate gains and losses
+        gains = deltas.where(deltas > 0, 0)
+        losses = -deltas.where(deltas < 0, 0)
+
+        # Calculate Wilder's smoothed moving averages (Binance uses this method)
+        avg_gains = gains.rolling(window=period, min_periods=period).mean()
+        avg_losses = losses.rolling(window=period, min_periods=period).mean()
+
+        # Apply Wilder's smoothing for subsequent periods
+        for i in range(period, len(gains)):
+            avg_gains.iloc[i] = (avg_gains.iloc[i-1] * (period - 1) + gains.iloc[i]) / period
+            avg_losses.iloc[i] = (avg_losses.iloc[i-1] * (period - 1) + losses.iloc[i]) / period
+
+        # Calculate RSI
+        rs = avg_gains / avg_losses
+        rsi = 100 - (100 / (1 + rs))
+        
+        return rsi

@@ -777,7 +777,8 @@ def get_strategies():
                     config.setdefault('profit_target_multiplier', 2.0)
                     config.setdefault('swing_strength', 3)
                     config.setdefault('min_wick_ratio', 0.6)
-                    config.setdefault('min_volume', 5000000)
+                    config.setdefault```python
+('min_volume', 5000000)
                     config.setdefault('decimals', 2)
                     config.setdefault('cooldown_period', 600)
 
@@ -1422,6 +1423,7 @@ def get_positions():
                     if margin_invested > 0:
                         pnl_percent = (pnl / margin_invested) * 100
 
+                ```python
                 # Ensure position_value is calculated and handled correctly
                 position_value_usdt = float(position.entry_price) * float(position.quantity) if hasattr(position, 'entry_price') and hasattr(position, 'quantity') else 0.0
 

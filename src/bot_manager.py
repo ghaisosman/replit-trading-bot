@@ -652,12 +652,8 @@ class BotManager:
             leverage = strategy_config.get('leverage', 5)
             self.logger.info(f"🔍 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x")
 
-            # Get market data with error handling
-            df = self.price_fetcher.get_ohlcv_data(
-                strategy_config['symbol'],
-                strategy_config['timeframe']
-            )
-
+            # Use enhanced market data method for better accuracy
+            df = await self.price_fetcher.get_market_data(strategy_config['symbol'], strategy_config['timeframe'], 100)
             if df is None or df.empty:
                 self.logger.warning(f"No data for {strategy_config['symbol']}")
                 return
@@ -726,6 +722,7 @@ class BotManager:
                     self.telegram_reporter.report_position_opened(position_dict)
                 else:
                     self.logger.warning(f"❌ POSITION FAILED | {strategy_name.upper()} | {strategy_config['symbol']} | Could not execute signal")
+```python
             else:
                 # Get assessment interval for logging
                 assessment_interval = strategy_config.get('assessment_interval', 300)
