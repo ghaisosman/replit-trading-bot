@@ -39,6 +39,9 @@ class MLTradeAnalyzer:
 
         # Feature importance tracking
         self.feature_importance = {}
+        
+        # Store training feature names for consistent prediction
+        self.training_feature_names = None
 
     def prepare_ml_dataset(self) -> Optional[pd.DataFrame]:
         """Prepare dataset for machine learning"""
@@ -140,6 +143,9 @@ class MLTradeAnalyzer:
             # Define features (exclude target variables)
             target_columns = ['pnl_usdt', 'pnl_percentage', 'was_profitable', 'duration_minutes']
             feature_columns = [col for col in df.columns if col not in target_columns]
+
+            # Store feature names for consistent prediction
+            self.training_feature_names = feature_columns
 
             X = df[feature_columns]
 
@@ -302,12 +308,31 @@ class MLTradeAnalyzer:
                     except:
                         feature_df[col] = 0  # Unknown category
 
-            # Select only features used in training
-            feature_columns = [col for col in feature_df.columns 
-                             if col not in ['pnl_usdt', 'pnl_percentage', 'was_profitable', 'duration_minutes']]
+            # Get the exact feature names used during training
+            if hasattr(self, 'training_feature_names') and self.training_feature_names:
+                training_features = self.training_feature_names
+            elif hasattr(self.profitability_model, 'feature_names_in_'):
+                training_features = self.profitability_model.feature_names_in_
+            else:
+                # Fallback: exclude target variables
+                training_features = [col for col in feature_df.columns 
+                                   if col not in ['pnl_usdt', 'pnl_percentage', 'was_profitable', 'duration_minutes']]
 
-            # Ensure all required features are present
-            X = feature_df[feature_columns].fillna(0)
+            # Add missing features with default values
+            for feature in training_features:
+                if feature not in feature_df.columns:
+                    # Set default values based on feature type
+                    if feature in ['exit_reason', 'market_phase', 'market_trend']:
+                        feature_df[feature] = 0  # Encoded categorical
+                    elif feature in ['month', 'hour_of_day', 'day_of_week']:
+                        feature_df[feature] = trade_features.get(feature, 0)
+                    elif feature in ['max_drawdown', 'risk_reward_ratio']:
+                        feature_df[feature] = 0.0  # Default numeric values
+                    else:
+                        feature_df[feature] = 0.0
+
+            # Select only the features used during training, in the same order
+            X = feature_df[training_features].fillna(0)
 
             predictions = {}
 
