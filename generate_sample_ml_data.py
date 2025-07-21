@@ -62,7 +62,8 @@ def generate_sample_trades():
             'exit_price': round(exit_price, 2),
             'trade_status': 'CLOSED',
             'leverage': leverage,
-            'position_size_usdt': round(position_value, 2),
+            'margin_used': round(position_value / leverage, 2),
+            'position_value_usdt': round(position_value, 2),
             
             # Technical indicators
             'rsi_at_entry': round(rsi, 1),
@@ -84,6 +85,7 @@ def generate_sample_trades():
             'exit_reason': 'Take Profit' if is_profitable else 'Stop Loss',
             
             # Timestamps
+            'timestamp': datetime.now() - timedelta(days=random.randint(1, 30)),
             'entry_time': (datetime.now() - timedelta(days=random.randint(1, 30))).isoformat(),
             'exit_time': datetime.now().isoformat()
         }
