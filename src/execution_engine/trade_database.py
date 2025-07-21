@@ -139,9 +139,24 @@ class TradeDatabase:
                 'timestamp': timestamp
             }
 
-            # Add optional fields if present
-            optional_fields = ['stop_loss', 'take_profit', 'position_side', 'order_id', 'entry_time', 
-                             'exit_price', 'exit_reason', 'pnl_usdt', 'pnl_percentage', 'duration_minutes']
+            # Add optional fields if present - EXPANDED LIST for complete data capture
+            optional_fields = [
+                'stop_loss', 'take_profit', 'position_side', 'order_id', 'entry_time', 
+                'exit_price', 'exit_reason', 'pnl_usdt', 'pnl_percentage', 'duration_minutes',
+                
+                # Technical indicators at entry
+                'rsi_at_entry', 'macd_at_entry', 'sma_20_at_entry', 'sma_50_at_entry', 
+                'volume_at_entry', 'entry_signal_strength',
+                
+                # Market conditions
+                'market_trend', 'volatility_score', 'market_phase',
+                
+                # Performance metrics
+                'risk_reward_ratio', 'max_drawdown',
+                
+                # Additional metadata
+                'recovery_source', 'closure_verified', 'exit_time'
+            ]
             for field in optional_fields:
                 if field in trade_data and trade_data[field] is not None:
                     complete_trade_data[field] = trade_data[field]
