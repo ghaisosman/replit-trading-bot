@@ -106,10 +106,17 @@ class TradeDatabase:
             if 'leverage' not in trade_data or trade_data['leverage'] is None:
                 trade_data['leverage'] = 1  # Default to 1x leverage for spot, will be updated for futures
 
-            # Calculate margin used if missing
+            # Calculate margin used if missing - CRITICAL for position validation
             if 'margin_used' not in trade_data or trade_data['margin_used'] is None:
                 leverage = trade_data.get('leverage', 1)
-                trade_data['margin_used'] = position_value_usdt / leverage
+                calculated_margin = position_value_usdt / leverage
+                trade_data['margin_used'] = calculated_margin
+                self.logger.info(f"🔧 CALCULATED missing margin_used: ${calculated_margin:.2f} USDT for {trade_id}")
+            
+            # Validate margin_used makes sense
+            if trade_data['margin_used'] <= 0:
+                self.logger.error(f"🚨 INVALID margin_used {trade_data['margin_used']} for {trade_id}")
+                return False
 
             # Create a complete trade data copy to avoid reference issues
             # Record trade time in Dubai timezone (UTC+4)

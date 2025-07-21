@@ -328,20 +328,42 @@ class OrderManager:
                         # Position already closed manually, just update records
                         pnl, pnl_percentage = self._calculate_profit_loss(position, current_price)
 
+                        # Calculate duration
+                        duration_minutes = (datetime.now() - position.entry_time).total_seconds() / 60 if position.entry_time else 0
+
+                        # CRITICAL: Update database with manual closure info
+                        try:
+                            from src.execution_engine.trade_database import TradeDatabase
+                            trade_db = TradeDatabase()
+                            
+                            if position.trade_id:
+                                trade_db.update_trade(position.trade_id, {
+                                    'trade_status': 'CLOSED',
+                                    'exit_price': current_price,
+                                    'exit_reason': 'Manual Closure (Detected)',
+                                    'pnl_usdt': pnl,
+                                    'pnl_percentage': pnl_percentage,
+                                    'duration_minutes': duration_minutes,
+                                    'manually_closed': True
+                                })
+                                self.logger.info(f"✅ Database updated for manual closure: {position.trade_id}")
+                        except Exception as db_error:
+                            self.logger.error(f"❌ Failed to update database for manual closure: {db_error}")
+
                         # Update position status and move to history
                         position.status = "MANUALLY_CLOSED"
                         self._add_to_history(position)
                         with self._position_lock:
                             del self.active_positions[strategy_name]
 
-                        self.logger.info(f"✅ Position {symbol} marked as manually closed")
+                        self.logger.info(f"✅ Position {symbol} marked as manually closed with P&L: ${pnl:.2f} USDT")
                         return {
                             'symbol': symbol,
                             'pnl_usdt': total_pnl,
                             'pnl_percentage': total_pnl_percentage,
                             'exit_price': current_price,
                             'exit_reason': "Already closed manually",
-                            'duration_minutes': (datetime.now() - position.entry_time).total_seconds() / 60 if position.entry_time else 0,
+                            'duration_minutes': duration_minutes,
                             'partial_tp_taken': position.partial_tp_taken,
                             'partial_tp_amount': position.partial_tp_amount
                         }
@@ -612,56 +634,52 @@ class OrderManager:
             return {'min_qty': 0.1, 'step_size': 0.1, 'precision': 1}
 
     def _calculate_position_size(self, signal: TradingSignal, strategy_config: Dict) -> float:
-        """Calculate position size based on margin and leverage with dynamic symbol info"""
+        """Calculate position size based on margin and leverage with improved accuracy"""
         try:
             margin = strategy_config.get('margin', 50.0)
             leverage = strategy_config.get('leverage', 5)
 
-            self.logger.info(f"🔍 POSITION SIZE CALCULATION | Margin: ${margin} | Leverage: {leverage}x | Entry: ${signal.entry_price}")
+            self.logger.info(f"🔍 POSITION SIZE CALCULATION | Target Margin: ${margin} | Leverage: {leverage}x | Entry: ${signal.entry_price}")
 
-            # Calculate base position size in quote currency (USDT)
-            position_value_usdt = margin * leverage
-
-            # Calculate quantity in base currency
-            quantity = position_value_usdt / signal.entry_price
-
-            # Get symbol info from Binance API
+            # Get symbol info first to understand constraints
             config_symbol = strategy_config.get('symbol', '')
             actual_symbol = signal.symbol or config_symbol
             symbol_info = self._get_symbol_info(actual_symbol)
 
-            self.logger.info(f"🔍 RAW CALCULATION | Symbol: {actual_symbol} | Position Value: ${position_value_usdt} | Raw Quantity: {quantity:.6f}")
-
-            # Apply symbol-specific precision from Binance
             min_qty = symbol_info['min_qty']
             step_size = symbol_info['step_size']
+            precision = strategy_config.get('decimals', symbol_info['precision'])
 
-            # Use configured precision if available, otherwise fall back to Binance precision
-            configured_precision = strategy_config.get('decimals')
-            if configured_precision is not None:
-                precision = configured_precision
-                self.logger.debug(f"🔧 USING CONFIGURED PRECISION | {actual_symbol} | Configured: {precision} decimals")
-            else:
-                precision = symbol_info['precision']
-                self.logger.debug(f"🔧 USING BINANCE PRECISION | {actual_symbol} | Auto-detected: {precision} decimals")
+            # Method 1: Calculate ideal quantity based on exact margin
+            target_position_value = margin * leverage
+            ideal_quantity = target_position_value / signal.entry_price
 
-            original_quantity = quantity
-
-            # Round to proper precision based on step size
-            quantity = round(quantity / step_size) * step_size
+            # Method 2: Round to meet Binance requirements
+            quantity = round(ideal_quantity / step_size) * step_size
             quantity = round(quantity, precision)
 
             # Ensure minimum quantity
             if quantity < min_qty:
                 quantity = min_qty
+                self.logger.warning(f"⚠️ MARGIN ADJUSTMENT: Quantity increased to minimum {min_qty} - margin will be higher than configured")
 
-            self.logger.info(f"🔧 DYNAMIC PRECISION | Original: {original_quantity:.6f} → Fixed: {quantity} | Min: {min_qty} | Step: {step_size}")
-
-            # Calculate what the actual margin will be with this quantity
+            # Calculate actual values after rounding
             actual_position_value = quantity * signal.entry_price
-            actual_margin_will_be = actual_position_value / leverage
+            actual_margin_used = actual_position_value / leverage
 
-            self.logger.info(f"✅ FINAL POSITION SIZE | Symbol: {signal.symbol} | Quantity: {quantity} | Actual Position Value: ${actual_position_value:.2f} | Actual Margin: ${actual_margin_will_be:.2f}")
+            # Log the margin difference for transparency
+            margin_difference = actual_margin_used - margin
+            margin_difference_pct = (margin_difference / margin) * 100 if margin > 0 else 0
+
+            self.logger.info(f"🔧 MARGIN CALCULATION RESULTS:")
+            self.logger.info(f"   🎯 Target Margin: ${margin:.2f} USDT")
+            self.logger.info(f"   💰 Actual Margin: ${actual_margin_used:.2f} USDT")
+            self.logger.info(f"   📊 Difference: ${margin_difference:+.2f} USDT ({margin_difference_pct:+.1f}%)")
+            self.logger.info(f"   📏 Quantity: {ideal_quantity:.6f} → {quantity} (rounded)")
+            self.logger.info(f"   💵 Position Value: ${actual_position_value:.2f} USDT")
+
+            # Store actual margin for later use in position object
+            signal.actual_margin_used = actual_margin_used
 
             return quantity
 
@@ -950,17 +968,23 @@ class OrderManager:
         return f"{strategy_name}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
     def _record_trade_immediately(self, position: Position, strategy_config: Dict) -> bool:
-        """Record trade in database immediately after Binance confirmation"""
+        """Record trade in database immediately after Binance confirmation with complete data"""
         try:
             from src.execution_engine.trade_database import TradeDatabase
             trade_db = TradeDatabase()
 
-            # Calculate values
+            # Use actual margin from position calculation or calculate it
+            if hasattr(position, 'actual_margin_used') and position.actual_margin_used:
+                margin_used = position.actual_margin_used
+            else:
+                position_value = position.entry_price * position.quantity
+                leverage = strategy_config.get('leverage', 1)
+                margin_used = position_value / leverage
+
             position_value = position.entry_price * position.quantity
             leverage = strategy_config.get('leverage', 1)
-            margin_used = position_value / leverage
 
-            # Create complete trade data
+            # Create complete trade data with all required fields
             trade_data = {
                 'strategy_name': position.strategy_name,
                 'symbol': position.symbol,
@@ -974,13 +998,18 @@ class OrderManager:
                 'order_id': position.order_id,
                 'stop_loss': position.stop_loss,
                 'take_profit': position.take_profit,
-                'position_side': position.position_side
+                'position_side': position.position_side,
+                'entry_time': position.entry_time.isoformat() if position.entry_time else datetime.now().isoformat(),
+                'timestamp': datetime.now().isoformat()
             }
 
             # Record in database
             success = trade_db.add_trade(position.trade_id, trade_data)
             if success:
-                self.logger.info(f"✅ TRADE RECORDED: {position.trade_id}")
+                self.logger.info(f"✅ TRADE RECORDED WITH COMPLETE DATA: {position.trade_id}")
+                self.logger.info(f"   💰 Margin Used: ${margin_used:.2f} USDT")
+                self.logger.info(f"   📊 Position Value: ${position_value:.2f} USDT")
+                self.logger.info(f"   ⚡ Leverage: {leverage}x")
             else:
                 self.logger.error(f"❌ TRADE RECORDING FAILED: {position.trade_id}")
 
