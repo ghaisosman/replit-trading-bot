@@ -40,9 +40,133 @@
             color: #ffffff;
             font-family: 'Courier New', monospace;
             font-size: 12px;
-            padding: 10px;
+            padding: 15px;
             height: 400px;
             overflow-y: auto;
+            line-height: 1.4;
+        }
+
+        /* Enhanced Log Entry Styles */
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border-left: 3px solid transparent;
+            background-color: rgba(255, 255, 255, 0.02);
+            transition: all 0.2s ease;
+        }
+
+        .log-entry:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            transform: translateX(2px);
+        }
+
+        .log-entry.log-error {
+            border-left-color: #ff4757;
+            background-color: rgba(255, 71, 87, 0.1);
+            color: #ff6b7a;
+        }
+
+        .log-entry.log-warning {
+            border-left-color: #ffa502;
+            background-color: rgba(255, 165, 2, 0.1);
+            color: #ffb84d;
+        }
+
+        .log-entry.log-success {
+            border-left-color: #2ed573;
+            background-color: rgba(46, 213, 115, 0.1);
+            color: #7bed9f;
+        }
+
+        .log-entry.log-info {
+            border-left-color: #5352ed;
+            background-color: rgba(83, 82, 237, 0.1);
+            color: #a4b0f5;
+        }
+
+        .log-entry.log-trade {
+            border-left-color: #ff9ff3;
+            background-color: rgba(255, 159, 243, 0.1);
+            color: #ff9ff3;
+        }
+
+        .log-entry.log-strategy {
+            border-left-color: #3742fa;
+            background-color: rgba(55, 66, 250, 0.1);
+            color: #7d8bff;
+        }
+
+        .log-entry.log-default {
+            border-left-color: #747d8c;
+            color: #a4b0be;
+        }
+
+        .log-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+            font-size: 11px;
+            opacity: 0.8;
+        }
+
+        .log-timestamp {
+            color: #6c5ce7;
+            margin-right: 8px;
+            font-weight: bold;
+            font-size: 10px;
+        }
+
+        .log-type-icon {
+            margin-right: 6px;
+            font-size: 12px;
+        }
+
+        .log-message {
+            font-size: 12px;
+            line-height: 1.3;
+            word-wrap: break-word;
+            padding-left: 2px;
+        }
+
+        /* Category Grouping */
+        .log-category-header {
+            background: linear-gradient(90deg, #2c2c2c, #1e1e1e);
+            color: #00d2d3;
+            padding: 6px 12px;
+            margin: 12px -15px 8px -15px;
+            font-weight: bold;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-top: 1px solid #333;
+            border-bottom: 1px solid #333;
+        }
+
+        .log-separator {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #333, transparent);
+            margin: 15px 0;
+            opacity: 0.5;
+        }
+
+        /* Scrollbar Styling */
+        #consoleLog::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #consoleLog::-webkit-scrollbar-track {
+            background: #2c2c2c;
+            border-radius: 4px;
+        }
+
+        #consoleLog::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 4px;
+        }
+
+        #consoleLog::-webkit-scrollbar-thumb:hover {
+            background: #777;
         }
 
         /* Positions Table Styles */
@@ -1323,11 +1447,156 @@
         function updateConsoleLogUI(data) {
             const consoleLog = document.getElementById('consoleLog');
             if (consoleLog && data.success && data.logs) {
-                consoleLog.innerHTML = data.logs.join('<br>');
+                // Process logs with enhanced formatting
+                const formattedLogs = formatConsoleLogs(data.logs);
+                consoleLog.innerHTML = formattedLogs;
                 if (autoScroll) {
                     consoleLog.scrollTop = consoleLog.scrollHeight;
                 }
             }
+        }
+
+        function formatConsoleLogs(logs) {
+            if (!logs || logs.length === 0) {
+                return '<div class="log-entry info">No logs available</div>';
+            }
+
+            let formattedOutput = '';
+            let currentGroup = '';
+            let groupCount = 0;
+
+            logs.forEach((log, index) => {
+                if (!log || typeof log !== 'string') return;
+
+                // Clean the log entry
+                const cleanLog = log.trim();
+                if (!cleanLog) return;
+
+                // Detect log type and format accordingly
+                const logType = detectLogType(cleanLog);
+                const timestamp = extractTimestamp(cleanLog);
+                const message = extractMessage(cleanLog);
+                const category = detectCategory(cleanLog);
+
+                // Group related logs
+                if (category !== currentGroup) {
+                    if (currentGroup && groupCount > 0) {
+                        formattedOutput += '<div class="log-separator"></div>';
+                    }
+                    currentGroup = category;
+                    groupCount++;
+                    
+                    // Add category header
+                    if (category !== 'general') {
+                        formattedOutput += `<div class="log-category-header">${getCategoryIcon(category)} ${category.toUpperCase()}</div>`;
+                    }
+                }
+
+                // Format the log entry
+                formattedOutput += formatLogEntry(cleanLog, logType, timestamp, message, category);
+            });
+
+            return formattedOutput || '<div class="log-entry info">Console initialized</div>';
+        }
+
+        function detectLogType(log) {
+            const logUpper = log.toUpperCase();
+            
+            if (logUpper.includes('ERROR') || logUpper.includes('❌') || logUpper.includes('FAILED')) {
+                return 'error';
+            } else if (logUpper.includes('WARNING') || logUpper.includes('⚠️') || logUpper.includes('WARN')) {
+                return 'warning';
+            } else if (logUpper.includes('SUCCESS') || logUpper.includes('✅') || logUpper.includes('COMPLETED')) {
+                return 'success';
+            } else if (logUpper.includes('INFO') || logUpper.includes('ℹ️') || logUpper.includes('📊')) {
+                return 'info';
+            } else if (logUpper.includes('TRADE') || logUpper.includes('POSITION') || logUpper.includes('ORDER')) {
+                return 'trade';
+            } else if (logUpper.includes('STRATEGY') || logUpper.includes('SIGNAL') || logUpper.includes('ANALYSIS')) {
+                return 'strategy';
+            } else {
+                return 'default';
+            }
+        }
+
+        function detectCategory(log) {
+            const logUpper = log.toUpperCase();
+            
+            if (logUpper.includes('TRADE') || logUpper.includes('POSITION') || logUpper.includes('ORDER') || logUpper.includes('BUY') || logUpper.includes('SELL')) {
+                return 'trading';
+            } else if (logUpper.includes('STRATEGY') || logUpper.includes('RSI') || logUpper.includes('MACD') || logUpper.includes('SIGNAL')) {
+                return 'strategy';
+            } else if (logUpper.includes('ERROR') || logUpper.includes('FAILED') || logUpper.includes('EXCEPTION')) {
+                return 'error';
+            } else if (logUpper.includes('API') || logUpper.includes('CONNECTION') || logUpper.includes('BINANCE')) {
+                return 'system';
+            } else if (logUpper.includes('BALANCE') || logUpper.includes('MARGIN') || logUpper.includes('PNL')) {
+                return 'financial';
+            } else {
+                return 'general';
+            }
+        }
+
+        function getCategoryIcon(category) {
+            const icons = {
+                'trading': '💹',
+                'strategy': '🎯',
+                'error': '🚨',
+                'system': '⚙️',
+                'financial': '💰',
+                'general': '📝'
+            };
+            return icons[category] || '📝';
+        }
+
+        function extractTimestamp(log) {
+            // Try to extract timestamp patterns like [HH:MM:SS] or [YYYY-MM-DD HH:MM:SS]
+            const timestampMatch = log.match(/\[([0-9]{1,4}[-:]?[0-9]{1,2}[-:]?[0-9]{1,2}[\s]?[0-9]{1,2}:[0-9]{2}:[0-9]{2})\]/);
+            return timestampMatch ? timestampMatch[1] : null;
+        }
+
+        function extractMessage(log) {
+            // Remove timestamp and clean the message
+            let message = log.replace(/\[[0-9-:\s]+\]/, '').trim();
+            
+            // Remove log level prefixes
+            message = message.replace(/^(ERROR|WARNING|INFO|DEBUG|SUCCESS)[\s:-]*/, '');
+            
+            return message;
+        }
+
+        function formatLogEntry(fullLog, type, timestamp, message, category) {
+            const timeStr = timestamp ? `<span class="log-timestamp">${timestamp}</span>` : '';
+            const typeIcon = getTypeIcon(type);
+            
+            return `
+                <div class="log-entry log-${type}" data-category="${category}">
+                    <div class="log-header">
+                        ${timeStr}
+                        <span class="log-type-icon">${typeIcon}</span>
+                    </div>
+                    <div class="log-message">${escapeHtml(message || fullLog)}</div>
+                </div>
+            `;
+        }
+
+        function getTypeIcon(type) {
+            const icons = {
+                'error': '❌',
+                'warning': '⚠️',
+                'success': '✅',
+                'info': 'ℹ️',
+                'trade': '💹',
+                'strategy': '🎯',
+                'default': '•'
+            };
+            return icons[type] || '•';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         function updateConsoleLogErrorUI() {
