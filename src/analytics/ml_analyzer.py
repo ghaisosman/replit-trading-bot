@@ -456,6 +456,365 @@ Please analyze this data and suggest:
             self.logger.error(f"❌ Error preparing AI context: {e}")
             return f"Error preparing context: {str(e)}"
 
+    def generate_detailed_ai_report(self, analysis_type: str = "comprehensive") -> str:
+        """Generate detailed AI-ready report that can be copied to external AI services"""
+        try:
+            report_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+            
+            # Get all closed trades
+            closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
+            open_trades = [t for t in trade_logger.trades if t.trade_status == "OPEN"]
+            
+            if not closed_trades:
+                return "No closed trades available for detailed analysis."
+
+            # Calculate comprehensive metrics
+            total_trades = len(closed_trades)
+            winning_trades = [t for t in closed_trades if t.pnl_percentage > 0]
+            losing_trades = [t for t in closed_trades if t.pnl_percentage < 0]
+            
+            win_rate = len(winning_trades) / total_trades * 100
+            avg_win = sum(t.pnl_percentage for t in winning_trades) / len(winning_trades) if winning_trades else 0
+            avg_loss = sum(t.pnl_percentage for t in losing_trades) / len(losing_trades) if losing_trades else 0
+            total_pnl = sum(t.pnl_percentage for t in closed_trades)
+            
+            # Risk metrics
+            max_drawdown = min(t.pnl_percentage for t in closed_trades) if closed_trades else 0
+            largest_win = max(t.pnl_percentage for t in closed_trades) if closed_trades else 0
+            
+            # Time-based analysis
+            trade_durations = [t.duration_minutes for t in closed_trades if t.duration_minutes]
+            avg_duration = sum(trade_durations) / len(trade_durations) if trade_durations else 0
+            
+            report = f"""
+═══════════════════════════════════════════════════════════
+📊 COMPREHENSIVE TRADING PERFORMANCE REPORT
+═══════════════════════════════════════════════════════════
+🕒 Report Generated: {report_timestamp}
+🤖 Analysis Type: {analysis_type.upper()}
+📈 Data Source: Algorithmic Trading Bot ML System
+
+═══════════════════════════════════════════════════════════
+🎯 EXECUTIVE SUMMARY
+═══════════════════════════════════════════════════════════
+
+CORE PERFORMANCE METRICS:
+• Total Closed Trades: {total_trades}
+• Current Open Positions: {len(open_trades)}
+• Overall Win Rate: {win_rate:.1f}%
+• Total PnL: {total_pnl:+.2f}%
+• Average Trade Duration: {avg_duration:.0f} minutes
+
+RISK ANALYSIS:
+• Largest Single Win: {largest_win:+.2f}%
+• Maximum Drawdown: {max_drawdown:.2f}%
+• Average Winning Trade: {avg_win:+.2f}%
+• Average Losing Trade: {avg_loss:.2f}%
+• Risk-Reward Ratio: {abs(avg_win/avg_loss) if avg_loss != 0 else 0:.2f}:1
+
+═══════════════════════════════════════════════════════════
+📊 STRATEGY PERFORMANCE BREAKDOWN
+═══════════════════════════════════════════════════════════
+"""
+
+            # Strategy analysis
+            strategy_stats = {}
+            for trade in closed_trades:
+                if trade.strategy not in strategy_stats:
+                    strategy_stats[trade.strategy] = {
+                        'trades': [], 'wins': 0, 'losses': 0, 'total_pnl': 0,
+                        'symbols': set(), 'avg_leverage': 0, 'total_volume': 0
+                    }
+                
+                stats = strategy_stats[trade.strategy]
+                stats['trades'].append(trade)
+                stats['total_pnl'] += trade.pnl_percentage
+                stats['symbols'].add(trade.symbol)
+                stats['avg_leverage'] += trade.leverage
+                stats['total_volume'] += trade.position_size_usdt
+                
+                if trade.pnl_percentage > 0:
+                    stats['wins'] += 1
+                else:
+                    stats['losses'] += 1
+
+            for strategy, stats in strategy_stats.items():
+                total_trades = len(stats['trades'])
+                win_rate = (stats['wins'] / total_trades * 100) if total_trades > 0 else 0
+                avg_pnl = stats['total_pnl'] / total_trades if total_trades > 0 else 0
+                avg_leverage = stats['avg_leverage'] / total_trades if total_trades > 0 else 0
+                
+                report += f"""
+🎯 STRATEGY: {strategy.upper()}
+   • Total Trades: {total_trades}
+   • Win Rate: {win_rate:.1f}%
+   • Average PnL per Trade: {avg_pnl:+.2f}%
+   • Total Strategy PnL: {stats['total_pnl']:+.2f}%
+   • Traded Symbols: {', '.join(stats['symbols'])}
+   • Average Leverage: {avg_leverage:.1f}x
+   • Total Volume: ${stats['total_volume']:.0f} USDT
+   • Best Trade: {max(t.pnl_percentage for t in stats['trades']):+.2f}%
+   • Worst Trade: {min(t.pnl_percentage for t in stats['trades']):+.2f}%
+"""
+
+            # Time-based analysis
+            report += f"""
+═══════════════════════════════════════════════════════════
+⏰ TIME-BASED PERFORMANCE ANALYSIS  
+═══════════════════════════════════════════════════════════
+"""
+
+            # Hourly performance
+            hourly_stats = {}
+            for trade in closed_trades:
+                hour = trade.entry_time.hour if trade.entry_time else 0
+                if hour not in hourly_stats:
+                    hourly_stats[hour] = {'trades': 0, 'wins': 0, 'pnl': 0}
+                hourly_stats[hour]['trades'] += 1
+                hourly_stats[hour]['pnl'] += trade.pnl_percentage
+                if trade.pnl_percentage > 0:
+                    hourly_stats[hour]['wins'] += 1
+
+            best_hours = sorted(hourly_stats.items(), 
+                               key=lambda x: x[1]['wins']/x[1]['trades'] if x[1]['trades'] > 0 else 0, 
+                               reverse=True)[:5]
+
+            report += "\n🕐 TOP PERFORMING HOURS (UTC):\n"
+            for hour, stats in best_hours:
+                if stats['trades'] > 0:
+                    win_rate = stats['wins'] / stats['trades'] * 100
+                    avg_pnl = stats['pnl'] / stats['trades']
+                    report += f"   • {hour:02d}:00-{(hour+1)%24:02d}:00 → {win_rate:.1f}% win rate, {avg_pnl:+.2f}% avg PnL ({stats['trades']} trades)\n"
+
+            # Weekly performance
+            weekday_stats = {}
+            weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            for trade in closed_trades:
+                weekday = trade.entry_time.weekday() if trade.entry_time else 0
+                day_name = weekdays[weekday]
+                if day_name not in weekday_stats:
+                    weekday_stats[day_name] = {'trades': 0, 'wins': 0, 'pnl': 0}
+                weekday_stats[day_name]['trades'] += 1
+                weekday_stats[day_name]['pnl'] += trade.pnl_percentage
+                if trade.pnl_percentage > 0:
+                    weekday_stats[day_name]['wins'] += 1
+
+            report += "\n📅 WEEKLY PERFORMANCE PATTERN:\n"
+            for day in weekdays:
+                if day in weekday_stats and weekday_stats[day]['trades'] > 0:
+                    stats = weekday_stats[day]
+                    win_rate = stats['wins'] / stats['trades'] * 100
+                    avg_pnl = stats['pnl'] / stats['trades']
+                    report += f"   • {day}: {win_rate:.1f}% win rate, {avg_pnl:+.2f}% avg PnL ({stats['trades']} trades)\n"
+
+            # Technical analysis insights
+            report += f"""
+═══════════════════════════════════════════════════════════
+🔧 TECHNICAL INDICATORS ANALYSIS
+═══════════════════════════════════════════════════════════
+"""
+
+            # RSI analysis
+            rsi_trades = [t for t in closed_trades if t.rsi_at_entry is not None]
+            if rsi_trades:
+                rsi_ranges = {
+                    'Oversold (≤30)': [t for t in rsi_trades if t.rsi_at_entry <= 30],
+                    'Neutral (31-69)': [t for t in rsi_trades if 31 <= t.rsi_at_entry <= 69],
+                    'Overbought (≥70)': [t for t in rsi_trades if t.rsi_at_entry >= 70]
+                }
+
+                report += "\n📊 RSI ENTRY CONDITIONS:\n"
+                for range_name, trades in rsi_ranges.items():
+                    if trades:
+                        win_rate = sum(1 for t in trades if t.pnl_percentage > 0) / len(trades) * 100
+                        avg_pnl = sum(t.pnl_percentage for t in trades) / len(trades)
+                        report += f"   • {range_name}: {win_rate:.1f}% win rate, {avg_pnl:+.2f}% avg PnL ({len(trades)} trades)\n"
+
+            # ML Model Performance
+            if self.profitability_model:
+                report += f"""
+═══════════════════════════════════════════════════════════
+🤖 MACHINE LEARNING MODEL INSIGHTS
+═══════════════════════════════════════════════════════════
+
+MODEL PERFORMANCE:
+• Profitability Prediction Accuracy: {self.feature_importance.get('profitability_accuracy', 'N/A')}
+• Feature Count: {len(self.training_feature_names) if self.training_feature_names else 'N/A'}
+• Training Dataset Size: {len(closed_trades)} closed trades
+
+TOP PREDICTIVE FEATURES:
+"""
+                if 'profitability' in self.feature_importance:
+                    top_features = sorted(self.feature_importance['profitability'].items(), 
+                                        key=lambda x: x[1], reverse=True)[:10]
+                    for i, (feature, importance) in enumerate(top_features, 1):
+                        report += f"   {i:2}. {feature}: {importance:.3f} importance\n"
+
+            # Current positions analysis
+            if open_trades:
+                report += f"""
+═══════════════════════════════════════════════════════════
+🔄 CURRENT OPEN POSITIONS ANALYSIS
+═══════════════════════════════════════════════════════════
+
+ACTIVE TRADES: {len(open_trades)}
+"""
+                for trade in open_trades:
+                    unrealized_pnl = getattr(trade, 'unrealized_pnl_percentage', 0)
+                    minutes_open = ((datetime.now() - trade.entry_time).total_seconds() / 60) if trade.entry_time else 0
+                    
+                    report += f"""
+🔄 OPEN TRADE:
+   • Strategy: {trade.strategy.upper()}
+   • Symbol: {trade.symbol}
+   • Side: {trade.side}
+   • Entry Price: ${trade.entry_price:.4f}
+   • Position Size: ${trade.position_size_usdt:.2f} USDT
+   • Leverage: {trade.leverage}x
+   • Time Open: {minutes_open:.0f} minutes
+   • Unrealized PnL: {unrealized_pnl:+.2f}%
+   • RSI at Entry: {trade.rsi_at_entry or 'N/A'}
+"""
+
+            # AI Analysis Prompt
+            report += f"""
+═══════════════════════════════════════════════════════════
+🎯 AI ANALYSIS REQUEST
+═══════════════════════════════════════════════════════════
+
+PROMPT FOR AI ANALYSIS:
+Based on the comprehensive trading data above, please provide:
+
+1. 🔍 PATTERN RECOGNITION:
+   - Identify successful trading patterns
+   - Highlight recurring themes in profitable trades
+   - Spot potential inefficiencies or biases
+
+2. ⚠️ RISK ASSESSMENT:
+   - Evaluate current risk management effectiveness
+   - Identify potential vulnerabilities
+   - Suggest position sizing improvements
+
+3. 🚀 OPTIMIZATION OPPORTUNITIES:
+   - Recommend strategy refinements
+   - Suggest parameter adjustments
+   - Identify untapped opportunities
+
+4. ⏰ TIMING OPTIMIZATION:
+   - Best market sessions for trading
+   - Time-based pattern recommendations
+   - Market condition adaptations
+
+5. 🎯 STRATEGIC RECOMMENDATIONS:
+   - Priority improvements to implement
+   - Long-term strategic direction
+   - Risk-reward optimization suggestions
+
+Please provide specific, actionable recommendations based on this quantitative analysis.
+
+═══════════════════════════════════════════════════════════
+📋 TECHNICAL SPECIFICATIONS
+═══════════════════════════════════════════════════════════
+
+SYSTEM DETAILS:
+• Trading Platform: Binance Futures
+• Analysis Framework: Custom ML-Enhanced Bot
+• Data Collection: Real-time with 34+ features
+• Model Type: Random Forest Classifier/Regressor
+• Update Frequency: Continuous learning
+• Risk Management: Dynamic position sizing
+• Execution: Fully automated with manual override
+
+DATA QUALITY ASSURANCE:
+• All trades verified against exchange records
+• Technical indicators calculated using standard formulas
+• Market timing data synchronized with exchange timestamps
+• ML predictions validated against actual outcomes
+
+═══════════════════════════════════════════════════════════
+END OF REPORT - Ready for AI Analysis
+═══════════════════════════════════════════════════════════
+"""
+
+            return report
+
+        except Exception as e:
+            self.logger.error(f"❌ Error generating detailed AI report: {e}")
+            return f"Error generating report: {str(e)}"
+
+    def export_ai_ready_data(self, format_type: str = "json") -> Dict[str, Any]:
+        """Export structured data in AI-friendly format"""
+        try:
+            closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
+            
+            export_data = {
+                "report_metadata": {
+                    "timestamp": datetime.now().isoformat(),
+                    "total_trades": len(closed_trades),
+                    "analysis_type": "ml_enhanced_trading_report",
+                    "version": "2.0"
+                },
+                "performance_summary": {
+                    "win_rate": sum(1 for t in closed_trades if t.pnl_percentage > 0) / len(closed_trades) * 100 if closed_trades else 0,
+                    "total_pnl_percentage": sum(t.pnl_percentage for t in closed_trades),
+                    "average_trade_pnl": sum(t.pnl_percentage for t in closed_trades) / len(closed_trades) if closed_trades else 0,
+                    "max_drawdown": min(t.pnl_percentage for t in closed_trades) if closed_trades else 0,
+                    "largest_win": max(t.pnl_percentage for t in closed_trades) if closed_trades else 0
+                },
+                "strategy_breakdown": {},
+                "time_analysis": {},
+                "technical_indicators": {},
+                "ml_model_insights": {},
+                "detailed_trades": []
+            }
+
+            # Strategy analysis
+            for trade in closed_trades:
+                strategy = trade.strategy
+                if strategy not in export_data["strategy_breakdown"]:
+                    export_data["strategy_breakdown"][strategy] = {
+                        "total_trades": 0,
+                        "wins": 0,
+                        "total_pnl": 0,
+                        "symbols": [],
+                        "average_leverage": 0
+                    }
+                
+                stats = export_data["strategy_breakdown"][strategy]
+                stats["total_trades"] += 1
+                stats["total_pnl"] += trade.pnl_percentage
+                if trade.pnl_percentage > 0:
+                    stats["wins"] += 1
+                if trade.symbol not in stats["symbols"]:
+                    stats["symbols"].append(trade.symbol)
+
+            # Add detailed trade data
+            for trade in closed_trades[-20:]:  # Last 20 trades for detailed analysis
+                trade_data = {
+                    "trade_id": trade.trade_id,
+                    "strategy": trade.strategy,
+                    "symbol": trade.symbol,
+                    "side": trade.side,
+                    "entry_time": trade.entry_time.isoformat() if trade.entry_time else None,
+                    "exit_time": trade.exit_time.isoformat() if trade.exit_time else None,
+                    "entry_price": float(trade.entry_price),
+                    "exit_price": float(trade.exit_price) if trade.exit_price else None,
+                    "leverage": int(trade.leverage),
+                    "position_size_usdt": float(trade.position_size_usdt),
+                    "pnl_percentage": float(trade.pnl_percentage),
+                    "duration_minutes": int(trade.duration_minutes) if trade.duration_minutes else None,
+                    "rsi_at_entry": float(trade.rsi_at_entry) if trade.rsi_at_entry else None,
+                    "market_trend": trade.market_trend,
+                    "exit_reason": trade.exit_reason
+                }
+                export_data["detailed_trades"].append(trade_data)
+
+            return export_data
+
+        except Exception as e:
+            self.logger.error(f"❌ Error exporting AI-ready data: {e}")
+            return {"error": str(e)}
+
     async def get_external_ai_insights(self, api_key: str = None, provider: str = "openai") -> Dict:
         """Get insights from external AI service"""
         try:

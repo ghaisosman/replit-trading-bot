@@ -20,3 +20,6 @@ seaborn>=0.13.2
 ta>=0.11.0
 xgboost>=3.0.2
 python-telegram-bot>=22.2
+
+
+pyperclip==1.8.2

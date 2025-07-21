@@ -205,6 +205,132 @@ def get_ai_insights():
     except Exception as e:
         print(f"❌ Error getting AI insights: {e}")
 
+def generate_ai_ready_report():
+    """Generate comprehensive report ready for AI analysis"""
+    print("📊 Generating AI-ready comprehensive report...")
+    
+    # Generate detailed report
+    report = ml_analyzer.generate_detailed_ai_report("comprehensive")
+    
+    # Save to file for easy copying
+    from pathlib import Path
+    reports_dir = Path("trading_data/ai_reports")
+    reports_dir.mkdir(exist_ok=True, parents=True)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"ai_ready_report_{timestamp}.txt"
+    filepath = reports_dir / filename
+    
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(report)
+    
+    print(f"✅ Report generated successfully!")
+    print(f"📄 Saved to: {filepath}")
+    print(f"📋 Report length: {len(report)} characters")
+    
+    # Show preview
+    print("\n" + "="*60)
+    print("📖 REPORT PREVIEW (First 1000 characters):")
+    print("="*60)
+    print(report[:1000] + "..." if len(report) > 1000 else report)
+    print("="*60)
+    
+    # Instructions for use
+    print("\n💡 HOW TO USE THIS REPORT:")
+    print("1. 📋 Copy the entire report from the saved file")
+    print("2. 🤖 Paste it into ChatGPT, Claude, or Gemini")
+    print("3. 📝 Ask for specific analysis or recommendations")
+    print("4. 🎯 Use AI suggestions to optimize your trading strategy")
+    
+    print(f"\n📂 Full report available at: {filepath}")
+    
+    return str(filepath)
+
+def export_structured_data():
+    """Export structured data for AI analysis"""
+    print("📤 Exporting structured data for AI analysis...")
+    
+    # Export in JSON format
+    structured_data = ml_analyzer.export_ai_ready_data("json")
+    
+    if "error" in structured_data:
+        print(f"❌ Export failed: {structured_data['error']}")
+        return
+    
+    # Save to file
+    from pathlib import Path
+    import json
+    
+    reports_dir = Path("trading_data/ai_reports")
+    reports_dir.mkdir(exist_ok=True, parents=True)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"structured_data_{timestamp}.json"
+    filepath = reports_dir / filename
+    
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(structured_data, f, indent=2, ensure_ascii=False)
+    
+    print(f"✅ Structured data exported successfully!")
+    print(f"📄 Saved to: {filepath}")
+    
+    # Show summary
+    metadata = structured_data.get("report_metadata", {})
+    performance = structured_data.get("performance_summary", {})
+    
+    print(f"\n📊 EXPORT SUMMARY:")
+    print(f"   • Total Trades: {metadata.get('total_trades', 0)}")
+    print(f"   • Win Rate: {performance.get('win_rate', 0):.1f}%")
+    print(f"   • Total PnL: {performance.get('total_pnl_percentage', 0):+.2f}%")
+    print(f"   • Strategies: {len(structured_data.get('strategy_breakdown', {}))}")
+    
+    print("\n💡 This JSON data can be easily imported into AI tools for:")
+    print("   • 📈 Statistical analysis")
+    print("   • 🔍 Pattern recognition") 
+    print("   • 🎯 Strategy optimization")
+    print("   • 📊 Custom visualizations")
+    
+    return str(filepath)
+
+def copy_to_clipboard_report():
+    """Generate and copy report to clipboard"""
+    print("📋 Generating report for clipboard...")
+    
+    # Generate the report
+    report = ml_analyzer.generate_detailed_ai_report("comprehensive")
+    
+    try:
+        # Try to copy to clipboard (if pyperclip is available)
+        import pyperclip
+        pyperclip.copy(report)
+        print("✅ Report copied to clipboard!")
+        print("🤖 You can now paste directly into AI services")
+        
+    except ImportError:
+        print("⚠️ Clipboard copy not available (install pyperclip for this feature)")
+        print("📄 Report generated - you can manually copy from the file")
+        
+        # Save to file as fallback
+        from pathlib import Path
+        reports_dir = Path("trading_data/ai_reports")
+        reports_dir.mkdir(exist_ok=True, parents=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"clipboard_report_{timestamp}.txt"
+        filepath = reports_dir / filename
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(report)
+        
+        print(f"📂 Saved to: {filepath}")
+    
+    print(f"\n📊 Report Stats:")
+    print(f"   • Length: {len(report):,} characters") 
+    print(f"   • Word count: {len(report.split()):,} words")
+    print(f"   • Ready for AI analysis: ✅")
+    
+    return report
+
 def analyze_what_if_scenarios():
     """Analyze what-if scenarios for trade optimization"""
     print("🔮 Analyzing what-if scenarios...")
@@ -300,12 +426,17 @@ def main():
         print("6. Analyze what-if scenarios")
         print("7. Get external AI insights")
         
-        print("\n📊 REPORTING & DATA:")
-        print("8. Send manual daily report")
-        print("9. Export trade data")
-        print("10. Exit")
+        print("\n📊 AI-READY REPORTS:")
+        print("8. Generate comprehensive AI report")
+        print("9. Export structured data (JSON)")
+        print("10. Copy report to clipboard")
+        
+        print("\n📋 REPORTING & DATA:")
+        print("11. Send manual daily report")
+        print("12. Export trade data")
+        print("13. Exit")
 
-        choice = input("\nSelect option (1-10): ")
+        choice = input("\nSelect option (1-13): ")
 
         if choice == "1":
             train_ml_models()
@@ -322,10 +453,16 @@ def main():
         elif choice == "7":
             get_ai_insights()
         elif choice == "8":
-            send_manual_report()
+            generate_ai_ready_report()
         elif choice == "9":
-            export_data()
+            export_structured_data()
         elif choice == "10":
+            copy_to_clipboard_report()
+        elif choice == "11":
+            send_manual_report()
+        elif choice == "12":
+            export_data()
+        elif choice == "13":
             break
         else:
             print("Invalid option")
