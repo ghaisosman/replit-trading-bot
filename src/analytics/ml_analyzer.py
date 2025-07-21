@@ -613,17 +613,8 @@ RISK ANALYSIS:
             # Hourly performance
             hourly_stats = {}
             for trade in closed_trades:
-                # Calculate duration with safe attribute access
-                try:
-                    entry_time = getattr(trade, 'timestamp', None) or getattr(trade, 'entry_time', None)
-                    exit_time = getattr(trade, 'exit_time', None) or getattr(trade, 'exit_timestamp', None)
-
-                    if entry_time and exit_time:
-                        duration = (exit_time - entry_time).total_seconds() / 3600
-                    else:
-                        duration = getattr(trade, 'duration_minutes', 0) / 60
-                except Exception:
-                    duration = getattr(trade, 'duration_minutes', 0) / 60
+                # Get entry time safely
+                entry_time = getattr(trade, 'timestamp', None) or getattr(trade, 'entry_time', None)
                 hour = entry_time.hour if entry_time else 0
                 if hour not in hourly_stats:
                     hourly_stats[hour] = {'trades': 0, 'wins': 0, 'pnl': 0}
