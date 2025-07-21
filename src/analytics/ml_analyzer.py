@@ -355,7 +355,7 @@ class MLTradeAnalyzer:
                     trade_time = trade.timestamp
                 elif hasattr(trade, 'entry_time') and trade.entry_time:
                     trade_time = trade.entry_time
-                
+
                 trade_dict = {
                     'strategy': getattr(trade, 'strategy_name', 'rsi_oversold'),
                     'symbol': getattr(trade, 'symbol', 'BTCUSDT'),
@@ -500,9 +500,14 @@ Please analyze this data and suggest:
         try:
             report_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
 
-            # Get all closed trades
-            closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
-            open_trades = [t for t in trade_logger.trades if t.trade_status == "OPEN"]
+            #Try different possible timestamp attributes
+            try:
+                closed_trades = [t for t in trade_logger.trades if getattr(t, 'trade_status', None) == "CLOSED"]
+                open_trades = [t for t in trade_logger.trades if getattr(t, 'trade_status', None) in ["OPEN", "ACTIVE"]]
+            except Exception as e:
+                self.logger.error(f"Error accessing trade data: {e}")
+                closed_trades = []
+                open_trades = []
 
             if not closed_trades:
                 return "No closed trades available for detailed analysis."
@@ -608,6 +613,17 @@ RISK ANALYSIS:
             # Hourly performance
             hourly_stats = {}
             for trade in closed_trades:
+                # Calculate duration with safe attribute access
+                try:
+                    entry_time = getattr(trade, 'entry_time', None) or getattr(trade, 'timestamp', None)
+                    exit_time = getattr(trade, 'exit_time', None) or getattr(trade, 'exit_timestamp', None)
+
+                    if entry_time and exit_time:
+                        duration = (exit_time - entry_time).total_seconds() / 3600
+                    else:
+                        duration = getattr(trade, 'duration_minutes', 0) / 60
+                except Exception:
+                    duration = getattr(trade, 'duration_minutes', 0) / 60
                 hour = trade.entry_time.hour if trade.entry_time else 0
                 if hour not in hourly_stats:
                     hourly_stats[hour] = {'trades': 0, 'wins': 0, 'pnl': 0}
@@ -702,7 +718,9 @@ ACTIVE TRADES: {len(open_trades)}
 """
                 for trade in open_trades:
                     unrealized_pnl = getattr(trade, 'unrealized_pnl_percentage', 0)
-                    minutes_open = ((datetime.now() - trade.entry_time).total_seconds() / 60) if trade.entry_time else 0
+                    # Try different possible timestamp attributes
+                    entry_time = getattr(trade, 'entry_time', None) or getattr(trade, 'timestamp', None) or getattr(trade, 'entry_timestamp', None)
+                    minutes_open = int((datetime.now() - entry_time).total_seconds() / 60) if entry_time else 0
 
                     report += f"""
 🔄 OPEN TRADE:
@@ -786,8 +804,11 @@ END OF REPORT - Ready for AI Analysis
     def export_ai_ready_data(self, format_type: str = "json") -> Dict[str, Any]:
         """Export structured data in AI-friendly format"""
         try:
-            closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
-
+            try:
+                closed_trades = [t for t in trade_logger.trades if getattr(t, 'trade_status', None) == "CLOSED"]
+            except Exception as e:
+                self.logger.error(f"Error accessing trade data: {e}")
+                closed_trades = []
             export_data = {
                 "report_metadata": {
                     "timestamp": datetime.now().isoformat(),
@@ -806,51 +827,29 @@ END OF REPORT - Ready for AI Analysis
                 "time_analysis": {},
                 "technical_indicators": {},
                 "ml_model_insights": {},
-                "detailed_trades": []
+                "trade_details": []
             }
 
-            # Strategy analysis
+            # Process each closed trade with safe attribute access
             for trade in closed_trades:
-                strategy = getattr(trade, 'strategy_name', 'unknown_strategy')
-                if strategy not in export_data["strategy_breakdown"]:
-                    export_data["strategy_breakdown"][strategy] = {
-                        "total_trades": 0,
-                        "wins": 0,
-                        "total_pnl": 0,
-                        "symbols": [],
-                        "average_leverage": 0
+                try:
+                    trade_details = {
+                        "trade_id": getattr(trade, 'trade_id', 'Unknown'),
+                        "strategy": getattr(trade, 'strategy', getattr(trade, 'strategy_name', 'Unknown')),
+                        "symbol": getattr(trade, 'symbol', 'Unknown'),
+                        "side": getattr(trade, 'side', 'Unknown'),
+                        "entry_price": getattr(trade, 'entry_price', 0),
+                        "exit_price": getattr(trade, 'exit_price', 0),
+                        "quantity": getattr(trade, 'quantity', 0),
+                        "pnl_percentage": getattr(trade, 'pnl_percentage', 0),
+                        "duration_minutes": getattr(trade, 'duration_minutes', 0),
+                        "timestamp": getattr(trade, 'timestamp', getattr(trade, 'entry_time', 'Unknown'))
                     }
 
-                stats = export_data["strategy_breakdown"][strategy]
-                stats["total_trades"] += 1
-                pnl = getattr(trade, 'pnl_percentage', 0)
-                stats["total_pnl"] += pnl
-                if pnl > 0:
-                    stats["wins"] += 1
-                symbol = getattr(trade, 'symbol', 'UNKNOWN')
-                if symbol not in stats["symbols"]:
-                    stats["symbols"].append(symbol)
-
-            # Add detailed trade data
-            for trade in closed_trades[-20:]:  # Last 20 trades for detailed analysis
-                trade_data = {
-                    "trade_id": trade.trade_id,
-                    "strategy": trade.strategy_name,
-                    "symbol": trade.symbol,
-                    "side": trade.side,
-                    "entry_time": trade.entry_time.isoformat() if trade.entry_time else None,
-                    "exit_time": trade.exit_time.isoformat() if trade.exit_time else None,
-                    "entry_price": float(trade.entry_price),
-                    "exit_price": float(trade.exit_price) if trade.exit_price else None,
-                    "leverage": int(trade.leverage),
-                    "position_size_usdt": float(trade.position_size_usdt),
-                    "pnl_percentage": float(trade.pnl_percentage),
-                    "duration_minutes": int(trade.duration_minutes) if trade.duration_minutes else None,
-                    "rsi_at_entry": float(trade.rsi_at_entry) if trade.rsi_at_entry else None,
-                    "market_trend": trade.market_trend,
-                    "exit_reason": trade.exit_reason
-                }
-                export_data["detailed_trades"].append(trade_data)
+                    export_data["trade_details"].append(trade_details)
+                except Exception as trade_error:
+                    self.logger.error(f"Error processing trade for export: {trade_error}")
+                    continue
 
             return export_data
 
