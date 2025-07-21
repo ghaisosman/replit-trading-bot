@@ -54,13 +54,18 @@ def generate_insights():
         if 'strategy_performance' in insights:
             print("\n🎯 Strategy Performance:")
             for strategy, stats in insights['strategy_performance'].items():
-                print(f"  {strategy}: Win Rate {stats['was_profitable']['mean']:.2%}")
+                win_rate = stats.get('win_rate', 0)
+                total_trades = stats.get('total_trades', 0)
+                avg_pnl = stats.get('avg_pnl', 0)
+                print(f"  📊 {strategy}: {win_rate:.1f}% win rate ({total_trades} trades, {avg_pnl:+.2f}% avg PnL)")
 
         # Time analysis
-        if 'time_analysis' in insights:
+        if 'best_trading_times' in insights:
             print("\n⏰ Best Trading Hours:")
-            for hour, win_rate in insights['time_analysis']['best_trading_hours'].items():
-                print(f"  {hour}:00 - {win_rate:.2%} win rate")
+            for time_data in insights['best_trading_times'][:3]:
+                hour = time_data.get('hour', 0)
+                profitability = time_data.get('profitability', 0)
+                print(f"  🕐 {hour:02d}:00 - {profitability:.1f}% profitable")
 
 def test_prediction():
     """Test ML prediction with sample data"""
