@@ -607,8 +607,12 @@ class TradeLogger:
             trade_record = TradeRecord(**{k: v for k, v in trade_dict.items() 
                                         if k in TradeRecord.__dataclass_fields__})
 
-            # Save trade record
-            self._save_trade_record(trade_record)
+            # Add to trades list and save
+            self.trades.append(trade_record)
+            self._save_trades()
+
+            self.logger.info(f"📝 ML TRADE LOGGED | {trade_record.trade_id} | {trade_record.symbol} | {trade_record.side} | ${trade_record.entry_price:.4f}")
+            self.logger.debug(f"📝 ML TRADE DETAILS: {trade_record.to_dict()}")
 
             return True
 
