@@ -615,7 +615,7 @@ RISK ANALYSIS:
             for trade in closed_trades:
                 # Calculate duration with safe attribute access
                 try:
-                    entry_time = getattr(trade, 'entry_time', None) or getattr(trade, 'timestamp', None)
+                    entry_time = getattr(trade, 'timestamp', None) or getattr(trade, 'entry_time', None)
                     exit_time = getattr(trade, 'exit_time', None) or getattr(trade, 'exit_timestamp', None)
 
                     if entry_time and exit_time:
@@ -624,7 +624,7 @@ RISK ANALYSIS:
                         duration = getattr(trade, 'duration_minutes', 0) / 60
                 except Exception:
                     duration = getattr(trade, 'duration_minutes', 0) / 60
-                hour = trade.entry_time.hour if trade.entry_time else 0
+                hour = entry_time.hour if entry_time else 0
                 if hour not in hourly_stats:
                     hourly_stats[hour] = {'trades': 0, 'wins': 0, 'pnl': 0}
                 hourly_stats[hour]['trades'] += 1
@@ -719,7 +719,7 @@ ACTIVE TRADES: {len(open_trades)}
                 for trade in open_trades:
                     unrealized_pnl = getattr(trade, 'unrealized_pnl_percentage', 0)
                     # Try different possible timestamp attributes
-                    entry_time = getattr(trade, 'entry_time', None) or getattr(trade, 'timestamp', None) or getattr(trade, 'entry_timestamp', None)
+                    entry_time = getattr(trade, 'timestamp', None) or getattr(trade, 'entry_time', None) or getattr(trade, 'entry_timestamp', None)
                     minutes_open = int((datetime.now() - entry_time).total_seconds() / 60) if entry_time else 0
 
                     report += f"""
