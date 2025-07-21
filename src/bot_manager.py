@@ -490,12 +490,25 @@ class BotManager:
                     # Calculate PnL percentage against actual margin invested
                     pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
 
-                    # Display the position with clean, single formatting
+                    # Display the position with clean, single formatting and current RSI
                     if margin_invested > 0:
                         # Get configured values for display
                         configured_leverage = strategy_config.get('leverage', 5)
 
-                        # FIXED: Single, clean position display without nesting
+                        # Get current RSI for the symbol
+                        current_rsi_text = "N/A"
+                        try:
+                            # Get fresh market data for RSI calculation
+                            timeframe = strategy_config.get('timeframe', '15m')
+                            df = await self.price_fetcher.get_market_data(symbol, timeframe, 100)
+                            if df is not None and not df.empty and 'rsi' in df.columns:
+                                current_rsi = df['rsi'].iloc[-1]
+                                if not pd.isna(current_rsi):
+                                    current_rsi_text = f"{current_rsi:.1f}"
+                        except Exception as e:
+                            self.logger.debug(f"Could not fetch RSI for {symbol}: {e}")
+
+                        # FIXED: Single, clean position display with current RSI
                         position_display = f"""╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
@@ -506,6 +519,7 @@ class BotManager:
 ║ 📊 Side: {position.side:<25}                           ║
 ║ 💵 Entry: ${position.entry_price:.1f}                          ║
 ║ 📊 Current: ${current_price:.1f}                           ║
+║ 📈 Current RSI: {current_rsi_text}                         ║
 ║ ⚡ Config: ${margin_invested:.1f} USDT @ {configured_leverage}x           ║
 ║ 💰 PnL: ${pnl:.1f} USDT ({pnl_percent:+.1f}%)              ║
 ║                                                   ║
@@ -745,8 +759,20 @@ class BotManager:
                 leverage = strategy_config.get('leverage', 5)
 
                 # Get current RSI for consolidated logging (with NaN check)
-                import pandas as pd
-                current_rsi = df['rsi'].iloc[-1] if 'rsi' in df.columns and not pd.isna(df['rsi'].iloc[-1]) else None
+                current_rsi = None
+                if 'rsi' in df.columns:
+                    rsi_value = df['rsi'].iloc[-1]
+                    if not pd.isna(rsi_value):
+                        current_rsi = rsi_value
+                    else:
+                        # Force recalculation if RSI is NaN
+                        try:
+                            df = self.price_fetcher.calculate_indicators(df)
+                            rsi_value = df['rsi'].iloc[-1]
+                            if not pd.isna(rsi_value):
+                                current_rsi = rsi_value
+                        except Exception as e:
+                            self.logger.debug(f"RSI recalculation failed for {strategy_config['symbol']}: {e}")
 
                 # Strategy-specific consolidated market assessment - single message
                 if 'macd' in strategy_name.lower():
