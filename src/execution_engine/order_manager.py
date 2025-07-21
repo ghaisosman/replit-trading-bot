@@ -1080,7 +1080,18 @@ class OrderManager:
                     'timestamp': position.entry_time.isoformat() if position.entry_time else datetime.now().isoformat(),
                     'margin_used': float(margin_used),
                     'leverage': int(actual_leverage),
-                    'position_value_usdt': float(position.entry_price * position.quantity)
+                    'position_value_usdt': float(position.entry_price * position.quantity),
+                    # Add technical indicators to database
+                    'rsi_at_entry': technical_indicators.get('rsi'),
+                    'macd_at_entry': technical_indicators.get('macd'),
+                    'sma_20_at_entry': technical_indicators.get('sma_20'),
+                    'sma_50_at_entry': technical_indicators.get('sma_50'),
+                    'volume_at_entry': technical_indicators.get('volume'),
+                    'entry_signal_strength': technical_indicators.get('signal_strength'),
+                    # Add market conditions to database
+                    'market_trend': market_conditions.get('trend'),
+                    'volatility_score': market_conditions.get('volatility'),
+                    'market_phase': market_conditions.get('phase')
                 }
 
                 # Validate all required data is present before adding
@@ -1091,17 +1102,71 @@ class OrderManager:
                     self.logger.error(f"❌ Cannot save trade to database - missing: {missing}")
                     self.logger.error(f"❌ Trade data: {trade_data}")
                 else:
-                    # Add trade to database
+                    # FORCE IMMEDIATE DATABASE SAVE - Don't rely on background processes
+                    self.logger.info(f"🔄 FORCE SAVING trade to database: {generated_trade_id}")
                     success = trade_db.add_trade(generated_trade_id, trade_data)
                     if success:
-                        self.logger.info(f"✅ Trade recorded in database: {generated_trade_id}")
+                        # VERIFY it was actually saved by checking immediately
+                        verification_trade = trade_db.get_trade(generated_trade_id)
+                        if verification_trade:
+                            self.logger.info(f"✅ Trade successfully recorded and verified in database: {generated_trade_id}")
+                        else:
+                            self.logger.error(f"❌ Trade save reported success but verification failed: {generated_trade_id}")
                     else:
                         self.logger.error(f"❌ Failed to record trade in database: {generated_trade_id}")
+                        # EMERGENCY FALLBACK: Try one more time with minimal data
+                        minimal_trade_data = {
+                            'trade_id': generated_trade_id,
+                            'strategy_name': position.strategy_name,
+                            'symbol': position.symbol,
+                            'side': position.side,
+                            'entry_price': float(position.entry_price),
+                            'quantity': float(position.quantity),
+                            'trade_status': 'OPEN',
+                            'timestamp': datetime.now().isoformat(),
+                            'margin_used': float(margin_used),
+                            'leverage': int(actual_leverage),
+                            'position_value_usdt': float(position.entry_price * position.quantity)
+                        }
+                        
+                        self.logger.warning(f"🔄 EMERGENCY FALLBACK: Attempting minimal trade save for {generated_trade_id}")
+                        emergency_success = trade_db.add_trade(generated_trade_id, minimal_trade_data)
+                        if emergency_success:
+                            self.logger.info(f"✅ Emergency fallback successful: {generated_trade_id}")
+                        else:
+                            self.logger.error(f"❌ Emergency fallback also failed: {generated_trade_id}")
 
             except Exception as db_error:
-                self.logger.error(f"❌ Error recording trade in database: {db_error}")
+                self.logger.error(f"❌ CRITICAL: Error recording trade in database: {db_error}")
                 import traceback
                 self.logger.error(f"❌ Database error traceback: {traceback.format_exc()}")
+                
+                # EMERGENCY PROTOCOL: Create a recovery file for manual intervention
+                try:
+                    recovery_data = {
+                        'trade_id': generated_trade_id,
+                        'strategy_name': position.strategy_name,
+                        'symbol': position.symbol,
+                        'side': position.side,
+                        'entry_price': float(position.entry_price),
+                        'quantity': float(position.quantity),
+                        'timestamp': datetime.now().isoformat(),
+                        'error': str(db_error),
+                        'recovery_needed': True
+                    }
+                    
+                    import json
+                    import os
+                    recovery_file = f"trading_data/recovery_{generated_trade_id}.json"
+                    os.makedirs(os.path.dirname(recovery_file), exist_ok=True)
+                    with open(recovery_file, 'w') as f:
+                        json.dump(recovery_data, f, indent=2)
+                    
+                    self.logger.error(f"🚨 RECOVERY FILE CREATED: {recovery_file}")
+                    
+                except Exception as recovery_error:
+                    self.logger.error(f"❌ Even recovery file creation failed: {recovery_error}")
+                
                 # Don't fail the entire trade entry if database fails
 
             self.logger.info(f"📊 TRADE ENTRY LOGGED | ID: {generated_trade_id} | {position.strategy_name} | {position.symbol}")

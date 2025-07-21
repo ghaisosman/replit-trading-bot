@@ -179,14 +179,27 @@ class TradeDatabase:
                 self._save_database()
                 return existing_trade_id
 
-            # Add to database
+            # Add to database WITH IMMEDIATE VERIFICATION
             self.trades[trade_id] = complete_trade_data
-            self._save_database()
-
-            # Log successful addition with complete data
-            self.logger.info(f"🛡️ TRADE ADDED: {trade_id} | {complete_trade_data['symbol']} | {complete_trade_data['side']}")
-            self.logger.info(f"   💰 Value: ${complete_trade_data['position_value_usdt']:.2f} USDT | Margin: ${complete_trade_data['margin_used']:.2f} | Leverage: {complete_trade_data['leverage']}x")
-            self.logger.debug(f"🛡️ COMPLETE DATA: {complete_trade_data}")
+            
+            # FORCE SAVE IMMEDIATELY
+            save_success = False
+            try:
+                self._save_database()
+                save_success = True
+            except Exception as save_error:
+                self.logger.error(f"🚨 DATABASE SAVE FAILED: {save_error}")
+                save_success = False
+            
+            # VERIFY THE TRADE WAS ACTUALLY SAVED
+            if save_success and trade_id in self.trades:
+                # Log successful addition with complete data
+                self.logger.info(f"🛡️ TRADE ADDED & VERIFIED: {trade_id} | {complete_trade_data['symbol']} | {complete_trade_data['side']}")
+                self.logger.info(f"   💰 Value: ${complete_trade_data['position_value_usdt']:.2f} USDT | Margin: ${complete_trade_data['margin_used']:.2f} | Leverage: {complete_trade_data['leverage']}x")
+                self.logger.debug(f"🛡️ COMPLETE DATA: {complete_trade_data}")
+            else:
+                self.logger.error(f"🚨 TRADE SAVE VERIFICATION FAILED: {trade_id}")
+                return False
 
             # Immediate verification with Binance
             if self._verify_trade_on_binance(trade_id, complete_trade_data):
