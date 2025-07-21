@@ -712,7 +712,7 @@
       "side": "SELL",
       "quantity": 0.16,
       "entry_price": 191.16666666666666,
-      "trade_status": "OPEN",
+      "trade_status": "CLOSED",
       "created_at": "2025-07-21T08:30:11.448854",
       "last_verified": "2025-07-21T14:21:01.586312",
       "sync_status": "BINANCE_VERIFIED",
@@ -732,7 +732,13 @@
       "macd_at_entry": 4.6637,
       "sma_20_at_entry": 186.76299999999998,
       "sma_50_at_entry": 181.87519999999998,
-      "last_updated": "2025-07-21T14:20:54.830715"
+      "last_updated": "2025-07-21T14:20:54.830715",
+      "exit_reason": "Position not found on Binance - Aggressive cleanup",
+      "exit_price": 191.16666666666666,
+      "pnl_usdt": 0.0,
+      "pnl_percentage": 0.0,
+      "duration_minutes": 0,
+      "closed_at": "2025-07-21T15:04:23.534573"
     },
     "rsi_oversold_SOLUSDT_20250721_040317_RECOVERED": {
       "trade_id": "rsi_oversold_SOLUSDT_20250721_040317_RECOVERED",
@@ -741,7 +747,7 @@
       "side": "SELL",
       "quantity": 0.08,
       "entry_price": 185.07,
-      "trade_status": "OPEN",
+      "trade_status": "CLOSED",
       "created_at": "2025-07-21T14:20:56.004631",
       "last_verified": "2025-07-21T14:21:02.145812",
       "sync_status": "VERIFIED",
@@ -751,7 +757,13 @@
       "timestamp": "2025-07-21T18:20:56.004621",
       "rsi_at_entry": 91.08,
       "macd_at_entry": 4.6632,
-      "last_updated": "2025-07-21T14:21:02.145803"
+      "last_updated": "2025-07-21T14:21:02.145803",
+      "exit_reason": "Position not found on Binance - Aggressive cleanup",
+      "exit_price": 185.07,
+      "pnl_usdt": 0.0,
+      "pnl_percentage": 0.0,
+      "duration_minutes": 0,
+      "closed_at": "2025-07-21T15:04:23.534573"
     },
     "macd_divergence_ETHUSDT_20250721_000_SAMPLE": {
       "trade_id": "macd_divergence_ETHUSDT_20250721_000_SAMPLE",
@@ -992,7 +1004,7 @@
       "side": "SELL",
       "quantity": 0.15,
       "entry_price": 196.02333333333334,
-      "trade_status": "OPEN",
+      "trade_status": "CLOSED",
       "created_at": "2025-07-21T15:01:59.114889",
       "last_verified": "2025-07-21T15:02:15.277995",
       "sync_status": "BINANCE_VERIFIED",
@@ -1016,8 +1028,14 @@
       "take_profit": 186.22216666666665,
       "position_side": "SHORT",
       "order_id": 130333996578,
-      "entry_time": "2025-07-21T15:01:55.963879"
+      "entry_time": "2025-07-21T15:01:55.963879",
+      "exit_reason": "Position not found on Binance - Aggressive cleanup",
+      "exit_price": 196.02333333333334,
+      "pnl_usdt": 0.0,
+      "pnl_percentage": 0.0,
+      "duration_minutes": 0,
+      "closed_at": "2025-07-21T15:04:23.534573"
     }
   },
-  "last_updated": "2025-07-21T15:02:15.283209"
+  "last_updated": "2025-07-21T15:04:24.786187"
 }
