@@ -253,7 +253,7 @@ class OrderManager:
 
             # FIXED: Calculate PnL percentage against actual margin invested for this position
             margin_invested = getattr(position, 'actual_margin_used', None)
-            
+
             if margin_invested is None:
                 # Fallback: try strategy config margin
                 if hasattr(position, 'strategy_config') and position.strategy_config:
@@ -407,7 +407,7 @@ class OrderManager:
             try:
                 from src.execution_engine.trade_database import TradeDatabase
                 trade_db = TradeDatabase()
-                
+
                 # Ensure we have a trade ID to update
                 if position.trade_id:
                     trade_db.update_trade(position.trade_id, {
@@ -429,7 +429,7 @@ class OrderManager:
                         position.entry_price,
                         tolerance=0.05  # 5% tolerance
                     )
-                    
+
                     if matching_trade_id:
                         trade_db.update_trade(matching_trade_id, {
                             'trade_status': 'CLOSED',
@@ -442,7 +442,7 @@ class OrderManager:
                         self.logger.info(f"✅ Found and closed matching trade in database: {matching_trade_id}")
                     else:
                         self.logger.warning(f"⚠️ No matching trade ID found in database for closed position {position.symbol}")
-                        
+
             except Exception as db_error:
                 self.logger.error(f"❌ Error updating trade database: {db_error}")
 
@@ -780,6 +780,98 @@ class OrderManager:
             # Get actual leverage from strategy config
             actual_leverage = position.strategy_config.get('leverage', 5) if hasattr(position, 'strategy_config') and position.strategy_config else 5
 
+            # Collect technical indicators for ML
+            technical_indicators = {}
+            market_conditions = {}
+
+            try:
+                # Get current market data for indicators
+                klines = self.binance_client.client.futures_klines(
+                    symbol=position.symbol,
+                    interval='1h',
+                    limit=50
+                )
+
+                if klines:
+                    closes = [float(kline[4]) for kline in klines]
+                    volumes = [float(kline[5]) for kline in klines]
+
+                    # Calculate technical indicators
+                    if len(closes) >= 14:
+                        # RSI calculation
+                        gains = []
+                        losses = []
+                        for i in range(1, len(closes)):
+                            change = closes[i] - closes[i-1]
+                            if change > 0:
+                                gains.append(change)
+                                losses.append(0)
+                            else:
+                                gains.append(0)
+                                losses.append(abs(change))
+
+                        if len(gains) >= 14:
+                            avg_gain = sum(gains[-14:]) / 14
+                            avg_loss = sum(losses[-14:]) / 14
+                            if avg_loss > 0:
+                                rs = avg_gain / avg_loss
+                                rsi = 100 - (100 / (1 + rs))
+                                technical_indicators['rsi'] = round(rsi, 2)
+
+                    # Moving averages
+                    if len(closes) >= 20:
+                        technical_indicators['sma_20'] = sum(closes[-20:]) / 20
+                    if len(closes) >= 50:
+                        technical_indicators['sma_50'] = sum(closes[-50:]) / 50
+
+                    # MACD (simplified)
+                    if len(closes) >= 26:
+                        ema_12 = sum(closes[-12:]) / 12
+                        ema_26 = sum(closes[-26:]) / 26
+                        technical_indicators['macd'] = round(ema_12 - ema_26, 4)
+
+                    # Volume
+                    if volumes:
+                        technical_indicators['volume'] = sum(volumes[-20:]) / min(20, len(volumes))
+
+                    # Market trend
+                    if len(closes) >= 20:
+                        recent_trend = (closes[-1] - closes[-20]) / closes[-20]
+                        if recent_trend > 0.02:
+                            market_conditions['trend'] = 'BULLISH'
+                        elif recent_trend < -0.02:
+                            market_conditions['trend'] = 'BEARISH'
+                        else:
+                            market_conditions['trend'] = 'SIDEWAYS'
+
+                    # Volatility
+                    if len(closes) >= 10:
+                        price_changes = [abs(closes[i] - closes[i-1]) / closes[i-1] for i in range(1, min(10, len(closes)))]
+                        market_conditions['volatility'] = sum(price_changes) / len(price_changes)
+
+                    # Market phase
+                    from datetime import datetime
+                    current_hour = datetime.now().hour
+                    if 8 <= current_hour <= 16:
+                        market_conditions['phase'] = 'LONDON'
+                    elif 13 <= current_hour <= 21:
+                        market_conditions['phase'] = 'NEW_YORK'
+                    else:
+                        market_conditions['phase'] = 'ASIAN'
+
+                    # Signal strength (based on strategy)
+                    if 'rsi' in position.strategy_name.lower() and 'rsi' in technical_indicators:
+                        rsi_val = technical_indicators['rsi']
+                        if rsi_val < 30:
+                            technical_indicators['signal_strength'] = 0.8  # Strong oversold
+                        elif rsi_val < 35:
+                            technical_indicators['signal_strength'] = 0.6  # Moderate oversold
+                        else:
+                            technical_indicators['signal_strength'] = 0.4  # Weak signal
+
+            except Exception as e:
+                self.logger.warning(f"⚠️ Could not collect technical indicators: {e}")
+
             generated_trade_id = trade_logger.log_trade_entry(
                 strategy_name=position.strategy_name,
                 symbol=position.symbol,
@@ -787,7 +879,9 @@ class OrderManager:
                 entry_price=position.entry_price,
                 quantity=position.quantity,
                 margin_used=margin_used,
-                leverage=actual_leverage
+                leverage=actual_leverage,
+                technical_indicators=technical_indicators,
+                market_conditions=market_conditions
             )
 
             # Store the generated trade ID in the position
@@ -821,7 +915,7 @@ class OrderManager:
                 # Validate all required data is present before adding
                 required_check = ['strategy_name', 'symbol', 'side', 'entry_price', 'quantity', 'trade_status']
                 missing = [f for f in required_check if f not in trade_data or trade_data[f] is None]
-                
+
                 if missing:
                     self.logger.error(f"❌ Cannot save trade to database - missing: {missing}")
                     self.logger.error(f"❌ Trade data: {trade_data}")
