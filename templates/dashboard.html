@@ -840,6 +840,7 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button>
                 </div>
+            ```html
             </div>
         </div>
     </div>
@@ -1144,6 +1145,9 @@
         let autoScroll = true;
         let consoleLogBuffer = [];
 
+        // Add autoRefresh variable
+        let autoRefresh = true;
+
         // Bot control functions
         document.getElementById('botToggle').addEventListener('click', function() {
             const isRunning = this.textContent.includes('Stop');
@@ -1170,6 +1174,15 @@
         });
 
         // Refresh data
+        function refreshData() {
+            updateBotStatus();
+            updateBalance();
+            updatePositions();
+            // Only update console if auto-refresh is enabled
+            if (autoRefresh) {
+                updateConsoleLog();
+            }
+        }
 
         // 🔧 INTELLIGENT API POLLING SYSTEM - Prevents excessive requests
         const apiCache = {
@@ -1522,6 +1535,7 @@
                     markRequestEnd('consoleLog', false);
                     return getDefaultResponse('/api/console-log');
                 });
+        }```html
         }
 
         function updateConsoleLogUI(data) {
@@ -1563,7 +1577,7 @@
                         formattedOutput += formatStrategyBlock(currentStrategyBlock, blockBuffer);
                         blockBuffer = [];
                     }
-                    
+
                     currentStrategyBlock = strategyInfo.strategy;
                     blockBuffer.push({
                         type: 'scanning',
@@ -1578,7 +1592,7 @@
                         blockBuffer = [];
                         currentStrategyBlock = null;
                     }
-                    
+
                     // Format active position as special block
                     const positionInfo = extractPositionInfo(cleanLog);
                     formattedOutput += formatActivePositionBlock(positionInfo, timestamp, message);
@@ -1589,7 +1603,7 @@
                         blockBuffer = [];
                         currentStrategyBlock = null;
                     }
-                    
+
                     formattedOutput += formatLogEntry(cleanLog, logType, timestamp, message);
                 }
             });
@@ -1604,7 +1618,7 @@
 
         function detectLogType(log) {
             const logUpper = log.toUpperCase();
-            
+
             if (logUpper.includes('ERROR') || logUpper.includes('❌') || logUpper.includes('FAILED')) {
                 return 'error';
             } else if (logUpper.includes('WARNING') || logUpper.includes('⚠️') || logUpper.includes('WARN')) {
@@ -1624,7 +1638,7 @@
 
         function detectCategory(log) {
             const logUpper = log.toUpperCase();
-            
+
             if (logUpper.includes('TRADE') || logUpper.includes('POSITION') || logUpper.includes('ORDER') || logUpper.includes('BUY') || logUpper.includes('SELL')) {
                 return 'trading';
             } else if (logUpper.includes('STRATEGY') || logUpper.includes('RSI') || logUpper.includes('MACD') || logUpper.includes('SIGNAL')) {
@@ -1661,17 +1675,17 @@
         function extractMessage(log) {
             // Remove timestamp and clean the message
             let message = log.replace(/\[[0-9-:\s]+\]/, '').trim();
-            
+
             // Remove log level prefixes
             message = message.replace(/^(ERROR|WARNING|INFO|DEBUG|SUCCESS)[\s:-]*/, '');
-            
+
             return message;
         }
 
         function formatLogEntry(fullLog, type, timestamp, message, category = 'general') {
             const timeStr = timestamp ? `<span class="log-timestamp">${timestamp}</span>` : '';
             const typeIcon = getTypeIcon(type);
-            
+
             return `
                 <div class="log-entry log-${type}" data-category="${category}">
                     <div class="log-header">
@@ -1730,7 +1744,7 @@
                 if (!strategyMatch) {
                     strategyMatch = log.match(/Strategy: ([A-Z_]+)/);
                 }
-                
+
                 if (strategyMatch) {
                     info.strategy = strategyMatch[1];
                 }
@@ -2389,7 +2403,8 @@
                         // Update strategy status badge
                         updateStrategyStatusBadge(strategyName, 'disabled');
                     } else {
-                        // Revert button state on error
+                        // Revert button state on```html
+ error
                         button.innerHTML = originalHTML;
                         button.disabled = false;
                         button.className = originalClass;

@@ -511,8 +511,54 @@ class WebLogHandler(logging.Handler):
                 original_msg = record.getMessage()
                 timestamp = datetime.fromtimestamp(record.created).strftime('%H:%M:%S')
 
-                # Capture ALL messages - no filtering to mirror development console exactly
+                # SMART FILTERING: Capture important trading messages while reducing debug noise
                 if original_msg and original_msg.strip():
+                    msg_lower = original_msg.lower()
+                    
+                    # SKIP these noisy debug messages that clutter the dashboard
+                    skip_patterns = [
+                        'startup scan status',
+                        'checking for misidentified', 
+                        'anomaly check (suppressed)',
+                        'bot status: is_running',
+                        'web log handler',
+                        'startup protection',
+                        'debug:',
+                        'consecutivehits',
+                        'cache hit',
+                        'throttled',
+                        'log handler initialized'
+                    ]
+                    
+                    if any(pattern in msg_lower for pattern in skip_patterns):
+                        return  # Skip these messages entirely
+                    
+                    # PRIORITIZE important trading activity messages
+                    priority_patterns = [
+                        'scanning',
+                        'active position', 
+                        'trade in progress',
+                        'position opened',
+                        'position closed',
+                        'entry signal',
+                        'exit signal',
+                        'strategy',
+                        'rsi:',
+                        'macd:',
+                        'price:',
+                        'pnl',
+                        'margin:',
+                        'leverage:'
+                    ]
+                    
+                    is_priority_msg = any(pattern in msg_lower for pattern in priority_patterns)
+                    is_error_warning = record.levelname in ['ERROR', 'WARNING'] or any(char in original_msg for char in ['❌', '⚠️'])
+                    is_lifecycle = any(pattern in msg_lower for pattern in ['bot startup', 'bot stopped', 'trading bot'])
+                    
+                    # Only process important messages or errors/warnings
+                    if not (is_priority_msg or is_error_warning or is_lifecycle):
+                        return  # Skip less important messages
+                    
                     # Preserve the original message format as much as possible
                     clean_msg = str(original_msg).strip()
                     
