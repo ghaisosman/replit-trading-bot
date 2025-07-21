@@ -352,50 +352,29 @@ def analyze_what_if_scenarios():
     """Analyze what-if scenarios for trade optimization"""
     print("🔮 Analyzing what-if scenarios...")
     
-    # Get a recent trade for analysis
-    from src.analytics.trade_logger import trade_logger
-    closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
+    results = ml_analyzer.analyze_what_if_scenarios_for_commands()
     
-    if not closed_trades:
-        print("❌ No closed trades available for analysis")
+    if "error" in results:
+        print(f"❌ {results['error']}")
         return
     
-    recent_trade = closed_trades[-1]
-    base_trade = {
-        'strategy': getattr(recent_trade, 'strategy', 'unknown_strategy'),
-        'symbol': getattr(recent_trade, 'symbol', 'UNKNOWN'),
-        'side': getattr(recent_trade, 'side', 'BUY'),
-        'leverage': getattr(recent_trade, 'leverage', 1),
-        'position_size_usdt': getattr(recent_trade, 'position_size_usdt', 100),
-        'rsi_entry': getattr(recent_trade, 'rsi_at_entry', 50),
-        'actual_pnl': getattr(recent_trade, 'pnl_percentage', 0)
-    }
+    print(f"📊 Analyzing scenarios for trade: {results['base_trade_id']}")
+    print(f"🎯 Actual PnL: {results['actual_pnl']:.2f}%")
     
-    trade_id = getattr(recent_trade, 'trade_id', 'unknown')
-    actual_pnl = getattr(recent_trade, 'pnl_percentage', 0)
-    print(f"📊 Analyzing scenarios for trade: {trade_id}")
-    print(f"🎯 Actual PnL: {actual_pnl:.2f}%")
+    scenario_results = results['scenario_results']
+    total_scenarios = sum(len(scenarios) for scenarios in scenario_results.values())
+    print(f"\n🔍 Generated {total_scenarios} scenarios:")
     
-    scenarios = ml_analyzer.generate_what_if_scenarios(base_trade)
-    
-    print(f"\n🔍 Generated {len(scenarios)} scenarios:")
-    
-    # Group by scenario type
-    scenario_groups = {}
-    for scenario in scenarios:
-        scenario_type = scenario['scenario_type']
-        if scenario_type not in scenario_groups:
-            scenario_groups[scenario_type] = []
-        scenario_groups[scenario_type].append(scenario)
-    
-    for scenario_type, group in scenario_groups.items():
+    for scenario_type, scenarios in scenario_results.items():
         print(f"\n📋 {scenario_type.upper()} SCENARIOS:")
         
-        for scenario in group[:3]:  # Show top 3 scenarios
-            prediction = ml_analyzer.predict_trade_outcome(scenario)
-            if 'predicted_pnl_percentage' in prediction:
-                improvement = prediction['predicted_pnl_percentage'] - base_trade['actual_pnl']
-                print(f"  🔄 {scenario}: Predicted PnL: {prediction['predicted_pnl_percentage']:.2f}% (improvement: {improvement:+.2f}%)")
+        for result in scenarios:
+            scenario = result['scenario']
+            predicted_pnl = result['predicted_pnl']
+            improvement = result['improvement']
+            leverage = scenario.get('leverage', 'N/A')
+            size = scenario.get('position_size_usdt', 'N/A')
+            print(f"  🔄 Leverage: {leverage}x, Size: ${size:.0f} → Predicted PnL: {predicted_pnl:.2f}% (improvement: {improvement:+.2f}%)")
 
 def generate_enhanced_insights():
     """Generate enhanced insights with advanced analytics"""

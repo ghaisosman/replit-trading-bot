@@ -114,10 +114,13 @@ class MLTradeAnalyzer:
         """Create additional features for better ML performance"""
         try:
             # Time-based features
-            df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)
-            df['is_london_session'] = df['hour_of_day'].between(8, 16).astype(int)
-            df['is_ny_session'] = df['hour_of_day'].between(13, 21).astype(int)
-            df['is_overlap_session'] = df['hour_of_day'].between(13, 16).astype(int)
+            # Ensure 'day_of_week' and 'hour_of_day' exist before using them
+            if 'day_of_week' in df.columns:
+                df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)
+            if 'hour_of_day' in df.columns:
+                df['is_london_session'] = df['hour_of_day'].between(8, 16).astype(int)
+                df['is_ny_session'] = df['hour_of_day'].between(13, 21).astype(int)
+                df['is_overlap_session'] = df['hour_of_day'].between(13, 16).astype(int)
 
             # Risk features
             df['position_risk'] = df['position_size_usdt'] / 10000  # Normalize by account size
@@ -1058,6 +1061,61 @@ END OF REPORT - Ready for AI Analysis
 
         except Exception as e:
             self.logger.error(f"❌ Error saving ML models: {e}")
+
+    def analyze_what_if_scenarios_for_commands(self):
+        """Analyze what-if scenarios for trade optimization (used by commands)"""
+        try:
+            # Get a recent trade for analysis
+            from src.analytics.trade_logger import trade_logger
+            closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
+
+            if not closed_trades:
+                return {"error": "No closed trades available for analysis"}
+
+            recent_trade = closed_trades[-1]
+            base_trade = {
+                'strategy': getattr(recent_trade, 'strategy', 'unknown_strategy'),
+                'symbol': getattr(recent_trade, 'symbol', 'UNKNOWN'),
+                'side': getattr(recent_trade, 'side', 'BUY'),
+                'leverage': getattr(recent_trade, 'leverage', 1),
+                'position_size_usdt': getattr(recent_trade, 'position_size_usdt', 100),
+                'rsi_entry': getattr(recent_trade, 'rsi_at_entry', 50),
+                'actual_pnl': getattr(recent_trade, 'pnl_percentage', 0)
+            }
+
+            scenarios = self.generate_what_if_scenarios(base_trade)
+
+            # Group by scenario type
+            scenario_groups = {}
+            for scenario in scenarios:
+                scenario_type = scenario['scenario_type']
+                if scenario_type not in scenario_groups:
+                    scenario_groups[scenario_type] = []
+                scenario_groups[scenario_type].append(scenario)
+
+            results = {}
+            for scenario_type, group in scenario_groups.items():
+                results[scenario_type] = []
+
+                for scenario in group[:3]:  # Show top 3 scenarios
+                    prediction = self.predict_trade_outcome(scenario)
+                    if 'predicted_pnl_percentage' in prediction:
+                        improvement = prediction['predicted_pnl_percentage'] - base_trade['actual_pnl']
+                        results[scenario_type].append({
+                            'scenario': scenario,
+                            'predicted_pnl': prediction['predicted_pnl_percentage'],
+                            'improvement': improvement
+                        })
+
+            return {
+                'base_trade_id': getattr(recent_trade, 'trade_id', 'unknown'),
+                'actual_pnl': base_trade['actual_pnl'],
+                'scenario_results': results
+            }
+
+        except Exception as e:
+            self.logger.error(f"❌ Error in what-if scenarios analysis: {e}")
+            return {"error": str(e)}
 
 # Global ML analyzer instance
 ml_analyzer = MLTradeAnalyzer()
