@@ -622,6 +622,9 @@ RISK ANALYSIS:
                         trade_timestamp = datetime.fromisoformat(trade_timestamp.replace('Z', '+00:00'))
                     except:
                         trade_timestamp = datetime.now()
+                elif hasattr(trade_timestamp, 'hour'):
+                    # Already a datetime object
+                    pass
                 elif not trade_timestamp:
                     trade_timestamp = datetime.now()
 
@@ -655,6 +658,9 @@ RISK ANALYSIS:
                         trade_timestamp = datetime.fromisoformat(trade_timestamp.replace('Z', '+00:00'))
                     except:
                         trade_timestamp = datetime.now()
+                elif hasattr(trade_timestamp, 'weekday'):
+                    # Already a datetime object
+                    pass
                 elif not trade_timestamp:
                     trade_timestamp = datetime.now()
 
@@ -736,6 +742,9 @@ ACTIVE TRADES: {len(open_trades)}
                             trade_timestamp = datetime.fromisoformat(trade_timestamp.replace('Z', '+00:00'))
                         except:
                             trade_timestamp = datetime.now()
+                    elif hasattr(trade_timestamp, 'total_seconds'):
+                        # Already a datetime object
+                        pass
                     elif not trade_timestamp:
                         trade_timestamp = datetime.now()
 
