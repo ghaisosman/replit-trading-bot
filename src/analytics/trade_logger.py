@@ -562,48 +562,59 @@ class TradeLogger:
             return None
 
     def log_trade(self, trade_data: Dict[str, Any]):
-        """Log a trade with enhanced ML-ready data collection"""
+        """Log a complete trade record"""
         try:
-            # Enhance trade data with current technical indicators
-            enhanced_trade_data = self._enhance_trade_with_indicators(trade_data)
+            # Handle both dictionary and TradeRecord objects
+            if hasattr(trade_data, 'to_dict'):
+                trade_dict = trade_data.to_dict()
+            else:
+                trade_dict = trade_data.copy()
 
-            # Create trade entry with complete timestamp
-            trade_entry = TradeRecord(
-                trade_id=enhanced_trade_data.get('trade_id', ''),
-                strategy_name=enhanced_trade_data.get('strategy_name', ''),
-                symbol=enhanced_trade_data.get('symbol', ''),
-                side=enhanced_trade_data.get('side', ''),
-                quantity=enhanced_trade_data.get('quantity', 0),
-                entry_price=enhanced_trade_data.get('entry_price', 0),
-                trade_status=enhanced_trade_data.get('trade_status', 'OPEN'),
-                leverage=enhanced_trade_data.get('leverage', 1),
-                position_size_usdt=enhanced_trade_data.get('position_size_usdt', 0),
+            # Clean up any old field names that might cause issues
+            if 'position_size_usdt' in trade_dict:
+                if 'position_value_usdt' not in trade_dict:
+                    trade_dict['position_value_usdt'] = trade_dict['position_size_usdt']
+                del trade_dict['position_size_usdt']
 
-                # Entry timestamp
-                entry_time=enhanced_trade_data.get('entry_time', datetime.now().isoformat()),
+            # Create TradeRecord from dictionary
+            # Map common field variations
+            field_mapping = {
+                'entry_time': 'timestamp',
+                'created_at': 'timestamp'
+            }
 
-                # Technical indicators at entry (now populated)
-                rsi_at_entry=enhanced_trade_data.get('rsi_at_entry'),
-                macd_at_entry=enhanced_trade_data.get('macd_at_entry'),
-                sma_20_at_entry=enhanced_trade_data.get('sma_20_at_entry'),
-                sma_50_at_entry=enhanced_trade_data.get('sma_50_at_entry'),
-                volume_at_entry=enhanced_trade_data.get('volume_at_entry'),
+            for old_field, new_field in field_mapping.items():
+                if old_field in trade_dict and new_field not in trade_dict:
+                    trade_dict[new_field] = trade_dict[old_field]
 
-                # Market conditions (now populated)
-                market_trend=enhanced_trade_data.get('market_trend'),
-                volatility_score=enhanced_trade_data.get('volatility_score'),
-                market_phase=enhanced_trade_data.get('market_phase')
-            )
+            # Parse timestamp if it's a string
+            if isinstance(trade_dict.get('timestamp'), str):
+                trade_dict['timestamp'] = datetime.fromisoformat(trade_dict['timestamp'].replace('Z', '+00:00'))
+            elif trade_dict.get('timestamp') is None:
+                trade_dict['timestamp'] = datetime.now()
 
-            # Log the trade details
-            self.trades.append(trade_entry)
-            self._save_trades()  # Ensure trades are saved after logging
+            # Create TradeRecord with proper field validation
+            required_fields = [
+                'trade_id', 'timestamp', 'strategy_name', 'symbol', 'side',
+                'entry_price', 'quantity', 'margin_used', 'leverage', 'position_value_usdt'
+            ]
 
-            self.logger.info(f"📝 ML TRADE LOGGED | {trade_entry.trade_id} | {trade_entry.symbol} | {trade_entry.side} | ${trade_entry.entry_price:.4f}")
-            self.logger.debug(f"📝 ML TRADE DETAILS: {trade_entry.to_dict()}")
+            missing_fields = [field for field in required_fields if field not in trade_dict]
+            if missing_fields:
+                self.logger.error(f"❌ Error logging ML trade: Missing required fields: {missing_fields}")
+                return False
+
+            trade_record = TradeRecord(**{k: v for k, v in trade_dict.items() 
+                                        if k in TradeRecord.__dataclass_fields__})
+
+            # Save trade record
+            self._save_trade_record(trade_record)
+
+            return True
 
         except Exception as e:
             self.logger.error(f"❌ Error logging ML trade: {e}")
+            return False
 
     def _save_trades(self):
         """Save trades to both JSON and CSV files"""
