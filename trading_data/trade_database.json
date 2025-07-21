@@ -1045,7 +1045,7 @@
       "entry_price": 197.78,
       "trade_status": "OPEN",
       "created_at": "2025-07-21T15:12:14.573917",
-      "last_verified": "2025-07-21T19:01:13.355748",
+      "last_verified": "2025-07-21T19:14:33.097128",
       "sync_status": "BINANCE_VERIFIED",
       "position_value_usdt": 29.666999999999998,
       "leverage": 5,
@@ -1064,7 +1064,7 @@
       "entry_price": 3741.12,
       "trade_status": "OPEN",
       "created_at": "2025-07-21T19:01:11.371582",
-      "last_verified": "2025-07-21T19:01:13.356299",
+      "last_verified": "2025-07-21T19:14:33.097722",
       "sync_status": "BINANCE_VERIFIED",
       "position_value_usdt": 37.4112,
       "leverage": 5,
@@ -1075,5 +1075,5 @@
       "binance_quantity": 0.01
     }
   },
-  "last_updated": "2025-07-21T19:01:13.356770"
+  "last_updated": "2025-07-21T19:14:33.098111"
 }
