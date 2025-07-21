@@ -460,11 +460,11 @@ Please analyze this data and suggest:
         """Generate detailed AI-ready report that can be copied to external AI services"""
         try:
             report_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
-            
+
             # Get all closed trades
             closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
             open_trades = [t for t in trade_logger.trades if t.trade_status == "OPEN"]
-            
+
             if not closed_trades:
                 return "No closed trades available for detailed analysis."
 
@@ -472,20 +472,20 @@ Please analyze this data and suggest:
             total_trades = len(closed_trades)
             winning_trades = [t for t in closed_trades if t.pnl_percentage > 0]
             losing_trades = [t for t in closed_trades if t.pnl_percentage < 0]
-            
+
             win_rate = len(winning_trades) / total_trades * 100
             avg_win = sum(t.pnl_percentage for t in winning_trades) / len(winning_trades) if winning_trades else 0
             avg_loss = sum(t.pnl_percentage for t in losing_trades) / len(losing_trades) if losing_trades else 0
             total_pnl = sum(t.pnl_percentage for t in closed_trades)
-            
+
             # Risk metrics
             max_drawdown = min(t.pnl_percentage for t in closed_trades) if closed_trades else 0
             largest_win = max(t.pnl_percentage for t in closed_trades) if closed_trades else 0
-            
+
             # Time-based analysis
             trade_durations = [t.duration_minutes for t in closed_trades if t.duration_minutes]
             avg_duration = sum(trade_durations) / len(trade_durations) if trade_durations else 0
-            
+
             report = f"""
 ═══════════════════════════════════════════════════════════
 📊 COMPREHENSIVE TRADING PERFORMANCE REPORT
@@ -525,14 +525,14 @@ RISK ANALYSIS:
                         'trades': [], 'wins': 0, 'losses': 0, 'total_pnl': 0,
                         'symbols': set(), 'avg_leverage': 0, 'total_volume': 0
                     }
-                
+
                 stats = strategy_stats[trade.strategy]
                 stats['trades'].append(trade)
                 stats['total_pnl'] += trade.pnl_percentage
                 stats['symbols'].add(trade.symbol)
                 stats['avg_leverage'] += trade.leverage
                 stats['total_volume'] += trade.position_size_usdt
-                
+
                 if trade.pnl_percentage > 0:
                     stats['wins'] += 1
                 else:
@@ -543,7 +543,7 @@ RISK ANALYSIS:
                 win_rate = (stats['wins'] / total_trades * 100) if total_trades > 0 else 0
                 avg_pnl = stats['total_pnl'] / total_trades if total_trades > 0 else 0
                 avg_leverage = stats['avg_leverage'] / total_trades if total_trades > 0 else 0
-                
+
                 report += f"""
 🎯 STRATEGY: {strategy.upper()}
    • Total Trades: {total_trades}
@@ -662,7 +662,7 @@ ACTIVE TRADES: {len(open_trades)}
                 for trade in open_trades:
                     unrealized_pnl = getattr(trade, 'unrealized_pnl_percentage', 0)
                     minutes_open = ((datetime.now() - trade.entry_time).total_seconds() / 60) if trade.entry_time else 0
-                    
+
                     report += f"""
 🔄 OPEN TRADE:
    • Strategy: {trade.strategy.upper()}
@@ -746,7 +746,7 @@ END OF REPORT - Ready for AI Analysis
         """Export structured data in AI-friendly format"""
         try:
             closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
-            
+
             export_data = {
                 "report_metadata": {
                     "timestamp": datetime.now().isoformat(),
@@ -779,7 +779,7 @@ END OF REPORT - Ready for AI Analysis
                         "symbols": [],
                         "average_leverage": 0
                     }
-                
+
                 stats = export_data["strategy_breakdown"][strategy]
                 stats["total_trades"] += 1
                 stats["total_pnl"] += trade.pnl_percentage
@@ -1055,4 +1055,3 @@ END OF REPORT - Ready for AI Analysis
 
 # Global ML analyzer instance
 ml_analyzer = MLTradeAnalyzer()
-`
