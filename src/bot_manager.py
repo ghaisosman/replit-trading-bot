@@ -155,6 +155,7 @@ class BotManager:
 
             self.log_handler = WebLogHandler()
             self.log_handler.setFormatter(logging.Formatter('%(message)s'))  # Simplified format for web
+            self.log_handler.setLevel(logging.DEBUG)  # Ensure DEBUG level messages are captured
 
             # Add to root logger to capture all logs
             root_logger = logging.getLogger()

@@ -465,10 +465,10 @@ def setup_logger():
     root_logger.addHandler(file_handler_web)
 
 
-    # Add web log handler
+    # Add web log handler - capture DEBUG level to mirror development console
     web_log_handler = WebLogHandler()
     web_log_handler.setFormatter(ColoredFormatter())
-    web_log_handler.setLevel(logging.INFO)
+    web_log_handler.setLevel(logging.DEBUG)  # Changed from INFO to DEBUG to capture all messages
     root_logger.addHandler(web_log_handler)
 
 
@@ -511,19 +511,42 @@ class WebLogHandler(logging.Handler):
                 original_msg = record.getMessage()
                 timestamp = datetime.fromtimestamp(record.created).strftime('%H:%M:%S')
 
-                # Don't filter messages - capture everything for dashboard
+                # Capture ALL messages - no filtering to mirror development console exactly
                 if original_msg and original_msg.strip():
-                    # Clean up box drawing characters but preserve the content
+                    # Preserve the original message format as much as possible
                     clean_msg = str(original_msg).strip()
-                    box_chars = ['┌', '┐', '└', '┘', '├', '┤', '│', '─', '╔', '╗', '╚', '╝', '║', '═']
-                    for char in box_chars:
+                    
+                    # Only remove specific box drawing characters that break web display
+                    # but preserve structure and content
+                    box_chars_to_remove = ['┌', '┐', '└', '┘', '├', '┤', '─', '╔', '╗', '╚', '╝', '═']
+                    for char in box_chars_to_remove:
                         clean_msg = clean_msg.replace(char, '')
                     
-                    # Remove empty lines and clean whitespace
-                    clean_msg = ' '.join(clean_msg.split())
+                    # Replace vertical bars with spaces but preserve structure
+                    clean_msg = clean_msg.replace('│', ' ')
+                    clean_msg = clean_msg.replace('║', ' ')
                     
-                    if clean_msg and clean_msg not in ['ℹ️  INFO', 'INFO', 'ERROR', 'WARNING']:
-                        formatted_log = f'[{timestamp}] {clean_msg}'
+                    # Clean up excessive whitespace but preserve intentional spacing
+                    lines = clean_msg.split('\n')
+                    cleaned_lines = []
+                    for line in lines:
+                        stripped_line = line.strip()
+                        if stripped_line and stripped_line not in ['ℹ️  INFO', 'INFO', 'ERROR', 'WARNING', '']:
+                            cleaned_lines.append(stripped_line)
+                    
+                    if cleaned_lines:
+                        # Join multiple lines with proper separation
+                        if len(cleaned_lines) == 1:
+                            formatted_log = f'[{timestamp}] {cleaned_lines[0]}'
+                        else:
+                            # Multi-line message - preserve structure
+                            main_line = cleaned_lines[0]
+                            additional_info = ' | '.join(cleaned_lines[1:]) if len(cleaned_lines) > 1 else ''
+                            if additional_info:
+                                formatted_log = f'[{timestamp}] {main_line} | {additional_info}'
+                            else:
+                                formatted_log = f'[{timestamp}] {main_line}'
+                        
                         self.logs.append(formatted_log)
         except Exception:
             # DO NOT log here! Just pass
