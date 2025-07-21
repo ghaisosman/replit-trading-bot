@@ -495,20 +495,40 @@ class BotManager:
                         # Get configured values for display
                         configured_leverage = strategy_config.get('leverage', 5)
 
-                        # Get current RSI for the symbol
-                        current_rsi_text = "N/A"
+                        # Get current indicators based on strategy type
+                        indicator_text = "N/A"
                         try:
-                            # Get fresh market data for RSI calculation
+                            # Get fresh market data for indicator calculation
                             timeframe = strategy_config.get('timeframe', '15m')
                             df = await self.price_fetcher.get_market_data(symbol, timeframe, 100)
-                            if df is not None and not df.empty and 'rsi' in df.columns:
-                                current_rsi = df['rsi'].iloc[-1]
-                                if not pd.isna(current_rsi):
-                                    current_rsi_text = f"{current_rsi:.1f}"
+                            if df is not None and not df.empty:
+                                # Calculate indicators
+                                df = self.price_fetcher.calculate_indicators(df)
+                                
+                                # Display strategy-specific indicators
+                                if 'rsi' in strategy_name.lower():
+                                    # RSI Strategy - show current RSI
+                                    if 'rsi' in df.columns:
+                                        current_rsi = df['rsi'].iloc[-1]
+                                        if not pd.isna(current_rsi):
+                                            indicator_text = f"RSI: {current_rsi:.1f}"
+                                elif 'macd' in strategy_name.lower():
+                                    # MACD Strategy - show MACD line and signal
+                                    if 'macd' in df.columns and 'macd_signal' in df.columns:
+                                        macd_line = df['macd'].iloc[-1]
+                                        macd_signal = df['macd_signal'].iloc[-1]
+                                        if not pd.isna(macd_line) and not pd.isna(macd_signal):
+                                            indicator_text = f"MACD: {macd_line:.2f}/{macd_signal:.2f}"
+                                else:
+                                    # Other strategies - try to show RSI as fallback
+                                    if 'rsi' in df.columns:
+                                        current_rsi = df['rsi'].iloc[-1]
+                                        if not pd.isna(current_rsi):
+                                            indicator_text = f"RSI: {current_rsi:.1f}"
                         except Exception as e:
-                            self.logger.debug(f"Could not fetch RSI for {symbol}: {e}")
+                            self.logger.debug(f"Could not fetch indicators for {symbol}: {e}")
 
-                        # FIXED: Single, clean position display with current RSI
+                        # Clean, single position display with strategy-specific indicators
                         position_display = f"""╔═══════════════════════════════════════════════════╗
 ║ 📊 ACTIVE POSITION                                ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
@@ -519,7 +539,7 @@ class BotManager:
 ║ 📊 Side: {position.side:<25}                           ║
 ║ 💵 Entry: ${position.entry_price:.1f}                          ║
 ║ 📊 Current: ${current_price:.1f}                           ║
-║ 📈 Current RSI: {current_rsi_text}                         ║
+║ 📈 Indicator: {indicator_text:<25}                      ║
 ║ ⚡ Config: ${margin_invested:.1f} USDT @ {configured_leverage}x           ║
 ║ 💰 PnL: ${pnl:.1f} USDT ({pnl_percent:+.1f}%)              ║
 ║                                                   ║
