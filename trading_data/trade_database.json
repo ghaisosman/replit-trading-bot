@@ -638,8 +638,8 @@
       "entry_price": 191.16666666666666,
       "trade_status": "OPEN",
       "created_at": "2025-07-21T08:30:11.448854",
-      "last_verified": "2025-07-21T08:30:11.448857",
-      "sync_status": "VERIFIED",
+      "last_verified": "2025-07-21T09:58:12.715993",
+      "sync_status": "BINANCE_VERIFIED",
       "position_value_usdt": 30.586666666666666,
       "leverage": 3,
       "margin_used": 10.195555555555556,
@@ -648,8 +648,11 @@
       "take_profit": 181.60833333333332,
       "position_side": "SHORT",
       "order_id": 130258298774,
-      "entry_time": "2025-07-21T08:30:08.418753"
+      "entry_time": "2025-07-21T08:30:08.418753",
+      "recovery_source": "MATCHED_EXISTING",
+      "binance_entry_price": 191.11,
+      "binance_quantity": 0.16
     }
   },
-  "last_updated": "2025-07-21T08:47:06.157313"
+  "last_updated": "2025-07-21T09:58:12.716997"
 }
