@@ -2312,7 +2312,7 @@ def get_ai_advisor_insights():
 
     except Exception as e:
         logger.error(f"Error getting AI insights: {e}")
-        return jsonify({'success': False, 'error': str(e)})ror']})
+        return jsonify({'success': False, 'error': str(e)})
 
         return jsonify({'success': True, 'insights': insights})
 
