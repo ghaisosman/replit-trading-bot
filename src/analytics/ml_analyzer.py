@@ -509,7 +509,7 @@ RISK ANALYSIS:
 • Largest Single Win: {largest_win:+.2f}%
 • Maximum Drawdown: {max_drawdown:.2f}%
 • Average Winning Trade: {avg_win:+.2f}%
-• Average Losing Trade: {avg_loss:.2f}%
+• Average Losing Trade: {avg_loss:+.2f}%
 • Risk-Reward Ratio: {abs(avg_win/avg_loss) if avg_loss != 0 else 0:.2f}:1
 
 ═══════════════════════════════════════════════════════════
@@ -520,20 +520,22 @@ RISK ANALYSIS:
             # Strategy analysis
             strategy_stats = {}
             for trade in closed_trades:
-                if trade.strategy not in strategy_stats:
-                    strategy_stats[trade.strategy] = {
+                strategy = getattr(trade, 'strategy', 'unknown_strategy')
+                if strategy not in strategy_stats:
+                    strategy_stats[strategy] = {
                         'trades': [], 'wins': 0, 'losses': 0, 'total_pnl': 0,
                         'symbols': set(), 'avg_leverage': 0, 'total_volume': 0
                     }
 
-                stats = strategy_stats[trade.strategy]
+                stats = strategy_stats[strategy]
                 stats['trades'].append(trade)
-                stats['total_pnl'] += trade.pnl_percentage
-                stats['symbols'].add(trade.symbol)
-                stats['avg_leverage'] += trade.leverage
-                stats['total_volume'] += trade.position_size_usdt
+                stats['total_pnl'] += getattr(trade, 'pnl_percentage', 0)
+                stats['symbols'].add(getattr(trade, 'symbol', 'UNKNOWN'))
+                stats['avg_leverage'] += getattr(trade, 'leverage', 1)
+                stats['total_volume'] += getattr(trade, 'position_size_usdt', 0)
 
-                if trade.pnl_percentage > 0:
+                pnl = getattr(trade, 'pnl_percentage', 0)
+                if pnl > 0:
                     stats['wins'] += 1
                 else:
                     stats['losses'] += 1
@@ -692,7 +694,7 @@ Based on the comprehensive trading data above, please provide:
 
 2. ⚠️ RISK ASSESSMENT:
    - Evaluate current risk management effectiveness
-   - Identify potential vulnerabilities
+      - Identify potential vulnerabilities
    - Suggest position sizing improvements
 
 3. 🚀 OPTIMIZATION OPPORTUNITIES:
@@ -770,7 +772,7 @@ END OF REPORT - Ready for AI Analysis
 
             # Strategy analysis
             for trade in closed_trades:
-                strategy = trade.strategy
+                strategy = getattr(trade, 'strategy', 'unknown_strategy')
                 if strategy not in export_data["strategy_breakdown"]:
                     export_data["strategy_breakdown"][strategy] = {
                         "total_trades": 0,

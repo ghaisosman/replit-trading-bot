@@ -29,7 +29,11 @@ def train_ml_models():
         print("✅ ML models trained successfully!")
         print(f"📊 Profitability accuracy: {results.get('profitability_accuracy', 'N/A'):.2%}")
         print(f"📈 PnL R² score: {results.get('pnl_r2_score', 'N/A'):.2f}")
-        print(f"⏱️ Duration R² score: {results.get('duration_r2_score', 'N/A'):.2f}")
+        duration_score = results.get('duration_r2_score', 'N/A')
+        if isinstance(duration_score, (int, float)):
+            print(f"⏱️ Duration R² score: {duration_score:.2f}")
+        else:
+            print(f"⏱️ Duration R² score: {duration_score}")
 
         if 'profitability_features' in results:
             print("\n🔍 Top features for profitability:")
