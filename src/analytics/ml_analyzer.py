@@ -333,22 +333,38 @@ class MLTradeAnalyzer:
     def simulate_parameter_optimization(self, historical_trades: List) -> Dict:
         """Run parameter optimization simulation on historical trades"""
         try:
-            optimization_results = {}
+            if not self.profitability_model:
+                self.logger.error("❌ ML models not trained - cannot run optimization")
+                return {}
 
-            for trade in historical_trades[-20:]:  # Use recent 20 trades
+            if len(historical_trades) < 3:
+                self.logger.error("❌ Need at least 3 trades for optimization")
+                return {}
+
+            optimization_results = {}
+            
+            # Use all available trades, but limit to recent ones if many
+            recent_trades = historical_trades[-min(10, len(historical_trades)):]
+            
+            self.logger.info(f"🔧 Analyzing {len(recent_trades)} trades for optimization")
+
+            for trade in recent_trades:
                 trade_dict = {
-                    'strategy': getattr(trade, 'strategy', 'unknown_strategy'),
-                    'symbol': getattr(trade, 'symbol', 'UNKNOWN'),
+                    'strategy': getattr(trade, 'strategy', 'rsi_oversold'),
+                    'symbol': getattr(trade, 'symbol', 'BTCUSDT'),
                     'side': getattr(trade, 'side', 'BUY'),
-                    'leverage': getattr(trade, 'leverage', 1),
+                    'leverage': getattr(trade, 'leverage', 5),
                     'position_size_usdt': getattr(trade, 'position_size_usdt', 100),
                     'rsi_entry': getattr(trade, 'rsi_at_entry', 50),
+                    'hour_of_day': trade.entry_time.hour if trade.entry_time else 12,
+                    'day_of_week': trade.entry_time.weekday() if trade.entry_time else 1,
+                    'market_trend': getattr(trade, 'market_trend', 'NEUTRAL'),
                     'actual_pnl': getattr(trade, 'pnl_percentage', 0)
                 }
 
                 scenarios = self.generate_what_if_scenarios(trade_dict)
 
-                for scenario in scenarios:
+                for scenario in scenarios[:3]:  # Limit scenarios to avoid overwhelming
                     # Predict outcome for each scenario
                     prediction = self.predict_trade_outcome(scenario)
 
@@ -357,29 +373,40 @@ class MLTradeAnalyzer:
                         if scenario_type not in optimization_results:
                             optimization_results[scenario_type] = []
 
+                        improvement = prediction['predicted_pnl_percentage'] - trade_dict['actual_pnl']
+                        
                         optimization_results[scenario_type].append({
                             'parameters': scenario,
                             'predicted_pnl': prediction['predicted_pnl_percentage'],
                             'actual_pnl': trade_dict['actual_pnl'],
-                            'improvement': prediction['predicted_pnl_percentage'] - trade_dict['actual_pnl']
+                            'improvement': improvement
                         })
 
             # Find optimal parameters for each scenario type
             optimal_params = {}
             for scenario_type, results in optimization_results.items():
-                if results:
+                if results and len(results) > 0:
                     best_result = max(results, key=lambda x: x['improvement'])
+                    avg_improvement = sum(r['improvement'] for r in results) / len(results)
+                    
                     optimal_params[scenario_type] = {
                         'parameters': best_result['parameters'],
-                        'avg_improvement': sum(r['improvement'] for r in results) / len(results),
-                        'best_improvement': best_result['improvement']
+                        'avg_improvement': avg_improvement,
+                        'best_improvement': best_result['improvement'],
+                        'scenario_count': len(results)
                     }
 
             self.optimal_parameters = optimal_params
+            
+            if not optimal_params:
+                self.logger.warning("⚠️ No optimization results generated - model may need more training data")
+                
             return optimal_params
 
         except Exception as e:
             self.logger.error(f"❌ Error in parameter optimization: {e}")
+            import traceback
+            self.logger.error(f"Full error: {traceback.format_exc()}")
             return {}
 
     def prepare_ai_context(self, recent_trades: int = 10) -> str:

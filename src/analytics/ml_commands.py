@@ -142,26 +142,46 @@ def run_parameter_optimization():
     from src.analytics.trade_logger import trade_logger
     
     closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
-    if len(closed_trades) < 5:
-        print("❌ Need at least 5 closed trades for optimization")
+    
+    print(f"📊 Available closed trades: {len(closed_trades)}")
+    
+    if len(closed_trades) < 3:
+        print("❌ Need at least 3 closed trades for optimization")
+        print("💡 Complete some trades first, then try again")
         return
+    
+    # Check if ML models are trained
+    if not ml_analyzer.profitability_model:
+        print("🤖 ML models not found. Training models first...")
+        train_results = ml_analyzer.train_models()
+        if "error" in train_results:
+            print(f"❌ Failed to train models: {train_results['error']}")
+            return
+        print("✅ ML models trained successfully!")
     
     results = ml_analyzer.simulate_parameter_optimization(closed_trades)
     
     if results:
         print("✅ Optimization complete!")
+        print(f"📊 Analyzed {len(closed_trades)} closed trades")
+        
         for scenario_type, data in results.items():
-            print(f"\n🎯 {scenario_type.upper()}:")
-            print(f"  Average improvement: {data['avg_improvement']:.2f}%")
-            print(f"  Best improvement: {data['best_improvement']:.2f}%")
+            print(f"\n🎯 {scenario_type.upper().replace('_', ' ')}:")
+            print(f"  Average improvement: {data['avg_improvement']:+.2f}%")
+            print(f"  Best improvement: {data['best_improvement']:+.2f}%")
             
             # Show best parameters
             best_params = data['parameters']
             for key, value in best_params.items():
-                if key not in ['scenario_type']:
-                    print(f"  Optimal {key}: {value}")
+                if key not in ['scenario_type', 'actual_pnl']:
+                    if isinstance(value, float):
+                        print(f"  Optimal {key.replace('_', ' ')}: {value:.2f}")
+                    else:
+                        print(f"  Optimal {key.replace('_', ' ')}: {value}")
     else:
         print("❌ No optimization results generated")
+        print("💡 This could be due to insufficient ML model training data")
+        print("🎯 Try training ML models first (option 1) or make more trades")
 
 def get_ai_insights():
     """Get insights from external AI advisor"""
