@@ -1,4 +1,3 @@
-
 import pandas as pd
 import numpy as np
 import logging
@@ -612,40 +611,23 @@ RISK ANALYSIS:
 ═══════════════════════════════════════════════════════════
 """
 
-            # Hourly performance
+            # Time-based analysis
             hourly_stats = {}
             for trade in closed_trades:
-                # Get timestamp safely - use timestamp field from TradeRecord
-                trade_timestamp = getattr(trade, 'timestamp', None)
-                if trade_timestamp and isinstance(trade_timestamp, str):
-                    try:
-                        trade_timestamp = datetime.fromisoformat(trade_timestamp.replace('Z', '+00:00'))
-                    except:
-                        trade_timestamp = datetime.now()
-                elif hasattr(trade_timestamp, 'hour'):
-                    # Already a datetime object
-                    pass
-                elif not trade_timestamp:
+                # Get timestamp safely - TradeRecord uses 'timestamp' field
+                if hasattr(trade, 'timestamp') and trade.timestamp:
+                    if isinstance(trade.timestamp, str):
+                        try:
+                            trade_timestamp = datetime.fromisoformat(trade.timestamp.replace('Z', '+00:00'))
+                        except:
+                            trade_timestamp = datetime.now()
+                    else:
+                        trade_timestamp = trade.timestamp
+                else:
                     trade_timestamp = datetime.now()
 
-                hour = trade_timestamp.hour if hasattr(trade_timestamp, 'hour') else 0
-                if hour not in hourly_stats:
-                    hourly_stats[hour] = {'trades': 0, 'wins': 0, 'pnl': 0}
-                hourly_stats[hour]['trades'] += 1
-                hourly_stats[hour]['pnl'] += getattr(trade, 'pnl_percentage', 0)
-                if getattr(trade, 'pnl_percentage', 0) > 0:
-                    hourly_stats[hour]['wins'] += 1
-
-            best_hours = sorted(hourly_stats.items(), 
-                               key=lambda x: x[1]['wins']/x[1]['trades'] if x[1]['trades'] > 0 else 0, 
-                               reverse=True)[:5]
-
-            report += "\n🕐 TOP PERFORMING HOURS (UTC):\n"
-            for hour, stats in best_hours:
-                if stats['trades'] > 0:
-                    win_rate = stats['wins'] / stats['trades'] * 100
-                    avg_pnl = stats['pnl'] / stats['trades']
-                    report += f"   • {hour:02d}:00-{(hour+1)%24:02d}:00 → {win_rate:.1f}% win rate, {avg_pnl:+.2f}% avg PnL ({stats['trades']} trades)\n"
+                hour = trade_timestamp.hour
+            
 
             # Weekly performance
             weekday_stats = {}
@@ -711,7 +693,7 @@ RISK ANALYSIS:
 ═══════════════════════════════════════════════════════════
 
 MODEL PERFORMANCE:
-• Profitability Prediction Accuracy: {self.feature_importance.get('profitability_accuracy', 'N/A')}
+• Profitability PredictionAccuracy: {self.feature_importance.get('profitability_accuracy', 'N/A')}
 • Feature Count: {len(self.training_feature_names) if self.training_feature_names else 'N/A'}
 • Training Dataset Size: {len(closed_trades)} closed trades
 
