@@ -350,7 +350,20 @@ class MLTradeAnalyzer:
 
             for trade in recent_trades:
                 # Handle multiple possible timestamp attributes safely
-                trade_time = getattr(trade, 'timestamp', None) or getattr(trade, 'entry_time', None) or getattr(trade, 'entry_timestamp', None)
+                trade_time = None
+                timestamp_attrs = ['timestamp', 'entry_timestamp', 'created_at']
+                for attr in timestamp_attrs:
+                    timestamp_val = getattr(trade, attr, None)
+                    if timestamp_val:
+                        if isinstance(timestamp_val, str):
+                            try:
+                                trade_time = datetime.fromisoformat(timestamp_val.replace('Z', '+00:00'))
+                                break
+                            except:
+                                continue
+                        elif hasattr(timestamp_val, 'hour'):  # datetime object
+                            trade_time = timestamp_val
+                            break
 
                 trade_dict = {
                     'strategy': getattr(trade, 'strategy_name', 'rsi_oversold'),
@@ -432,7 +445,7 @@ class MLTradeAnalyzer:
             # Strategy breakdown
             strategy_performance = {}
             for trade in closed_trades:
-                strategy = getattr(trade, 'strategy', 'unknown_strategy')
+                strategy = getattr(trade, 'strategy', getattr(trade, 'strategy_name', 'unknown_strategy'))
                 if strategy not in strategy_performance:
                     strategy_performance[strategy] = {'wins': 0, 'total': 0, 'pnl': 0}
 
@@ -496,7 +509,7 @@ Please analyze this data and suggest:
         try:
             report_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
 
-            #Try different possible timestamp attributes
+            # Access trade data safely with proper attribute checking
             try:
                 closed_trades = [t for t in trade_logger.trades if getattr(t, 'trade_status', None) == "CLOSED"]
                 open_trades = [t for t in trade_logger.trades if getattr(t, 'trade_status', None) in ["OPEN", "ACTIVE"]]
@@ -609,14 +622,28 @@ RISK ANALYSIS:
             # Hourly performance
             hourly_stats = {}
             for trade in closed_trades:
-                # Get entry time safely
-                entry_time = getattr(trade, 'timestamp', None) or getattr(trade, 'entry_time', None)
+                # Get entry time safely - check multiple possible timestamp attributes
+                entry_time = None
+                timestamp_attrs = ['timestamp', 'entry_timestamp', 'created_at']
+                for attr in timestamp_attrs:
+                    timestamp_val = getattr(trade, attr, None)
+                    if timestamp_val:
+                        if isinstance(timestamp_val, str):
+                            try:
+                                entry_time = datetime.fromisoformat(timestamp_val.replace('Z', '+00:00'))
+                                break
+                            except:
+                                continue
+                        elif hasattr(timestamp_val, 'hour'):  # datetime object
+                            entry_time = timestamp_val
+                            break
+                
                 hour = entry_time.hour if entry_time else 0
                 if hour not in hourly_stats:
                     hourly_stats[hour] = {'trades': 0, 'wins': 0, 'pnl': 0}
                 hourly_stats[hour]['trades'] += 1
-                hourly_stats[hour]['pnl'] += trade.pnl_percentage
-                if trade.pnl_percentage > 0:
+                hourly_stats[hour]['pnl'] += getattr(trade, 'pnl_percentage', 0)
+                if getattr(trade, 'pnl_percentage', 0) > 0:
                     hourly_stats[hour]['wins'] += 1
 
             best_hours = sorted(hourly_stats.items(), 
@@ -634,15 +661,29 @@ RISK ANALYSIS:
             weekday_stats = {}
             weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
             for trade in closed_trades:
-                # Get entry time safely
-                entry_time = getattr(trade, 'timestamp', None) or getattr(trade, 'entry_time', None)
+                # Get entry time safely - check multiple possible timestamp attributes
+                entry_time = None
+                timestamp_attrs = ['timestamp', 'entry_timestamp', 'created_at']
+                for attr in timestamp_attrs:
+                    timestamp_val = getattr(trade, attr, None)
+                    if timestamp_val:
+                        if isinstance(timestamp_val, str):
+                            try:
+                                entry_time = datetime.fromisoformat(timestamp_val.replace('Z', '+00:00'))
+                                break
+                            except:
+                                continue
+                        elif hasattr(timestamp_val, 'weekday'):  # datetime object
+                            entry_time = timestamp_val
+                            break
+                
                 weekday = entry_time.weekday() if entry_time else 0
                 day_name = weekdays[weekday]
                 if day_name not in weekday_stats:
                     weekday_stats[day_name] = {'trades': 0, 'wins': 0, 'pnl': 0}
                 weekday_stats[day_name]['trades'] += 1
-                weekday_stats[day_name]['pnl'] += trade.pnl_percentage
-                if trade.pnl_percentage > 0:
+                weekday_stats[day_name]['pnl'] += getattr(trade, 'pnl_percentage', 0)
+                if getattr(trade, 'pnl_percentage', 0) > 0:
                     weekday_stats[day_name]['wins'] += 1
 
             report += "\n📅 WEEKLY PERFORMANCE PATTERN:\n"
@@ -661,19 +702,19 @@ RISK ANALYSIS:
 """
 
             # RSI analysis
-            rsi_trades = [t for t in closed_trades if t.rsi_at_entry is not None]
+            rsi_trades = [t for t in closed_trades if getattr(t, 'rsi_at_entry', None) is not None]
             if rsi_trades:
                 rsi_ranges = {
-                    'Oversold (≤30)': [t for t in rsi_trades if t.rsi_at_entry <= 30],
-                    'Neutral (31-69)': [t for t in rsi_trades if 31 <= t.rsi_at_entry <= 69],
-                    'Overbought (≥70)': [t for t in rsi_trades if t.rsi_at_entry >= 70]
+                    'Oversold (≤30)': [t for t in rsi_trades if getattr(t, 'rsi_at_entry', 0) <= 30],
+                    'Neutral (31-69)': [t for t in rsi_trades if 31 <= getattr(t, 'rsi_at_entry', 50) <= 69],
+                    'Overbought (≥70)': [t for t in rsi_trades if getattr(t, 'rsi_at_entry', 0) >= 70]
                 }
 
                 report += "\n📊 RSI ENTRY CONDITIONS:\n"
                 for range_name, trades in rsi_ranges.items():
                     if trades:
-                        win_rate = sum(1 for t in trades if t.pnl_percentage > 0) / len(trades) * 100
-                        avg_pnl = sum(t.pnl_percentage for t in trades) / len(trades)
+                        win_rate = sum(1 for t in trades if getattr(t, 'pnl_percentage', 0) > 0) / len(trades) * 100
+                        avg_pnl = sum(getattr(t, 'pnl_percentage', 0) for t in trades) / len(trades)
                         report += f"   • {range_name}: {win_rate:.1f}% win rate, {avg_pnl:+.2f}% avg PnL ({len(trades)} trades)\n"
 
             # ML Model Performance
@@ -706,10 +747,24 @@ ACTIVE TRADES: {len(open_trades)}
 """
                 for trade in open_trades:
                     unrealized_pnl = getattr(trade, 'unrealized_pnl_percentage', 0)
-                    # Try different possible timestamp attributes safely
-                    entry_time = getattr(trade, 'timestamp', None) or getattr(trade, 'entry_time', None) or getattr(trade, 'entry_timestamp', None)
+                    
+                    # Get entry time safely - check multiple possible timestamp attributes
+                    entry_time = None
+                    timestamp_attrs = ['timestamp', 'entry_timestamp', 'created_at']
+                    for attr in timestamp_attrs:
+                        timestamp_val = getattr(trade, attr, None)
+                        if timestamp_val:
+                            if isinstance(timestamp_val, str):
+                                try:
+                                    entry_time = datetime.fromisoformat(timestamp_val.replace('Z', '+00:00'))
+                                    break
+                                except:
+                                    continue
+                            elif hasattr(timestamp_val, 'total_seconds'):  # datetime object
+                                entry_time = timestamp_val
+                                break
+                    
                     minutes_open = int((datetime.now() - entry_time).total_seconds() / 60) if entry_time else 0
-
                     strategy_name = getattr(trade, 'strategy', getattr(trade, 'strategy_name', 'Unknown'))
                     
                     report += f"""
@@ -824,11 +879,20 @@ END OF REPORT - Ready for AI Analysis
             for trade in closed_trades:
                 try:
                     # Get timestamp safely with multiple fallbacks
-                    trade_timestamp = getattr(trade, 'timestamp', None) or getattr(trade, 'entry_time', None) or getattr(trade, 'entry_timestamp', None)
+                    trade_timestamp = None
+                    timestamp_attrs = ['timestamp', 'entry_timestamp', 'created_at']
+                    for attr in timestamp_attrs:
+                        timestamp_val = getattr(trade, attr, None)
+                        if timestamp_val:
+                            trade_timestamp = timestamp_val
+                            break
+                    
                     if trade_timestamp and hasattr(trade_timestamp, 'isoformat'):
                         timestamp_str = trade_timestamp.isoformat()
+                    elif trade_timestamp:
+                        timestamp_str = str(trade_timestamp)
                     else:
-                        timestamp_str = str(trade_timestamp) if trade_timestamp else 'Unknown'
+                        timestamp_str = 'Unknown'
                     
                     trade_details = {
                         "trade_id": getattr(trade, 'trade_id', 'Unknown'),
