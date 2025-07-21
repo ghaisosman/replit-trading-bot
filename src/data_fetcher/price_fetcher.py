@@ -62,23 +62,32 @@ class PriceFetcher:
         return None
 
     async def get_market_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:
-        """Get market data with real-time current candle integration"""
+        """Get market data with real-time current candle integration and enhanced accuracy"""
         try:
-            # Get historical completed candles
-            historical_df = self.get_ohlcv_data(symbol, interval, limit)
+            # Get historical completed candles with extended buffer for accurate indicators
+            extended_limit = min(limit + 100, 1000)  # More buffer for better indicator accuracy
+            historical_df = self.get_ohlcv_data(symbol, interval, extended_limit)
             if historical_df is None or historical_df.empty:
                 return None
 
-            # Get current price for real-time accuracy
-            current_price = self.get_current_price(symbol)
-            if current_price is None:
-                return historical_df
+            # Get multiple current price samples for better accuracy
+            current_prices = []
+            for _ in range(3):  # Take 3 samples
+                price = self.get_current_price(symbol)
+                if price:
+                    current_prices.append(price)
+            
+            if not current_prices:
+                # No current price available, use historical data with calculations
+                return self.calculate_indicators(historical_df).tail(limit)
+
+            # Use average of current price samples for stability
+            current_price = sum(current_prices) / len(current_prices)
 
             # Update the last (current) candle with real-time price
-            # This ensures indicators reflect the most current market condition
             last_candle = historical_df.iloc[-1].copy()
             
-            # Update current candle's close price and potentially high/low
+            # More sophisticated current candle update
             historical_df.iloc[-1, historical_df.columns.get_loc('close')] = current_price
             
             # Update high if current price is higher
@@ -89,16 +98,27 @@ class PriceFetcher:
             if current_price < last_candle['low']:
                 historical_df.iloc[-1, historical_df.columns.get_loc('low')] = current_price
 
-            # Calculate indicators on updated data
+            # Update volume weighted price impact (more realistic)
+            price_change = abs(current_price - last_candle['close']) / last_candle['close']
+            if price_change > 0.001:  # Significant price movement
+                # Adjust volume slightly to reflect real-time activity
+                volume_adjustment = 1 + (price_change * 0.1)  # Small volume boost for active markets
+                historical_df.iloc[-1, historical_df.columns.get_loc('volume')] *= volume_adjustment
+
+            # Calculate indicators on updated data (full dataset for accuracy)
             historical_df = self.calculate_indicators(historical_df)
 
-            self.logger.debug(f"🔄 REAL-TIME UPDATE | {symbol} | Historical Close: ${last_candle['close']:.4f} | Current: ${current_price:.4f}")
+            # Log real-time update details
+            price_change_pct = ((current_price - last_candle['close']) / last_candle['close']) * 100
+            self.logger.debug(f"🔄 REAL-TIME UPDATE | {symbol} | {interval} | Historical: ${last_candle['close']:.4f} | Current: ${current_price:.4f} | Change: {price_change_pct:+.2f}%")
 
-            return historical_df
+            # Return only requested amount but after full calculation
+            return historical_df.tail(limit)
 
         except Exception as e:
             self.logger.error(f"Error getting enhanced market data for {symbol}: {e}")
-            return self.get_ohlcv_data(symbol, interval, limit)
+            fallback_df = self.get_ohlcv_data(symbol, interval, limit)
+            return self.calculate_indicators(fallback_df) if fallback_df is not None else None
 
     def get_ohlcv_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:
         """Get OHLCV data as DataFrame with enhanced accuracy"""
@@ -147,44 +167,74 @@ class PriceFetcher:
             return None
 
     def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate technical indicators with enhanced accuracy"""
+        """Calculate technical indicators with enhanced real-time accuracy"""
         try:
             # Ensure we have enough data
             if len(df) < 50:
                 self.logger.warning("Insufficient data for accurate indicator calculation")
                 return df
 
-            # Calculate RSI using manual method (more accurate to Binance)
+            # Calculate RSI using Binance-compatible method (primary)
             df['rsi'] = self._calculate_rsi_manual(df['close'].values, period=14)
             
-            # Calculate RSI using ta library for comparison
+            # Calculate RSI using ta library for comparison and fallback
             df['rsi_ta'] = ta.momentum.RSIIndicator(df['close'], window=14).rsi()
+            
+            # Use manual RSI as primary, fallback to ta library if needed
+            df['rsi'] = df['rsi'].fillna(df['rsi_ta'])
 
-            # Moving Averages - use pandas for more precise calculation
+            # Moving Averages - use pandas for precise calculation
             df['sma_20'] = df['close'].rolling(window=20, min_periods=20).mean()
             df['sma_50'] = df['close'].rolling(window=50, min_periods=50).mean()
             
-            # EMA calculation (manual for precision)
-            df['ema_12'] = df['close'].ewm(span=12, min_periods=12).mean()
-            df['ema_26'] = df['close'].ewm(span=26, min_periods=26).mean()
+            # EMA calculation using pandas exponential weighted mean (more accurate)
+            df['ema_12'] = df['close'].ewm(span=12, adjust=False, min_periods=12).mean()
+            df['ema_26'] = df['close'].ewm(span=26, adjust=False, min_periods=26).mean()
 
-            # MACD calculation (manual for precision)
+            # MACD calculation (Binance-compatible)
             df['macd'] = df['ema_12'] - df['ema_26']
-            df['macd_signal'] = df['macd'].ewm(span=9, min_periods=9).mean()
+            df['macd_signal'] = df['macd'].ewm(span=9, adjust=False, min_periods=9).mean()
             df['macd_histogram'] = df['macd'] - df['macd_signal']
 
-            # Additional MACD using ta library for comparison
-            macd_indicator = ta.trend.MACD(df['close'], window_fast=12, window_slow=26, window_sign=9)
-            df['macd_ta'] = macd_indicator.macd()
-            df['macd_signal_ta'] = macd_indicator.macd_signal()
-            df['macd_histogram_ta'] = macd_indicator.macd_diff()
+            # Additional MACD using ta library for comparison and validation
+            try:
+                macd_indicator = ta.trend.MACD(df['close'], window_fast=12, window_slow=26, window_sign=9)
+                df['macd_ta'] = macd_indicator.macd()
+                df['macd_signal_ta'] = macd_indicator.macd_signal()
+                df['macd_histogram_ta'] = macd_indicator.macd_diff()
+            except:
+                # Fallback if ta library fails
+                df['macd_ta'] = df['macd']
+                df['macd_signal_ta'] = df['macd_signal']
+                df['macd_histogram_ta'] = df['macd_histogram']
 
-            # Log current values for debugging
+            # Bollinger Bands for additional analysis
+            df['bb_middle'] = df['close'].rolling(window=20).mean()
+            bb_std = df['close'].rolling(window=20).std()
+            df['bb_upper'] = df['bb_middle'] + (bb_std * 2)
+            df['bb_lower'] = df['bb_middle'] - (bb_std * 2)
+
+            # Volume-based indicators
+            df['volume_sma'] = df['volume'].rolling(window=20, min_periods=20).mean()
+            df['volume_ratio'] = df['volume'] / df['volume_sma']
+
+            # Log current values with enhanced details
             current_price = df['close'].iloc[-1]
-            current_rsi = df['rsi'].iloc[-1] if not pd.isna(df['rsi'].iloc[-1]) else 0
-            current_rsi_ta = df['rsi_ta'].iloc[-1] if not pd.isna(df['rsi_ta'].iloc[-1]) else 0
+            current_rsi = df['rsi'].iloc[-1] if not pd.isna(df['rsi'].iloc[-1]) else None
+            current_macd = df['macd'].iloc[-1] if not pd.isna(df['macd'].iloc[-1]) else None
+            current_macd_signal = df['macd_signal'].iloc[-1] if not pd.isna(df['macd_signal'].iloc[-1]) else None
+            current_histogram = df['macd_histogram'].iloc[-1] if not pd.isna(df['macd_histogram'].iloc[-1]) else None
             
-            self.logger.debug(f"📊 INDICATORS | Price: ${current_price:.4f} | RSI(Manual): {current_rsi:.2f} | RSI(TA): {current_rsi_ta:.2f}")
+            # Enhanced logging for real-time accuracy
+            indicators_log = f"📊 REAL-TIME INDICATORS | Price: ${current_price:.4f}"
+            if current_rsi is not None:
+                indicators_log += f" | RSI: {current_rsi:.2f}"
+            if current_macd is not None and current_macd_signal is not None:
+                indicators_log += f" | MACD: {current_macd:.6f}/{current_macd_signal:.6f}"
+            if current_histogram is not None:
+                indicators_log += f" | Histogram: {current_histogram:.6f}"
+            
+            self.logger.debug(indicators_log)
 
             return df
 

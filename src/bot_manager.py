@@ -652,8 +652,22 @@ class BotManager:
             leverage = strategy_config.get('leverage', 5)
             self.logger.info(f"🔍 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x")
 
-            # Use enhanced market data method for better accuracy
-            df = await self.price_fetcher.get_market_data(strategy_config['symbol'], strategy_config['timeframe'], 100)
+            # Enhanced market data fetching with timeframe-specific optimization
+            timeframe = strategy_config['timeframe']
+
+            # Optimize data limit based on timeframe for better indicator accuracy
+            if timeframe in ['1m', '3m', '5m']:
+                data_limit = 300  # Short timeframes need more recent data
+            elif timeframe in ['15m', '30m', '1h']:
+                data_limit = 200  # Medium timeframes
+            else:
+                data_limit = 150  # Longer timeframes
+
+            df = await self.price_fetcher.get_market_data(
+                symbol=strategy_config['symbol'], 
+                interval=timeframe, 
+                limit=data_limit
+            )
             if df is None or df.empty:
                 self.logger.warning(f"No data for {strategy_config['symbol']}")
                 return
@@ -711,7 +725,7 @@ class BotManager:
                     self.logger.info(f"✅ POSITION OPENED | {strategy_name.upper()} | {strategy_config['symbol']} | {position.side} | Entry: ${position.entry_price:,.1f} | Qty: {position.quantity:,.1f} | SL: ${position.stop_loss:,.1f} | TP: ${position.take_profit:,.1f}")
 
                     # Send ONLY position opened notification (no separate entry signal notification)
-                    # Add a small delay to ensure position is fully stored before sending notification
+                    # Add a small delay to ensure position is fully stored before sending notification<previous_generation>```python
                     import asyncio
                     await asyncio.sleep(0.1)
 
@@ -730,10 +744,9 @@ class BotManager:
                 margin = strategy_config.get('margin', 50.0)
                 leverage = strategy_config.get('leverage', 5)
 
-                # Get current RSI
-                current_rsi = None
-                if 'rsi' in df.columns:
-                    current_rsi = df['rsi'].iloc[-1]
+                # Get current RSI for consolidated logging (with NaN check)
+                import pandas as pd
+                current_rsi = df['rsi'].iloc[-1] if 'rsi' in df.columns and not pd.isna(df['rsi'].iloc[-1]) else None
 
                 # Strategy-specific consolidated market assessment - single message
                 if 'macd' in strategy_name.lower():
@@ -1402,7 +1415,7 @@ Interval: every {assessment_interval} seconds
 
     def _notify_position_closed(self, strategy_name, result):
         """Helper method to notify position closed via Telegram"""
-        try:
+        try:```python
             position = self.order_manager.active_positions.get(strategy_name)
             if position:
                 from dataclasses import asdict
