@@ -638,7 +638,9 @@ RISK ANALYSIS:
             weekday_stats = {}
             weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
             for trade in closed_trades:
-                weekday = trade.entry_time.weekday() if trade.entry_time else 0
+                # Get entry time safely
+                entry_time = getattr(trade, 'timestamp', None) or getattr(trade, 'entry_time', None)
+                weekday = entry_time.weekday() if entry_time else 0
                 day_name = weekdays[weekday]
                 if day_name not in weekday_stats:
                     weekday_stats[day_name] = {'trades': 0, 'wins': 0, 'pnl': 0}
@@ -681,8 +683,7 @@ RISK ANALYSIS:
             # ML Model Performance
             if self.profitability_model:
                 report += f"""
-═══════════════════════════════════════════════════════════
-🤖 MACHINE LEARNING MODEL INSIGHTS
+═══════════════════════════════════════════════════════════📊 MACHINE LEARNING MODEL INSIGHTS
 ═══════════════════════════════════════════════════════════
 
 MODEL PERFORMANCE:
