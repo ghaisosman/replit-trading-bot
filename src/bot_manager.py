@@ -474,11 +474,11 @@ class BotManager:
                         ticker = self.binance_client.client.get_symbol_ticker(symbol=symbol)
                         if ticker and 'price' in ticker:
                             current_price = float(ticker['price'])
-                        
+
                         if not current_price:
                             # Fallback: try price fetcher
                             current_price = self.price_fetcher.get_current_price(symbol)
-                        
+
                         if not current_price or current_price <= 0:
                             self.logger.debug(f"🔍 Price fetch failed for {symbol}, skipping display")
                             continue
@@ -655,25 +655,25 @@ class BotManager:
         """Recover active positions from database and Binance on startup"""
         try:
             self.logger.info("🔍 POSITION RECOVERY: Starting intelligent position recovery...")
-            
+
             # Use the trade database's smart recovery system
             from src.execution_engine.trade_database import TradeDatabase
             trade_db = TradeDatabase()
-            
+
             # Perform smart recovery which handles both database matching and Binance verification
             recovery_report = trade_db.recover_missing_positions()
-            
+
             # Process recovery results
             recovered_count = len(recovery_report.get('recovered_trades', []))
             matched_count = len(recovery_report.get('matched_existing_trades', []))
             total_recovered = recovered_count + matched_count
-            
+
             if total_recovered > 0:
                 self.logger.info(f"🛡️ POSITION RECOVERY: Found {total_recovered} positions to recover")
-                
+
                 # Now load recovered positions into order manager
                 all_recovered_items = recovery_report.get('recovered_trades', []) + recovery_report.get('matched_existing_trades', [])
-                
+
                 for recovery_item in all_recovered_items:
                     try:
                         # Extract trade_id from the recovery item (which is a dictionary)
@@ -681,16 +681,16 @@ class BotManager:
                             trade_id = recovery_item.get('trade_id')
                         else:
                             trade_id = recovery_item  # Fallback for string format
-                            
+
                         if not trade_id:
                             self.logger.warning(f"⚠️ Skipping recovery item with no trade_id: {recovery_item}")
                             continue
-                        
+
                         # Get trade data from database
                         trade_data = trade_db.get_trade(trade_id)
                         if trade_data and trade_data.get('trade_status') == 'OPEN':
                             strategy_name = trade_data.get('strategy_name', 'RECOVERY')
-                            
+
                             # Create position object for order manager
                             from src.execution_engine.order_manager import Position
                             position = Position(
@@ -703,19 +703,19 @@ class BotManager:
                                 take_profit=trade_data.get('take_profit'),
                                 actual_margin_used=trade_data.get('margin_used', 0)
                             )
-                            
+
                             # Add to active positions
                             self.order_manager.active_positions[strategy_name] = position
                             self.logger.info(f"✅ RECOVERED POSITION | {strategy_name} | {trade_data['symbol']} | {trade_data['side']} | Entry: ${trade_data['entry_price']}")
-                            
+
                     except Exception as e:
                         self.logger.error(f"❌ Error recovering position from {recovery_item}: {e}")
                         continue
-                        
+
                 self.logger.info(f"🛡️ POSITION RECOVERY: Successfully loaded {len(self.order_manager.active_positions)} active positions")
             else:
                 self.logger.info("🛡️ POSITION RECOVERY: No positions to recover - starting fresh")
-                
+
         except Exception as e:
             self.logger.error(f"❌ POSITION RECOVERY ERROR: {e}")
             self.logger.info("🔄 Continuing startup without position recovery...")
@@ -734,7 +734,8 @@ class BotManager:
             if self.anomaly_detector.has_blocking_anomaly(strategy_name):
                 anomaly_status = self.anomaly_detector.get_anomaly_status(strategy_name)
                 self.logger.info(f"⚠️ STRATEGY BLOCKED | {strategy_name.upper()} | {strategy_config['symbol']} | Status: {anomaly_status}")
-                return
+                return```python
+
 
             # Check if strategy already has an active position
             if strategy_name in self.order_manager.active_positions:
@@ -907,14 +908,14 @@ class BotManager:
         """Check if it's time to assess this strategy based on assessment interval"""
         try:
             assessment_interval = strategy_config.get('assessment_interval', 300)  # Default 5 minutes
-            
+
             last_assessment = self.strategy_last_assessment.get(strategy_name)
             if not last_assessment:
                 return True
-                
+
             time_since_last = (datetime.now() - last_assessment).total_seconds()
             return time_since_last >= assessment_interval
-            
+
         except Exception as e:
             self.logger.error(f"Error checking strategy assessment timing: {e}")
             return True  # Assess by default if error
@@ -924,13 +925,13 @@ class BotManager:
         try:
             margin_required = strategy_config.get('margin', 50.0)
             current_balance = self.balance_fetcher.get_usdt_balance() or 0
-            
+
             if current_balance < margin_required:
                 self.logger.warning(f"❌ INSUFFICIENT BALANCE | Need ${margin_required:.1f} | Have ${current_balance:.1f}")
                 return False
-                
+
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Error checking balance requirements: {e}")
             return False  # Fail safe
@@ -944,12 +945,12 @@ class BotManager:
                 price = float(ticker['price'])
                 if price > 0:
                     return price
-            
+
             # Method 2: Use price fetcher as fallback
             price = self.price_fetcher.get_current_price(symbol)
             if price and price > 0:
                 return price
-                
+
             # Method 3: Try futures ticker if available
             if self.binance_client.is_futures:
                 ticker = self.binance_client.client.futures_symbol_ticker(symbol=symbol)
@@ -957,24 +958,59 @@ class BotManager:
                     price = float(ticker['price'])
                     if price > 0:
                         return price
-            
+
             return None
         except Exception as e:
             self.logger.debug(f"Error getting current price for {symbol}: {e}")
             return None
 
+    def _validate_price_for_symbol(self, symbol: str, price: float) -> bool:
+        """Validate if a price is reasonable for a given symbol"""
+        try:
+            if price <= 0:
+                return False
+
+            # Symbol-specific price validation ranges
+            symbol_upper = symbol.upper()
+
+            if 'BTC' in symbol_upper:
+                # Bitcoin should be between $10,000 and $200,000
+                return 10000 <= price <= 200000
+            elif 'ETH' in symbol_upper:
+                # Ethereum should be between $100 and $20,000
+                return 100 <= price <= 20000
+            elif 'SOL' in symbol_upper:
+                # Solana should be between $1 and $1,000
+                return 1 <= price <= 1000
+            elif 'BNB' in symbol_upper:
+                # BNB should be between $10 and $2,000
+                return 10 <= price <= 2000
+            elif 'ADA' in symbol_upper:
+                # Cardano should be between $0.01 and $10
+                return 0.01 <= price <= 10
+            elif 'DOT' in symbol_upper:
+                # Polkadot should be between $1 and $100
+                return 1 <= price <= 100
+            else:
+                # Generic validation for other symbols
+                return 0.0001 <= price <= 100000
+
+        except Exception as e:
+            self.logger.warning(f"Price validation error for {symbol}: {e}")
+            return False
+
     def _cleanup_misidentified_positions(self):
-        """Clean up any misidentified ghost positions where we have legitimate trades"""
+        """Clear any ghost anomalies for symbols where we have legitimate positions"""
         try:
             if not hasattr(self, 'anomaly_detector') or not self.anomaly_detector:
                 return
-                
+
             # Clear anomalies for symbols where we have legitimate positions
             for strategy_name, position in self.order_manager.active_positions.items():
                 symbol = position.symbol
                 self.anomaly_detector.clear_anomaly(strategy_name)
                 self.logger.debug(f"🔍 Cleared any ghost anomalies for {strategy_name} ({symbol})")
-                
+
         except Exception as e:
             self.logger.debug(f"Error cleaning up misidentified positions: {e}")
 
@@ -982,14 +1018,14 @@ class BotManager:
         """Check exit conditions for all active positions"""
         try:
             positions_to_close = []
-            
+
             for strategy_name, position in self.order_manager.active_positions.items():
                 try:
                     # Get current price
                     current_price = self._get_current_price(position.symbol)
                     if not current_price:
                         continue
-                    
+
                     # Check stop loss
                     if position.stop_loss and (
                         (position.side == 'BUY' and current_price <= position.stop_loss) or
@@ -997,7 +1033,7 @@ class BotManager:
                     ):
                         positions_to_close.append((strategy_name, 'STOP_LOSS'))
                         continue
-                    
+
                     # Check take profit
                     if position.take_profit and (
                         (position.side == 'BUY' and current_price >= position.take_profit) or
@@ -1005,11 +1041,11 @@ class BotManager:
                     ):
                         positions_to_close.append((strategy_name, 'TAKE_PROFIT'))
                         continue
-                        
+
                 except Exception as e:
                     self.logger.error(f"Error checking exit conditions for {strategy_name}: {e}")
                     continue
-            
+
             # Close positions that hit exit conditions
             for strategy_name, exit_reason in positions_to_close:
                 try:
@@ -1020,6 +1056,6 @@ class BotManager:
                         self.logger.warning(f"❌ FAILED TO CLOSE | {strategy_name} | {exit_reason}")
                 except Exception as e:
                     self.logger.error(f"Error closing position {strategy_name}: {e}")
-                    
+
         except Exception as e:
             self.logger.error(f"Error in exit conditions check: {e}")
