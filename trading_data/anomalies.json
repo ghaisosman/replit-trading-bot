@@ -39,12 +39,27 @@
       "side": "SHORT",
       "entry_price": null,
       "detected_at": "2025-07-22T12:21:51.562726",
-      "status": "active",
+      "status": "cleared",
       "cycles_remaining": 2,
       "notified": false,
-      "cleared_at": null,
+      "cleared_at": "2025-07-22T18:36:05.054304",
       "binance_position_amt": -8.5
+    },
+    "orphan_AUTO_RECOVERED_XRPUSDT": {
+      "id": "orphan_AUTO_RECOVERED_XRPUSDT",
+      "type": "orphan",
+      "symbol": "XRPUSDT",
+      "strategy_name": "AUTO_RECOVERED",
+      "quantity": 8.5,
+      "side": "SELL",
+      "entry_price": 3.5176,
+      "detected_at": "2025-07-22T18:38:38.509159",
+      "status": "active",
+      "cycles_remaining": 1,
+      "notified": true,
+      "cleared_at": null,
+      "binance_position_amt": 0.0
     }
   },
-  "last_updated": "2025-07-22T12:21:51.562936"
+  "last_updated": "2025-07-22T18:38:39.281659"
 }

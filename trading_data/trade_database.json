@@ -1295,9 +1295,9 @@
       "side": "SELL",
       "quantity": 8.5,
       "entry_price": 3.5176,
-      "trade_status": "OPEN",
+      "trade_status": "CLOSED",
       "created_at": "2025-07-22T12:21:21.953802",
-      "last_verified": "2025-07-22T18:20:36.096057",
+      "last_verified": "2025-07-22T18:35:36.138879",
       "sync_status": "BINANCE_VERIFIED",
       "position_value_usdt": 29.8996,
       "leverage": 5,
@@ -1305,7 +1305,13 @@
       "timestamp": "2025-07-22T16:21:21.953792",
       "recovery_source": "MATCHED_EXISTING",
       "binance_entry_price": 3.5176,
-      "binance_quantity": 8.5
+      "binance_quantity": 8.5,
+      "exit_reason": "No matching position on Binance",
+      "exit_price": 3.5176,
+      "pnl_usdt": 0.0,
+      "pnl_percentage": 0.0,
+      "duration_minutes": 0,
+      "closed_at": "2025-07-22T18:38:13.183774"
     },
     "rsi_oversold_SOLUSDT_20250721_150156": {
       "trade_id": "rsi_oversold_SOLUSDT_20250721_150156",
@@ -1339,5 +1345,5 @@
       "closed_at": "2025-07-22T12:48:08.831863"
     }
   },
-  "last_updated": "2025-07-22T18:20:36.096562"
+  "last_updated": "2025-07-22T18:38:13.749163"
 }
