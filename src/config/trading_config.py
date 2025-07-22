@@ -547,7 +547,7 @@ class TradingConfigManager:
                 'divergence_strength_min': 0.4,
                 'macd_entry_threshold': 0.05,
                 'macd_exit_threshold': 0.02,
-                min_volume': 1000000,
+                'min_volume': 1000000,
             },
             'engulfing_rsi': {
                 **self.default_params.to_dict(),
