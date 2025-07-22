@@ -1273,7 +1273,24 @@
       "closure_verified": true,
       "risk_reward_ratio": 0.2332870355801421,
       "max_drawdown": null
+    },
+    "rsi_oversold_BTCUSDT_20250722_100828_RECOVERED": {
+      "trade_id": "rsi_oversold_BTCUSDT_20250722_100828_RECOVERED",
+      "strategy_name": "rsi_oversold",
+      "symbol": "BTCUSDT",
+      "side": "SELL",
+      "quantity": 0.001,
+      "entry_price": 118420.9,
+      "trade_status": "OPEN",
+      "created_at": "2025-07-22T10:08:28.427876",
+      "last_verified": "2025-07-22T10:08:28.427893",
+      "sync_status": "VERIFIED",
+      "position_value_usdt": 118.4209,
+      "leverage": 5,
+      "margin_used": 23.68418,
+      "timestamp": "2025-07-22T14:08:28.427870",
+      "recovery_source": "SMART_RECOVERY"
     }
   },
-  "last_updated": "2025-07-22T05:46:12.909147"
+  "last_updated": "2025-07-22T10:08:28.748377"
 }
