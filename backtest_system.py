@@ -307,10 +307,10 @@ class BacktestEngine:
                 if df_with_indicators is None or df_with_indicators.empty:
                     raise Exception("Indicator calculation failed - no data returned")
                 df = df_with_indicators
-                
+
                 # Validate that we have all required indicators
                 self.logger.info(f"📊 Available indicators: {list(df.columns)}")
-                
+
             except Exception as indicator_error:
                 raise Exception(f"Failed to calculate indicators: {indicator_error}")
 
@@ -320,18 +320,18 @@ class BacktestEngine:
                 if 'macd' not in df.columns:
                     self.logger.info("🔧 Calculating MACD indicators...")
                     df = self._calculate_macd_indicators(df)
-                
+
                 # Ensure additional indicators for Smart Money
                 if 'sma_20' not in df.columns:
                     self.logger.info("🔧 Calculating SMA indicators...")
                     df['sma_20'] = df['close'].rolling(window=20).mean()
-                
+
                 if 'ema_50' not in df.columns:
                     self.logger.info("🔧 Calculating EMA indicators...")
                     df['ema_50'] = df['close'].ewm(span=50).mean()
-                    
+
                 self.logger.info(f"📊 Final indicators available: {list(df.columns)}")
-                
+
             except Exception as additional_indicator_error:
                 self.logger.warning(f"⚠️ Failed to calculate additional indicators: {additional_indicator_error}")
 
@@ -380,23 +380,23 @@ class BacktestEngine:
             fast = 12
             slow = 26
             signal = 9
-            
+
             # Calculate EMAs
             ema_fast = df['close'].ewm(span=fast).mean()
             ema_slow = df['close'].ewm(span=slow).mean()
-            
+
             # Calculate MACD line
             df['macd'] = ema_fast - ema_slow
-            
+
             # Calculate Signal line
             df['macd_signal'] = df['macd'].ewm(span=signal).mean()
-            
+
             # Calculate Histogram
             df['macd_histogram'] = df['macd'] - df['macd_signal']
-            
+
             self.logger.info(f"✅ MACD indicators calculated successfully")
             return df
-            
+
         except Exception as e:
             self.logger.error(f"❌ Failed to calculate MACD indicators: {e}")
             return df
@@ -406,24 +406,24 @@ class BacktestEngine:
         try:
             # FORCE CLEAR ALL CACHES to ensure fresh data
             self.logger.info(f"🧹 CLEARING ALL CACHES for fresh backtest")
-            
+
             # Clear strategy handler cache
             if hasattr(self, '_strategy_handler_cache'):
                 delattr(self, '_strategy_handler_cache')
-            
+
             # Clear signal processor cache
             if hasattr(self.signal_processor, '_config_cache'):
                 self.signal_processor._config_cache = {}
-            
+
             # Generate unique backtest ID to prevent result caching
             import hashlib
             import time
             backtest_id = hashlib.md5(f"{strategy_name}_{config}_{start_date}_{end_date}_{time.time()}".encode()).hexdigest()[:12]
-            
+
             self.logger.info(f"🚀 Starting backtest for {strategy_name}")
             self.logger.info(f"🆔 Backtest ID: {backtest_id}")
             self.logger.info(f"📅 Period: {start_date} to {end_date}")
-            
+
             # DEEP CONFIGURATION VALIDATION - Log every parameter
             self.logger.info(f"🔍 COMPLETE CONFIG VALIDATION for {strategy_name}:")
             for key, value in sorted(config.items()):
@@ -437,23 +437,23 @@ class BacktestEngine:
 
             # CRITICAL: Validate that key strategy parameters are set and different from defaults
             template_config = self.strategy_configs.get(strategy_name, {})
-            
+
             # Check parameter differences from template
             changed_params = []
             critical_params = ['margin', 'leverage', 'max_loss_pct', 'symbol', 'timeframe']
-            
+
             if 'rsi' in strategy_name.lower():
                 critical_params.extend(['rsi_long_entry', 'rsi_short_entry', 'rsi_long_exit', 'rsi_short_exit'])
             elif 'macd' in strategy_name.lower():
                 critical_params.extend(['macd_fast', 'macd_slow', 'macd_signal'])
             elif 'smart_money' in strategy_name.lower():
                 critical_params.extend(['swing_lookback_period', 'sweep_threshold_pct'])
-                
+
             for param in critical_params:
                 if param in config and param in template_config:
                     if config[param] != template_config[param]:
                         changed_params.append(f"{param}: {template_config[param]} → {config[param]}")
-                        
+
             if changed_params:
                 self.logger.info(f"✅ PARAMETER CHANGES DETECTED: {', '.join(changed_params)}")
             else:
@@ -502,7 +502,7 @@ class BacktestEngine:
             try:
                 self.logger.info(f"🔧 Creating FRESH strategy handler for {strategy_name}")
                 strategy_handler = self._get_strategy_handler_fresh(strategy_name, config, backtest_id)
-                
+
                 # Validate handler received correct config
                 if strategy_handler and hasattr(strategy_handler, 'config'):
                     self.logger.info(f"✅ Strategy handler config validation:")
@@ -514,7 +514,7 @@ class BacktestEngine:
                                 self.logger.info(f"   ✅ {key}: {config_value}")
                             else:
                                 self.logger.warning(f"   ⚠️ {key}: CONFIG={config_value} vs HANDLER={handler_value}")
-                        
+
             except Exception as strategy_error:
                 return {'error': f'Strategy initialization failed: {str(strategy_error)}'}
 
@@ -534,7 +534,7 @@ class BacktestEngine:
                 cooldown_seconds = int(float(cooldown_seconds))
             cooldown_period = timedelta(seconds=cooldown_seconds)
             signals_generated = 0
-            
+
             # Log cooldown period to verify config is being used
             self.logger.info(f"📊 Processing {len(df)} candles for backtesting...")
             self.logger.info(f"⏱️ Cooldown period: {cooldown_period.total_seconds()}s")
@@ -654,13 +654,13 @@ class BacktestEngine:
         """Get fresh strategy-specific handler without any caching"""
         try:
             self.logger.info(f"🔧 Creating strategy handler for {strategy_name} | ID: {backtest_id}")
-            
+
             # Log the config being passed to strategy
             self.logger.info(f"📋 Handler Config Check:")
             for key, value in config.items():
                 if key in ['margin', 'leverage', 'symbol', 'timeframe', 'max_loss_pct']:
                     self.logger.info(f"   {key}: {value}")
-            
+
             if 'macd' in strategy_name.lower():
                 # Force fresh MACD handler
                 handler = MACDDivergenceStrategy(strategy_name, config.copy())
@@ -680,7 +680,8 @@ class BacktestEngine:
                     return handler
                 except ImportError:
                     self.logger.warning(f"⚠️ Smart Money strategy not available, will use signal processor")
-                    return None
+                    ```tool_code
+return None
             else:
                 # RSI and other strategies use signal processor with fresh config
                 self.logger.info(f"✅ Using FRESH signal processor for {strategy_name} | ID: {backtest_id}")
@@ -713,23 +714,23 @@ class BacktestEngine:
         """Check entry conditions for strategy with fresh configuration"""
         try:
             strategy_name = config.get('name', 'unknown')
-            
+
             # Log current candle data for debugging
             current_candle = df.iloc[-1]
             if 'rsi' in df.columns:
                 current_rsi = current_candle['rsi']
                 self.logger.debug(f"📊 Entry Check | RSI: {current_rsi:.2f} | Price: ${current_candle['close']:.4f}")
-                
+
                 # For RSI strategies, log the thresholds being used
                 if 'rsi' in strategy_name.lower():
                     rsi_long_entry = config.get('rsi_long_entry', 30)
                     rsi_short_entry = config.get('rsi_short_entry', 70)
                     self.logger.debug(f"🎯 RSI Thresholds | Long Entry: {rsi_long_entry} | Short Entry: {rsi_short_entry}")
-            
+
             if strategy_handler and hasattr(strategy_handler, 'evaluate_entry_signal'):
                 # Use strategy-specific entry evaluation with fresh config
                 self.logger.debug(f"🔄 Using strategy handler for {strategy_name} entry evaluation")
-                
+
                 # Force fresh indicator calculation
                 if hasattr(strategy_handler, 'calculate_indicators'):
                     df_fresh = df.copy()
@@ -737,27 +738,27 @@ class BacktestEngine:
                     signal = strategy_handler.evaluate_entry_signal(df_with_strategy_indicators)
                 else:
                     signal = strategy_handler.evaluate_entry_signal(df.copy())
-                
+
                 if signal:
                     self.logger.info(f"✅ Strategy handler generated signal for {strategy_name}: {signal.signal_type.value} | Reason: {signal.reason}")
-                
+
                 return signal
             else:
                 # Use signal processor for RSI and other strategies with fresh config
                 self.logger.debug(f"🔄 Using signal processor for {strategy_name} entry evaluation")
-                
+
                 # Create fresh copy of config to prevent caching issues
                 fresh_config = config.copy()
-                
+
                 # For RSI strategies, explicitly log the parameters being used
                 if 'rsi' in strategy_name.lower():
                     self.logger.debug(f"🔍 RSI Config being passed to signal processor:")
                     for param in ['rsi_long_entry', 'rsi_short_entry', 'rsi_long_exit', 'rsi_short_exit']:
                         value = fresh_config.get(param)
                         self.logger.debug(f"   {param}: {value}")
-                
+
                 signal = self.signal_processor.evaluate_entry_conditions(df.copy(), fresh_config)
-                
+
                 if signal:
                     self.logger.info(f"✅ Signal processor generated signal for {strategy_name}: {signal.signal_type.value} | Reason: {signal.reason}")
                 else:
@@ -767,9 +768,9 @@ class BacktestEngine:
                         rsi_long_entry = fresh_config.get('rsi_long_entry', 30)
                         rsi_short_entry = fresh_config.get('rsi_short_entry', 70)
                         self.logger.debug(f"❌ No RSI signal | RSI: {current_rsi:.2f} | Not <= {rsi_long_entry} or >= {rsi_short_entry}")
-                
+
                 return signal
-                
+
         except Exception as e:
             self.logger.error(f"Error checking entry conditions: {e}")
             import traceback
@@ -782,12 +783,12 @@ class BacktestEngine:
         try:
             # CRITICAL: Get actual margin used for this position (not config margin)
             actual_margin_used = position.get('actual_margin_used') or position.get('margin_used')
-            
+
             # Fallback to config margin if not available
             if not actual_margin_used:
                 actual_margin_used = config.get('margin', 50.0)
                 self.logger.warning(f"⚠️ Using fallback margin ${actual_margin_used} - actual margin not found")
-            
+
             max_loss_pct = config.get('max_loss_pct', 10.0)
             leverage = config.get('leverage', 5)
 
@@ -808,7 +809,7 @@ class BacktestEngine:
             # ENHANCED: Also check stop loss price directly for validation
             stop_loss_price = position.get('stop_loss')
             stop_loss_triggered_by_price = False
-            
+
             if stop_loss_price:
                 if side == 'BUY' and current_price <= stop_loss_price:
                     stop_loss_triggered_by_price = True
@@ -818,11 +819,11 @@ class BacktestEngine:
             # CRITICAL: Stop loss check matches live trading exactly - percentage based on actual margin
             if pnl_percentage <= -max_loss_pct or stop_loss_triggered_by_price:
                 reason = f'Stop Loss (Max Loss {max_loss_pct}%)' if pnl_percentage <= -max_loss_pct else f'Stop Loss (Price: ${stop_loss_price:.4f})'
-                
+
                 self.logger.info(f"🛑 STOP LOSS TRIGGERED | {side} | Entry: ${entry_price:.4f} | Current: ${current_price:.4f}")
                 self.logger.info(f"   💰 PnL: ${pnl_usdt:.2f} ({pnl_percentage:.2f}%) | Margin: ${actual_margin_used:.2f}")
                 self.logger.info(f"   🎯 SL Price: ${stop_loss_price:.4f} | Price Trigger: {stop_loss_triggered_by_price}")
-                
+
                 return {
                     'reason': reason,
                     'type': 'stop_loss',
@@ -855,7 +856,7 @@ class BacktestEngine:
                         exit_reason = strategy_handler.evaluate_exit_signal(df_with_strategy_indicators, position)
                     else:
                         exit_reason = strategy_handler.evaluate_exit_signal(df, position)
-                        
+
                     if exit_reason:
                         self.logger.debug(f"🔄 Strategy handler exit: {exit_reason}")
                         return {
@@ -869,7 +870,7 @@ class BacktestEngine:
             try:
                 # Get current values for exit evaluation
                 strategy_name = config.get('name', '').lower()
-                
+
                 # RSI-based exit conditions
                 if 'rsi' in df.columns and len(df) > 0:
                     current_rsi = df['rsi'].iloc[-1]
@@ -896,7 +897,7 @@ class BacktestEngine:
                 # Smart Money exit conditions
                 elif 'smart_money' in strategy_name and 'sma_20' in df.columns:
                     current_sma20 = df['sma_20'].iloc[-1]
-                    
+
                     # Exit when price crosses back through SMA20
                     if side == 'BUY' and current_price < current_sma20:
                         return {
@@ -1262,22 +1263,22 @@ class BacktestWebInterface:
             # FORCE CLEAR ALL CACHES before starting
             import time
             cache_bust_id = str(int(time.time() * 1000))
-            
+
             print(f"🧹 CACHE BUST ID: {cache_bust_id}")
             print(f"🔄 CLEARING ALL CACHES for fresh backtest")
-            
+
             # Clear engine caches
             if hasattr(self.engine, '_config_cache'):
                 self.engine._config_cache = {}
             if hasattr(self.engine, '_strategy_handler_cache'):
                 self.engine._strategy_handler_cache = {}
-            
+
             # Clear signal processor caches
             if hasattr(self.engine.signal_processor, '_config_cache'):
                 self.engine.signal_processor._config_cache = {}
             if hasattr(self.engine.signal_processor, '_strategy_cache'):
                 self.engine.signal_processor._strategy_cache = {}
-            
+
             # Extract required form data
             strategy_name = form_data.get('strategy_name')
             start_date = form_data.get('start_date')
@@ -1295,7 +1296,7 @@ class BacktestWebInterface:
                 'name': strategy_name,
                 'cache_bust_id': cache_bust_id  # Add cache busting ID
             }
-            
+
             # Add minimal required defaults
             template_config = self.engine.strategy_configs.get(strategy_name, {})
             base_config.update(template_config.copy())
@@ -1334,10 +1335,10 @@ class BacktestWebInterface:
                         value = value.strip()
                         if not value:  # Skip empty strings
                             continue
-                    
+
                     # Force type conversion based on parameter type
                     old_value = base_config.get(key, 'NOT_SET')
-                    
+
                     try:
                         # Determine target type and convert
                         if key in ['margin', 'max_loss_pct', 'rsi_long_entry', 'rsi_long_exit', 'rsi_short_entry', 'rsi_short_exit']:
@@ -1349,13 +1350,13 @@ class BacktestWebInterface:
                         else:
                             base_config[key] = str(value)
                             conversion_count += 1
-                            
+
                         print(f"✅ CONVERTED {key}: {old_value} → {base_config[key]} (type: {type(base_config[key]).__name__})")
-                        
+
                     except (ValueError, TypeError) as e:
                         print(f"⚠️ CONVERSION FAILED for {key}: {value} | Error: {e}")
                         # Don't update if conversion failed
-                        
+
             print(f"🔧 TOTAL CONVERSIONS: {conversion_count} parameters updated")
 
             # Final validation
