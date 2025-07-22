@@ -680,8 +680,7 @@ class BacktestEngine:
                     return handler
                 except ImportError:
                     self.logger.warning(f"⚠️ Smart Money strategy not available, will use signal processor")
-                    ```tool_code
-return None
+                    return None
             else:
                 # RSI and other strategies use signal processor with fresh config
                 self.logger.info(f"✅ Using FRESH signal processor for {strategy_name} | ID: {backtest_id}")
