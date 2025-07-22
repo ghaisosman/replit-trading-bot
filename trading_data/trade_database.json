@@ -1043,7 +1043,7 @@
       "side": "SELL",
       "quantity": 0.15,
       "entry_price": 197.78,
-      "trade_status": "OPEN",
+      "trade_status": "CLOSED",
       "created_at": "2025-07-21T15:12:14.573917",
       "last_verified": "2025-07-21T19:14:33.097128",
       "sync_status": "BINANCE_VERIFIED",
@@ -1053,7 +1053,13 @@
       "timestamp": "2025-07-21T19:12:14.573913",
       "recovery_source": "MATCHED_EXISTING",
       "binance_entry_price": 197.78,
-      "binance_quantity": 0.15
+      "binance_quantity": 0.15,
+      "exit_reason": "No matching position on Binance",
+      "exit_price": 197.78,
+      "pnl_usdt": 0.0,
+      "pnl_percentage": 0.0,
+      "duration_minutes": 0,
+      "closed_at": "2025-07-22T05:17:53.987129"
     },
     "RSI_ETH_ETHUSDT_20250721_190111_RECOVERED": {
       "trade_id": "RSI_ETH_ETHUSDT_20250721_190111_RECOVERED",
@@ -1062,7 +1068,7 @@
       "side": "BUY",
       "quantity": 0.01,
       "entry_price": 3741.12,
-      "trade_status": "OPEN",
+      "trade_status": "CLOSED",
       "created_at": "2025-07-21T19:01:11.371582",
       "last_verified": "2025-07-21T19:14:33.097722",
       "sync_status": "BINANCE_VERIFIED",
@@ -1072,8 +1078,14 @@
       "timestamp": "2025-07-21T23:01:11.371576",
       "recovery_source": "MATCHED_EXISTING",
       "binance_entry_price": 3741.12,
-      "binance_quantity": 0.01
+      "binance_quantity": 0.01,
+      "exit_reason": "No matching position on Binance",
+      "exit_price": 3741.12,
+      "pnl_usdt": 0.0,
+      "pnl_percentage": 0.0,
+      "duration_minutes": 0,
+      "closed_at": "2025-07-22T05:17:53.987129"
     }
   },
-  "last_updated": "2025-07-21T19:14:33.098111"
+  "last_updated": "2025-07-22T05:17:54.549620"
 }
