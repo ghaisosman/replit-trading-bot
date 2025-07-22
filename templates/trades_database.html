@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -265,7 +264,7 @@
                                     {{ trade.leverage }}x
                                 </td>
                                 <td>
-                                    ${{ "%.2f"|format(trade.margin_usdt) }}
+                                    ${{ "%.2f"|format(trade.margin_used) }}
                                 </td>
                                 <td>
                                     <span class="badge {% if trade.trade_status == 'OPEN' %}status-open{% else %}status-closed{% endif %}">
@@ -358,7 +357,7 @@
             const table = document.querySelector('tbody');
             const rows = table.querySelectorAll('tr');
             originalTableData = [];
-            
+
             rows.forEach(row => {
                 const cells = row.querySelectorAll('td');
                 if (cells.length > 0) {
@@ -373,7 +372,7 @@
         function populateFilterOptions() {
             const strategies = new Set();
             const symbols = new Set();
-            
+
             originalTableData.forEach(item => {
                 if (item.data.length > 2) {
                     strategies.add(item.data[1]); // Strategy column
@@ -494,7 +493,7 @@
 
         function updateSummary(days) {
             currentDuration = days;
-            
+
             // Update active button - fix button targeting
             if (event && event.target) {
                 document.querySelectorAll('.btn-group .btn').forEach(btn => {
@@ -536,7 +535,7 @@
                         } else if (timestampStr.includes(' ')) {
                             dateOnly = timestampStr.split(' ')[0];
                         }
-                        
+
                         tradeDate = new Date(dateOnly + 'T00:00:00');
 
                         // Validate date
@@ -610,7 +609,7 @@
             document.getElementById('stopLossTrades').textContent = stopLossTrades;
             document.getElementById('totalProfit').textContent = totalProfitPercent.toFixed(2) + '%';
             document.getElementById('totalLoss').textContent = totalLossPercent.toFixed(2) + '%';
-            
+
             const netPnlElement = document.getElementById('netPnl');
             netPnlElement.textContent = netPnl.toFixed(2) + '%';
             netPnlElement.className = netPnl >= 0 ? 'text-success' : 'text-danger';
@@ -640,7 +639,7 @@
 
         function exportToExcel() {
             const wb = XLSX.utils.book_new();
-            
+
             // Prepare data for export
             const exportData = [
                 ['Trade ID', 'Strategy', 'Symbol', 'Side', 'Entry Price', 'Exit Price', 
@@ -654,7 +653,7 @@
 
             const ws = XLSX.utils.aoa_to_sheet(exportData);
             XLSX.utils.book_append_sheet(wb, ws, "Trades Database");
-            
+
             const filename = `trades_database_${new Date().toISOString().split('T')[0]}.xlsx`;
             XLSX.writeFile(wb, filename);
         }
@@ -662,16 +661,16 @@
         function exportToPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
-            
+
             doc.setFontSize(16);
             doc.text('Trading Bot - Trades Database', 14, 22);
-            
+
             doc.setFontSize(10);
             doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
 
             // Prepare table data
             const tableData = originalTableData.map(item => item.data);
-            
+
             doc.autoTable({
                 head: [['Trade ID', 'Strategy', 'Symbol', 'Side', 'Entry Price', 'Exit Price', 
                        'Quantity', 'Leverage', 'Margin', 'Status', 'PnL (USDT)', 
@@ -698,7 +697,7 @@
                     14: { cellWidth: 25 }
                 }
             });
-            
+
             const filename = `trades_database_${new Date().toISOString().split('T')[0]}.pdf`;
             doc.save(filename);
         }

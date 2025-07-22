@@ -1854,7 +1854,7 @@ def trades_database():
                 'exit_price': trade_data.get('exit_price', 0),
                 'quantity': trade_data.get('quantity', 0),
                 'leverage': trade_data.get('leverage', 0),
-                'margin_usdt': trade_data.get('margin_usdt', 0),
+                'margin_used': trade_data.get('margin_used', 0),
                 'trade_status': trade_data.get('trade_status', 'UNKNOWN'),
                 'timestamp': trade_data.get('timestamp', 'N/A'),
                 'exit_reason': trade_data.get('exit_reason', 'N/A'),
