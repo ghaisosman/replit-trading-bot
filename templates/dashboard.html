@@ -842,7 +842,7 @@
                 </div>
             </div>
         </div>
-    </div>
+    </div>```python
 
     <!-- Strategy Edit Modal -->
     <div class="modal fade" id="strategyModal" tabindex="-1">
@@ -2402,7 +2402,7 @@
                         updateStrategyStatusBadge(strategyName, 'disabled');
                     } else {
                         // Revert button state on error
-                        button.innerHTML = originalHTML;
+                        button.innerHTML = originalHTML;```python
                         button.disabled = false;
                         button.className = originalClass;
                         button.setAttribute('onclick', originalOnclick);
@@ -3035,6 +3035,70 @@
             setTimeout(() => {
                 alertDiv.remove();
             }, 5000);
+        }
+
+        // Include MACD threshold fields in form data collection
+        // Include MACD threshold fields in form data collection
+        function collectFormData(strategyName) {
+            const formData = {};
+
+            formData.symbol = document.getElementById('strategySymbol').value;
+            formData.margin = parseFloat(document.getElementById('strategyMargin').value);
+            formData.leverage = parseInt(document.getElementById('strategyLeverage').value);
+            formData.decimals = parseInt(document.getElementById('strategyDecimals').value);
+            formData.timeframe = document.getElementById('strategyTimeframe').value;
+            formData.max_loss_pct = parseFloat(document.getElementById('strategyMaxLoss').value);
+            formData.assessment_interval = parseInt(document.getElementById('assessmentInterval').value);
+            formData.cooldown_period = parseInt(document.getElementById('cooldownPeriod').value);
+
+            // Partial Take Profit Configuration
+            formData.partialTpEnabled = document.getElementById('partialTpEnabled').checked;
+
+            if (formData.partialTpEnabled) {
+                const threshold = document.getElementById('partialTpPnlThreshold').value;
+                const positionSize = document.getElementById('partialTpPositionPercentage').value;
+
+                if (threshold && positionSize) {
+                    formData.partial_tp_pnl_threshold = parseFloat(threshold);
+                    formData.partial_tp_position_percentage = parseFloat(positionSize);
+                }
+            }
+
+            if (strategyName.toLowerCase().includes('rsi')) {
+                formData.rsi_long_entry = parseInt(document.getElementById('rsiLongEntry').value);
+                formData.rsi_long_exit = parseInt(document.getElementById('rsiLongExit').value);
+                formData.rsi_short_entry = parseInt(document.getElementById('rsiShortEntry').value);
+                formData.rsi_short_exit = parseInt(document.getElementById('rsiShortExit').value);
+            }
+
+            if (strategyName.toLowerCase().includes('macd')) {
+                formData.macd_fast = parseInt(document.getElementById('macdFast').value);
+                formData.macd_slow = parseInt(document.getElementById('macdSlow').value);
+                formData.macd_signal = parseInt(document.getElementById('macdSignal').value);
+                formData.min_histogram_threshold = parseFloat(document.getElementById('minHistogramThreshold').value);
+                formData.macd_entry_threshold = parseFloat(document.getElementById('macdEntryThreshold').value);
+                formData.macd_exit_threshold = parseFloat(document.getElementById('macdExitThreshold').value);
+                formData.histogram_divergence_lookback = parseInt(document.getElementById('histogramDivergenceLookback').value);
+                formData.price_divergence_lookback = parseInt(document.getElementById('priceDivergenceLookback').value);
+                formData.confirmation_candles = parseInt(document.getElementById('confirmationCandles').value);
+                formData.divergence_strength_min = parseFloat(document.getElementById('divergenceStrengthMin').value);
+            }
+
+            return formData;
+        }
+
+        // Show safety validation feedback in alert
+        function handleSafetyValidation(data) {
+            if (data && data.safety_warnings && data.safety_warnings.length > 0) {
+                let warningMessage = '⚠️ Safety corrections were applied:\n\n';
+                data.safety_warnings.forEach(function(warning) {
+                    warningMessage += '• ' + warning + '\n';
+                });
+                warningMessage += '\nConfiguration was saved with safe default values.';
+
+                // Show the safety warning as an alert on the page
+                showAlert(warningMessage, 'warning');
+            }
         }
 </script>
 </body>

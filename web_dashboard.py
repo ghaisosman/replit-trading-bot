@@ -334,14 +334,14 @@ def dashboard():
             # Ensure we always have both strategies available for display
             if 'rsi_oversold' not in strategies:
                 strategies['rsi_oversold'] = {
-                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
+                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
                     'max_loss_pct': 5, 'assessment_interval': 20, 'decimals': 2,
                     'cooldown_period': 300, 'rsi_long_entry': 30, 'rsi_long_exit': 70,
                     'rsi_short_entry': 70, 'rsi_short_exit': 30
                 }
             if 'macd_divergence' not in strategies:
                 strategies['macd_divergence'] = {
-                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '5m',
+                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '5m'},
                     'max_loss_pct': 10, 'assessment_interval': 60, 'decimals': 3,
                     'cooldown_period': 300, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
                     'min_histogram_threshold': 0.0001, 'macd_entry_threshold': 0.05,
@@ -777,7 +777,8 @@ def get_strategies():
                     config.setdefault('session_filter_enabled', True)
                     config.setdefault('allowed_sessions', ['LONDON', 'NEW_YORK'])
                     config.setdefault('trend_filter_enabled',True)
-                    config.setdefault('min_volume', 100000)
+                    config.setdefault('min_volume', ```python
+100000)
                     config.setdefault('decimals', 2)
                     config.setdefault('cooldown_period', 300)
 
@@ -1074,10 +1075,23 @@ def update_strategy(strategy_name):
                 if data['min_histogram_threshold'] < 0.00001 or data['min_histogram_threshold'] > 0.1:
                     return jsonify({'success': False, 'message': 'MACD Histogram threshold must be between 0.00001 and 0.1'})
 
+            # MACD Entry Threshold (from dashboard field macdEntryThreshold)
+            if 'macd_entry_threshold' in data:
+                data['macd_entry_threshold'] = float(data['macd_entry_threshold'])
+                if data['macd_entry_threshold'] < 0.001 or data['macd_entry_threshold'] > 0.1:
+                    return jsonify({'success': False, 'message': 'MACD Entry Threshold must be between 0.001 and 0.1'})
+
+            # MACD Exit Threshold (from dashboard field macdExitThreshold)
+            if 'macd_exit_threshold' in data:
+                data['macd_exit_threshold'] = float(data['macd_exit_threshold'])
+                if data['macd_exit_threshold'] < 0.001 or data['macd_exit_threshold'] > 0.1:
+                    return jsonify({'success': False, 'message': 'MACD Exit Threshold must be between 0.001 and 0.1'})
+
+            # Legacy parameter support
             if 'min_distance_threshold' in data:
                 data['min_distance_threshold'] = float(data['min_distance_threshold'])
-                if data['min_distance_threshold'] < 0.0001 or data['min_distance_threshold'] > 10.0:
-                    return jsonify({'success': False, 'message': 'MACD Distance threshold must be between 0.0001 and 10.0'})
+                if data['min_distance_threshold'] < 0.001 or data['min_distance_threshold'] > 0.1:
+                    return jsonify({'success': False, 'message': 'MACD Distance Threshold must be between 0.001 and 0.1'})
 
             if 'confirmation_candles' in data:
                 data['confirmation_candles'] = int(data['confirmation_candles'])
@@ -1386,6 +1400,7 @@ def get_positions():
         # Check if bot is running
         is_running = getattr(current_bot, 'is_running', False)
         if not is_running:
+```python
             default_response['status'] = 'bot_stopped'
             return jsonify(default_response)
 
@@ -1656,7 +1671,7 @@ def get_console_log():
         if current_bot_manager:
             is_running = getattr(current_bot_manager, 'is_running', False)
             active_positions = len(getattr(current_bot_manager.order_manager, 'active_positions', {})) if hasattr(current_bot_manager, 'order_manager') else 0
-            
+
             fallback_logs = [
                 f'[{current_time}] 🚀 Trading Bot Active',
                 f'[{current_time}] 📊 Status: {"✅ Running" if is_running else "⏸️ Stopped"}',
@@ -2238,6 +2253,7 @@ def generate_ai_ready_report():
         reports_dir = Path("trading_data/ai_reports")
         reports_dir.mkdir(exist_ok=True, parents=True)
 
+        ```python
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"ai_ready_report_{timestamp}.txt"
         filepath = reports_dir / filename
