@@ -648,6 +648,24 @@ class BotManager:
             self.logger.error(f"Error checking untracked positions: {e}")
             # Don't crash the bot for untracked position errors
 
+    def _cleanup_misidentified_positions(self):
+        """Clean up any ghost anomalies for symbols where we have legitimate positions"""
+        try:
+            if not hasattr(self, 'anomaly_detector') or not self.anomaly_detector:
+                return
+
+            # Clear ghost anomalies for symbols where we have legitimate positions
+            for strategy_name, position in self.order_manager.active_positions.items():
+                symbol = position.symbol
+                # Clear any ghost anomalies for this symbol since we have a legitimate position
+                if hasattr(self.anomaly_detector, 'clear_ghost_anomaly'):
+                    self.anomaly_detector.clear_ghost_anomaly(symbol)
+                    self.logger.debug(f"🔍 Cleared ghost anomaly for {symbol} (legitimate position exists)")
+
+        except Exception as e:
+            self.logger.warning(f"⚠️ Error cleaning up misidentified positions: {e}")
+            # Don't crash startup for this non-critical operation
+
     async def _recover_active_positions(self):
         """Recover active positions from database and Binance on startup"""
         try:
@@ -740,4 +758,77 @@ class BotManager:
 
         except Exception as e:
             self.logger.error(f"❌ STRATEGY ERROR | {strategy_name} | {e}")
+            return
+
+    def _should_assess_strategy(self, strategy_name: str, strategy_config: Dict) -> bool:
+        """Check if it's time to assess this strategy"""
+        try:
+            # Get the assessment interval for this strategy (default 30 seconds)
+            assessment_interval = strategy_config.get('assessment_interval', 30)
+            
+            # Check if we've assessed this strategy recently
+            last_assessment = self.strategy_last_assessment.get(strategy_name)
+            if last_assessment:
+                time_since_last = (datetime.now() - last_assessment).total_seconds()
+                if time_since_last < assessment_interval:
+                    return False
+            
+            return True
+        except Exception as e:
+            self.logger.error(f"Error checking strategy assessment timing: {e}")
+            return True  # Default to allowing assessment
+
+    def _get_current_price(self, symbol: str) -> Optional[float]:
+        """Get current price for a symbol"""
+        try:
+            ticker = self.binance_client.get_symbol_ticker(symbol)
+            if ticker and 'price' in ticker:
+                return float(ticker['price'])
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting current price for {symbol}: {e}")
+            return None
+
+    async def _check_exit_conditions(self):
+        """Check exit conditions for all open positions"""
+        try:
+            if not self.order_manager.active_positions:
+                return
+
+            for strategy_name, position in list(self.order_manager.active_positions.items()):
+                try:
+                    # Get current price
+                    current_price = self._get_current_price(position.symbol)
+                    if not current_price:
+                        continue
+
+                    # Check if position should be closed
+                    should_exit = False
+                    exit_reason = ""
+
+                    # Check stop loss
+                    if position.stop_loss and current_price <= position.stop_loss:
+                        should_exit = True
+                        exit_reason = f"Stop Loss Hit (${position.stop_loss})"
+
+                    # Check take profit
+                    if position.take_profit and current_price >= position.take_profit:
+                        should_exit = True
+                        exit_reason = f"Take Profit Hit (${position.take_profit})"
+
+                    if should_exit:
+                        self.logger.info(f"🚪 EXIT CONDITION MET | {strategy_name} | {exit_reason}")
+                        # Exit the position through order manager
+                        success = await self.order_manager.close_position(strategy_name, exit_reason)
+                        if success:
+                            self.logger.info(f"✅ POSITION CLOSED | {strategy_name} | {exit_reason}")
+                        else:
+                            self.logger.error(f"❌ FAILED TO CLOSE POSITION | {strategy_name}")
+
+                except Exception as e:
+                    self.logger.error(f"❌ ERROR CHECKING EXIT CONDITIONS | {strategy_name} | {e}")
+                    continue
+
+        except Exception as e:
+            self.logger.error(f"❌ ERROR IN EXIT CONDITIONS CHECK: {e}")
             return
