@@ -530,21 +530,50 @@
             document.getElementById('loadingSpinner').style.display = 'block';
             document.getElementById('resultsSection').style.display = 'none';
 
-            // Collect strategy-specific parameters
+            // Collect basic parameters - ENSURE main form fields are captured
+            const symbolElement = document.getElementById('symbol');
+            const timeframeElement = document.getElementById('timeframe');
+
             const params = {
                 strategy_name: strategy,
                 start_date: document.getElementById('startDate').value,
-                end_date: document.getElementById('endDate').value
+                end_date: document.getElementById('endDate').value,
+                symbol: symbolElement.value.trim() || 'BTCUSDT',
+                timeframe: timeframeElement.value.trim() || '15m'
             };
 
-            // Add strategy-specific parameters
-            const configSection = document.getElementById(strategy + '_config');
-            if (configSection) {
-                const inputs = configSection.querySelectorAll('input, select');
-                inputs.forEach(input => {
-                    const paramName = input.id.replace(strategy + '_', '');
-                    params[paramName] = input.value;
-                });
+            // Force ensure we have symbol and timeframe
+            if (!params.symbol || params.symbol === '') {
+                // Try to get from strategy-specific field as fallback
+                const strategySymbol = document.getElementById(strategy + '_symbol');
+                if (strategySymbol && strategySymbol.value.trim()) {
+                    params.symbol = strategySymbol.value.trim();
+                } else {
+                    params.symbol = 'BTCUSDT';
+                }
+            }
+
+            if (!params.timeframe || params.timeframe === '') {
+                // Try to get from strategy-specific field as fallback
+                const strategyTimeframe = document.getElementById(strategy + '_timeframe');
+                if (strategyTimeframe && strategyTimeframe.value.trim()) {
+                    params.timeframe = strategyTimeframe.value.trim();
+                } else {
+                    params.timeframe = '15m';
+                }
+            }
+
+            // Final validation
+            if (!params.symbol || params.symbol === '') {
+                alert('Please select a trading symbol');
+                document.getElementById('loadingSpinner').style.display = 'none';
+                return;
+            }
+
+            if (!params.timeframe || params.timeframe === '') {
+                alert('Please select a timeframe');
+                document.getElementById('loadingSpinner').style.display = 'none';
+                return;
             }
 
             try {
