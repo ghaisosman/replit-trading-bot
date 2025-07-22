@@ -843,7 +843,6 @@
             </div>
         </div>
     </div>
-
     <!-- Strategy Edit Modal -->
     <div class="modal fade" id="strategyModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
@@ -1536,8 +1535,7 @@
                 });
         }
 
-        function updateConsoleLogUI(data) {
-            const consoleLog = document.getElementById('consoleLog');
+        function updateConsoleLogUI(data) {            const consoleLog = document.getElementById('consoleLog');
             if (consoleLog && data.success && data.logs) {
                 // Process logs with enhanced formatting
                 const formattedLogs = formatConsoleLogs(data.logs);
@@ -2356,7 +2354,6 @@
                   '• Risk metrics');
         }
 
-        // Disable strategy function
         function disableStrategy(strategyName) {
             if (confirm('Are you sure you want to disable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n' +
                        'This will stop the bot from scanning for new trades for this strategy.\n' +
@@ -2402,9 +2399,9 @@
                         updateStrategyStatusBadge(strategyName, 'disabled');
                     } else {
                         // Revert button state on error
-                        button.innerHTML = originalHTML;```python
+                        button.innerHTML = originalHTML;
                         button.disabled = false;
-                        button.className = originalClass;
+button.className = originalClass;
                         button.setAttribute('onclick', originalOnclick);
                         showAlert('Error disabling strategy: ' + result.message, 'error');
                     }
