@@ -467,10 +467,23 @@ class BotManager:
                 try:
                     symbol = strategy_config['symbol']
 
-                    # Get current price with timeout protection
-                    current_price = self._get_current_price(symbol)
-                    if not current_price:
-                        self.logger.debug(f"🔍 Price fetch failed for {symbol}, skipping display")
+                    # Get current price with enhanced fetching
+                    current_price = None
+                    try:
+                        # Try multiple methods to get current price
+                        ticker = self.binance_client.client.get_symbol_ticker(symbol=symbol)
+                        if ticker and 'price' in ticker:
+                            current_price = float(ticker['price'])
+                        
+                        if not current_price:
+                            # Fallback: try price fetcher
+                            current_price = self.price_fetcher.get_current_price(symbol)
+                        
+                        if not current_price or current_price <= 0:
+                            self.logger.debug(f"🔍 Price fetch failed for {symbol}, skipping display")
+                            continue
+                    except Exception as price_error:
+                        self.logger.debug(f"🔍 Price fetch error for {symbol}: {price_error}")
                         continue
 
                     # Use simple, reliable manual PnL calculation (matches web dashboard)
@@ -610,7 +623,7 @@ class BotManager:
                                         # Check if we should log this position (throttle to once per minute)
                                         last_log_time = self.last_position_log_time.get(f"untracked_{managing_strategy}")
                                         if not last_log_time or (current_time - last_log_time).total_seconds() >= self.position_log_interval:
-                                            self.logger.warning(f"""╔═══════════════════════════════════════════════════╗
+                                            untracked_display = f"""╔═══════════════════════════════════════════════════╗
 ║ ⚠️  UNTRACKED POSITION DETECTED                   ║
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
 ║                                                   ║
@@ -625,7 +638,8 @@ class BotManager:
 ║ ⚠️  WARNING: Position exists but not tracked internally  ║
 ║ 📝 SOLUTION: Position recovery needed on next restart    ║
 ║                                                   ║
-╚═══════════════════════════════════════════════════╝""")
+╚═══════════════════════════════════════════════════╝"""
+                                            self.logger.warning(untracked_display)
 
                                             # Update last log time
                                             self.last_position_log_time[f"untracked_{managing_strategy}"] = current_time
@@ -922,10 +936,29 @@ class BotManager:
             return False  # Fail safe
 
     def _get_current_price(self, symbol: str) -> Optional[float]:
-        """Get current price for a symbol with error handling"""
+        """Get current price for a symbol with enhanced error handling"""
         try:
+            # Method 1: Direct ticker call
             ticker = self.binance_client.client.get_symbol_ticker(symbol=symbol)
-            return float(ticker['price'])
+            if ticker and 'price' in ticker:
+                price = float(ticker['price'])
+                if price > 0:
+                    return price
+            
+            # Method 2: Use price fetcher as fallback
+            price = self.price_fetcher.get_current_price(symbol)
+            if price and price > 0:
+                return price
+                
+            # Method 3: Try futures ticker if available
+            if self.binance_client.is_futures:
+                ticker = self.binance_client.client.futures_symbol_ticker(symbol=symbol)
+                if ticker and 'price' in ticker:
+                    price = float(ticker['price'])
+                    if price > 0:
+                        return price
+            
+            return None
         except Exception as e:
             self.logger.debug(f"Error getting current price for {symbol}: {e}")
             return None
