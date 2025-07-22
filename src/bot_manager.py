@@ -647,10 +647,7 @@ class BotManager:
             trade_db = TradeDatabase()
             
             # Perform smart recovery which handles both database matching and Binance verification
-            recovery_report = trade_db.smart_recovery_with_binance_verification(
-                binance_client=self.binance_client,
-                strategies=self.strategies
-            )
+            recovery_report = trade_db.recover_missing_positions()
             
             # Process recovery results
             recovered_count = len(recovery_report.get('recovered_trades', []))
