@@ -802,7 +802,7 @@ class BacktestEngine:
             else:  # SELL
                 pnl_usdt = (entry_price - current_price) * quantity
 
-            # FIXED: Calculate PnL percentage against ACTUAL margin invested (not config margin)
+            # CRITICAL: Calculate PnL percentage against ACTUAL margin invested (exactly like live trading)
             pnl_percentage = (pnl_usdt / actual_margin_used) * 100
 
             # ENHANCED: Also check stop loss price directly for validation
@@ -815,7 +815,7 @@ class BacktestEngine:
                 elif side == 'SELL' and current_price >= stop_loss_price:
                     stop_loss_triggered_by_price = True
 
-            # Check stop loss - either by percentage OR by price
+            # CRITICAL: Stop loss check matches live trading exactly - percentage based on actual margin
             if pnl_percentage <= -max_loss_pct or stop_loss_triggered_by_price:
                 reason = f'Stop Loss (Max Loss {max_loss_pct}%)' if pnl_percentage <= -max_loss_pct else f'Stop Loss (Price: ${stop_loss_price:.4f})'
                 

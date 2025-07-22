@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.execution_engine.trade_database import TradeDatabase
 from src.binance_client.client import BinanceClientWrapper
-from src.bot_manager import TradingBot
+from src.bot_manager import BotManager
 import json
 from datetime import datetime
 

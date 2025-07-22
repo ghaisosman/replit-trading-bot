@@ -720,8 +720,7 @@ class OrderManager:
         """Clear an orphan position (bot opened, manually closed)"""
         try:
             if strategy_name not in self.active_positions:
-                ```python
-self.logger.warning(f"No active position to clear for strategy {strategy_name}")
+                self.logger.warning(f"No active position to clear for strategy {strategy_name}")
                 return False
 
             position = self.active_positions[strategy_name]
