@@ -334,14 +334,14 @@ def dashboard():
             # Ensure we always have both strategies available for display
             if 'rsi_oversold' not in strategies:
                 strategies['rsi_oversold'] = {
-                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
+                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
                     'max_loss_pct': 5, 'assessment_interval': 20, 'decimals': 2,
                     'cooldown_period': 300, 'rsi_long_entry': 30, 'rsi_long_exit': 70,
                     'rsi_short_entry': 70, 'rsi_short_exit': 30
                 }
             if 'macd_divergence' not in strategies:
                 strategies['macd_divergence'] = {
-                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '5m'},
+                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '5m',
                     'max_loss_pct': 10, 'assessment_interval': 60, 'decimals': 3,
                     'cooldown_period': 300, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
                     'min_histogram_threshold': 0.0001, 'macd_entry_threshold': 0.05,
