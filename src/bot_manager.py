@@ -467,23 +467,35 @@ class BotManager:
                 try:
                     symbol = strategy_config['symbol']
 
-                    # Get current price with enhanced fetching
+                    # Get current price with enhanced fetching and validation
                     current_price = None
                     try:
-                        # Try multiple methods to get current price
-                        ticker = self.binance_client.client.get_symbol_ticker(symbol=symbol)
+                        # Method 1: Direct Binance ticker call
+                        if self.binance_client.is_futures:
+                            ticker = self.binance_client.client.futures_symbol_ticker(symbol=symbol)
+                        else:
+                            ticker = self.binance_client.client.get_symbol_ticker(symbol=symbol)
+                        
                         if ticker and 'price' in ticker:
-                            current_price = float(ticker['price'])
+                            price_candidate = float(ticker['price'])
+                            # Validate price is reasonable for the symbol
+                            if self._validate_price_for_symbol(symbol, price_candidate):
+                                current_price = price_candidate
+                                self.logger.debug(f"🔍 Got valid price for {symbol}: ${current_price}")
 
+                        # Fallback: try price fetcher if first method failed
                         if not current_price:
-                            # Fallback: try price fetcher
-                            current_price = self.price_fetcher.get_current_price(symbol)
+                            price_candidate = self.price_fetcher.get_current_price(symbol)
+                            if price_candidate and self._validate_price_for_symbol(symbol, price_candidate):
+                                current_price = price_candidate
+                                self.logger.debug(f"🔍 Fallback price for {symbol}: ${current_price}")
 
                         if not current_price or current_price <= 0:
-                            self.logger.debug(f"🔍 Price fetch failed for {symbol}, skipping display")
+                            self.logger.warning(f"🔍 Could not get valid price for {symbol}, skipping PnL display")
                             continue
+                            
                     except Exception as price_error:
-                        self.logger.debug(f"🔍 Price fetch error for {symbol}: {price_error}")
+                        self.logger.warning(f"🔍 Price fetch error for {symbol}: {price_error}")
                         continue
 
                     # Use simple, reliable manual PnL calculation (matches web dashboard)
@@ -550,8 +562,8 @@ class BotManager:
 ║ 🎯 Strategy: {strategy_name.upper():<15}                    ║
 ║ 💱 Symbol: {position.symbol:<20}                      ║
 ║ 📊 Side: {position.side:<25}                           ║
-║ 💵 Entry: ${position.entry_price:.1f}                          ║
-║ 📊 Current: ${current_price:.1f}                           ║
+║ 💵 Entry: ${position.entry_price:,.1f}                        ║
+║ 📊 Current: ${current_price:,.1f}                         ║
 ║ 📈 Indicator: {indicator_text:<25}                      ║
 ║ ⚡ Config: ${margin_invested:.1f} USDT @ {configured_leverage}x           ║
 ║ 💰 PnL: ${pnl:.1f} USDT ({pnl_percent:+.1f}%)              ║
@@ -628,11 +640,11 @@ class BotManager:
 ║ ⏰ {datetime.now().strftime('%H:%M:%S')}                                        ║
 ║                                                   ║
 ║ 📊 TRADE IN PROGRESS (NOT TRACKED)               ║
-║ 🎯 Strategy: {managing_strategy.upper()}                        ║
-║ 💱 Symbol: {symbol}                              ║
-║ 📊 Side: {side}                                 ║
-║ 💵 Entry: ${entry_price:.1f}                          ║
-║ 📊 Current: ${current_price:.1f}                           ║
+║ 🎯 Strategy: {managing_strategy.upper():<15}                  ║
+║ 💱 Symbol: {symbol:<20}                            ║
+║ 📊 Side: {side:<25}                               ║
+║ 💵 Entry: ${entry_price:,.1f}                        ║
+║ 📊 Current: ${current_price:,.1f}                         ║
 ║ ⚡ Config: ${margin_invested:.1f} USDT @ {configured_leverage}x           ║
 ║ 💰 PnL: ${pnl:.1f} USDT ({pnl_percent:+.1f}%)              ║
 ║ ⚠️  WARNING: Position exists but not tracked internally  ║
@@ -938,29 +950,34 @@ class BotManager:
     def _get_current_price(self, symbol: str) -> Optional[float]:
         """Get current price for a symbol with enhanced error handling"""
         try:
-            # Method 1: Direct ticker call
-            ticker = self.binance_client.client.get_symbol_ticker(symbol=symbol)
-            if ticker and 'price' in ticker:
-                price = float(ticker['price'])
-                if price > 0:
-                    return price
-
-            # Method 2: Use price fetcher as fallback
-            price = self.price_fetcher.get_current_price(symbol)
-            if price and price > 0:
-                return price
-
-            # Method 3: Try futures ticker if available
+            current_price = None
+            
+            # Method 1: Use appropriate ticker call based on futures/spot mode
             if self.binance_client.is_futures:
                 ticker = self.binance_client.client.futures_symbol_ticker(symbol=symbol)
-                if ticker and 'price' in ticker:
-                    price = float(ticker['price'])
-                    if price > 0:
-                        return price
+            else:
+                ticker = self.binance_client.client.get_symbol_ticker(symbol=symbol)
+                
+            if ticker and 'price' in ticker:
+                price_candidate = float(ticker['price'])
+                if self._validate_price_for_symbol(symbol, price_candidate):
+                    current_price = price_candidate
+                    self.logger.debug(f"🔍 Direct ticker price for {symbol}: ${current_price:,.2f}")
 
-            return None
+            # Method 2: Use price fetcher as fallback
+            if not current_price:
+                price_candidate = self.price_fetcher.get_current_price(symbol)
+                if price_candidate and self._validate_price_for_symbol(symbol, price_candidate):
+                    current_price = price_candidate
+                    self.logger.debug(f"🔍 Price fetcher price for {symbol}: ${current_price:,.2f}")
+
+            if not current_price:
+                self.logger.warning(f"🔍 Could not get valid price for {symbol}")
+                
+            return current_price
+            
         except Exception as e:
-            self.logger.debug(f"Error getting current price for {symbol}: {e}")
+            self.logger.warning(f"Error getting current price for {symbol}: {e}")
             return None
 
     def _validate_price_for_symbol(self, symbol: str, price: float) -> bool:
