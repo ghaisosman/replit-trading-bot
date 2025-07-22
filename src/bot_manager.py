@@ -564,10 +564,9 @@ class BotManager:
         # CRITICAL FIX: Also check for Binance positions that aren't in active_positions
         try:
             # This handles the case where positions exist but weren't recovered properly
-            try:
-                if self.binance_client.is_futures:
-                    positions = self.binance_client.client.futures_position_information()
-                    for position in positions:
+            if self.binance_client.is_futures:
+                positions = self.binance_client.client.futures_position_information()
+                for position in positions:
                         symbol = position.get('symbol')
                         position_amt = float(position.get('positionAmt', 0))
 
