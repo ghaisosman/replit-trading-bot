@@ -56,5 +56,17 @@
     "rsi_short_exit": 40,
     "partial_tp_pnl_threshold": 20.0,
     "partial_tp_position_percentage": 50.0
+  },
+  "smart_money_reversal": {
+    "symbol": "ETHUSDT",
+    "margin": 10.0,
+    "leverage": 3,
+    "timeframe": "15m",
+    "max_loss_pct": 10.0,
+    "assessment_interval": 45,
+    "decimals": 2,
+    "cooldown_period": 300,
+    "partial_tp_pnl_threshold": 20.0,
+    "partial_tp_position_percentage": 50.0
   }
 }
