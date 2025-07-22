@@ -2375,6 +2375,13 @@ def start_web_dashboard(debug=False, use_reloader=False):
     """Start the Flask web dashboard with more reliable settings"""
     try:
         logger.info("🌐 WEB INTERFACE: Starting Flask web dashboard...")
+
+        # Try to start auto-restart loop as a background task
+        try:
+            asyncio.ensure_future(auto_restart_bot())  # Schedule immediately
+        except Exception as async_error:
+            logger.error(f"Failed to start auto-restart task: {async_error}")
+
         app.run(debug=debug, use_reloader=use_reloader, host='0.0.0.0', port=5000)
 
     except Exception as e:

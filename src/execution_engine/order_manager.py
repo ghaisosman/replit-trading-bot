@@ -100,13 +100,7 @@ class OrderManager:
             # Calculate position size
             quantity = self._calculate_position_size(signal, strategy_config)
             if not quantity or quantity <= 0:
-                self.logger.error(f"🚨 INVALID QUANTITY CALCULATED: {quantity}")
-                self.logger.error(f"🚨 Signal data: entry_price={signal.entry_price}, margin={strategy_config.get('margin')}, leverage={strategy_config.get('leverage')}")
-                return None
-                
-            # Additional safety check for quantity
-            if quantity < 0.001:  # Minimum reasonable quantity
-                self.logger.error(f"🚨 QUANTITY TOO SMALL: {quantity} - likely calculation error")
+                self.logger.error(f"Invalid quantity calculated: {quantity}")
                 return None
 
             # Set leverage before creating order
@@ -642,29 +636,11 @@ class OrderManager:
             margin = strategy_config.get('margin', 50.0)
             leverage = strategy_config.get('leverage', 5)
 
-            # Validate inputs
-            if margin <= 0:
-                self.logger.error(f"🚨 INVALID MARGIN: {margin}")
-                return 0.0
-                
-            if leverage <= 0:
-                self.logger.error(f"🚨 INVALID LEVERAGE: {leverage}")
-                return 0.0
-                
-            if signal.entry_price <= 0:
-                self.logger.error(f"🚨 INVALID ENTRY PRICE: {signal.entry_price}")
-                return 0.0
-
             self.logger.info(f"🔍 POSITION SIZE CALCULATION | Target Margin: ${margin} | Leverage: {leverage}x | Entry: ${signal.entry_price}")
 
             # Get symbol info first to understand constraints
             config_symbol = strategy_config.get('symbol', '')
             actual_symbol = signal.symbol or config_symbol
-            
-            if not actual_symbol:
-                self.logger.error(f"🚨 NO SYMBOL PROVIDED for position calculation")
-                return 0.0
-                
             symbol_info = self._get_symbol_info(actual_symbol)
 
             min_qty = symbol_info['min_qty']
@@ -675,16 +651,7 @@ class OrderManager:
             target_position_value = margin * leverage
             ideal_quantity = target_position_value / signal.entry_price
 
-            # Validate ideal quantity
-            if ideal_quantity <= 0:
-                self.logger.error(f"🚨 INVALID IDEAL QUANTITY: {ideal_quantity}")
-                return 0.0
-
             # Method 2: Round to meet Binance requirements
-            if step_size <= 0:
-                self.logger.error(f"🚨 INVALID STEP SIZE: {step_size}")
-                return 0.0
-                
             quantity = round(ideal_quantity / step_size) * step_size
             quantity = round(quantity, precision)
 
@@ -692,11 +659,6 @@ class OrderManager:
             if quantity < min_qty:
                 quantity = min_qty
                 self.logger.warning(f"⚠️ MARGIN ADJUSTMENT: Quantity increased to minimum {min_qty} - margin will be higher than configured")
-
-            # Final validation
-            if quantity <= 0:
-                self.logger.error(f"🚨 FINAL QUANTITY VALIDATION FAILED: {quantity}")
-                return 0.0
 
             # Calculate actual values after rounding
             actual_position_value = quantity * signal.entry_price
@@ -719,9 +681,7 @@ class OrderManager:
             return quantity
 
         except Exception as e:
-            self.logger.error(f"🚨 Error calculating position size: {e}")
-            import traceback
-            self.logger.error(f"🚨 Position size calculation traceback: {traceback.format_exc()}")
+            self.logger.error(f"Error calculating position size: {e}")
             return 0.0
 
     def get_active_positions(self) -> Dict[str, Position]:

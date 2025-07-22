@@ -26,12 +26,7 @@
     "XRPUSDT": "\u001b[95m",
     "DEVELOPMENT": "\u001b[95m",
     "USDT": "\u001b[95m",
-    "_RECOVERED": "\u001b[95m",
-    "ENGULFING_RSI": "\u001b[95m",
-    "T": "\u001b[95m",
-    "CONFLICT": "\u001b[95m",
-    "EXISTS": "\u001b[95m",
-    "POSITION": "\u001b[95m"
+    "_RECOVERED": "\u001b[95m"
   },
   "active_position_colors": {
     "LOADED": "\u001b[1;95m",
@@ -60,11 +55,6 @@
     "XRPUSDT": "\u001b[1;95m",
     "DEVELOPMENT": "\u001b[1;95m",
     "USDT": "\u001b[1;95m",
-    "_RECOVERED": "\u001b[1;95m",
-    "ENGULFING_RSI": "\u001b[1;95m",
-    "T": "\u001b[1;95m",
-    "CONFLICT": "\u001b[1;95m",
-    "EXISTS": "\u001b[1;95m",
-    "POSITION": "\u001b[1;95m"
+    "_RECOVERED": "\u001b[1;95m"
   }
 }

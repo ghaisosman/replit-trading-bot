@@ -158,7 +158,7 @@ class SignalProcessor:
             max_loss_pct = config.get('max_loss_pct', 10)
             min_histogram_threshold = config.get('min_histogram_threshold', 0.0001)
             confirmation_candles = config.get('confirmation_candles', 1)
-
+            
             # FIXED: Use correct dashboard parameters
             entry_threshold = config.get('macd_entry_threshold', config.get('min_distance_threshold', 0.0015))
             exit_threshold = config.get('macd_exit_threshold', 0.002)
@@ -187,13 +187,13 @@ class SignalProcessor:
             macd_current = macd_line.iloc[-1]
             signal_current = signal_line.iloc[-1]
             histogram_current = histogram.iloc[-1]
-
+            
             # Previous values for trend detection
             histogram_prev = histogram.iloc[-2]
-
+            
             # Calculate momentum strength (histogram change rate)
             histogram_momentum = abs(histogram_current - histogram_prev)
-
+            
             # Calculate distance between MACD lines (normalized by price for consistency)
             line_distance = abs(macd_current - signal_current) / current_price
 
@@ -201,7 +201,7 @@ class SignalProcessor:
             self.logger.debug(f"📊 Entry Logic: distance={line_distance:.6f} vs threshold={entry_threshold}, momentum={histogram_momentum:.6f} vs {min_histogram_threshold}")
 
             # YOUR STRATEGY LOGIC: Enter when divergence starts BEFORE crossover
-
+            
             # BULLISH ENTRY: MACD below signal but gaining momentum (approaching crossover from below)
             if (macd_current < signal_current and  # Still below signal (before crossover)
                 histogram_current > histogram_prev and  # Momentum building (divergence starting)
@@ -272,54 +272,6 @@ class SignalProcessor:
             self.logger.error(f"Error in MACD divergence evaluation: {e}")
             return None
 
-    def _evaluate_engulfing_rsi(self, df: pd.DataFrame, current_price: float, config: Dict) -> Optional[TradingSignal]:
-        """Engulfing RSI strategy evaluation with validation"""
-        try:
-            from src.execution_engine.strategies.engulfing_rsi_strategy import EngulfingRSIStrategy
-
-            strategy = EngulfingRSIStrategy(config)
-            result = strategy.analyze_market_data(df)
-
-            if result['signal'] in ['BUY', 'SELL']:
-                # Validate signal data before creating TradingSignal
-                entry_price = result.get('entry_price', 0)
-                stop_loss = result.get('stop_loss', 0)
-                take_profit = result.get('take_profit', 0)
-
-                if entry_price <= 0:
-                    self.logger.error(f"🚨 ENGULFING RSI: Invalid entry price {entry_price}")
-                    return None
-
-                if stop_loss <= 0:
-                    self.logger.error(f"🚨 ENGULFING RSI: Invalid stop loss {stop_loss}")
-                    return None
-
-                if take_profit <= 0:
-                    self.logger.error(f"🚨 ENGULFING RSI: Invalid take profit {take_profit}")
-                    return None
-
-                signal_type = SignalType.BUY if result['signal'] == 'BUY' else SignalType.SELL
-
-                signal = TradingSignal(
-                    signal_type=signal_type,
-                    confidence=result['confidence'],
-                    entry_price=entry_price,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    reason=result['reason']
-                )
-
-                self.logger.info(f"✅ ENGULFING RSI: Valid signal generated - {result['signal']} @ ${entry_price:.4f}")
-                return signal
-
-            return None
-
-        except Exception as e:
-            self.logger.error(f"Error in Engulfing RSI strategy evaluation: {e}")
-            import traceback
-            self.logger.error(f"Engulfing RSI error traceback: {traceback.format_exc()}")
-            return None
-
     def evaluate_exit_conditions(self, df: pd.DataFrame, position: Dict, strategy_config: Dict) -> bool:
         """Evaluate if position should be closed"""
         try:
@@ -358,17 +310,17 @@ class SignalProcessor:
             elif 'macd' in strategy_name.lower() and 'macd_histogram' in df.columns:
                 # Get exit threshold from dashboard configuration
                 exit_threshold = strategy_config.get('macd_exit_threshold', 0.002)
-
+                
                 histogram = df['macd_histogram'].iloc[-3:]  # Get last 3 values for better trend detection
 
                 if len(histogram) >= 3:
                     histogram_current = histogram.iloc[-1]
                     histogram_prev = histogram.iloc[-2]
                     histogram_prev2 = histogram.iloc[-3]
-
+                    
                     # Calculate momentum change strength
                     momentum_change = abs(histogram_current - histogram_prev)
-
+                    
                     # YOUR EXIT LOGIC: Exit when divergence starts turning in opposite direction
 
                     # LONG POSITION EXIT: When bullish momentum starts reversing (peak detection)
