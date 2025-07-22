@@ -148,11 +148,18 @@ class BacktestEngine:
             
             # Test API connection first
             try:
-                test_call = self.binance_client.get_historical_klines(
-                    symbol=symbol,
-                    interval=interval,
-                    limit=1
-                )
+                if self.binance_client.is_futures:
+                    test_call = self.binance_client.client.futures_klines(
+                        symbol=symbol,
+                        interval=interval,
+                        limit=1
+                    )
+                else:
+                    test_call = self.binance_client.client.get_klines(
+                        symbol=symbol,
+                        interval=interval,
+                        limit=1
+                    )
                 if not test_call:
                     raise Exception(f"API test failed - no data returned for {symbol}")
             except Exception as api_error:
@@ -181,13 +188,22 @@ class BacktestEngine:
                 
                 try:
                     # Use proper Binance API call with start and end times
-                    klines = self.binance_client.client.futures_historical_klines(
-                        symbol=symbol,
-                        interval=interval,
-                        start_str=str(current_start),
-                        end_str=str(current_end),
-                        limit=max_candles_per_request
-                    )
+                    if self.binance_client.is_futures:
+                        klines = self.binance_client.client.futures_klines(
+                            symbol=symbol,
+                            interval=interval,
+                            startTime=current_start,
+                            endTime=current_end,
+                            limit=max_candles_per_request
+                        )
+                    else:
+                        klines = self.binance_client.client.get_historical_klines(
+                            symbol=symbol,
+                            interval=interval,
+                            start_str=str(current_start),
+                            end_str=str(current_end),
+                            limit=max_candles_per_request
+                        )
                     
                     if not klines:
                         failed_chunks += 1
