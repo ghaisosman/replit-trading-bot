@@ -328,6 +328,38 @@ class TradingConfigManager:
         if 'trend_filter_enabled' in updates:
             validated_updates['trend_filter_enabled'] = bool(updates['trend_filter_enabled'])
 
+        # Engulfing RSI Strategy Parameters
+        if 'atr_period' in updates:
+            validated_updates['atr_period'] = int(updates['atr_period'])
+            if validated_updates['atr_period'] < 5 or validated_updates['atr_period'] > 50:
+                validated_updates['atr_period'] = 14
+
+        if 'stable_candle_ratio' in updates:
+            validated_updates['stable_candle_ratio'] = float(updates['stable_candle_ratio'])
+            if validated_updates['stable_candle_ratio'] < 0.1 or validated_updates['stable_candle_ratio'] > 2.0:
+                validated_updates['stable_candle_ratio'] = 0.5
+
+        if 'price_lookback_period' in updates:
+            validated_updates['price_lookback_period'] = int(updates['price_lookback_period'])
+            if validated_updates['price_lookback_period'] < 3 or validated_updates['price_lookback_period'] > 20:
+                validated_updates['price_lookback_period'] = 5
+
+        if 'tp_atr_multiplier' in updates:
+            validated_updates['tp_atr_multiplier'] = float(updates['tp_atr_multiplier'])
+            if validated_updates['tp_atr_multiplier'] < 1.0 or validated_updates['tp_atr_multiplier'] > 10.0:
+                validated_updates['tp_atr_multiplier'] = 2.5
+
+        if 'sl_atr_multiplier' in updates:
+            validated_updates['sl_atr_multiplier'] = float(updates['sl_atr_multiplier'])
+            if validated_updates['sl_atr_multiplier'] < 1.0 or validated_updates['sl_atr_multiplier'] > 10.0:
+                validated_updates['sl_atr_multiplier'] = 2.0
+
+        if 'use_rsi_exit' in updates:
+            validated_updates['use_rsi_exit'] = bool(updates['use_rsi_exit'])
+
+        if 'use_pattern_exit' in updates:
+            validated_updates['use_pattern_exit'] = bool(updates['use_pattern_exit'])
+
         # Partial Take Profit Parameters
         if 'partial_tp_pnl_threshold' in updates:
             validated_updates['partial_tp_pnl_threshold'] = float(updates['partial_tp_pnl_threshold'])
@@ -469,6 +501,21 @@ class TradingConfigManager:
                     strategies[strategy_name].setdefault('swing_strength', 3)
                     strategies[strategy_name].setdefault('min_wick_ratio', 0.6)
 
+                # Engulfing RSI Strategy Specific Parameters
+                elif 'engulfing' in strategy_name.lower() and 'rsi' in strategy_name.lower():
+                    strategies[strategy_name].setdefault('rsi_period', 14)
+                    strategies[strategy_name].setdefault('rsi_long_entry', 50)
+                    strategies[strategy_name].setdefault('rsi_short_entry', 50)
+                    strategies[strategy_name].setdefault('rsi_long_exit', 60)
+                    strategies[strategy_name].setdefault('rsi_short_exit', 40)
+                    strategies[strategy_name].setdefault('atr_period', 14)
+                    strategies[strategy_name].setdefault('stable_candle_ratio', 0.5)
+                    strategies[strategy_name].setdefault('price_lookback_period', 5)
+                    strategies[strategy_name].setdefault('tp_atr_multiplier', 2.5)
+                    strategies[strategy_name].setdefault('sl_atr_multiplier', 2.0)
+                    strategies[strategy_name].setdefault('use_rsi_exit', True)
+                    strategies[strategy_name].setdefault('use_pattern_exit', True)
+
                 # Set common defaults only if not already set
                 strategies[strategy_name].setdefault('min_volume', 1000000)
                 strategies[strategy_name].setdefault('decimals', 2)
@@ -532,6 +579,29 @@ class TradingConfigManager:
                 'session_filter_enabled': True,
                 'allowed_sessions': ['LONDON', 'NEW_YORK'],
                 'trend_filter_enabled': True,
+                'min_volume': 1000000,
+            },
+            'engulfing_rsi': {
+                **self.default_params.to_dict(),
+                'symbol': 'BTCUSDT',
+                'margin': 50.0,
+                'leverage': 5,
+                'timeframe': '15m',
+                'assessment_interval': 60,
+                'decimals': 2,
+                'cooldown_period': 300,
+                'rsi_period': 14,
+                'rsi_long_entry': 50,
+                'rsi_short_entry': 50,
+                'rsi_long_exit': 60,
+                'rsi_short_exit': 40,
+                'atr_period': 14,
+                'stable_candle_ratio': 0.5,
+                'price_lookback_period': 5,
+                'tp_atr_multiplier': 2.5,
+                'sl_atr_multiplier': 2.0,
+                'use_rsi_exit': True,
+                'use_pattern_exit': True,
                 'min_volume': 1000000,
             }
         }
