@@ -2251,8 +2251,7 @@ def generate_ai_report():
         return jsonify({'success': True, 'report': report})
 
     except Exception as e:
-        logger.error(```python
-f"Error generating AI report: {e}")
+        logger.error(f"Error generating AI report: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/backtest')
