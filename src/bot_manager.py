@@ -637,6 +637,66 @@ class BotManager:
             self.logger.error(f"Error checking untracked positions: {e}")
             # Don't crash the bot for untracked position errors
 
+    async def _recover_active_positions(self):
+        """Recover active positions from database and Binance on startup"""
+        try:
+            self.logger.info("🔍 POSITION RECOVERY: Starting intelligent position recovery...")
+            
+            # Use the trade database's smart recovery system
+            from src.execution_engine.trade_database import TradeDatabase
+            trade_db = TradeDatabase()
+            
+            # Perform smart recovery which handles both database matching and Binance verification
+            recovery_report = trade_db.smart_recovery_with_binance_verification(
+                binance_client=self.binance_client,
+                strategies=self.strategies
+            )
+            
+            # Process recovery results
+            recovered_count = len(recovery_report.get('recovered_trades', []))
+            matched_count = len(recovery_report.get('matched_existing_trades', []))
+            total_recovered = recovered_count + matched_count
+            
+            if total_recovered > 0:
+                self.logger.info(f"🛡️ POSITION RECOVERY: Found {total_recovered} positions to recover")
+                
+                # Now load recovered positions into order manager
+                for trade_id in recovery_report.get('recovered_trades', []) + recovery_report.get('matched_existing_trades', []):
+                    try:
+                        # Get trade data from database
+                        trade_data = trade_db.get_trade(trade_id)
+                        if trade_data and trade_data.get('trade_status') == 'OPEN':
+                            strategy_name = trade_data.get('strategy_name', 'RECOVERY')
+                            
+                            # Create position object for order manager
+                            from src.execution_engine.order_manager import Position
+                            position = Position(
+                                strategy_name=strategy_name,
+                                symbol=trade_data['symbol'],
+                                side=trade_data['side'],
+                                entry_price=trade_data['entry_price'],
+                                quantity=trade_data['quantity'],
+                                stop_loss=trade_data.get('stop_loss'),
+                                take_profit=trade_data.get('take_profit'),
+                                actual_margin_used=trade_data.get('margin_used', 0)
+                            )
+                            
+                            # Add to active positions
+                            self.order_manager.active_positions[strategy_name] = position
+                            self.logger.info(f"✅ RECOVERED POSITION | {strategy_name} | {trade_data['symbol']} | {trade_data['side']} | Entry: ${trade_data['entry_price']}")
+                            
+                    except Exception as e:
+                        self.logger.error(f"❌ Error recovering position {trade_id}: {e}")
+                        continue
+                        
+                self.logger.info(f"🛡️ POSITION RECOVERY: Successfully loaded {len(self.order_manager.active_positions)} active positions")
+            else:
+                self.logger.info("🛡️ POSITION RECOVERY: No positions to recover - starting fresh")
+                
+        except Exception as e:
+            self.logger.error(f"❌ POSITION RECOVERY ERROR: {e}")
+            self.logger.info("🔄 Continuing startup without position recovery...")
+
     async def _process_strategy(self, strategy_name: str, strategy_config: Dict):
         """Process a single strategy with improved error handling"""
         try:
@@ -819,3 +879,105 @@ class BotManager:
         except Exception as e:
             self.logger.error(f"Error processing strategy {strategy_name}: {e}")
             self.telegram_reporter.report_error("Strategy Processing Error", str(e), strategy_name)
+
+    def _should_assess_strategy(self, strategy_name: str, strategy_config: Dict) -> bool:
+        """Check if it's time to assess this strategy based on assessment interval"""
+        try:
+            assessment_interval = strategy_config.get('assessment_interval', 300)  # Default 5 minutes
+            
+            last_assessment = self.strategy_last_assessment.get(strategy_name)
+            if not last_assessment:
+                return True
+                
+            time_since_last = (datetime.now() - last_assessment).total_seconds()
+            return time_since_last >= assessment_interval
+            
+        except Exception as e:
+            self.logger.error(f"Error checking strategy assessment timing: {e}")
+            return True  # Assess by default if error
+
+    def _check_balance_requirements(self, strategy_config: Dict) -> bool:
+        """Check if we have sufficient balance for the strategy"""
+        try:
+            margin_required = strategy_config.get('margin', 50.0)
+            current_balance = self.balance_fetcher.get_usdt_balance() or 0
+            
+            if current_balance < margin_required:
+                self.logger.warning(f"❌ INSUFFICIENT BALANCE | Need ${margin_required:.1f} | Have ${current_balance:.1f}")
+                return False
+                
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error checking balance requirements: {e}")
+            return False  # Fail safe
+
+    def _get_current_price(self, symbol: str) -> Optional[float]:
+        """Get current price for a symbol with error handling"""
+        try:
+            ticker = self.binance_client.client.get_symbol_ticker(symbol=symbol)
+            return float(ticker['price'])
+        except Exception as e:
+            self.logger.debug(f"Error getting current price for {symbol}: {e}")
+            return None
+
+    def _cleanup_misidentified_positions(self):
+        """Clean up any misidentified ghost positions where we have legitimate trades"""
+        try:
+            if not hasattr(self, 'anomaly_detector') or not self.anomaly_detector:
+                return
+                
+            # Clear anomalies for symbols where we have legitimate positions
+            for strategy_name, position in self.order_manager.active_positions.items():
+                symbol = position.symbol
+                self.anomaly_detector.clear_anomaly(strategy_name)
+                self.logger.debug(f"🔍 Cleared any ghost anomalies for {strategy_name} ({symbol})")
+                
+        except Exception as e:
+            self.logger.debug(f"Error cleaning up misidentified positions: {e}")
+
+    async def _check_exit_conditions(self):
+        """Check exit conditions for all active positions"""
+        try:
+            positions_to_close = []
+            
+            for strategy_name, position in self.order_manager.active_positions.items():
+                try:
+                    # Get current price
+                    current_price = self._get_current_price(position.symbol)
+                    if not current_price:
+                        continue
+                    
+                    # Check stop loss
+                    if position.stop_loss and (
+                        (position.side == 'BUY' and current_price <= position.stop_loss) or
+                        (position.side == 'SELL' and current_price >= position.stop_loss)
+                    ):
+                        positions_to_close.append((strategy_name, 'STOP_LOSS'))
+                        continue
+                    
+                    # Check take profit
+                    if position.take_profit and (
+                        (position.side == 'BUY' and current_price >= position.take_profit) or
+                        (position.side == 'SELL' and current_price <= position.take_profit)
+                    ):
+                        positions_to_close.append((strategy_name, 'TAKE_PROFIT'))
+                        continue
+                        
+                except Exception as e:
+                    self.logger.error(f"Error checking exit conditions for {strategy_name}: {e}")
+                    continue
+            
+            # Close positions that hit exit conditions
+            for strategy_name, exit_reason in positions_to_close:
+                try:
+                    success = self.order_manager.close_position(strategy_name, exit_reason)
+                    if success:
+                        self.logger.info(f"✅ POSITION CLOSED | {strategy_name} | {exit_reason}")
+                    else:
+                        self.logger.warning(f"❌ FAILED TO CLOSE | {strategy_name} | {exit_reason}")
+                except Exception as e:
+                    self.logger.error(f"Error closing position {strategy_name}: {e}")
+                    
+        except Exception as e:
+            self.logger.error(f"Error in exit conditions check: {e}")
