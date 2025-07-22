@@ -68,8 +68,8 @@ class StrategyTester:
             current_price = 100.0 if symbol == 'SOLUSDT' else 2500.0
 
         for i in range(count):
-            # Generate different signal types
-            signal_types = ['LONG', 'SHORT'] if strategy == 'smart_money' else ['LONG']
+            # Generate different signal types - Use BUY/SELL for database compatibility
+            signal_types = ['BUY', 'SELL'] if strategy == 'smart_money' else ['BUY']
             signal_type = random.choice(signal_types)
 
             # Simulate price variations for realistic testing
@@ -111,10 +111,10 @@ class StrategyTester:
         quantity = (position_size_usdt * leverage) / entry_price
 
         # Calculate take profit and stop loss prices
-        if signal['signal_type'] == 'LONG':
+        if signal['signal_type'] == 'BUY':
             take_profit_price = entry_price * (1 + config['take_profit_percent'] / 100)
             stop_loss_price = entry_price * (1 - config['stop_loss_percent'] / 100)
-        else:
+        else:  # SELL
             take_profit_price = entry_price * (1 - config['take_profit_percent'] / 100)
             stop_loss_price = entry_price * (1 + config['stop_loss_percent'] / 100)
 
@@ -153,7 +153,7 @@ class StrategyTester:
         try:
             self.trade_logger.log_trade_entry(
                 trade_id=trade_data['trade_id'],
-                strategy=trade_data['strategy_name'],
+                strategy_name=trade_data['strategy_name'],
                 symbol=trade_data['symbol'],
                 side=trade_data['side'],
                 entry_price=trade_data['entry_price'],
@@ -182,17 +182,17 @@ class StrategyTester:
             exit_reason = 'Stop Loss Hit'
         else:  # MANUAL
             # Simulate manual exit at random price between entry and TP
-            if trade_data['side'] == 'LONG':
+            if trade_data['side'] == 'BUY':
                 exit_price = random.uniform(entry_price, trade_data['take_profit_price'])
-            else:
+            else:  # SELL
                 exit_price = random.uniform(trade_data['take_profit_price'], entry_price)
             exit_reason = 'Manual Exit'
 
         # Calculate PnL
         quantity = trade_data['quantity']
-        if trade_data['side'] == 'LONG':
+        if trade_data['side'] == 'BUY':
             pnl_usdt = quantity * (exit_price - entry_price)
-        else:
+        else:  # SELL
             pnl_usdt = quantity * (entry_price - exit_price)
 
         pnl_percentage = (pnl_usdt / trade_data['position_size_usdt']) * 100
