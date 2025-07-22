@@ -35,7 +35,8 @@
     "CONFLICT": "\u001b[95m",
     "SELL": "\u001b[95m",
     "BUY": "\u001b[95m",
-    "SIGNAL": "\u001b[95m"
+    "SIGNAL": "\u001b[95m",
+    "RSI": "\u001b[95m"
   },
   "active_position_colors": {
     "LOADED": "\u001b[1;95m",
@@ -73,6 +74,7 @@
     "CONFLICT": "\u001b[1;95m",
     "SELL": "\u001b[1;95m",
     "BUY": "\u001b[1;95m",
-    "SIGNAL": "\u001b[1;95m"
+    "SIGNAL": "\u001b[1;95m",
+    "RSI": "\u001b[1;95m"
   }
 }
