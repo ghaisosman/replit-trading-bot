@@ -2287,34 +2287,98 @@ def run_backtest():
         if not form_data:
             return jsonify({'success': False, 'error': 'No configuration data provided. Please fill out the backtest form.'})
 
+        # Extract and validate core fields
+        strategy_name = form_data.get('strategy_name')
+        start_date = form_data.get('start_date')
+        end_date = form_data.get('end_date')
+        symbol = form_data.get('symbol')
+        timeframe = form_data.get('timeframe')
+
         # Validate required fields
-        required_fields = ['strategy_name', 'start_date', 'end_date', 'symbol', 'timeframe']
-        missing_fields = []
-        for field in required_fields:
-            if field not in form_data or not form_data[field]:
-                missing_fields.append(field)
-        
-        if missing_fields:
-            return jsonify({'success': False, 'error': f'Missing required fields: {", ".join(missing_fields)}'})
+        if not strategy_name:
+            return jsonify({'success': False, 'error': 'Strategy name is required'})
+        if not start_date:
+            return jsonify({'success': False, 'error': 'Start date is required'})
+        if not end_date:
+            return jsonify({'success': False, 'error': 'End date is required'})
+        if not symbol:
+            return jsonify({'success': False, 'error': 'Symbol is required'})
+        if not timeframe:
+            return jsonify({'success': False, 'error': 'Timeframe is required'})
 
         # Validate date format
         try:
             from datetime import datetime
-            start_date = datetime.strptime(form_data['start_date'], '%Y-%m-%d')
-            end_date = datetime.strptime(form_data['end_date'], '%Y-%m-%d')
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
             
-            if start_date >= end_date:
+            if start_dt >= end_dt:
                 return jsonify({'success': False, 'error': 'Start date must be before end date'})
             
-            if end_date > datetime.now():
+            if end_dt > datetime.now():
                 return jsonify({'success': False, 'error': 'End date cannot be in the future'})
                 
         except ValueError as date_error:
             return jsonify({'success': False, 'error': f'Invalid date format: {str(date_error)}'})
 
-        # Run backtest with detailed logging
-        logger.info(f"🚀 Starting backtest request: {form_data['strategy_name']} on {form_data['symbol']}")
-        result = web_interface.run_backtest_from_web(form_data)
+        # Build proper configuration with required fields guaranteed
+        backtest_config = {
+            'strategy_name': strategy_name,
+            'start_date': start_date,
+            'end_date': end_date,
+            'symbol': symbol,
+            'timeframe': timeframe,
+            'margin': float(form_data.get('margin', 50.0)),
+            'leverage': int(form_data.get('leverage', 5)),
+            'max_loss_pct': float(form_data.get('max_loss_pct', 10.0)),
+            'assessment_interval': int(form_data.get('assessment_interval', 60)),
+            'cooldown_period': int(form_data.get('cooldown_period', 300)),
+            'decimals': int(form_data.get('decimals', 2))
+        }
+
+        # Add strategy-specific parameters
+        if 'rsi' in strategy_name.lower():
+            backtest_config.update({
+                'rsi_period': int(form_data.get('rsi_period', 14)),
+                'rsi_long_entry': int(form_data.get('rsi_long_entry', 30)),
+                'rsi_long_exit': int(form_data.get('rsi_long_exit', 70)),
+                'rsi_short_entry': int(form_data.get('rsi_short_entry', 70)),
+                'rsi_short_exit': int(form_data.get('rsi_short_exit', 30))
+            })
+        elif 'macd' in strategy_name.lower():
+            backtest_config.update({
+                'macd_fast': int(form_data.get('macd_fast', 12)),
+                'macd_slow': int(form_data.get('macd_slow', 26)),
+                'macd_signal': int(form_data.get('macd_signal', 9)),
+                'min_histogram_threshold': float(form_data.get('min_histogram_threshold', 0.0001)),
+                'macd_entry_threshold': float(form_data.get('macd_entry_threshold', 0.0015)),
+                'macd_exit_threshold': float(form_data.get('macd_exit_threshold', 0.002)),
+                'confirmation_candles': int(form_data.get('confirmation_candles', 1))
+            })
+        elif 'engulfing' in strategy_name.lower():
+            backtest_config.update({
+                'rsi_period': int(form_data.get('rsi_period', 14)),
+                'rsi_threshold': float(form_data.get('rsi_threshold', 50)),
+                'rsi_long_exit': int(form_data.get('rsi_long_exit', 70)),
+                'rsi_short_exit': int(form_data.get('rsi_short_exit', 30)),
+                'stable_candle_ratio': float(form_data.get('stable_candle_ratio', 0.5)),
+                'price_lookback_bars': int(form_data.get('price_lookback_bars', 5))
+            })
+        elif 'smart_money' in strategy_name.lower():
+            backtest_config.update({
+                'swing_lookback_period': int(form_data.get('swing_lookback_period', 25)),
+                'sweep_threshold_pct': float(form_data.get('sweep_threshold_pct', 0.1)),
+                'reversion_candles': int(form_data.get('reversion_candles', 3)),
+                'volume_spike_multiplier': float(form_data.get('volume_spike_multiplier', 2.0)),
+                'min_swing_distance_pct': float(form_data.get('min_swing_distance_pct', 1.0))
+            })
+
+        # Log the configuration being sent
+        logger.info(f"🚀 Starting backtest: {strategy_name} on {symbol} {timeframe}")
+        logger.info(f"📊 Config: {backtest_config}")
+
+        # Run backtest with properly structured configuration
+        result = web_interface.run_backtest_from_web(backtest_config)
         
         # Check if backtest was successful
         if not result.get('success'):

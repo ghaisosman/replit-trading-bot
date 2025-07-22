@@ -881,33 +881,79 @@ class BacktestWebInterface:
     def run_backtest_from_web(self, form_data: Dict[str, Any]) -> Dict[str, Any]:
         """Run backtest from web form data"""
         try:
-            # Extract form data
+            # Extract required form data
             strategy_name = form_data.get('strategy_name')
             start_date = form_data.get('start_date')
             end_date = form_data.get('end_date')
             
-            # Build configuration from form data
+            if not strategy_name:
+                return {'success': False, 'error': 'Strategy name is required'}
+            if not start_date:
+                return {'success': False, 'error': 'Start date is required'}
+            if not end_date:
+                return {'success': False, 'error': 'End date is required'}
+            
+            # Build configuration starting with template
             base_config = self.engine.strategy_configs.get(strategy_name, {}).copy()
             
-            # Update with form values
+            # Override with form values - ensure critical fields are set
             for key, value in form_data.items():
                 if key not in ['strategy_name', 'start_date', 'end_date']:
-                    # Convert to appropriate type
-                    if isinstance(base_config.get(key), float):
-                        base_config[key] = float(value)
-                    elif isinstance(base_config.get(key), int):
-                        base_config[key] = int(value)
+                    # Convert to appropriate type based on existing config
+                    if key in base_config:
+                        if isinstance(base_config[key], float):
+                            base_config[key] = float(value) if value else base_config[key]
+                        elif isinstance(base_config[key], int):
+                            base_config[key] = int(value) if value else base_config[key]
+                        else:
+                            base_config[key] = value if value else base_config[key]
                     else:
+                        # New field not in template
                         base_config[key] = value
+            
+            # Ensure critical fields are present with fallbacks
+            if 'symbol' not in base_config or not base_config['symbol']:
+                base_config['symbol'] = form_data.get('symbol', 'BTCUSDT')
+            
+            if 'timeframe' not in base_config or not base_config['timeframe']:
+                base_config['timeframe'] = form_data.get('timeframe', '15m')
+            
+            # Final validation
+            required_fields = ['symbol', 'timeframe', 'margin', 'leverage', 'max_loss_pct']
+            missing_fields = []
+            for field in required_fields:
+                if field not in base_config or base_config[field] is None:
+                    missing_fields.append(field)
+            
+            if missing_fields:
+                return {
+                    'success': False,
+                    'error': f'Configuration missing required fields: {", ".join(missing_fields)}'
+                }
+            
+            # Log the final configuration being used
+            print(f"🔍 Final backtest config: {base_config}")
             
             # Run single strategy backtest
             result = self.engine.backtest_strategy(strategy_name, base_config, start_date, end_date)
             
+            # Check if backtest failed
+            if not result.get('success', True) or 'error' in result:
+                return {
+                    'success': False,
+                    'error': result.get('error', 'Backtest execution failed'),
+                    'result': result
+                }
+            
             # Export results
-            filename = self.engine.export_results({
-                'backtest_type': 'single_strategy',
-                'result': result
-            })
+            try:
+                filename = self.engine.export_results({
+                    'backtest_type': 'single_strategy',
+                    'result': result
+                })
+            except Exception as export_error:
+                print(f"⚠️ Export failed: {export_error}")
+                filename = None
             
             return {
                 'success': True,
@@ -916,9 +962,11 @@ class BacktestWebInterface:
             }
             
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return {
                 'success': False,
-                'error': str(e)
+                'error': f'Backtest failed: {str(e)}'
             }
 
 # Web interface integration
