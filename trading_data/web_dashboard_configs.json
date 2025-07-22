@@ -58,7 +58,7 @@
     "partial_tp_position_percentage": 50.0
   },
   "smart_money_reversal": {
-    "symbol": "ETHUSDT",
+    "symbol": "SOLUSDT",
     "margin": 10.0,
     "leverage": 3,
     "timeframe": "15m",
