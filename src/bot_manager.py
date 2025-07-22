@@ -658,8 +658,20 @@ class BotManager:
                 self.logger.info(f"🛡️ POSITION RECOVERY: Found {total_recovered} positions to recover")
                 
                 # Now load recovered positions into order manager
-                for trade_id in recovery_report.get('recovered_trades', []) + recovery_report.get('matched_existing_trades', []):
+                all_recovered_items = recovery_report.get('recovered_trades', []) + recovery_report.get('matched_existing_trades', [])
+                
+                for recovery_item in all_recovered_items:
                     try:
+                        # Extract trade_id from the recovery item (which is a dictionary)
+                        if isinstance(recovery_item, dict):
+                            trade_id = recovery_item.get('trade_id')
+                        else:
+                            trade_id = recovery_item  # Fallback for string format
+                            
+                        if not trade_id:
+                            self.logger.warning(f"⚠️ Skipping recovery item with no trade_id: {recovery_item}")
+                            continue
+                        
                         # Get trade data from database
                         trade_data = trade_db.get_trade(trade_id)
                         if trade_data and trade_data.get('trade_status') == 'OPEN':
@@ -683,7 +695,7 @@ class BotManager:
                             self.logger.info(f"✅ RECOVERED POSITION | {strategy_name} | {trade_data['symbol']} | {trade_data['side']} | Entry: ${trade_data['entry_price']}")
                             
                     except Exception as e:
-                        self.logger.error(f"❌ Error recovering position {trade_id}: {e}")
+                        self.logger.error(f"❌ Error recovering position from {recovery_item}: {e}")
                         continue
                         
                 self.logger.info(f"🛡️ POSITION RECOVERY: Successfully loaded {len(self.order_manager.active_positions)} active positions")
