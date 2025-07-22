@@ -896,27 +896,41 @@ class BacktestWebInterface:
             # Build configuration starting with template
             base_config = self.engine.strategy_configs.get(strategy_name, {}).copy()
             
+            # CRITICAL: Extract symbol and timeframe FIRST from form data
+            symbol = form_data.get('symbol', '').strip().upper()
+            timeframe = form_data.get('timeframe', '').strip()
+            
+            # Set critical fields with validation
+            if symbol:
+                base_config['symbol'] = symbol
+            elif 'symbol' not in base_config or not base_config['symbol']:
+                base_config['symbol'] = 'BTCUSDT'  # Default fallback
+                
+            if timeframe:
+                base_config['timeframe'] = timeframe
+            elif 'timeframe' not in base_config or not base_config['timeframe']:
+                base_config['timeframe'] = '15m'  # Default fallback
+            
             # Override with form values - ensure critical fields are set
             for key, value in form_data.items():
-                if key not in ['strategy_name', 'start_date', 'end_date']:
+                if key not in ['strategy_name', 'start_date', 'end_date'] and value is not None and str(value).strip():
                     # Convert to appropriate type based on existing config
                     if key in base_config:
                         if isinstance(base_config[key], float):
-                            base_config[key] = float(value) if value else base_config[key]
+                            try:
+                                base_config[key] = float(value)
+                            except (ValueError, TypeError):
+                                pass  # Keep existing value
                         elif isinstance(base_config[key], int):
-                            base_config[key] = int(value) if value else base_config[key]
+                            try:
+                                base_config[key] = int(value)
+                            except (ValueError, TypeError):
+                                pass  # Keep existing value
                         else:
-                            base_config[key] = value if value else base_config[key]
+                            base_config[key] = str(value).strip()
                     else:
                         # New field not in template
                         base_config[key] = value
-            
-            # Ensure critical fields are present with fallbacks
-            if 'symbol' not in base_config or not base_config['symbol']:
-                base_config['symbol'] = form_data.get('symbol', 'BTCUSDT')
-            
-            if 'timeframe' not in base_config or not base_config['timeframe']:
-                base_config['timeframe'] = form_data.get('timeframe', '15m')
             
             # Final validation
             required_fields = ['symbol', 'timeframe', 'margin', 'leverage', 'max_loss_pct']

@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,11 +15,11 @@
             margin-top: 20px;
             background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%);
         }
-        
+
         .strategy-config-section.active {
             display: block;
         }
-        
+
         .config-group {
             background: white;
             padding: 15px;
@@ -28,7 +27,7 @@
             border-radius: 5px;
             border-left: 4px solid #28a745;
         }
-        
+
         .results-section {
             margin-top: 30px;
             padding: 20px;
@@ -36,7 +35,7 @@
             border-radius: 8px;
             display: none;
         }
-        
+
         .trade-result {
             background: white;
             margin: 10px 0;
@@ -44,22 +43,22 @@
             border-radius: 5px;
             border-left: 4px solid #17a2b8;
         }
-        
+
         .trade-result.profitable {
             border-left-color: #28a745;
         }
-        
+
         .trade-result.loss {
             border-left-color: #dc3545;
         }
-        
+
         .performance-metrics {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
             margin: 20px 0;
         }
-        
+
         .metric-card {
             background: white;
             padding: 15px;
@@ -67,21 +66,21 @@
             text-align: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        
+
         .metric-value {
             font-size: 1.5em;
             font-weight: bold;
             margin: 5px 0;
         }
-        
+
         .metric-value.positive {
             color: #28a745;
         }
-        
+
         .metric-value.negative {
             color: #dc3545;
         }
-        
+
         .loading-spinner {
             display: none;
             text-align: center;
@@ -147,11 +146,46 @@
                                     </div>
                                 </div>
                             </div>
+							<!-- Basic Configuration -->
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="symbol" class="form-label">
+                                            <strong>Trading Symbol</strong>
+                                        </label>
+                                        <select class="form-control" id="symbol" name="symbol" required>
+                                            <option value="">Select Symbol</option>
+                                            <option value="BTCUSDT" selected>BTCUSDT</option>
+                                            <option value="ETHUSDT">ETHUSDT</option>
+                                            <option value="SOLUSDT">SOLUSDT</option>
+                                            <option value="XRPUSDT">XRPUSDT</option>
+                                            <option value="BCHUSDT">BCHUSDT</option>
+                                        </select>
+                                        <div class="form-text">Choose the trading pair to test</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="timeframe" class="form-label">
+                                            <strong>Timeframe</strong>
+                                        </label>
+                                        <select class="form-control" id="timeframe" name="timeframe" required>
+                                            <option value="">Select Timeframe</option>
+                                            <option value="5m">5 minutes</option>
+                                            <option value="15m" selected>15 minutes</option>
+                                            <option value="30m">30 minutes</option>
+                                            <option value="1h">1 hour</option>
+                                            <option value="4h">4 hours</option>
+                                        </select>
+                                        <div class="form-text">Chart timeframe for analysis</div>
+                                    </div>
+                                </div>
+                            </div>
 
                             <!-- RSI Strategy Configuration -->
                             <div id="rsi_oversold_config" class="strategy-config-section">
                                 <h5><i class="fas fa-chart-line"></i> RSI Oversold Strategy Configuration</h5>
-                                
+
                                 <div class="config-group">
                                     <h6>Trading Parameters</h6>
                                     <div class="row">
@@ -224,7 +258,7 @@
                             <!-- MACD Strategy Configuration -->
                             <div id="macd_divergence_config" class="strategy-config-section">
                                 <h5><i class="fas fa-wave-square"></i> MACD Divergence Strategy Configuration</h5>
-                                
+
                                 <div class="config-group">
                                     <h6>Trading Parameters</h6>
                                     <div class="row">
@@ -297,7 +331,7 @@
                             <!-- Engulfing Pattern Strategy Configuration -->
                             <div id="engulfing_pattern_config" class="strategy-config-section">
                                 <h5><i class="fas fa-chart-bar"></i> Engulfing Pattern Strategy Configuration</h5>
-                                
+
                                 <div class="config-group">
                                     <h6>Trading Parameters</h6>
                                     <div class="row">
@@ -347,7 +381,7 @@
                             <!-- Smart Money Strategy Configuration -->
                             <div id="smart_money_config" class="strategy-config-section">
                                 <h5><i class="fas fa-brain"></i> Smart Money Strategy Configuration</h5>
-                                
+
                                 <div class="config-group">
                                     <h6>Trading Parameters</h6>
                                     <div class="row">
@@ -418,7 +452,7 @@
                 <!-- Results Section -->
                 <div id="resultsSection" class="results-section">
                     <h4><i class="fas fa-chart-area"></i> Backtest Results</h4>
-                    
+
                     <!-- Performance Metrics -->
                     <div id="performanceMetrics" class="performance-metrics">
                         <!-- Metrics will be populated here -->
@@ -486,7 +520,7 @@
         async function runBacktest() {
             const formData = new FormData(document.getElementById('backtestForm'));
             const strategy = document.getElementById('strategySelect').value;
-            
+
             if (!strategy) {
                 alert('Please select a strategy to test');
                 return;
@@ -523,7 +557,7 @@
                 });
 
                 const result = await response.json();
-                
+
                 if (result.success) {
                     currentResults = result.result;
                     displayResults(result.result);
@@ -558,7 +592,7 @@
 
         function displayPerformanceMetrics(performance) {
             const metricsContainer = document.getElementById('performanceMetrics');
-            
+
             const metrics = [
                 { label: 'Total Trades', value: performance.total_trades, type: 'neutral' },
                 { label: 'Win Rate', value: performance.win_rate.toFixed(1) + '%', type: performance.win_rate >= 50 ? 'positive' : 'negative' },
@@ -581,7 +615,7 @@
 
         function displayTradeDetails(trades) {
             const tradesContainer = document.getElementById('tradeDetails');
-            
+
             if (!trades || trades.length === 0) {
                 tradesContainer.innerHTML = '<p class="text-muted">No trades executed during the backtest period.</p>';
                 return;
@@ -590,7 +624,7 @@
             tradesContainer.innerHTML = trades.map((trade, index) => {
                 const pnlClass = trade.pnl_usdt >= 0 ? 'profitable' : 'loss';
                 const pnlIcon = trade.pnl_usdt >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
-                
+
                 return `
                     <div class="trade-result ${pnlClass}">
                         <div class="row">
@@ -646,7 +680,7 @@
 
             const dataStr = JSON.stringify(currentResults, null, 2);
             const dataBlob = new Blob([dataStr], {type: 'application/json'});
-            
+
             const link = document.createElement('a');
             link.href = URL.createObjectURL(dataBlob);
             link.download = `backtest_results_${new Date().toISOString().split('T')[0]}.json`;

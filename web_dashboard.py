@@ -2287,12 +2287,21 @@ def run_backtest():
         if not form_data:
             return jsonify({'success': False, 'error': 'No configuration data provided. Please fill out the backtest form.'})
 
-        # Extract and validate core fields
-        strategy_name = form_data.get('strategy_name')
-        start_date = form_data.get('start_date')
-        end_date = form_data.get('end_date')
-        symbol = form_data.get('symbol')
-        timeframe = form_data.get('timeframe')
+        # Extract and validate core fields with debug logging
+        strategy_name = form_data.get('strategy_name', '').strip()
+        start_date = form_data.get('start_date', '').strip()
+        end_date = form_data.get('end_date', '').strip()
+        symbol = form_data.get('symbol', '').strip().upper()
+        timeframe = form_data.get('timeframe', '').strip()
+
+        # Debug logging
+        logger.info(f"🔍 Backtest form data received:")
+        logger.info(f"   Strategy: '{strategy_name}'")
+        logger.info(f"   Symbol: '{symbol}'")
+        logger.info(f"   Timeframe: '{timeframe}'")
+        logger.info(f"   Start Date: '{start_date}'")
+        logger.info(f"   End Date: '{end_date}'")
+        logger.info(f"   All form keys: {list(form_data.keys())}")
 
         # Validate required fields
         if not strategy_name:
@@ -2302,9 +2311,9 @@ def run_backtest():
         if not end_date:
             return jsonify({'success': False, 'error': 'End date is required'})
         if not symbol:
-            return jsonify({'success': False, 'error': 'Symbol is required'})
+            return jsonify({'success': False, 'error': 'Symbol is required - please select a trading pair'})
         if not timeframe:
-            return jsonify({'success': False, 'error': 'Timeframe is required'})
+            return jsonify({'success': False, 'error': 'Timeframe is required - please select a timeframe'})
 
         # Validate date format
         try:
