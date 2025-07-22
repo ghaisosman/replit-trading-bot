@@ -553,19 +553,29 @@ class BacktestEngine:
                 if current_position:
                     try:
                         exit_result = self._check_exit_conditions(
-                            current_position, current_data, current_price, strategy_handler, config
+                            current_position, df, i, strategy_handler, config
                         )
 
                         if exit_result:
-                            # Close position
+                            # Use the exact exit price from stop loss calculation
+                            exit_price = exit_result.get('exit_price', current_price)
+                            
+                            # Close position with accurate exit price
                             trade_result = self._close_position(
-                                current_position, current_price, current_time, exit_result['reason']
+                                current_position, exit_price, current_time, exit_result['reason']
                             )
+                            
+                            # Override PnL if we have more accurate calculation from exit conditions
+                            if 'pnl_usdt' in exit_result:
+                                trade_result['pnl_usdt'] = exit_result['pnl_usdt']
+                                trade_result['pnl_percentage'] = exit_result['pnl_percentage']
+                            
                             trades.append(trade_result)
                             current_position = None
                             last_trade_exit_time = current_time
 
-                            self.logger.info(f"📊 Trade #{len(trades)} closed: {trade_result['exit_reason']} | PnL: ${trade_result['pnl_usdt']:.2f}")
+                            intrabar_info = " (INTRABAR)" if exit_result.get('intrabar_trigger', False) else ""
+                            self.logger.info(f"📊 Trade #{len(trades)} closed{intrabar_info}: {trade_result['exit_reason']} | PnL: ${trade_result['pnl_usdt']:.2f}")
                             continue
                     except Exception as exit_error:
                         self.logger.error(f"Error checking exit conditions: {exit_error}")
@@ -776,10 +786,16 @@ class BacktestEngine:
             traceback.print_exc()
             return None
 
-    def _check_exit_conditions(self, position: Dict, df: pd.DataFrame, current_price: float, 
+    def _check_exit_conditions(self, position: Dict, df: pd.DataFrame, current_candle_index: int, 
                               strategy_handler, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Check exit conditions for current position with ACCURATE stop loss enforcement"""
+        """Check exit conditions for current position with ACCURATE stop loss enforcement including intrabar movements"""
         try:
+            # Get current candle data
+            current_candle = df.iloc[current_candle_index]
+            current_price = current_candle['close']
+            candle_high = current_candle['high']
+            candle_low = current_candle['low']
+
             # CRITICAL: Get actual margin used for this position (not config margin)
             actual_margin_used = position.get('actual_margin_used') or position.get('margin_used')
 
@@ -789,52 +805,57 @@ class BacktestEngine:
                 self.logger.warning(f"⚠️ Using fallback margin ${actual_margin_used:.2f} - actual margin not found")
 
             max_loss_pct = config.get('max_loss_pct', 10.0)
-            leverage = config.get('leverage', 5)
-
-            # Calculate current PnL correctly
             entry_price = position['entry_price']
             quantity = position['quantity']
             side = position['side']
+            stop_loss_price = position.get('stop_loss')
 
-            # Calculate PnL in USDT
+            # CRITICAL: Check intrabar stop loss breach using candle high/low
+            stop_loss_triggered_intrabar = False
+            exit_price_for_sl = current_price  # Default to close price
+
+            if stop_loss_price is not None:
+                if side == 'BUY':
+                    # LONG: Check if candle low touched or breached stop loss
+                    if candle_low <= stop_loss_price:
+                        stop_loss_triggered_intrabar = True
+                        exit_price_for_sl = stop_loss_price  # Exit exactly at stop loss price
+                        self.logger.info(f"🛑 INTRABAR STOP LOSS HIT | LONG | Low: ${candle_low:.4f} <= SL: ${stop_loss_price:.4f}")
+                elif side == 'SELL':
+                    # SHORT: Check if candle high touched or breached stop loss
+                    if candle_high >= stop_loss_price:
+                        stop_loss_triggered_intrabar = True
+                        exit_price_for_sl = stop_loss_price  # Exit exactly at stop loss price
+                        self.logger.info(f"🛑 INTRABAR STOP LOSS HIT | SHORT | High: ${candle_high:.4f} >= SL: ${stop_loss_price:.4f}")
+
+            # Calculate PnL using the appropriate exit price
             if side == 'BUY':
-                pnl_usdt = (current_price - entry_price) * quantity
+                pnl_usdt = (exit_price_for_sl - entry_price) * quantity
             else:  # SELL
-                pnl_usdt = (entry_price - current_price) * quantity
+                pnl_usdt = (entry_price - exit_price_for_sl) * quantity
 
             # CRITICAL: Calculate PnL percentage against ACTUAL margin invested (exactly like live trading)
             pnl_percentage = (pnl_usdt / actual_margin_used) * 100
 
-            # ENHANCED: Also check stop loss price directly for validation
-            stop_loss_price = position.get('stop_loss')
-            stop_loss_triggered_by_price = False
-
-            if stop_loss_price is not None:
-                if side == 'BUY' and current_price <= stop_loss_price:
-                    stop_loss_triggered_by_price = True
-                elif side == 'SELL' and current_price >= stop_loss_price:
-                    stop_loss_triggered_by_price = True
-
-            # CRITICAL: Stop loss check matches live trading exactly - percentage based on actual margin
-            if pnl_percentage <= -max_loss_pct or stop_loss_triggered_by_price:
-                if pnl_percentage <= -max_loss_pct:
-                    reason = f'Stop Loss (Max Loss {max_loss_pct}%)'
+            # CRITICAL: Stop loss check - either by intrabar trigger OR percentage
+            if stop_loss_triggered_intrabar or pnl_percentage <= -max_loss_pct:
+                if stop_loss_triggered_intrabar:
+                    reason = f'Stop Loss (Price Hit: ${stop_loss_price:.4f})'
                 else:
-                    # Only format stop_loss_price if it's not None
-                    reason = f'Stop Loss (Price: ${stop_loss_price:.4f})' if stop_loss_price is not None else 'Stop Loss (Price Check)'
+                    reason = f'Stop Loss (Max Loss {max_loss_pct}%)'
 
-                self.logger.info(f"🛑 STOP LOSS TRIGGERED | {side} | Entry: ${entry_price:.4f} | Current: ${current_price:.4f}")
+                self.logger.info(f"🛑 STOP LOSS TRIGGERED | {side} | Entry: ${entry_price:.4f} | Exit: ${exit_price_for_sl:.4f}")
                 self.logger.info(f"   💰 PnL: ${pnl_usdt:.2f} ({pnl_percentage:.2f}%) | Margin: ${actual_margin_used:.2f}")
-                
-                # Safe logging of stop loss price
-                sl_price_str = f"${stop_loss_price:.4f}" if stop_loss_price is not None else "None"
-                self.logger.info(f"   🎯 SL Price: {sl_price_str} | Price Trigger: {stop_loss_triggered_by_price}")
+                self.logger.info(f"   🎯 SL Price: ${stop_loss_price:.4f} | Intrabar Hit: {stop_loss_triggered_intrabar}")
+                self.logger.info(f"   📊 Candle: H=${candle_high:.4f} L=${candle_low:.4f} C=${current_price:.4f}")
 
                 return {
                     'reason': reason,
                     'type': 'stop_loss',
                     'pnl_percentage': pnl_percentage,
-                    'pnl_usdt': pnl_usdt
+                    'pnl_usdt': pnl_usdt,
+                    'exit_price': exit_price_for_sl,  # Use actual stop loss price if triggered
+                    'intrabar_trigger': stop_loss_triggered_intrabar
                 }
 
             # Check partial take profit if enabled
@@ -937,9 +958,10 @@ class BacktestEngine:
             return None
 
     def _open_position(self, signal: TradingSignal, price: float, timestamp: datetime, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Open a new position"""
+        """Open a new position with proper stop loss price calculation"""
         margin = config.get('margin', 50.0)
         leverage = config.get('leverage', 5)
+        max_loss_pct = config.get('max_loss_pct', 10.0)
 
         # Calculate position size - quantity should represent the actual coins/tokens
         # For futures trading: notional_value = margin * leverage, quantity = notional_value / price
@@ -950,7 +972,20 @@ class BacktestEngine:
         if quantity <= 0:
             raise ValueError(f"Invalid quantity calculated: {quantity}")
 
+        # CRITICAL: Calculate exact stop loss price based on margin and max loss percentage
+        max_loss_amount = margin * (max_loss_pct / 100)
+        stop_loss_price_pct = (max_loss_amount / notional_value) * 100
+
+        # Calculate stop loss price based on position side
+        if signal.signal_type.value == 'BUY':
+            # LONG: Stop loss below entry price
+            stop_loss_price = price * (1 - stop_loss_price_pct / 100)
+        else:  # SELL
+            # SHORT: Stop loss above entry price
+            stop_loss_price = price * (1 + stop_loss_price_pct / 100)
+
         self.logger.info(f"📊 Position Details: Margin=${margin} | Leverage={leverage}x | Notional=${notional_value} | Price=${price} | Qty={quantity:.8f}")
+        self.logger.info(f"🎯 Stop Loss Price: ${stop_loss_price:.4f} (Max Loss: ${max_loss_amount:.2f} = {max_loss_pct}% of margin)")
 
         return {
             'entry_time': timestamp,
@@ -961,7 +996,10 @@ class BacktestEngine:
             'leverage': leverage,
             'notional_value': notional_value,
             'entry_reason': signal.reason,
-            'partial_tp_triggered': False
+            'partial_tp_triggered': False,
+            'stop_loss': stop_loss_price,  # CRITICAL: Always set stop loss price
+            'max_loss_pct': max_loss_pct,
+            'actual_margin_used': margin  # Store actual margin for PnL calculations
         }
 
     def _close_position(self, position: Dict, price: float, timestamp: datetime, reason: str) -> Dict[str, Any]:

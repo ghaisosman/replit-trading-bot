@@ -143,7 +143,7 @@ class SignalProcessor:
 
                 self.logger.info(f"🟢 RSI LONG SIGNAL | Entry: ${current_price:.4f} | SL: ${stop_loss:.4f} | Max Loss: ${max_loss_usdt:.2f} USDT")
 
-                return TradingSignal(
+                signal = TradingSignal(
                     signal_type=SignalType.BUY,
                     confidence=0.8,
                     entry_price=current_price,
@@ -151,6 +151,11 @@ class SignalProcessor:
                     take_profit=take_profit,
                     reason=f"RSI LONG ENTRY at {rsi_current:.2f} (RSI <= {rsi_long_entry})"
                 )
+                # Add margin info to signal for accurate position sizing
+                signal.margin = margin
+                signal.leverage = leverage
+                signal.max_loss_pct = max_loss_pct
+                return signal
 
             # Short signal: RSI reaches configured entry level
             elif rsi_current >= rsi_short_entry:
@@ -160,7 +165,7 @@ class SignalProcessor:
 
                 self.logger.info(f"🔴 RSI SHORT SIGNAL | Entry: ${current_price:.4f} | SL: ${stop_loss:.4f} | Max Loss: ${max_loss_usdt:.2f} USDT")
 
-                return TradingSignal(
+                signal = TradingSignal(
                     signal_type=SignalType.SELL,
                     confidence=0.8,
                     entry_price=current_price,
@@ -168,6 +173,11 @@ class SignalProcessor:
                     take_profit=take_profit,
                     reason=f"RSI SHORT ENTRY at {rsi_current:.2f} (RSI >= {rsi_short_entry})"
                 )
+                # Add margin info to signal for accurate position sizing
+                signal.margin = margin
+                signal.leverage = leverage
+                signal.max_loss_pct = max_loss_pct
+                return signal
 
             return None
 
