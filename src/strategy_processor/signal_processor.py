@@ -50,7 +50,7 @@ class SignalProcessor:
             elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
                 # Smart Money strategy is handled directly by the strategy class
                 # Signal processor doesn't need to generate signals for it
-                return None
+                return self._evaluate_smart_money(df, current_price, strategy_config)
             else:
                 self.logger.warning(f"Unknown strategy type: {strategy_name}")
                 return None
@@ -193,6 +193,71 @@ class SignalProcessor:
 
         except Exception as e:
             self.logger.error(f"Error in Engulfing Pattern evaluation: {e}")
+            return None
+
+    def _evaluate_smart_money(self, df: pd.DataFrame, current_price: float, config: Dict) -> Optional[TradingSignal]:
+        """Smart Money strategy evaluation"""
+        try:
+            from src.execution_engine.strategies.smart_money_strategy import SmartMoneyStrategy
+
+            strategy_name = config.get('name', 'smart_money')
+            strategy = SmartMoneyStrategy(strategy_name, config)
+
+            # Calculate indicators
+            df_with_indicators = strategy.calculate_indicators(df.copy())
+
+            # Evaluate signal
+            signal = strategy.evaluate_entry_signal(df_with_indicators)
+
+            return signal
+
+        except ImportError:
+            self.logger.warning(f"Smart Money strategy not available - creating placeholder evaluation")
+
+            # Placeholder Smart Money logic based on available indicators
+            if 'rsi' in df.columns and 'sma_20' in df.columns:
+                rsi_current = df['rsi'].iloc[-1]
+                sma_20_current = df['sma_20'].iloc[-1]
+
+                margin = config.get('margin', 75.0)
+                leverage = config.get('leverage', 3)
+                max_loss_pct = config.get('max_loss_pct', 15)
+
+                max_loss_amount = margin * (max_loss_pct / 100)
+                notional_value = margin * leverage
+                stop_loss_pct = (max_loss_amount / notional_value) * 100
+
+                # Simple Smart Money logic: Price above SMA20 + RSI conditions
+                if current_price > sma_20_current and rsi_current < 40:
+                    stop_loss = current_price * (1 - stop_loss_pct / 100)
+                    take_profit = current_price * 1.04
+
+                    return TradingSignal(
+                        signal_type=SignalType.BUY,
+                        confidence=0.7,
+                        entry_price=current_price,
+                        stop_loss=stop_loss,
+                        take_profit=take_profit,
+                        reason=f"SMART MONEY LONG: Price > SMA20 + RSI {rsi_current:.1f} < 40"
+                    )
+
+                elif current_price < sma_20_current and rsi_current > 60:
+                    stop_loss = current_price * (1 + stop_loss_pct / 100)
+                    take_profit = current_price * 0.96
+
+                    return TradingSignal(
+                        signal_type=SignalType.SELL,
+                        confidence=0.7,
+                        entry_price=current_price,
+                        stop_loss=stop_loss,
+                        take_profit=take_profit,
+                        reason=f"SMART MONEY SHORT: Price < SMA20 + RSI {rsi_current:.1f} > 60"
+                    )
+
+            return None
+
+        except Exception as e:
+            self.logger.error(f"Error in Smart Money evaluation: {e}")
             return None
 
     def evaluate_exit_conditions(self, df: pd.DataFrame, position: Dict, strategy_config: Dict) -> bool:

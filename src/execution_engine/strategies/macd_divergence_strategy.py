@@ -25,7 +25,7 @@ class MACDDivergenceStrategy:
         self.config = config
         self.logger = logging.getLogger(__name__)
 
-        # Extract strategy-specific parameters
+        # Extract strategy-specific parameters with debug logging
         self.macd_fast = config.get('macd_fast', 12)
         self.macd_slow = config.get('macd_slow', 26)
         self.macd_signal = config.get('macd_signal', 9)
@@ -33,6 +33,18 @@ class MACDDivergenceStrategy:
         self.entry_threshold = config.get('macd_entry_threshold', config.get('min_distance_threshold', 0.0015))
         self.exit_threshold = config.get('macd_exit_threshold', 0.002)
         self.confirmation_candles = config.get('confirmation_candles', 1)
+        
+        # Debug: Log actual configuration values received
+        self.logger.info(f"🔍 MACD CONFIG DEBUG:")
+        for key, value in config.items():
+            if 'macd' in key.lower() or key in ['margin', 'leverage', 'max_loss_pct']:
+                self.logger.info(f"   {key}: {value}")
+        
+        # Validate configuration
+        if self.macd_fast >= self.macd_slow:
+            self.logger.warning(f"⚠️ Invalid MACD config: fast({self.macd_fast}) >= slow({self.macd_slow}), using defaults")
+            self.macd_fast = 12
+            self.macd_slow = 26
 
         self.logger.info(f"🆕 MACD DIVERGENCE STRATEGY INITIALIZED: {strategy_name}")
         self.logger.info(f"📊 Config: Fast={self.macd_fast}, Slow={self.macd_slow}, Signal={self.macd_signal}")
@@ -44,11 +56,19 @@ class MACDDivergenceStrategy:
             if df.empty or len(df) < max(50, self.macd_slow + self.macd_signal):
                 return df
 
+            self.logger.debug(f"🔧 Calculating MACD with parameters: Fast={self.macd_fast}, Slow={self.macd_slow}, Signal={self.macd_signal}")
+
             df['ema_fast'] = df['close'].ewm(span=self.macd_fast).mean()
             df['ema_slow'] = df['close'].ewm(span=self.macd_slow).mean()
             df['macd'] = df['ema_fast'] - df['ema_slow']
             df['macd_signal'] = df['macd'].ewm(span=self.macd_signal).mean()
             df['macd_histogram'] = df['macd'] - df['macd_signal']
+
+            # Validate calculations
+            if df['macd'].isna().all():
+                self.logger.error("❌ MACD calculation failed - all NaN values")
+            else:
+                self.logger.debug(f"✅ MACD calculated - range: {df['macd'].min():.6f} to {df['macd'].max():.6f}")
 
             return df
 

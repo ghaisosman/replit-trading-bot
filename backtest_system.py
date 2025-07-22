@@ -308,8 +308,33 @@ class BacktestEngine:
                 if df_with_indicators is None or df_with_indicators.empty:
                     raise Exception("Indicator calculation failed - no data returned")
                 df = df_with_indicators
+                
+                # Validate that we have all required indicators
+                self.logger.info(f"📊 Available indicators: {list(df.columns)}")
+                
             except Exception as indicator_error:
                 raise Exception(f"Failed to calculate indicators: {indicator_error}")
+
+            # Add strategy-specific indicators if needed
+            try:
+                # Ensure MACD indicators are calculated
+                if 'macd' not in df.columns:
+                    self.logger.info("🔧 Calculating MACD indicators...")
+                    df = self._calculate_macd_indicators(df)
+                
+                # Ensure additional indicators for Smart Money
+                if 'sma_20' not in df.columns:
+                    self.logger.info("🔧 Calculating SMA indicators...")
+                    df['sma_20'] = df['close'].rolling(window=20).mean()
+                
+                if 'ema_50' not in df.columns:
+                    self.logger.info("🔧 Calculating EMA indicators...")
+                    df['ema_50'] = df['close'].ewm(span=50).mean()
+                    
+                self.logger.info(f"📊 Final indicators available: {list(df.columns)}")
+                
+            except Exception as additional_indicator_error:
+                self.logger.warning(f"⚠️ Failed to calculate additional indicators: {additional_indicator_error}")
 
             # Final validation
             actual_data_range = f"{df.index[0].strftime('%Y-%m-%d')} to {df.index[-1].strftime('%Y-%m-%d')}"
@@ -348,6 +373,34 @@ class BacktestEngine:
             '1d': 24 * 60 * 60 * 1000
         }
         return interval_map.get(interval, 15 * 60 * 1000)
+
+    def _calculate_macd_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Calculate MACD indicators manually if not present"""
+        try:
+            # Default MACD parameters
+            fast = 12
+            slow = 26
+            signal = 9
+            
+            # Calculate EMAs
+            ema_fast = df['close'].ewm(span=fast).mean()
+            ema_slow = df['close'].ewm(span=slow).mean()
+            
+            # Calculate MACD line
+            df['macd'] = ema_fast - ema_slow
+            
+            # Calculate Signal line
+            df['macd_signal'] = df['macd'].ewm(span=signal).mean()
+            
+            # Calculate Histogram
+            df['macd_histogram'] = df['macd'] - df['macd_signal']
+            
+            self.logger.info(f"✅ MACD indicators calculated successfully")
+            return df
+            
+        except Exception as e:
+            self.logger.error(f"❌ Failed to calculate MACD indicators: {e}")
+            return df
 
     def backtest_strategy(self, strategy_name: str, config: Dict[str, Any], start_date: str, end_date: str) -> Dict[str, Any]:
         """Backtest a specific strategy with given configuration"""
@@ -541,19 +594,31 @@ class BacktestEngine:
 
     def _get_strategy_handler(self, strategy_name: str, config: Dict[str, Any]):
         """Get strategy-specific handler"""
-        if 'macd' in strategy_name.lower():
-            return MACDDivergenceStrategy(strategy_name, config)
-        elif 'engulfing' in strategy_name.lower():
-            return EngulfingPatternStrategy(strategy_name, config)
-        elif 'smart_money' in strategy_name.lower():
-            # Import Smart Money strategy if available
-            try:
-                from src.execution_engine.strategies.smart_money_strategy import SmartMoneyStrategy
-                return SmartMoneyStrategy(strategy_name, config)
-            except ImportError:
+        try:
+            if 'macd' in strategy_name.lower():
+                handler = MACDDivergenceStrategy(strategy_name, config)
+                self.logger.info(f"✅ Initialized MACD strategy handler for {strategy_name}")
+                return handler
+            elif 'engulfing' in strategy_name.lower():
+                handler = EngulfingPatternStrategy(strategy_name, config)
+                self.logger.info(f"✅ Initialized Engulfing Pattern strategy handler for {strategy_name}")
+                return handler
+            elif 'smart_money' in strategy_name.lower():
+                # Import Smart Money strategy if available
+                try:
+                    from src.execution_engine.strategies.smart_money_strategy import SmartMoneyStrategy
+                    handler = SmartMoneyStrategy(strategy_name, config)
+                    self.logger.info(f"✅ Initialized Smart Money strategy handler for {strategy_name}")
+                    return handler
+                except ImportError:
+                    self.logger.warning(f"⚠️ Smart Money strategy not available, will use signal processor")
+                    return None
+            else:
+                # RSI and other strategies use signal processor
+                self.logger.info(f"✅ Using signal processor for {strategy_name}")
                 return None
-        else:
-            # RSI and other strategies use signal processor
+        except Exception as e:
+            self.logger.error(f"❌ Failed to initialize strategy handler for {strategy_name}: {e}")
             return None
 
     def _get_required_indicators(self, strategy_name: str) -> List[str]:
@@ -570,14 +635,37 @@ class BacktestEngine:
     def _check_entry_conditions(self, df: pd.DataFrame, strategy_handler, config: Dict[str, Any]) -> Optional[TradingSignal]:
         """Check entry conditions for strategy"""
         try:
+            strategy_name = config.get('name', 'unknown')
+            
             if strategy_handler and hasattr(strategy_handler, 'evaluate_entry_signal'):
                 # Use strategy-specific entry evaluation
-                return strategy_handler.evaluate_entry_signal(df)
+                self.logger.debug(f"🔄 Using strategy handler for {strategy_name} entry evaluation")
+                
+                # Ensure strategy has proper indicators
+                if hasattr(strategy_handler, 'calculate_indicators'):
+                    df_with_strategy_indicators = strategy_handler.calculate_indicators(df.copy())
+                    signal = strategy_handler.evaluate_entry_signal(df_with_strategy_indicators)
+                else:
+                    signal = strategy_handler.evaluate_entry_signal(df)
+                
+                if signal:
+                    self.logger.info(f"✅ Strategy handler generated signal for {strategy_name}: {signal.signal_type.value}")
+                
+                return signal
             else:
                 # Use signal processor for RSI and other strategies
-                return self.signal_processor.evaluate_entry_conditions(df, config)
+                self.logger.debug(f"🔄 Using signal processor for {strategy_name} entry evaluation")
+                signal = self.signal_processor.evaluate_entry_conditions(df, config)
+                
+                if signal:
+                    self.logger.info(f"✅ Signal processor generated signal for {strategy_name}: {signal.signal_type.value}")
+                
+                return signal
+                
         except Exception as e:
             self.logger.error(f"Error checking entry conditions: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def _check_exit_conditions(self, position: Dict, df: pd.DataFrame, current_price: float, 
@@ -629,51 +717,80 @@ class BacktestEngine:
 
             # Check strategy-specific exit conditions
             if strategy_handler and hasattr(strategy_handler, 'evaluate_exit_signal'):
-                exit_reason = strategy_handler.evaluate_exit_signal(df, position)
-                if exit_reason:
-                    return {
-                        'reason': exit_reason,
-                        'type': 'strategy_exit'
-                    }
-            else:
-                # Use signal processor for RSI and other strategies
                 try:
-                    # Get current RSI for exit conditions
-                    if 'rsi' in df.columns and len(df) > 0:
-                        current_rsi = df['rsi'].iloc[-1]
-
-                        # RSI exit conditions for RSI-based strategies
-                        if 'rsi' in config.get('name', '').lower():
-                            rsi_long_exit = config.get('rsi_long_exit', 70)
-                            rsi_short_exit = config.get('rsi_short_exit', 30)
-
-                            # Long position: exit when RSI reaches overbought
-                            if side == 'BUY' and current_rsi >= rsi_long_exit:
-                                return {
-                                    'reason': f'Take Profit (RSI {rsi_long_exit}+)',
-                                    'type': 'strategy_exit'
-                                }
-
-                            # Short position: exit when RSI reaches oversold
-                            elif side == 'SELL' and current_rsi <= rsi_short_exit:
-                                return {
-                                    'reason': f'Take Profit (RSI {rsi_short_exit}-)',
-                                    'type': 'strategy_exit'
-                                }
-
-                except Exception as e:
-                    self.logger.error(f"Error in strategy exit evaluation: {e}")
-
-                # Fallback to signal processor
-                try:
-                    exit_reason = self.signal_processor.evaluate_exit_conditions(df, position, config)
+                    # Ensure strategy has proper indicators for exit evaluation
+                    if hasattr(strategy_handler, 'calculate_indicators'):
+                        df_with_strategy_indicators = strategy_handler.calculate_indicators(df.copy())
+                        exit_reason = strategy_handler.evaluate_exit_signal(df_with_strategy_indicators, position)
+                    else:
+                        exit_reason = strategy_handler.evaluate_exit_signal(df, position)
+                        
                     if exit_reason:
+                        self.logger.debug(f"🔄 Strategy handler exit: {exit_reason}")
                         return {
                             'reason': exit_reason,
                             'type': 'strategy_exit'
                         }
                 except Exception as e:
-                    self.logger.error(f"Error in signal processor exit evaluation: {e}")
+                    self.logger.error(f"Error in strategy handler exit evaluation: {e}")
+
+            # Use signal processor or manual exit conditions
+            try:
+                # Get current values for exit evaluation
+                strategy_name = config.get('name', '').lower()
+                
+                # RSI-based exit conditions
+                if 'rsi' in df.columns and len(df) > 0:
+                    current_rsi = df['rsi'].iloc[-1]
+
+                    # RSI exit conditions for RSI-based strategies
+                    if 'rsi' in strategy_name:
+                        rsi_long_exit = config.get('rsi_long_exit', 70)
+                        rsi_short_exit = config.get('rsi_short_exit', 30)
+
+                        # Long position: exit when RSI reaches overbought
+                        if side == 'BUY' and current_rsi >= rsi_long_exit:
+                            return {
+                                'reason': f'Take Profit (RSI {rsi_long_exit}+)',
+                                'type': 'strategy_exit'
+                            }
+
+                        # Short position: exit when RSI reaches oversold
+                        elif side == 'SELL' and current_rsi <= rsi_short_exit:
+                            return {
+                                'reason': f'Take Profit (RSI {rsi_short_exit}-)',
+                                'type': 'strategy_exit'
+                            }
+
+                # Smart Money exit conditions
+                elif 'smart_money' in strategy_name and 'sma_20' in df.columns:
+                    current_sma20 = df['sma_20'].iloc[-1]
+                    
+                    # Exit when price crosses back through SMA20
+                    if side == 'BUY' and current_price < current_sma20:
+                        return {
+                            'reason': 'Smart Money Exit (Price < SMA20)',
+                            'type': 'strategy_exit'
+                        }
+                    elif side == 'SELL' and current_price > current_sma20:
+                        return {
+                            'reason': 'Smart Money Exit (Price > SMA20)',
+                            'type': 'strategy_exit'
+                        }
+
+            except Exception as e:
+                self.logger.error(f"Error in manual exit evaluation: {e}")
+
+            # Fallback to signal processor
+            try:
+                exit_reason = self.signal_processor.evaluate_exit_conditions(df, position, config)
+                if exit_reason:
+                    return {
+                        'reason': exit_reason,
+                        'type': 'strategy_exit'
+                    }
+            except Exception as e:
+                self.logger.error(f"Error in signal processor exit evaluation: {e}")
 
             return None
 
