@@ -477,18 +477,6 @@ class TradingConfigManager:
                     strategies[strategy_name].setdefault('macd_entry_threshold', 0.05)
                     strategies[strategy_name].setdefault('macd_exit_threshold', 0.02)
 
-                # Smart Money Strategy Specific Parameters
-                elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
-                    strategies[strategy_name].setdefault('swing_lookback_period', 25)
-                    strategies[strategy_name].setdefault('sweep_threshold_pct', 0.1)
-                    strategies[strategy_name].setdefault('reversion_candles', 3)
-                    strategies[strategy_name].setdefault('volume_spike_multiplier', 2.0)
-                    strategies[strategy_name].setdefault('min_swing_distance_pct', 1.0)
-                    strategies[strategy_name].setdefault('max_daily_trades', 3)
-                    strategies[strategy_name].setdefault('session_filter_enabled', True)
-                    strategies[strategy_name].setdefault('allowed_sessions', ['LONDON', 'NEW_YORK'])
-                    strategies[strategy_name].setdefault('trend_filter_enabled', True)
-
                 # Liquidity Reversal Strategy Specific Parameters
                 elif 'liquidity' in strategy_name.lower() or 'reversal' in strategy_name.lower():
                     strategies[strategy_name].setdefault('lookback_candles', 100)
@@ -559,27 +547,7 @@ class TradingConfigManager:
                 'divergence_strength_min': 0.4,
                 'macd_entry_threshold': 0.05,
                 'macd_exit_threshold': 0.02,
-                'min_volume': 1000000,
-            },
-            'smart_money_reversal': {
-                **self.default_params.to_dict(),
-                'symbol': 'ETHUSDT',
-                'margin': 30.0,
-                'leverage': 10,
-                'timeframe': '15m',
-                'assessment_interval': 45,
-                'decimals': 2,
-                'cooldown_period': 300,
-                'swing_lookback_period': 25,
-                'sweep_threshold_pct': 0.1,
-                'reversion_candles': 3,
-                'volume_spike_multiplier': 2.0,
-                'min_swing_distance_pct': 1.0,
-                'max_daily_trades': 3,
-                'session_filter_enabled': True,
-                'allowed_sessions': ['LONDON', 'NEW_YORK'],
-                'trend_filter_enabled': True,
-                'min_volume': 1000000,
+                min_volume': 1000000,
             },
             'engulfing_rsi': {
                 **self.default_params.to_dict(),

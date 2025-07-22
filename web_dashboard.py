@@ -2375,28 +2375,10 @@ def start_web_dashboard(debug=False, use_reloader=False):
     """Start the Flask web dashboard with more reliable settings"""
     try:
         logger.info("🌐 WEB INTERFACE: Starting Flask web dashboard...")
-
-        # Start Flask with proper error handling and threading
-        app.run(
-            debug=debug, 
-            use_reloader=use_reloader, 
-            host='0.0.0.0', 
-            port=5000,
-            threaded=True,
-            processes=1
-        )
+        app.run(debug=debug, use_reloader=use_reloader, host='0.0.0.0', port=5000)
 
     except Exception as e:
         logger.critical(f"Failed to start web dashboard: {e}")
-        # Try alternative startup method
-        try:
-            logger.info("🔄 Attempting alternative Flask startup...")
-            from werkzeug.serving import make_server
-            server = make_server('0.0.0.0', 5000, app, threaded=True)
-            logger.info("✅ Flask server started on alternative method")
-            server.serve_forever()
-        except Exception as alt_error:
-            logger.critical(f"Alternative Flask startup also failed: {alt_error}")
 
 if __name__ == '__main__':
     # Set debug to True only during development - NEVER in production
