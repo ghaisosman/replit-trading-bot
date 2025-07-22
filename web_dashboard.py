@@ -334,14 +334,14 @@ def dashboard():
             # Ensure we always have both strategies available for display
             if 'rsi_oversold' not in strategies:
                 strategies['rsi_oversold'] = {
-                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
+                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
                     'max_loss_pct': 5, 'assessment_interval': 20, 'decimals': 2,
                     'cooldown_period': 300, 'rsi_long_entry': 30, 'rsi_long_exit': 70,
                     'rsi_short_entry': 70, 'rsi_short_exit': 30
                 }
             if 'macd_divergence' not in strategies:
                 strategies['macd_divergence'] = {
-                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '5m',
+                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '5m'},
                     'max_loss_pct': 10, 'assessment_interval': 60, 'decimals': 3,
                     'cooldown_period': 300, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
                     'min_histogram_threshold': 0.0001, 'macd_entry_threshold': 0.05,
@@ -2234,95 +2234,76 @@ def generate_market_analysis():
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/generate_ai_report', methods=['POST'])
-def generate_ai_ready_report():
-    """Generate comprehensive AI-ready report"""
+def generate_ai_report():
+    """Generate comprehensive AI trading report"""
     try:
         if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+            return jsonify({'success': False, 'error': 'AI features not available in demo mode'})
 
-        from src.analytics.ml_analyzer import ml_analyzer
-        from pathlib import Path
-        from datetime import datetime
+        from src.analytics.ai_advisor import AIAdvisor
 
-        # Generate detailed report
-        report = ml_analyzer.generate_detailed_ai_report("comprehensive")
+        advisor = AIAdvisor()
+        report = advisor.generate_comprehensive_report()
 
-        # Save to file
-        reports_dir = Path("trading_data/ai_reports")
-        reports_dir.mkdir(exist_ok=True, parents=True)
+        if "error" in report:
+            return jsonify({'success': False, 'error': report['error']})
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"ai_ready_report_{timestamp}.txt"
-        filepath = reports_dir / filename
-
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(report)
-
-        return jsonify({
-            'success': True, 
-            'filename': str(filepath),
-            'length': len(report)
-        })
+        return jsonify({'success': True, 'report': report})
 
     except Exception as e:
-        logger.error(f"Error generating AI report: {e}")
+        logger.error(```python
+f"Error generating AI report: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/export_structured_data', methods=['POST'])
-def export_structured_ml_data():
-    """Export structured data for AI analysis"""
+@app.route('/backtest')
+def backtest_page():
+    """Backtest page"""
+    try:
+        return render_template('backtest.html')
+    except Exception as e:
+        logger.error(f"Error loading backtest page: {e}")
+        return f"Error loading backtest page: {e}"
+
+@app.route('/api/backtest/templates')
+def get_backtest_templates():
+    """Get strategy templates for backtesting"""
+    try:
+        from backtest_system import web_interface
+        templates = web_interface.get_strategy_templates()
+        return jsonify({'success': True, 'templates': templates})
+    except Exception as e:
+        logger.error(f"Error getting backtest templates: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/backtest/run', methods=['POST'])
+def run_backtest():
+    """Run backtest with user configuration"""
     try:
         if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+            return jsonify({'success': False, 'error': 'Backtesting not available in demo mode'})
 
-        from src.analytics.ml_analyzer import ml_analyzer
-        from pathlib import Path
-        from datetime import datetime
-        import json
+        from backtest_system import web_interface
 
-        # Export structured data
-        structured_data = ml_analyzer.export_ai_ready_data("json")
+        form_data = request.get_json()
+        if not form_data:
+            return jsonify({'success': False, 'error': 'No configuration data provided'})
 
-        if "error" in structured_data:
-            return jsonify({'success': False, 'error': structured_data['error']})
+        # Validate required fields
+        required_fields = ['strategy_name', 'start_date', 'end_date']
+        for field in required_fields:
+            if field not in form_data:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'})
 
-        # Save to file
-        reports_dir = Path("trading_data/ai_reports")
-        reports_dir.mkdir(exist_ok=True, parents=True)
+        # Run backtest
+        result = web_interface.run_backtest_from_web(form_data)
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"structured_data_{timestamp}.json"
-        filepath = reports_dir / filename
-
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(structured_data, f, indent=2, ensure_ascii=False)
-
-        # Extract summary
-        summary = {
-            'total_trades': structured_data.get('report_metadata', {}).get('total_trades', 0),
-            'win_rate': structured_data.get('performance_summary', {}).get('win_rate', 0),
-            'total_pnl': structured_data.get('performance_summary', {}).get('total_pnl_percentage', 0),
-            'strategies': len(structured_data.get('strategy_breakdown', {}))
-        }
-
-        return jsonify({
-            'success': True, 
-            'filename': str(filepath),
-            'summary': summary
-        })
+        return jsonify(result)
 
     except Exception as e:
-        logger.error(f"Error exporting structured data: {e}")
+        logger.error(f"Error running backtest: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/copy_report_clipboard', methods=['POST'])
-def copy_report_to_clipboard():
-    """""Generate and copy report to clipboard"""
-    return jsonify({'success': False, 'error': 'Not implemented'}), 501
-
-    # Future implementation:
-    # 1. Generate detailed report using ml_analyzer.generate_detailed_ai_report()
-    # 2. Return report content for the frontend to copy to clipboard
 
 # Auto-Restart Mechanism
 restart_attempts = 0  # Global counter for restart attempts
