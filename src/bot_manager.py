@@ -813,7 +813,7 @@ class BotManager:
 
                 if signal_key in self.last_signal_time:
                     time_since_last_signal = (current_time - self.last_signal_time[signal_key]).total_seconds()
-                    if time_since_last_signal < (self.signal_cooldown_minutes * 60)):
+                    if time_since_last_signal < (self.signal_cooldown_minutes * 60):
                         remaining_cooldown = (self.signal_cooldown_minutes * 60) - time_since_last_signal
                         self.logger.info(f"🔄 SIGNAL COOLDOWN | {strategy_name.upper()} | {strategy_config['symbol']} | {signal.signal_type.value} | {remaining_cooldown:.0f}s remaining")
                         return
