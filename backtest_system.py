@@ -120,55 +120,82 @@ class BacktestEngine:
         }
 
     def get_historical_data(self, symbol: str, interval: str, start_date: str, end_date: str) -> pd.DataFrame:
-        """Get historical data for backtesting period"""
+        """Get historical data for backtesting period with proper error handling"""
         try:
-            start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+            # Validate inputs
+            if not symbol or not interval or not start_date or not end_date:
+                raise ValueError("Missing required parameters: symbol, interval, start_date, or end_date")
+            
+            # Parse dates
+            try:
+                start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+            except ValueError as e:
+                raise ValueError(f"Invalid date format. Use YYYY-MM-DD. Error: {e}")
+            
+            # Validate date range
+            if start_dt >= end_dt:
+                raise ValueError("Start date must be before end date")
+            
+            if end_dt > datetime.now():
+                raise ValueError("End date cannot be in the future")
             
             # Convert to milliseconds
             start_ms = int(start_dt.timestamp() * 1000)
             end_ms = int(end_dt.timestamp() * 1000)
             
             self.logger.info(f"📅 Fetching historical data for {symbol} {interval} from {start_date} to {end_date}")
-            self.logger.info(f"📊 Date range: {start_ms} to {end_ms}")
+            
+            # Test API connection first
+            try:
+                test_call = self.binance_client.get_historical_klines(
+                    symbol=symbol,
+                    interval=interval,
+                    limit=1
+                )
+                if not test_call:
+                    raise Exception(f"API test failed - no data returned for {symbol}")
+            except Exception as api_error:
+                raise Exception(f"Binance API connection failed: {api_error}")
             
             # Calculate interval in milliseconds
             interval_ms = self._interval_to_ms(interval)
             max_candles_per_request = 1000
             
-            # Get historical data in chunks (Binance limit is 1000 candles)
+            # Calculate expected number of candles
+            total_duration_ms = end_ms - start_ms
+            expected_candles = total_duration_ms // interval_ms
+            self.logger.info(f"📊 Expected approximately {expected_candles} candles for this period")
+            
+            # Get historical data in chunks
             all_klines = []
             current_start = start_ms
             chunk_count = 0
+            failed_chunks = 0
             
-            while current_start < end_ms:
+            while current_start < end_ms and chunk_count < 100:  # Safety limit
                 chunk_count += 1
                 current_end = min(current_start + (max_candles_per_request * interval_ms), end_ms)
                 
                 self.logger.info(f"🔄 Fetching chunk {chunk_count}: {datetime.fromtimestamp(current_start/1000)} to {datetime.fromtimestamp(current_end/1000)}")
                 
                 try:
-                    klines = self.binance_client.get_historical_klines(
+                    # Use proper Binance API call with start and end times
+                    klines = self.binance_client.client.futures_historical_klines(
                         symbol=symbol,
                         interval=interval,
-                        start_str=current_start,
-                        end_str=current_end,
+                        start_str=str(current_start),
+                        end_str=str(current_end),
                         limit=max_candles_per_request
                     )
                     
                     if not klines:
+                        failed_chunks += 1
                         self.logger.warning(f"⚠️ No data returned for chunk {chunk_count}")
-                        # Try to get data without time range for this chunk
-                        klines = self.binance_client.get_historical_klines(
-                            symbol=symbol,
-                            interval=interval,
-                            limit=max_candles_per_request
-                        )
-                        if klines:
-                            self.logger.info(f"✅ Got {len(klines)} candles using fallback method")
-                    
-                    if klines:
-                        # Filter klines to be within our date range
+                        if failed_chunks > 5:  # Too many failures
+                            raise Exception(f"Too many failed chunks ({failed_chunks}). Data may not be available for this period.")
+                    else:
+                        # Filter klines to exact date range
                         filtered_klines = []
                         for kline in klines:
                             kline_timestamp = int(kline[0])
@@ -184,39 +211,24 @@ class BacktestEngine:
                             current_start = last_timestamp + interval_ms
                         else:
                             current_start = current_end
-                    else:
-                        self.logger.warning(f"⚠️ No data for chunk {chunk_count}, moving to next chunk")
-                        current_start = current_end
                 
                 except Exception as chunk_error:
+                    failed_chunks += 1
                     self.logger.error(f"❌ Error fetching chunk {chunk_count}: {chunk_error}")
+                    if failed_chunks > 5:
+                        raise Exception(f"Too many API failures. Cannot fetch reliable data for {symbol}")
                     current_start = current_end
                 
-                # Add delay to avoid rate limits
+                # Rate limiting
                 import time
-                time.sleep(0.2)
-                
-                # Safety break to avoid infinite loops
-                if chunk_count > 100:  # Max 100 chunks
-                    self.logger.warning("⚠️ Maximum chunk limit reached, stopping data fetch")
-                    break
+                time.sleep(0.1)
             
+            # Validate we got meaningful data
             if not all_klines:
-                self.logger.error(f"❌ No historical data found for {symbol} {interval} in the specified date range")
-                
-                # Try fallback: get recent data without date range
-                self.logger.info("🔄 Attempting fallback: fetching recent data without date range")
-                fallback_klines = self.binance_client.get_historical_klines(
-                    symbol=symbol,
-                    interval=interval,
-                    limit=1000
-                )
-                
-                if fallback_klines:
-                    self.logger.info(f"✅ Fallback successful: got {len(fallback_klines)} recent candles")
-                    all_klines = fallback_klines
-                else:
-                    return None
+                raise Exception(f"No historical data available for {symbol} in the period {start_date} to {end_date}. This could be due to: 1) Symbol not existing during this period, 2) Invalid symbol name, 3) API restrictions, or 4) Market was closed/not trading.")
+            
+            if len(all_klines) < 50:
+                raise Exception(f"Insufficient data: Only {len(all_klines)} candles found. Need at least 50 for reliable backtesting. Try a longer time period or different timeframe.")
             
             # Convert to DataFrame
             df = pd.DataFrame(all_klines, columns=[
@@ -225,11 +237,24 @@ class BacktestEngine:
                 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
             ])
             
-            # Convert data types
+            # Validate data integrity
+            if df.empty:
+                raise Exception("DataFrame is empty after conversion")
+            
+            # Convert data types with error checking
             numeric_columns = ['open', 'high', 'low', 'close', 'volume']
             for col in numeric_columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
+                if df[col].isna().all():
+                    raise Exception(f"All values in column '{col}' are invalid")
             
+            # Check for data quality issues
+            nan_count = df[numeric_columns].isna().sum().sum()
+            if nan_count > 0:
+                self.logger.warning(f"⚠️ Found {nan_count} NaN values in price data - filling with forward fill")
+                df[numeric_columns] = df[numeric_columns].fillna(method='ffill')
+            
+            # Timestamp processing
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             df.set_index('timestamp', inplace=True)
             
@@ -240,17 +265,41 @@ class BacktestEngine:
             # Keep only OHLCV columns
             df = df[['open', 'high', 'low', 'close', 'volume']]
             
-            # Calculate indicators using the same method as live trading
-            df = self.price_fetcher.calculate_indicators(df)
+            # Validate price data makes sense
+            if (df['close'] <= 0).any():
+                raise Exception("Invalid price data: Found zero or negative prices")
             
-            self.logger.info(f"✅ Historical data processed: {len(df)} candles from {df.index[0]} to {df.index[-1]}")
+            if (df['volume'] < 0).any():
+                raise Exception("Invalid volume data: Found negative volume")
+            
+            # Calculate indicators using the same method as live trading
+            try:
+                df_with_indicators = self.price_fetcher.calculate_indicators(df.copy())
+                if df_with_indicators is None or df_with_indicators.empty:
+                    raise Exception("Indicator calculation failed - no data returned")
+                df = df_with_indicators
+            except Exception as indicator_error:
+                raise Exception(f"Failed to calculate indicators: {indicator_error}")
+            
+            # Final validation
+            actual_data_range = f"{df.index[0].strftime('%Y-%m-%d')} to {df.index[-1].strftime('%Y-%m-%d')}"
+            requested_range = f"{start_date} to {end_date}"
+            
+            if len(df) < expected_candles * 0.8:  # Less than 80% of expected data
+                self.logger.warning(f"⚠️ Got {len(df)} candles, expected ~{expected_candles}. Some data may be missing.")
+            
+            self.logger.info(f"✅ Historical data processed successfully:")
+            self.logger.info(f"   📊 Candles: {len(df)}")
+            self.logger.info(f"   📅 Actual range: {actual_data_range}")
+            self.logger.info(f"   📅 Requested range: {requested_range}")
+            self.logger.info(f"   💲 Price range: ${df['close'].min():.2f} - ${df['close'].max():.2f}")
+            
             return df
             
         except Exception as e:
-            self.logger.error(f"❌ Error getting historical data: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
+            error_msg = f"Failed to fetch historical data for {symbol}: {str(e)}"
+            self.logger.error(f"❌ {error_msg}")
+            raise Exception(error_msg)
 
     def _interval_to_ms(self, interval: str) -> int:
         """Convert interval string to milliseconds"""
@@ -277,22 +326,47 @@ class BacktestEngine:
             self.logger.info(f"📅 Period: {start_date} to {end_date}")
             self.logger.info(f"📊 Config: {config}")
             
-            # Get historical data
+            # Validate configuration
+            if not config.get('symbol'):
+                return {'error': 'Missing symbol in configuration'}
+            if not config.get('timeframe'):
+                return {'error': 'Missing timeframe in configuration'}
+            
             symbol = config['symbol']
             timeframe = config['timeframe']
             
-            df = self.get_historical_data(symbol, timeframe, start_date, end_date)
-            if df is None or df.empty:
-                return {'error': f'No historical data available for {symbol}'}
+            # Get historical data with proper error handling
+            try:
+                df = self.get_historical_data(symbol, timeframe, start_date, end_date)
+                if df is None or df.empty:
+                    return {'error': f'No historical data available for {symbol} on {timeframe} timeframe between {start_date} and {end_date}'}
+            except Exception as data_error:
+                return {'error': f'Data fetch failed: {str(data_error)}'}
+            
+            # Validate we have enough data for backtesting
+            if len(df) < 100:
+                return {'error': f'Insufficient data for backtesting. Got {len(df)} candles, need at least 100. Try a longer time period.'}
             
             # Initialize strategy-specific handler
-            strategy_handler = self._get_strategy_handler(strategy_name, config)
+            try:
+                strategy_handler = self._get_strategy_handler(strategy_name, config)
+            except Exception as strategy_error:
+                return {'error': f'Strategy initialization failed: {str(strategy_error)}'}
+            
+            # Validate indicators are calculated
+            required_indicators = self._get_required_indicators(strategy_name)
+            missing_indicators = [ind for ind in required_indicators if ind not in df.columns]
+            if missing_indicators:
+                return {'error': f'Missing required indicators for {strategy_name}: {missing_indicators}'}
             
             # Backtest variables
             trades = []
             current_position = None
             last_trade_exit_time = None
             cooldown_period = timedelta(seconds=config.get('cooldown_period', 300))
+            signals_generated = 0
+            
+            self.logger.info(f"📊 Processing {len(df)} candles for backtesting...")
             
             # Process each candle
             for i in range(50, len(df)):  # Start from 50 to ensure indicators are calculated
@@ -306,33 +380,42 @@ class BacktestEngine:
                 
                 # Check for exit conditions if we have a position
                 if current_position:
-                    exit_result = self._check_exit_conditions(
-                        current_position, current_data, current_price, strategy_handler, config
-                    )
-                    
-                    if exit_result:
-                        # Close position
-                        trade_result = self._close_position(
-                            current_position, current_price, current_time, exit_result['reason']
+                    try:
+                        exit_result = self._check_exit_conditions(
+                            current_position, current_data, current_price, strategy_handler, config
                         )
-                        trades.append(trade_result)
-                        current_position = None
-                        last_trade_exit_time = current_time
                         
-                        self.logger.info(f"📊 Trade closed: {trade_result['exit_reason']} | PnL: ${trade_result['pnl_usdt']:.2f}")
+                        if exit_result:
+                            # Close position
+                            trade_result = self._close_position(
+                                current_position, current_price, current_time, exit_result['reason']
+                            )
+                            trades.append(trade_result)
+                            current_position = None
+                            last_trade_exit_time = current_time
+                            
+                            self.logger.info(f"📊 Trade #{len(trades)} closed: {trade_result['exit_reason']} | PnL: ${trade_result['pnl_usdt']:.2f}")
+                            continue
+                    except Exception as exit_error:
+                        self.logger.error(f"Error checking exit conditions: {exit_error}")
                         continue
                 
                 # Check for entry conditions if no position
                 if not current_position:
-                    entry_signal = self._check_entry_conditions(current_data, strategy_handler, config)
-                    
-                    if entry_signal:
-                        # Open position
-                        current_position = self._open_position(
-                            entry_signal, current_price, current_time, config
-                        )
+                    try:
+                        entry_signal = self._check_entry_conditions(current_data, strategy_handler, config)
                         
-                        self.logger.info(f"🟢 Position opened: {entry_signal.signal_type.value} | Entry: ${current_price:.4f} | Reason: {entry_signal.reason}")
+                        if entry_signal:
+                            signals_generated += 1
+                            # Open position
+                            current_position = self._open_position(
+                                entry_signal, current_price, current_time, config
+                            )
+                            
+                            self.logger.info(f"🟢 Position #{signals_generated} opened: {entry_signal.signal_type.value} | Entry: ${current_price:.4f} | Reason: {entry_signal.reason}")
+                    except Exception as entry_error:
+                        self.logger.error(f"Error checking entry conditions: {entry_error}")
+                        continue
             
             # Close any remaining position at the end
             if current_position:
@@ -342,9 +425,23 @@ class BacktestEngine:
                     current_position, final_price, final_time, "End of backtest period"
                 )
                 trades.append(trade_result)
+                self.logger.info(f"📊 Final trade closed at backtest end | PnL: ${trade_result['pnl_usdt']:.2f}")
+            
+            # Log backtest summary
+            self.logger.info(f"✅ Backtest completed:")
+            self.logger.info(f"   📊 Total signals generated: {signals_generated}")
+            self.logger.info(f"   📊 Total trades completed: {len(trades)}")
+            self.logger.info(f"   📅 Data period: {df.index[0].strftime('%Y-%m-%d %H:%M')} to {df.index[-1].strftime('%Y-%m-%d %H:%M')}")
+            
+            # Validate we had some trading activity
+            if signals_generated == 0:
+                return {'error': f'No trading signals generated during the backtest period. This could indicate: 1) Strategy conditions were never met, 2) Configuration parameters are too restrictive, or 3) Market conditions were not suitable for this strategy.'}
             
             # Calculate strategy performance
-            performance = self._calculate_performance(trades, config)
+            try:
+                performance = self._calculate_performance(trades, config)
+            except Exception as perf_error:
+                return {'error': f'Performance calculation failed: {str(perf_error)}'}
             
             return {
                 'strategy_name': strategy_name,
@@ -355,14 +452,18 @@ class BacktestEngine:
                 'trades': trades,
                 'performance': performance,
                 'total_candles': len(df),
-                'data_range': f"{df.index[0]} to {df.index[-1]}"
+                'signals_generated': signals_generated,
+                'data_range': f"{df.index[0].strftime('%Y-%m-%d %H:%M')} to {df.index[-1].strftime('%Y-%m-%d %H:%M')}",
+                'price_range': f"${df['close'].min():.2f} - ${df['close'].max():.2f}",
+                'success': True
             }
             
         except Exception as e:
-            self.logger.error(f"Error in backtest: {e}")
+            error_msg = f"Backtest failed for {strategy_name}: {str(e)}"
+            self.logger.error(f"❌ {error_msg}")
             import traceback
             traceback.print_exc()
-            return {'error': str(e)}
+            return {'error': error_msg, 'success': False}
 
     def _get_strategy_handler(self, strategy_name: str, config: Dict[str, Any]):
         """Get strategy-specific handler"""
@@ -380,6 +481,17 @@ class BacktestEngine:
         else:
             # RSI and other strategies use signal processor
             return None
+
+    def _get_required_indicators(self, strategy_name: str) -> List[str]:
+        """Get required indicators for each strategy"""
+        if 'macd' in strategy_name.lower():
+            return ['macd', 'macd_signal', 'macd_histogram']
+        elif 'engulfing' in strategy_name.lower() or 'rsi' in strategy_name.lower():
+            return ['rsi']
+        elif 'smart_money' in strategy_name.lower():
+            return ['rsi', 'sma_20', 'ema_50']
+        else:
+            return ['rsi']  # Default requirement
 
     def _check_entry_conditions(self, df: pd.DataFrame, strategy_handler, config: Dict[str, Any]) -> Optional[TradingSignal]:
         """Check entry conditions for strategy"""

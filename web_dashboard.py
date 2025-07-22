@@ -2279,30 +2279,68 @@ def run_backtest():
     """Run backtest with user configuration"""
     try:
         if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'Backtesting not available in demo mode'})
+            return jsonify({'success': False, 'error': 'Backtesting not available in demo mode. Please install required dependencies.'})
 
         from backtest_system import web_interface
 
         form_data = request.get_json()
         if not form_data:
-            return jsonify({'success': False, 'error': 'No configuration data provided'})
+            return jsonify({'success': False, 'error': 'No configuration data provided. Please fill out the backtest form.'})
 
         # Validate required fields
-        required_fields = ['strategy_name', 'start_date', 'end_date']
+        required_fields = ['strategy_name', 'start_date', 'end_date', 'symbol', 'timeframe']
+        missing_fields = []
         for field in required_fields:
-            if field not in form_data:
-                return jsonify({'success': False, 'error': f'Missing required field: {field}'})
+            if field not in form_data or not form_data[field]:
+                missing_fields.append(field)
+        
+        if missing_fields:
+            return jsonify({'success': False, 'error': f'Missing required fields: {", ".join(missing_fields)}'})
 
-        # Run backtest
+        # Validate date format
+        try:
+            from datetime import datetime
+            start_date = datetime.strptime(form_data['start_date'], '%Y-%m-%d')
+            end_date = datetime.strptime(form_data['end_date'], '%Y-%m-%d')
+            
+            if start_date >= end_date:
+                return jsonify({'success': False, 'error': 'Start date must be before end date'})
+            
+            if end_date > datetime.now():
+                return jsonify({'success': False, 'error': 'End date cannot be in the future'})
+                
+        except ValueError as date_error:
+            return jsonify({'success': False, 'error': f'Invalid date format: {str(date_error)}'})
+
+        # Run backtest with detailed logging
+        logger.info(f"🚀 Starting backtest request: {form_data['strategy_name']} on {form_data['symbol']}")
         result = web_interface.run_backtest_from_web(form_data)
-
+        
+        # Check if backtest was successful
+        if not result.get('success'):
+            error_msg = result.get('error', 'Unknown backtest error')
+            logger.error(f"❌ Backtest failed: {error_msg}")
+            return jsonify({'success': False, 'error': error_msg})
+        
+        # Check if the result contains an error in the backtest result itself
+        if result.get('result') and result['result'].get('error'):
+            error_msg = result['result']['error']
+            logger.error(f"❌ Backtest execution error: {error_msg}")
+            return jsonify({'success': False, 'error': error_msg})
+        
+        logger.info(f"✅ Backtest completed successfully")
         return jsonify(result)
 
+    except ImportError as import_error:
+        error_msg = f"Backtesting system not available: {str(import_error)}"
+        logger.error(error_msg)
+        return jsonify({'success': False, 'error': error_msg})
     except Exception as e:
-        logger.error(f"Error running backtest: {e}")
+        error_msg = f"Unexpected error during backtest: {str(e)}"
+        logger.error(error_msg)
         import traceback
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': error_msg})
 
 # Auto-Restart Mechanism
 restart_attempts = 0  # Global counter for restart attempts

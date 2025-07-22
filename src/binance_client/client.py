@@ -382,3 +382,51 @@ class BinanceClientWrapper:
         except Exception as e:
             self.logger.error(f"Unexpected error setting margin type for {symbol}: {e}")
             return None
+
+    def get_historical_klines(self, symbol: str, interval: str, start_str: str = None, end_str: str = None, limit: int = 1000):
+        """Get historical klines data with proper error handling"""
+        try:
+            if not self.client:
+                raise Exception("Binance client not initialized")
+
+            # Validate parameters
+            if not symbol:
+                raise ValueError("Symbol is required")
+            if not interval:
+                raise ValueError("Interval is required")
+
+            # Make the API call
+            if start_str and end_str:
+                klines = self.client.futures_historical_klines(
+                    symbol=symbol,
+                    interval=interval,
+                    start_str=str(start_str),
+                    end_str=str(end_str),
+                    limit=limit
+                )
+            elif start_str:
+                klines = self.client.futures_historical_klines(
+                    symbol=symbol,
+                    interval=interval,
+                    start_str=str(start_str),
+                    limit=limit
+                )
+            else:
+                klines = self.client.futures_historical_klines(
+                    symbol=symbol,
+                    interval=interval,
+                    limit=limit
+                )
+
+            if not klines:
+                print(f"⚠️ No klines data returned for {symbol} {interval}")
+                return []
+
+            print(f"✅ Retrieved {len(klines)} klines for {symbol} {interval}")
+            return klines
+
+        except Exception as e:
+            error_msg = f"Error getting historical klines for {symbol}: {e}"
+            print(f"❌ {error_msg}")
+            # Re-raise the exception so it can be handled properly upstream
+            raise Exception(error_msg)
