@@ -734,4 +734,3 @@ class BotManager:
                 return
 
             # Check if strategy already has an active position
-            This commit removes the Smart Money strategy and reverts to a working RSI-only state.
