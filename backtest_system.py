@@ -786,7 +786,7 @@ class BacktestEngine:
             # Fallback to config margin if not available
             if not actual_margin_used:
                 actual_margin_used = config.get('margin', 50.0)
-                self.logger.warning(f"⚠️ Using fallback margin ${actual_margin_used} - actual margin not found")
+                self.logger.warning(f"⚠️ Using fallback margin ${actual_margin_used:.2f} - actual margin not found")
 
             max_loss_pct = config.get('max_loss_pct', 10.0)
             leverage = config.get('leverage', 5)
@@ -809,7 +809,7 @@ class BacktestEngine:
             stop_loss_price = position.get('stop_loss')
             stop_loss_triggered_by_price = False
 
-            if stop_loss_price:
+            if stop_loss_price is not None:
                 if side == 'BUY' and current_price <= stop_loss_price:
                     stop_loss_triggered_by_price = True
                 elif side == 'SELL' and current_price >= stop_loss_price:
@@ -817,11 +817,18 @@ class BacktestEngine:
 
             # CRITICAL: Stop loss check matches live trading exactly - percentage based on actual margin
             if pnl_percentage <= -max_loss_pct or stop_loss_triggered_by_price:
-                reason = f'Stop Loss (Max Loss {max_loss_pct}%)' if pnl_percentage <= -max_loss_pct else f'Stop Loss (Price: ${stop_loss_price:.4f})'
+                if pnl_percentage <= -max_loss_pct:
+                    reason = f'Stop Loss (Max Loss {max_loss_pct}%)'
+                else:
+                    # Only format stop_loss_price if it's not None
+                    reason = f'Stop Loss (Price: ${stop_loss_price:.4f})' if stop_loss_price is not None else 'Stop Loss (Price Check)'
 
                 self.logger.info(f"🛑 STOP LOSS TRIGGERED | {side} | Entry: ${entry_price:.4f} | Current: ${current_price:.4f}")
                 self.logger.info(f"   💰 PnL: ${pnl_usdt:.2f} ({pnl_percentage:.2f}%) | Margin: ${actual_margin_used:.2f}")
-                self.logger.info(f"   🎯 SL Price: ${stop_loss_price:.4f} | Price Trigger: {stop_loss_triggered_by_price}")
+                
+                # Safe logging of stop loss price
+                sl_price_str = f"${stop_loss_price:.4f}" if stop_loss_price is not None else "None"
+                self.logger.info(f"   🎯 SL Price: {sl_price_str} | Price Trigger: {stop_loss_triggered_by_price}")
 
                 return {
                     'reason': reason,
