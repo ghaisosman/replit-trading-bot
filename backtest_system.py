@@ -144,7 +144,10 @@ class BacktestEngine:
             start_ms = int(start_dt.timestamp() * 1000)
             end_ms = int(end_dt.timestamp() * 1000)
             
+            # Generate unique identifier for this data request
+            data_request_id = f"{symbol}_{interval}_{start_date}_{end_date}_{hash(str(datetime.now().timestamp()))}"
             self.logger.info(f"📅 Fetching historical data for {symbol} {interval} from {start_date} to {end_date}")
+            self.logger.info(f"🆔 Data Request ID: {data_request_id}")
             
             # Test API connection first
             try:
@@ -359,6 +362,36 @@ class BacktestEngine:
             if not config.get('timeframe'):
                 return {'error': 'Missing timeframe in configuration'}
             
+            # CRITICAL: Validate that key strategy parameters are set and different from defaults
+            self.logger.info(f"🔍 STRATEGY VALIDATION for {strategy_name}:")
+            
+            # Check if this is an RSI strategy and validate RSI parameters
+            if 'rsi' in strategy_name.lower():
+                rsi_long_entry = config.get('rsi_long_entry')
+                rsi_short_entry = config.get('rsi_short_entry')
+                rsi_long_exit = config.get('rsi_long_exit')
+                rsi_short_exit = config.get('rsi_short_exit')
+                
+                self.logger.info(f"   RSI Long Entry: {rsi_long_entry}")
+                self.logger.info(f"   RSI Short Entry: {rsi_short_entry}")
+                self.logger.info(f"   RSI Long Exit: {rsi_long_exit}")
+                self.logger.info(f"   RSI Short Exit: {rsi_short_exit}")
+                
+                # Warn if using template defaults
+                template_config = self.strategy_configs.get(strategy_name, {})
+                if (rsi_long_entry == template_config.get('rsi_long_entry') and 
+                    rsi_short_entry == template_config.get('rsi_short_entry')):
+                    self.logger.warning(f"⚠️ Using template RSI values - configuration may not have been applied!")
+            
+            # Validate margin and leverage
+            margin = config.get('margin')
+            leverage = config.get('leverage')
+            max_loss_pct = config.get('max_loss_pct')
+            
+            self.logger.info(f"   Margin: ${margin}")
+            self.logger.info(f"   Leverage: {leverage}x")
+            self.logger.info(f"   Max Loss: {max_loss_pct}%")
+            
             symbol = config['symbol']
             timeframe = config['timeframe']
             
@@ -470,12 +503,26 @@ class BacktestEngine:
             except Exception as perf_error:
                 return {'error': f'Performance calculation failed: {str(perf_error)}'}
             
+            # Generate configuration hash to track uniqueness
+            import hashlib
+            config_str = json.dumps(config, sort_keys=True)
+            config_hash = hashlib.md5(config_str.encode()).hexdigest()[:8]
+            
+            self.logger.info(f"🔍 BACKTEST RESULT SUMMARY:")
+            self.logger.info(f"   Config Hash: {config_hash}")
+            self.logger.info(f"   Total Trades: {len(trades)}")
+            self.logger.info(f"   Signals Generated: {signals_generated}")
+            if len(trades) > 0:
+                total_pnl = sum(t['pnl_usdt'] for t in trades)
+                self.logger.info(f"   Total PnL: ${total_pnl:.2f}")
+            
             return {
                 'strategy_name': strategy_name,
                 'symbol': symbol,
                 'timeframe': timeframe,
                 'period': f"{start_date} to {end_date}",
                 'config': config,
+                'config_hash': config_hash,
                 'trades': trades,
                 'performance': performance,
                 'total_candles': len(df),
@@ -994,6 +1041,11 @@ class BacktestWebInterface:
             elif 'timeframe' not in base_config or not base_config['timeframe']:
                 base_config['timeframe'] = '15m'  # Default fallback
             
+            # DEBUG: Log original template values
+            print(f"🔍 ORIGINAL TEMPLATE CONFIG for {strategy_name}:")
+            for key, value in base_config.items():
+                print(f"   {key}: {value}")
+            
             # Override with form values - ensure critical fields are set
             for key, value in form_data.items():
                 if key not in ['strategy_name', 'start_date', 'end_date'] and value is not None and str(value).strip():
@@ -1028,8 +1080,29 @@ class BacktestWebInterface:
                     'error': f'Configuration missing required fields: {", ".join(missing_fields)}'
                 }
             
-            # Log the final configuration being used
-            print(f"🔍 Final backtest config: {base_config}")
+            # DEBUG: Log configuration changes
+            print(f"🔍 FORM DATA RECEIVED:")
+            for key, value in form_data.items():
+                if key not in ['strategy_name', 'start_date', 'end_date'] and value is not None and str(value).strip():
+                    print(f"   {key}: {value} (type: {type(value).__name__})")
+            
+            # DEBUG: Log final configuration with type verification
+            print(f"🔍 FINAL BACKTEST CONFIG for {strategy_name}:")
+            for key, value in base_config.items():
+                print(f"   {key}: {value} (type: {type(value).__name__})")
+            
+            # VERIFY: Check if critical parameters actually changed
+            changed_params = []
+            original_config = self.engine.strategy_configs.get(strategy_name, {})
+            for key in ['margin', 'leverage', 'max_loss_pct', 'rsi_long_entry', 'rsi_short_entry', 'rsi_long_exit', 'rsi_short_exit']:
+                if key in base_config and key in original_config:
+                    if base_config[key] != original_config[key]:
+                        changed_params.append(f"{key}: {original_config[key]} → {base_config[key]}")
+            
+            if changed_params:
+                print(f"✅ PARAMETERS CHANGED: {', '.join(changed_params)}")
+            else:
+                print(f"⚠️ NO PARAMETERS CHANGED - using template defaults")
             
             # Run single strategy backtest
             result = self.engine.backtest_strategy(strategy_name, base_config, start_date, end_date)

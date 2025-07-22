@@ -104,6 +104,13 @@ class SignalProcessor:
             # Get configurable RSI levels
             rsi_long_entry = config.get('rsi_long_entry', 40)
             rsi_short_entry = config.get('rsi_short_entry', 60)
+            
+            # DEBUG: Log the actual config values being used
+            self.logger.info(f"🔍 RSI STRATEGY CONFIG CHECK:")
+            self.logger.info(f"   Current RSI: {rsi_current:.2f}")
+            self.logger.info(f"   Long Entry Threshold: {rsi_long_entry} (from config: {config.get('rsi_long_entry', 'NOT SET')})")
+            self.logger.info(f"   Short Entry Threshold: {rsi_short_entry} (from config: {config.get('rsi_short_entry', 'NOT SET')})")
+            self.logger.info(f"   Margin: ${margin} | Leverage: {leverage}x | Max Loss: {max_loss_pct}%")
 
             # Calculate stop loss based on PnL (10% of margin)
             max_loss_amount = margin * (max_loss_pct / 100)
@@ -212,6 +219,9 @@ class SignalProcessor:
                 # Get configurable RSI exit levels
                 rsi_long_exit = strategy_config.get('rsi_long_exit', 70)
                 rsi_short_exit = strategy_config.get('rsi_short_exit', 30)
+                
+                # DEBUG: Log exit threshold checking
+                self.logger.debug(f"🔍 RSI EXIT CHECK | Current: {rsi_current:.2f} | Long Exit: {rsi_long_exit} | Short Exit: {rsi_short_exit} | Side: {position_side}")
 
                 # Long position: Take profit when RSI reaches configured exit level
                 if position_side == 'BUY' and rsi_current >= rsi_long_exit:
