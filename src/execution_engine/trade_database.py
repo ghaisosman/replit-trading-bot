@@ -645,7 +645,7 @@ class TradeDatabase:
             orphan_log_file = "trading_data/orphan_operations.json"
             os.makedirs(os.path.dirname(orphan_log_file), exist_ok=True)
 
-            orphan_entry = {
+            orphan_entry ={
                 'trade_id': trade_id,
                 'operation': operation,
                 'data': data,
@@ -781,63 +781,17 @@ class TradeDatabase:
                     # Only reach here if no existing trade was found (same logic as position recovery)
 
                     # Try to determine original strategy from symbol (enhanced logic)
-                    original_strategy = self._determine_original_strategy(symbol)
+                    # original_strategy = self._determine_original_strategy(symbol)
+                    #Instead of determining the original strategy, log and remove orphan
 
-                    recovery_trade_id = f"{original_strategy}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_RECOVERED"
-
-                    # Calculate complete trade data for recovery
-                    position_value_usdt = entry_price * quantity
-                    leverage = 5  # Use reasonable default leverage
-                    margin_used = position_value_usdt / leverage
-
-                    # Record trade time in Dubai timezone (UTC+4)
-                    from src.config.global_config import global_config
-                    if global_config.USE_LOCAL_TIMEZONE:
-                        dubai_time = datetime.utcnow() + timedelta(hours=global_config.TIMEZONE_OFFSET_HOURS)
-                        timestamp = dubai_time.isoformat()
-                    else:
-                        timestamp = datetime.now().isoformat()
-
-                    recovery_trade_data = {
-                        'strategy_name': original_strategy,  # Use original strategy, not "RECOVERY"
+                    self.logger.warning(f"Orphaned position found {symbol} {side} {quantity} at {entry_price}")
+                    recovery_report['orphaned_positions'].append({
                         'symbol': symbol,
-                        'side': side,
+                        'side':side,
                         'quantity': quantity,
-                        'entry_price': entry_price,
-                        'trade_status': 'OPEN',
-                        'timestamp': timestamp,
-                        'recovery_source': 'SMART_RECOVERY',
-                        'sync_status': 'RECOVERED',
-                        'created_at': datetime.now().isoformat(),
-                        'last_verified': datetime.now().isoformat(),
-
-                        # MANDATORY complete data for recovered positions
-                        'position_value_usdt': position_value_usdt,
-                        'leverage': leverage,
-                        'margin_used': margin_used,
-                        'trade_id': recovery_trade_id,
-
-                        # Recovery metadata
-                        'recovery_method': 'INTELLIGENT_DATABASE_RECOVERY',
-                        'binance_verified': True
-                    }
-
-                    # Use the bulletproof add_trade method to ensure data integrity
-                    success = self.add_trade(recovery_trade_id, recovery_trade_data)
-
-                    if success:
-                        recovery_report['recovered_trades'].append({
-                            'trade_id': recovery_trade_id,
-                            'strategy': original_strategy,
-                            'symbol': symbol,
-                            'method': 'SMART_RECOVERY'
-                        })
-
-                        self.logger.warning(f"🛡️ SMART RECOVERY: Created new trade {recovery_trade_id} for {symbol}")
-                        self.logger.warning(f"   📊 Strategy: {original_strategy} | Value: ${position_value_usdt:.2f} USDT | Margin: ${margin_used:.2f}")
-                    else:
-                        self.logger.error(f"🚨 SMART RECOVERY: Failed to create recovery trade for {symbol}")
-                        recovery_report['verification_failures'].append(f"Failed to create trade for {symbol}")
+                        'entry_price': entry_price
+                    })
+                    continue
 
             # Save database if any changes were made
             if recovery_report['recovered_trades'] or recovery_report['matched_existing_trades']:
@@ -860,29 +814,7 @@ class TradeDatabase:
             self.logger.error(f"🚨 SMART RECOVERY ERROR: {e}")
             return {'error': str(e)}
 
-    def _determine_original_strategy(self, symbol: str) -> str:
-        """Intelligently determine the original strategy for a symbol"""
-        try:
-            # Look for any existing closed trades for this symbol to infer strategy
-            for trade_id, trade_data in self.trades.items():
-                if (trade_data.get('symbol') == symbol and 
-                    trade_data.get('strategy_name') not in ['RECOVERY', 'UNKNOWN']):
-                    original_strategy = trade_data.get('strategy_name')
-                    self.logger.debug(f"🧠 STRATEGY INFERENCE: {symbol} -> {original_strategy} (from historical data)")
-                    return original_strategy
-
-            # Symbol-based strategy inference as fallback
-            symbol_upper = symbol.upper()
-            if 'SOL' in symbol_upper:
-                return 'rsi_oversold'  # SOL typically uses RSI strategy
-            elif 'ETH' in symbol_upper:
-                return 'macd_divergence'  # ETH typically uses MACD strategy
-            else:
-                return 'AUTO_RECOVERED'  # Generic strategy for unknown symbols
-
-        except Exception as e:
-            self.logger.warning(f"Error determining strategy for {symbol}: {e}")
-            return 'AUTO_RECOVERED'
+    
 
     def run_bulletproof_health_check(self) -> Dict[str, Any]:
         """Comprehensive health check with automatic fixes"""

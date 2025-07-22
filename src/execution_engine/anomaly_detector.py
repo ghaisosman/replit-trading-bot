@@ -390,7 +390,7 @@ class AnomalyDetector:
 
     def _detect_ghost_trades(self, bot_positions: Dict[str, Position], 
                            binance_positions: List[Dict], suppress_notifications: bool):
-        """Detect ghost trades (manually opened, not by bot)"""
+        """Simplified ghost detection - only log, don't block strategies"""
         for binance_position in binance_positions:
             symbol = binance_position.get('symbol')
             position_amt = float(binance_position.get('positionAmt', 0))
@@ -419,68 +419,29 @@ class AnomalyDetector:
                         self.logger.debug(f"🔍 Position {symbol} matches bot position {strategy_name}")
                         break
 
-            # If this is not a bot position, it's a ghost trade
+            # If this is not a bot position, just log it but DON'T block strategies
             if not is_bot_position:
-                # Find which strategy should monitor this symbol
-                monitoring_strategy = None
-                for strategy_name, strategy_symbol in self.registered_strategies.items():
-                    if strategy_symbol == symbol:
-                        monitoring_strategy = strategy_name
-                        break
-
-                if not monitoring_strategy:
-                    monitoring_strategy = f"manual_{symbol.lower()}"
-
-                anomaly_id = f"ghost_{monitoring_strategy}_{symbol}"
-
-                # Check if we already detected this ghost
-                existing_anomaly = self.db.get_anomaly(anomaly_id)
-                if existing_anomaly:
-                    # Update quantity if changed significantly
-                    if abs(existing_anomaly.binance_position_amt - position_amt) > 0.001:
-                        self.db.update_anomaly(anomaly_id, 
-                                             binance_position_amt=position_amt,
-                                             quantity=abs(position_amt))
-                    continue
-
-                # Create new ghost anomaly
-                side = 'LONG' if position_amt > 0 else 'SHORT'
-                anomaly = TradeAnomaly(
-                    id=anomaly_id,
-                    type=AnomalyType.GHOST,
-                    symbol=symbol,
-                    strategy_name=monitoring_strategy,
-                    quantity=abs(position_amt),
-                    side=side,
-                    detected_at=datetime.now(),
-                    status=AnomalyStatus.ACTIVE,
-                    cycles_remaining=2,
-                    notified=False,
-                    binance_position_amt=position_amt
-                )
-
-                self.db.add_anomaly(anomaly)
-
-                # Send notification if not suppressed and not in startup
-                if not suppress_notifications and not self.is_startup_protected():
-                    self._send_ghost_notification(anomaly)
-                    self.db.update_anomaly(anomaly_id, notified=True)
-                elif self.is_startup_protected():
-                    self.logger.info(f"🔍 GHOST DETECTED (STARTUP): {monitoring_strategy} | {symbol} | "
-                                   f"Manual position noted during startup")
-
-                self.logger.warning(f"🔍 GHOST DETECTED: {monitoring_strategy} | {symbol} | "
-                                  f"Manual position found | Qty: {abs(position_amt):.6f}")
+                # Only log during startup protection - don't create blocking anomalies
+                if self.is_startup_protected():
+                    self.logger.info(f"🔍 MANUAL POSITION NOTED (STARTUP): {symbol} | "
+                                   f"Qty: {abs(position_amt):.6f} | Not blocking strategies")
+                else:
+                    self.logger.debug(f"🔍 MANUAL POSITION: {symbol} | Qty: {abs(position_amt):.6f} | Not tracked")
 
     def _process_anomaly_lifecycle(self, binance_positions: List[Dict], suppress_notifications: bool):
-        """Process lifecycle of existing anomalies"""
+        """Process lifecycle of existing anomalies - only orphans now"""
         binance_positions_map = {pos.get('symbol'): pos for pos in binance_positions}
 
         for anomaly in list(self.db.get_active_anomalies()):
             if anomaly.type == AnomalyType.ORPHAN:
                 self._process_orphan_lifecycle(anomaly, binance_positions_map, suppress_notifications)
             elif anomaly.type == AnomalyType.GHOST:
-                self._process_ghost_lifecycle(anomaly, binance_positions_map, suppress_notifications)
+                # Clear all existing ghost anomalies - we don't track them anymore
+                self.db.update_anomaly(anomaly.id, 
+                                     status=AnomalyStatus.CLEARED,
+                                     cleared_at=datetime.now())
+                self.logger.info(f"🧹 GHOST CLEARED: {anomaly.strategy_name} | {anomaly.symbol} | "
+                               f"Ghost detection disabled - clearing old ghost anomaly")
 
     def _process_orphan_lifecycle(self, anomaly: TradeAnomaly, 
                                 binance_positions_map: Dict, suppress_notifications: bool):
