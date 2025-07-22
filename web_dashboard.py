@@ -2251,7 +2251,6 @@ def generate_ai_ready_report():
         reports_dir = Path("trading_data/ai_reports")
         reports_dir.mkdir(exist_ok=True, parents=True)
 
-        ```python
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"ai_ready_report_{timestamp}.txt"
         filepath = reports_dir / filename
