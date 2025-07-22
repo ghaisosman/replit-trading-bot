@@ -274,14 +274,25 @@ class TradeLogger:
                 'duration_minutes': trade_record.duration_minutes,
                 'exit_time': actual_exit_time.isoformat(),
                 'risk_reward_ratio': trade_record.risk_reward_ratio,
-                'max_drawdown': max_drawdown
+                'max_drawdown': max_drawdown,
+                'sync_status': 'LOGGER_SYNCED',
+                'last_verified': datetime.now().isoformat()
             }
 
             trade_db.update_trade(trade_id, exit_updates)
-            self.logger.debug(f"✅ Trade exit data synced to database: {trade_id}")
+            self.logger.info(f"✅ Trade exit data synced to database: {trade_id}")
+
+            # BULLETPROOF VERIFICATION: Ensure sync actually worked
+            db_trade = trade_db.get_trade(trade_id)
+            if db_trade and db_trade.get('trade_status') == 'CLOSED':
+                self.logger.debug(f"🛡️ SYNC VERIFIED: {trade_id} properly closed in database")
+            else:
+                self.logger.error(f"🚨 SYNC FAILED: {trade_id} not properly updated in database")
 
         except Exception as e:
             self.logger.error(f"❌ Failed to sync exit data to database for {trade_id}: {e}")
+            # Log critical sync failure for investigation
+            self._log_sync_failure('EXIT_SYNC', trade_id, str(e))
 
         self.logger.info(f"📝 TRADE EXIT LOGGED | {trade_id} | PnL: ${pnl_usdt:.2f} ({pnl_percentage:+.2f}%) | Duration: {trade_record.duration_minutes}min")
 
@@ -650,6 +661,11 @@ class TradeLogger:
             self.logger.debug(f"💾 Saved {len(self.trades)} trades to {self.log_file}")
         except Exception as e:
             self.logger.error(f"❌ Error saving trades to file: {e}")
+
+    def _log_sync_failure(self, sync_type: str, trade_id: str, error_message: str):
+        """Log synchronization failures for investigation."""
+        log_message = f"❌ SYNC FAILURE: Type={sync_type}, TradeID={trade_id}, Error={error_message}"
+        self.logger.error(log_message)
 
 # Global trade logger instance
 trade_logger = TradeLogger()

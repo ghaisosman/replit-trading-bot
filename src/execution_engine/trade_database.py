@@ -112,7 +112,7 @@ class TradeDatabase:
                 calculated_margin = position_value_usdt / leverage
                 trade_data['margin_used'] = calculated_margin
                 self.logger.info(f"🔧 CALCULATED missing margin_used: ${calculated_margin:.2f} USDT for {trade_id}")
-            
+
             # Validate margin_used makes sense
             if trade_data['margin_used'] <= 0:
                 self.logger.error(f"🚨 INVALID margin_used {trade_data['margin_used']} for {trade_id}")
@@ -150,17 +150,17 @@ class TradeDatabase:
             optional_fields = [
                 'stop_loss', 'take_profit', 'position_side', 'order_id', 'entry_time', 
                 'exit_price', 'exit_reason', 'pnl_usdt', 'pnl_percentage', 'duration_minutes',
-                
+
                 # Technical indicators at entry
                 'rsi_at_entry', 'macd_at_entry', 'sma_20_at_entry', 'sma_50_at_entry', 
                 'volume_at_entry', 'entry_signal_strength',
-                
+
                 # Market conditions
                 'market_trend', 'volatility_score', 'market_phase',
-                
+
                 # Performance metrics
                 'risk_reward_ratio', 'max_drawdown',
-                
+
                 # Additional metadata
                 'recovery_source', 'closure_verified', 'exit_time'
             ]
@@ -188,7 +188,7 @@ class TradeDatabase:
 
             # Add to database WITH IMMEDIATE VERIFICATION
             self.trades[trade_id] = complete_trade_data
-            
+
             # FORCE SAVE IMMEDIATELY
             save_success = False
             try:
@@ -197,7 +197,7 @@ class TradeDatabase:
             except Exception as save_error:
                 self.logger.error(f"🚨 DATABASE SAVE FAILED: {save_error}")
                 save_success = False
-            
+
             # VERIFY THE TRADE WAS ACTUALLY SAVED
             if save_success and trade_id in self.trades:
                 # Log successful addition with complete data
@@ -757,7 +757,7 @@ class TradeDatabase:
                         # FOUND EXISTING TRADE - Update and verify it
                         existing_trade = self.trades[existing_trade_id]
                         original_strategy = existing_trade.get('strategy_name', 'UNKNOWN')
-                        
+
                         # Update trade with Binance data to ensure accuracy
                         self.trades[existing_trade_id].update({
                             'sync_status': 'BINANCE_VERIFIED',
@@ -779,10 +779,10 @@ class TradeDatabase:
 
                     # STEP 2: NO EXISTING TRADE FOUND - Create recovery trade with complete data
                     # Only reach here if no existing trade was found (same logic as position recovery)
-                    
+
                     # Try to determine original strategy from symbol (enhanced logic)
                     original_strategy = self._determine_original_strategy(symbol)
-                    
+
                     recovery_trade_id = f"{original_strategy}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_RECOVERED"
 
                     # Calculate complete trade data for recovery
@@ -816,7 +816,7 @@ class TradeDatabase:
                         'leverage': leverage,
                         'margin_used': margin_used,
                         'trade_id': recovery_trade_id,
-                        
+
                         # Recovery metadata
                         'recovery_method': 'INTELLIGENT_DATABASE_RECOVERY',
                         'binance_verified': True
@@ -824,7 +824,7 @@ class TradeDatabase:
 
                     # Use the bulletproof add_trade method to ensure data integrity
                     success = self.add_trade(recovery_trade_id, recovery_trade_data)
-                    
+
                     if success:
                         recovery_report['recovered_trades'].append({
                             'trade_id': recovery_trade_id,
@@ -842,12 +842,12 @@ class TradeDatabase:
             # Save database if any changes were made
             if recovery_report['recovered_trades'] or recovery_report['matched_existing_trades']:
                 self._save_database()
-                
+
             # Summary logging
             matched_count = len(recovery_report['matched_existing_trades'])
             recovered_count = len(recovery_report['recovered_trades'])
             total_positions = len([p for p in positions if abs(float(p.get('positionAmt', 0))) > 0.0001])
-            
+
             self.logger.info(f"🛡️ SMART RECOVERY COMPLETE:")
             self.logger.info(f"   📊 Total Binance positions: {total_positions}")
             self.logger.info(f"   ✅ Matched existing trades: {matched_count}")
@@ -870,7 +870,7 @@ class TradeDatabase:
                     original_strategy = trade_data.get('strategy_name')
                     self.logger.debug(f"🧠 STRATEGY INFERENCE: {symbol} -> {original_strategy} (from historical data)")
                     return original_strategy
-            
+
             # Symbol-based strategy inference as fallback
             symbol_upper = symbol.upper()
             if 'SOL' in symbol_upper:
@@ -879,7 +879,7 @@ class TradeDatabase:
                 return 'macd_divergence'  # ETH typically uses MACD strategy
             else:
                 return 'AUTO_RECOVERED'  # Generic strategy for unknown symbols
-                
+
         except Exception as e:
             self.logger.warning(f"Error determining strategy for {symbol}: {e}")
             return 'AUTO_RECOVERED'
@@ -930,3 +930,38 @@ class TradeDatabase:
         except Exception as e:
             self.logger.error(f"🚨 HEALTH CHECK ERROR: {e}")
             return {'error': str(e)}
+
+    def _log_sync_failure(self, operation: str, trade_id: str, reason: str):
+        """Log trade synchronization failures"""
+        try:
+            sync_log_file = "trading_data/sync_failures.json"
+            os.makedirs(os.path.dirname(sync_log_file), exist_ok=True)
+
+            sync_entry = {
+                'operation': operation,
+                'trade_id': trade_id,
+                'reason': reason,
+                'timestamp': datetime.now().isoformat(),
+                'severity': 'MEDIUM'
+            }
+
+            # Load existing sync log
+            sync_log = []
+            if os.path.exists(sync_log_file):
+                with open(sync_log_file, 'r') as f:
+                    existing_data = json.load(f)
+                    sync_log = existing_data.get('sync_failures', [])
+
+            sync_log.append(sync_entry)
+
+            # Save updated log
+            with open(sync_log_file, 'w') as f:
+                json.dump({
+                    'sync_failures': sync_log[-100:],  # Keep last 100 entries
+                    'last_updated': datetime.now().isoformat()
+                }, f, indent=2)
+
+            self.logger.warning(f"⚠️ SYNC FAILURE LOGGED: {operation} for {trade_id} - {reason}")
+
+        except Exception as e:
+            self.logger.error(f"🚨 Failed to log sync failure: {e}")
