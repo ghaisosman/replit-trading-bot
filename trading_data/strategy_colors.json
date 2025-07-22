@@ -32,7 +32,9 @@
     "EXISTS": "\u001b[95m",
     "POSITION": "\u001b[95m",
     "T": "\u001b[95m",
-    "CONFLICT": "\u001b[95m"
+    "CONFLICT": "\u001b[95m",
+    "SELL": "\u001b[95m",
+    "BUY": "\u001b[95m"
   },
   "active_position_colors": {
     "LOADED": "\u001b[1;95m",
@@ -67,6 +69,8 @@
     "EXISTS": "\u001b[1;95m",
     "POSITION": "\u001b[1;95m",
     "T": "\u001b[1;95m",
-    "CONFLICT": "\u001b[1;95m"
+    "CONFLICT": "\u001b[1;95m",
+    "SELL": "\u001b[1;95m",
+    "BUY": "\u001b[1;95m"
   }
 }
