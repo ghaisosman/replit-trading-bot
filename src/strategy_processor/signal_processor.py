@@ -94,7 +94,7 @@ class SignalProcessor:
             return None
 
     def _evaluate_rsi_oversold(self, df: pd.DataFrame, current_price: float, config: Dict) -> Optional[TradingSignal]:
-        """RSI strategy evaluation for both long and short signals"""
+        """RSI strategy evaluation for both long and short signals with ACCURATE stop loss calculation"""
         try:
             # Clear any cached values to ensure fresh evaluation
             self._config_cache.clear()
@@ -104,9 +104,9 @@ class SignalProcessor:
                 return None
 
             rsi_current = df['rsi'].iloc[-1]
-            margin = config.get('margin', 50.0)
-            leverage = config.get('leverage', 5)
-            max_loss_pct = config.get('max_loss_pct', 10)  # 10% of margin
+            margin = float(config.get('margin', 50.0))
+            leverage = int(config.get('leverage', 5))
+            max_loss_pct = float(config.get('max_loss_pct', 10))  # % of margin to lose
 
             # Get configurable RSI levels with explicit logging
             rsi_long_entry = config.get('rsi_long_entry', 40)
@@ -121,19 +121,27 @@ class SignalProcessor:
             self.logger.info(f"   Short Entry Threshold: {rsi_short_entry} (config key exists: {'rsi_short_entry' in config})")
             self.logger.info(f"   Margin: ${margin} | Leverage: {leverage}x | Max Loss: {max_loss_pct}%")
             
-            # Log the complete config for debugging
-            self.logger.debug(f"📋 Complete config received: {config}")
+            # ACCURATE STOP LOSS CALCULATION - Match Binance futures exactly
+            # Max loss amount in USDT
+            max_loss_usdt = margin * (max_loss_pct / 100)
+            
+            # Position size (notional value)
+            position_size_usdt = margin * leverage
+            
+            # Price movement percentage that would cause max loss
+            # For LONG: price_drop_pct = max_loss_usdt / position_size_usdt
+            # For SHORT: price_rise_pct = max_loss_usdt / position_size_usdt
+            stop_loss_price_pct = (max_loss_usdt / position_size_usdt) * 100
 
-            # Calculate stop loss based on PnL (10% of margin)
-            max_loss_amount = margin * (max_loss_pct / 100)
-            notional_value = margin * leverage
-            stop_loss_pct = (max_loss_amount / notional_value) * 100
+            self.logger.info(f"💰 STOP LOSS CALC | Max Loss: ${max_loss_usdt:.2f} USDT | Position: ${position_size_usdt:.2f} | Price Move: {stop_loss_price_pct:.3f}%")
 
             # Long signal: RSI reaches configured entry level
             if rsi_current <= rsi_long_entry:
-                stop_loss = current_price * (1 - stop_loss_pct / 100)
-                # Take profit will be determined by RSI level in exit conditions
+                # LONG: Stop loss below entry price
+                stop_loss = current_price * (1 - stop_loss_price_pct / 100)
                 take_profit = current_price * 1.05  # Placeholder, real TP is RSI-based
+
+                self.logger.info(f"🟢 RSI LONG SIGNAL | Entry: ${current_price:.4f} | SL: ${stop_loss:.4f} | Max Loss: ${max_loss_usdt:.2f} USDT")
 
                 return TradingSignal(
                     signal_type=SignalType.BUY,
@@ -146,11 +154,11 @@ class SignalProcessor:
 
             # Short signal: RSI reaches configured entry level
             elif rsi_current >= rsi_short_entry:
-                stop_loss = current_price * (1 + stop_loss_pct / 100)
-                # Take profit will be determined by RSI level in exit conditions
+                # SHORT: Stop loss above entry price
+                stop_loss = current_price * (1 + stop_loss_price_pct / 100)
                 take_profit = current_price * 0.95  # Placeholder, real TP is RSI-based
 
-                self.logger.info(f"🔍 RSI SHORT SIGNAL CALC | Entry: ${current_price:.4f} | SL%: {stop_loss_pct:.2f}% | SL: ${stop_loss:.4f}")
+                self.logger.info(f"🔴 RSI SHORT SIGNAL | Entry: ${current_price:.4f} | SL: ${stop_loss:.4f} | Max Loss: ${max_loss_usdt:.2f} USDT")
 
                 return TradingSignal(
                     signal_type=SignalType.SELL,
