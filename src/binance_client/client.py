@@ -262,14 +262,38 @@ class BinanceClientWrapper:
             self.logger.error(f"Error getting klines for {symbol}: {e}")
             return None
 
-    def get_historical_klines(self, symbol: str, interval: str, limit: int = 100) -> Optional[list]:
-        """Get historical klines with rate limiting"""
+    def get_historical_klines(self, symbol: str, interval: str, limit: int = 100, start_str: int = None, end_str: int = None) -> Optional[list]:
+        """Get historical klines with rate limiting and time range support"""
         try:
             self._rate_limit()
             if self.is_futures:
-                return self.client.futures_klines(symbol=symbol, interval=interval, limit=limit)
+                if start_str and end_str:
+                    # For futures with time range
+                    return self.client.futures_klines(
+                        symbol=symbol, 
+                        interval=interval, 
+                        startTime=start_str,
+                        endTime=end_str,
+                        limit=limit
+                    )
+                else:
+                    # For futures without time range
+                    return self.client.futures_klines(symbol=symbol, interval=interval, limit=limit)
             else:
-                return self.client.get_historical_klines(symbol, interval, limit=limit)
+                if start_str and end_str:
+                    # For spot with time range - convert timestamps to strings
+                    start_str_formatted = str(start_str)
+                    end_str_formatted = str(end_str)
+                    return self.client.get_historical_klines(
+                        symbol, 
+                        interval, 
+                        start_str=start_str_formatted,
+                        end_str=end_str_formatted,
+                        limit=limit
+                    )
+                else:
+                    # For spot without time range
+                    return self.client.get_historical_klines(symbol, interval, limit=limit)
         except BinanceAPIException as e:
             self.logger.error(f"Error getting klines for {symbol}: {e}")
             return None

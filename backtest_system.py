@@ -129,37 +129,94 @@ class BacktestEngine:
             start_ms = int(start_dt.timestamp() * 1000)
             end_ms = int(end_dt.timestamp() * 1000)
             
-            # Get historical data in chunks (Binance limit is 1000 candles)
-            all_klines = []
-            current_start = start_ms
+            self.logger.info(f"📅 Fetching historical data for {symbol} {interval} from {start_date} to {end_date}")
+            self.logger.info(f"📊 Date range: {start_ms} to {end_ms}")
             
             # Calculate interval in milliseconds
             interval_ms = self._interval_to_ms(interval)
+            max_candles_per_request = 1000
+            
+            # Get historical data in chunks (Binance limit is 1000 candles)
+            all_klines = []
+            current_start = start_ms
+            chunk_count = 0
             
             while current_start < end_ms:
-                current_end = min(current_start + (1000 * interval_ms), end_ms)
+                chunk_count += 1
+                current_end = min(current_start + (max_candles_per_request * interval_ms), end_ms)
                 
-                klines = self.binance_client.get_historical_klines(
+                self.logger.info(f"🔄 Fetching chunk {chunk_count}: {datetime.fromtimestamp(current_start/1000)} to {datetime.fromtimestamp(current_end/1000)}")
+                
+                try:
+                    klines = self.binance_client.get_historical_klines(
+                        symbol=symbol,
+                        interval=interval,
+                        start_str=current_start,
+                        end_str=current_end,
+                        limit=max_candles_per_request
+                    )
+                    
+                    if not klines:
+                        self.logger.warning(f"⚠️ No data returned for chunk {chunk_count}")
+                        # Try to get data without time range for this chunk
+                        klines = self.binance_client.get_historical_klines(
+                            symbol=symbol,
+                            interval=interval,
+                            limit=max_candles_per_request
+                        )
+                        if klines:
+                            self.logger.info(f"✅ Got {len(klines)} candles using fallback method")
+                    
+                    if klines:
+                        # Filter klines to be within our date range
+                        filtered_klines = []
+                        for kline in klines:
+                            kline_timestamp = int(kline[0])
+                            if start_ms <= kline_timestamp <= end_ms:
+                                filtered_klines.append(kline)
+                        
+                        all_klines.extend(filtered_klines)
+                        self.logger.info(f"✅ Added {len(filtered_klines)} candles from chunk {chunk_count}")
+                        
+                        # Update current_start based on the last kline timestamp
+                        if filtered_klines:
+                            last_timestamp = int(filtered_klines[-1][0])
+                            current_start = last_timestamp + interval_ms
+                        else:
+                            current_start = current_end
+                    else:
+                        self.logger.warning(f"⚠️ No data for chunk {chunk_count}, moving to next chunk")
+                        current_start = current_end
+                
+                except Exception as chunk_error:
+                    self.logger.error(f"❌ Error fetching chunk {chunk_count}: {chunk_error}")
+                    current_start = current_end
+                
+                # Add delay to avoid rate limits
+                import time
+                time.sleep(0.2)
+                
+                # Safety break to avoid infinite loops
+                if chunk_count > 100:  # Max 100 chunks
+                    self.logger.warning("⚠️ Maximum chunk limit reached, stopping data fetch")
+                    break
+            
+            if not all_klines:
+                self.logger.error(f"❌ No historical data found for {symbol} {interval} in the specified date range")
+                
+                # Try fallback: get recent data without date range
+                self.logger.info("🔄 Attempting fallback: fetching recent data without date range")
+                fallback_klines = self.binance_client.get_historical_klines(
                     symbol=symbol,
                     interval=interval,
-                    start_str=current_start,
-                    end_str=current_end,
                     limit=1000
                 )
                 
-                if not klines:
-                    break
-                    
-                all_klines.extend(klines)
-                current_start = current_end
-                
-                # Add small delay to avoid rate limits
-                import time
-                time.sleep(0.1)
-            
-            if not all_klines:
-                self.logger.error(f"No historical data found for {symbol} {interval}")
-                return None
+                if fallback_klines:
+                    self.logger.info(f"✅ Fallback successful: got {len(fallback_klines)} recent candles")
+                    all_klines = fallback_klines
+                else:
+                    return None
             
             # Convert to DataFrame
             df = pd.DataFrame(all_klines, columns=[
@@ -176,17 +233,23 @@ class BacktestEngine:
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             df.set_index('timestamp', inplace=True)
             
+            # Remove duplicates and sort
+            df = df.sort_index()
+            df = df[~df.index.duplicated(keep='last')]
+            
             # Keep only OHLCV columns
             df = df[['open', 'high', 'low', 'close', 'volume']]
             
             # Calculate indicators using the same method as live trading
             df = self.price_fetcher.calculate_indicators(df)
             
-            self.logger.info(f"✅ Historical data loaded: {len(df)} candles from {start_date} to {end_date}")
+            self.logger.info(f"✅ Historical data processed: {len(df)} candles from {df.index[0]} to {df.index[-1]}")
             return df
             
         except Exception as e:
-            self.logger.error(f"Error getting historical data: {e}")
+            self.logger.error(f"❌ Error getting historical data: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def _interval_to_ms(self, interval: str) -> int:
