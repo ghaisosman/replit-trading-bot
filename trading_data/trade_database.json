@@ -1281,7 +1281,7 @@
       "side": "SELL",
       "quantity": 0.001,
       "entry_price": 118420.9,
-      "trade_status": "OPEN",
+      "trade_status": "CLOSED",
       "created_at": "2025-07-22T10:08:28.427876",
       "last_verified": "2025-07-22T11:10:18.936987",
       "sync_status": "BINANCE_VERIFIED",
@@ -1291,8 +1291,14 @@
       "timestamp": "2025-07-22T14:08:28.427870",
       "recovery_source": "MATCHED_EXISTING",
       "binance_entry_price": 118420.9,
-      "binance_quantity": 0.001
+      "binance_quantity": 0.001,
+      "exit_reason": "No matching position on Binance",
+      "exit_price": 118420.9,
+      "pnl_usdt": 0.0,
+      "pnl_percentage": 0.0,
+      "duration_minutes": 0,
+      "closed_at": "2025-07-22T11:32:01.678276"
     }
   },
-  "last_updated": "2025-07-22T11:10:18.937245"
+  "last_updated": "2025-07-22T11:32:02.252339"
 }
