@@ -629,11 +629,8 @@ class BotManager:
                                             # Update last log time
                                             self.last_position_log_time[f"untracked_{managing_strategy}"] = current_time
 
-            except Exception as e:
-                self.logger.error(f"❌ ERROR CHECKING UNTRACKED POSITIONS | {e}")
-                # Don't crash the bot for untracked position errors
         except Exception as e:
-            self.logger.error(f"Error checking untracked positions: {e}")
+            self.logger.error(f"❌ ERROR CHECKING UNTRACKED POSITIONS | {e}")
             # Don't crash the bot for untracked position errors
 
     async def _recover_active_positions(self):
