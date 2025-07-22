@@ -853,7 +853,9 @@ def create_strategy():
             return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" already exists'})
 
         # Validate strategy type
-        if 'rsi' not in strategy_name.lower() and 'macd' not in strategy_name.lower():
+        if ('rsi' not in strategy_name.lower() and 
+            'macd' not in strategy_name.lower() and 
+            'engulfing' not in strategy_name.lower():
             return jsonify({'success': False, 'message': 'Strategy name must contain "rsi" or "macd" to determine strategy type'})
 
         # Validate symbol
@@ -919,6 +921,24 @@ def create_strategy():
             # Validate MACD parameters
             if new_config['macd_fast'] >= new_config['macd_slow']:
                 return jsonify({'success': False, 'message': 'MACD Fast must be less than MACD Slow'})
+
+        elif 'engulfing' in strategy_name.lower():
+            new_config.update({
+                'rsi_period': int(data.get('rsi_period', 14)),
+                'rsi_threshold': float(data.get('rsi_threshold', 50)),
+                'rsi_long_exit': int(data.get('rsi_long_exit', 70)),
+                'rsi_short_exit': int(data.get('rsi_short_exit', 30)),
+                'stable_candle_ratio': float(data.get('stable_candle_ratio', 0.5)),
+                'price_lookback_bars': int(data.get('price_lookback_bars', 5)),
+                'partial_tp_pnl_threshold': float(data.get('partial_tp_pnl_threshold', 0.0)),
+                'partial_tp_position_percentage': float(data.get('partial_tp_position_percentage', 0.0))
+            })
+
+            # Validate Engulfing Pattern parameters
+            if not (30 <= new_config['rsi_threshold'] <= 70):
+                return jsonify({'success': False, 'message': 'RSI Threshold must be between 30 and 70'})
+            if not (0.1 <= new_config['stable_candle_ratio'] <= 1.0):
+                return jsonify({'success': False, 'message': 'Stable Candle Ratio must be between 0.1 and 1.0'})
 
         # 🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Save to persistent config
         trading_config_manager.update_strategy_params(strategy_name, new_config)

@@ -41,10 +41,12 @@ class SignalProcessor:
             strategy_name = strategy_config.get('name', 'unknown')
 
             # Route to specific strategy evaluation based on strategy type (not exact name)
-            if 'rsi' in strategy_name.lower():
+            if 'rsi' in strategy_name.lower() and 'engulfing' not in strategy_name.lower():
                 return self._evaluate_rsi_oversold(df, current_price, strategy_config)
             elif 'macd' in strategy_name.lower():
                 return self._evaluate_macd_divergence(df, current_price, strategy_config)
+            elif 'engulfing' in strategy_name.lower():
+                return self._evaluate_engulfing_pattern(df, current_price, strategy_config)
             elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
                 # Smart Money strategy is handled directly by the strategy class
                 # Signal processor doesn't need to generate signals for it
@@ -272,6 +274,26 @@ class SignalProcessor:
             self.logger.error(f"Error in MACD divergence evaluation: {e}")
             return None
 
+    def _evaluate_engulfing_pattern(self, df: pd.DataFrame, current_price: float, config: Dict) -> Optional[TradingSignal]:
+        """Engulfing Pattern strategy evaluation"""
+        try:
+            from src.execution_engine.strategies.engulfing_pattern_strategy import EngulfingPatternStrategy
+            
+            strategy_name = config.get('name', 'engulfing_pattern')
+            strategy = EngulfingPatternStrategy(strategy_name, config)
+            
+            # Calculate indicators
+            df_with_indicators = strategy.calculate_indicators(df.copy())
+            
+            # Evaluate signal
+            signal = strategy.evaluate_entry_signal(df_with_indicators)
+            
+            return signal
+
+        except Exception as e:
+            self.logger.error(f"Error in Engulfing Pattern evaluation: {e}")
+            return None
+
     def evaluate_exit_conditions(self, df: pd.DataFrame, position: Dict, strategy_config: Dict) -> bool:
         """Evaluate if position should be closed"""
         try:
@@ -288,8 +310,8 @@ class SignalProcessor:
             # Strategy-specific exit conditions
             strategy_name = strategy_config.get('name', '')
 
-            # RSI-based exit conditions for any RSI strategy
-            if 'rsi' in strategy_name.lower() and 'rsi' in df.columns:
+            # RSI-based exit conditions for RSI strategies (excluding engulfing)
+            if 'rsi' in strategy_name.lower() and 'engulfing' not in strategy_name.lower() and 'rsi' in df.columns:
                 rsi_current = df['rsi'].iloc[-1]
 
                 # Get configurable RSI exit levels
@@ -305,6 +327,20 @@ class SignalProcessor:
                 elif position_side == 'SELL' and rsi_current <= rsi_short_exit:
                     self.logger.info(f"SHORT TAKE PROFIT: RSI {rsi_current:.2f} <= {rsi_short_exit}")
                     return f"Take Profit (RSI {rsi_short_exit}-)"
+
+            # Engulfing Pattern exit conditions
+            elif 'engulfing' in strategy_name.lower():
+                try:
+                    from src.execution_engine.strategies.engulfing_pattern_strategy import EngulfingPatternStrategy
+                    
+                    strategy = EngulfingPatternStrategy(strategy_name, strategy_config)
+                    exit_reason = strategy.evaluate_exit_signal(df, position)
+                    
+                    if exit_reason:
+                        return exit_reason
+                        
+                except Exception as e:
+                    self.logger.error(f"Error in Engulfing Pattern exit evaluation: {e}")
 
             # MACD-based exit conditions - FOLLOWS YOUR STRATEGY LOGIC
             elif 'macd' in strategy_name.lower() and 'macd_histogram' in df.columns:

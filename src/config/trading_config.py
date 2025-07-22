@@ -280,6 +280,22 @@ class TradingConfigManager:
             if validated_updates['macd_exit_threshold'] < 0.001 or validated_updates['macd_exit_threshold'] > 1.0:
                 validated_updates['macd_exit_threshold'] = 0.02
 
+        # Engulfing Pattern Strategy Parameters - NEW STRATEGY
+        if 'rsi_threshold' in updates:
+            validated_updates['rsi_threshold'] = float(updates['rsi_threshold'])
+            if validated_updates['rsi_threshold'] < 30 or validated_updates['rsi_threshold'] > 70:
+                validated_updates['rsi_threshold'] = 50
+
+        if 'stable_candle_ratio' in updates:
+            validated_updates['stable_candle_ratio'] = float(updates['stable_candle_ratio'])
+            if validated_updates['stable_candle_ratio'] < 0.1 or validated_updates['stable_candle_ratio'] > 1.0:
+                validated_updates['stable_candle_ratio'] = 0.5
+
+        if 'price_lookback_bars' in updates:
+            validated_updates['price_lookback_bars'] = int(updates['price_lookback_bars'])
+            if validated_updates['price_lookback_bars'] < 3 or validated_updates['price_lookback_bars'] > 20:
+                validated_updates['price_lookback_bars'] = 5
+
         # Smart Money Strategy Parameters - NEW FEATURE
         if 'swing_lookback_period' in updates:
             validated_updates['swing_lookback_period'] = int(updates['swing_lookback_period'])
@@ -457,6 +473,17 @@ class TradingConfigManager:
                     strategies[strategy_name].setdefault('allowed_sessions', ['LONDON', 'NEW_YORK'])
                     strategies[strategy_name].setdefault('trend_filter_enabled', True)
 
+                # Engulfing Pattern Strategy Specific Parameters
+                elif 'engulfing' in strategy_name.lower():
+                    strategies[strategy_name].setdefault('rsi_period', 14)
+                    strategies[strategy_name].setdefault('rsi_threshold', 50)
+                    strategies[strategy_name].setdefault('rsi_long_exit', 70)
+                    strategies[strategy_name].setdefault('rsi_short_exit', 30)
+                    strategies[strategy_name].setdefault('stable_candle_ratio', 0.5)
+                    strategies[strategy_name].setdefault('price_lookback_bars', 5)
+                    strategies[strategy_name].setdefault('partial_tp_pnl_threshold', 0.0)  # Disabled by default
+                    strategies[strategy_name].setdefault('partial_tp_position_percentage', 0.0)  # Disabled by default
+
                 # Liquidity Reversal Strategy Specific Parameters
                 elif 'liquidity' in strategy_name.lower() or 'reversal' in strategy_name.lower():
                     strategies[strategy_name].setdefault('lookback_candles', 100)
@@ -533,6 +560,25 @@ class TradingConfigManager:
                 'allowed_sessions': ['LONDON', 'NEW_YORK'],
                 'trend_filter_enabled': True,
                 'min_volume': 1000000,
+            },
+            'engulfing_pattern_btc': {
+                **self.default_params.to_dict(),
+                'symbol': 'BTCUSDT',
+                'margin': 25.0,
+                'leverage': 8,
+                'timeframe': '1h',
+                'assessment_interval': 90,
+                'decimals': 3,
+                'cooldown_period': 600,
+                'rsi_period': 14,
+                'rsi_threshold': 50,
+                'rsi_long_exit': 70,
+                'rsi_short_exit': 30,
+                'stable_candle_ratio': 0.5,
+                'price_lookback_bars': 5,
+                'partial_tp_pnl_threshold': 0.0,
+                'partial_tp_position_percentage': 0.0,
+                'min_volume': 2000000,
             }
         }
 
