@@ -855,7 +855,7 @@ def create_strategy():
         # Validate strategy type
         if ('rsi' not in strategy_name.lower() and 
             'macd' not in strategy_name.lower() and 
-            'engulfing' not in strategy_name.lower():
+            'engulfing' not in strategy_name.lower()):
             return jsonify({'success': False, 'message': 'Strategy name must contain "rsi" or "macd" to determine strategy type'})
 
         # Validate symbol
