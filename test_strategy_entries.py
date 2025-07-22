@@ -144,14 +144,23 @@ class StrategyTester:
 
         # Record entry in database
         try:
-            self.trade_db.record_trade_entry(trade_data)
+            self.trade_db.add_trade(trade_data['trade_id'], trade_data)
             print(f"✅ Trade recorded in database")
         except Exception as e:
             print(f"❌ Database recording failed: {e}")
 
         # Record in trade logger
         try:
-            self.trade_logger.log_trade_entry(trade_data)
+            self.trade_logger.log_trade_entry(
+                trade_id=trade_data['trade_id'],
+                strategy=trade_data['strategy_name'],
+                symbol=trade_data['symbol'],
+                side=trade_data['side'],
+                entry_price=trade_data['entry_price'],
+                quantity=trade_data['quantity'],
+                margin_used=trade_data['position_size_usdt'],
+                leverage=trade_data['leverage']
+            )
             print(f"✅ Trade logged in trade logger")
         except Exception as e:
             print(f"❌ Trade logger failed: {e}")
@@ -204,14 +213,19 @@ class StrategyTester:
 
         # Record exit in database
         try:
-            self.trade_db.record_trade_exit(trade_data['trade_id'], trade_data)
+            # Update existing trade with exit data
+            self.trade_db.update_trade(trade_data['trade_id'], trade_data)
             print(f"✅ Exit recorded in database")
         except Exception as e:
             print(f"❌ Database exit recording failed: {e}")
 
         # Record in trade logger
         try:
-            self.trade_logger.log_trade_exit(trade_data)
+            self.trade_logger.log_trade_exit(
+                trade_id=trade_data['trade_id'],
+                exit_price=trade_data['exit_price'],
+                exit_reason=trade_data['exit_reason']
+            )
             print(f"✅ Exit logged in trade logger")
         except Exception as e:
             print(f"❌ Trade logger exit failed: {e}")
@@ -339,7 +353,14 @@ class StrategyTester:
             test_trade_ids = [tid for tid, data in trades.items() if data.get('test_mode')]
 
             for trade_id in test_trade_ids:
-                self.trade_db.remove_trade(trade_id)
+                if hasattr(self.trade_db, 'remove_trade'):
+                    self.trade_db.remove_trade(trade_id)
+                elif hasattr(self.trade_db, 'delete_trade'):
+                    self.trade_db.delete_trade(trade_id)
+                else:
+                    # Manual removal from trade database
+                    if hasattr(self.trade_db, 'trades') and trade_id in self.trade_db.trades:
+                        del self.trade_db.trades[trade_id]
 
             print(f"🗑️ Removed {len(test_trade_ids)} test trades from database")
 
