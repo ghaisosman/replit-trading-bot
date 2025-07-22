@@ -1283,14 +1283,16 @@
       "entry_price": 118420.9,
       "trade_status": "OPEN",
       "created_at": "2025-07-22T10:08:28.427876",
-      "last_verified": "2025-07-22T10:08:28.427893",
-      "sync_status": "VERIFIED",
+      "last_verified": "2025-07-22T10:11:47.224221",
+      "sync_status": "BINANCE_VERIFIED",
       "position_value_usdt": 118.4209,
       "leverage": 5,
       "margin_used": 23.68418,
       "timestamp": "2025-07-22T14:08:28.427870",
-      "recovery_source": "SMART_RECOVERY"
+      "recovery_source": "MATCHED_EXISTING",
+      "binance_entry_price": 118420.9,
+      "binance_quantity": 0.001
     }
   },
-  "last_updated": "2025-07-22T10:08:28.748377"
+  "last_updated": "2025-07-22T10:11:47.224425"
 }
