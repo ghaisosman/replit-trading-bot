@@ -776,9 +776,8 @@ def get_strategies():
                     config.setdefault('max_daily_trades', 3)
                     config.setdefault('session_filter_enabled', True)
                     config.setdefault('allowed_sessions', ['LONDON', 'NEW_YORK'])
-                    config.setdefault('trend_filter_enabled',True)
-                    config.setdefault('min_volume', ```python
-100000)
+                    config.setdefault('trend_filter_enabled', True)
+                    config.setdefault('min_volume', 100000)
                     config.setdefault('decimals', 2)
                     config.setdefault('cooldown_period', 300)
 
