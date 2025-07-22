@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
 import json
+import pandas as pd
 from src.binance_client.client import BinanceClientWrapper
 from src.strategy_processor.signal_processor import TradingSignal, SignalType
 
