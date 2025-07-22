@@ -1,663 +1,419 @@
-
 #!/usr/bin/env python3
 """
-Comprehensive Strategy Entry Testing
-Tests MACD Divergence and Smart Money Reversal strategies with simulated market conditions
+Strategy Entry Testing System
+Test MACD Divergence and Smart Money strategies with simulated market conditions
 """
 
-import sys
-import os
-import logging
 import asyncio
-import time
+import json
+import os
+import sys
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
-import pandas as pd
-import numpy as np
+from typing import Dict, Any, List
+import random
 
-# Add src to path
+# Add src to path for imports
 sys.path.append('src')
 
-from src.binance_client.client import BinanceClientWrapper
-from src.execution_engine.order_manager import OrderManager, Position
-from src.execution_engine.trade_database import TradeDatabase
-from src.strategy_processor.signal_processor import SignalProcessor, TradingSignal, SignalType
-from src.execution_engine.strategies.smart_money_config import SmartMoneyStrategy
 from src.config.global_config import global_config
-from src.analytics.trade_logger import trade_logger
+from src.binance_client.client import BinanceClientWrapper
+from src.execution_engine.trade_database import TradeDatabase
+from src.analytics.trade_logger import TradeLogger
+from src.execution_engine.order_manager import OrderManager
 
 class StrategyTester:
-    """Comprehensive strategy testing with simulated market conditions"""
-    
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-        
-        # Initialize components
-        self.binance_client = BinanceClientWrapper()
+        """Initialize strategy tester"""
+        self.client = BinanceClientWrapper()
         self.trade_db = TradeDatabase()
-        self.signal_processor = SignalProcessor()
-        self.order_manager = OrderManager(self.binance_client, trade_logger)
-        
-        # Test configurations
-        self.test_strategies = {
+        self.trade_logger = TradeLogger()
+        self.order_manager = OrderManager(self.client, self.trade_db, self.trade_logger)
+
+        # Test symbols
+        self.test_symbols = {
+            'macd_divergence': 'SOLUSDT',  # SOL for MACD Divergence
+            'smart_money': 'ETHUSDT'       # ETH for Smart Money
+        }
+
+        # Strategy configurations
+        self.strategy_configs = {
             'macd_divergence': {
-                'name': 'MACD_TEST',
-                'symbol': 'BTCUSDT',
-                'timeframe': '5m',
-                'margin': 15.0,
-                'leverage': 3,
-                'max_loss_pct': 8,
-                'macd_fast': 12,
-                'macd_slow': 26,
-                'macd_signal': 9,
-                'min_histogram_threshold': 0.0001,
-                'macd_entry_threshold': 0.005,
-                'macd_exit_threshold': 0.002,
-                'confirmation_candles': 2,
-                'partial_tp_pnl_threshold': 15.0,
-                'partial_tp_position_percentage': 50.0,
-                'decimals': 3
+                'name': 'MACD Divergence',
+                'symbol': 'SOLUSDT',
+                'position_size_usdt': 50,
+                'take_profit_percent': 2.5,
+                'stop_loss_percent': 1.5,
+                'leverage': 5
             },
             'smart_money': {
-                'name': 'SMART_MONEY_TEST',
-                'symbol': 'ETHUSDT',
-                'timeframe': '15m',
-                'margin': 12.0,
-                'leverage': 3,
-                'swing_lookback_period': 25,
-                'sweep_threshold_pct': 0.1,
-                'reversion_candles': 3,
-                'volume_spike_multiplier': 2.0,
-                'min_swing_distance_pct': 1.0,
-                'session_filter_enabled': True,
-                'allowed_sessions': ['LONDON', 'NEW_YORK'],
-                'max_daily_trades': 3,
-                'trend_filter_enabled': True,
-                'decimals': 2
+                'name': 'Smart Money',
+                'symbol': 'ETHUSDT', 
+                'position_size_usdt': 75,
+                'take_profit_percent': 3.0,
+                'stop_loss_percent': 2.0,
+                'leverage': 3
             }
         }
-        
-        self.test_results = []
-        
-    def create_test_market_data(self, symbol: str, strategy_type: str, scenario: str) -> pd.DataFrame:
-        """Create realistic market data for testing specific scenarios"""
-        try:
-            # Get current real price as baseline
-            ticker = self.binance_client.get_symbol_ticker(symbol)
-            current_price = float(ticker['price'])
-            
-            # Generate 100 candles of test data
-            num_candles = 100
-            timestamps = [datetime.now() - timedelta(minutes=5*i) for i in range(num_candles)]
-            timestamps.reverse()
-            
-            if strategy_type == 'macd_divergence':
-                return self._create_macd_test_data(current_price, timestamps, scenario)
-            elif strategy_type == 'smart_money':
-                return self._create_smart_money_test_data(current_price, timestamps, scenario)
-            else:
-                raise ValueError(f"Unknown strategy type: {strategy_type}")
-                
-        except Exception as e:
-            self.logger.error(f"Error creating test data: {e}")
-            return pd.DataFrame()
-    
-    def _create_macd_test_data(self, base_price: float, timestamps: List[datetime], scenario: str) -> pd.DataFrame:
-        """Create MACD-specific test scenarios"""
-        prices = []
-        volumes = []
-        
-        for i, timestamp in enumerate(timestamps):
-            # Create different scenarios
-            if scenario == 'bullish_divergence':
-                # Price trend down but MACD building momentum up
-                price_trend = base_price * (1 - 0.02 * (50 - i) / 50)  # Price declining
-                macd_influence = 0.001 * np.sin(i * 0.3) * (i / 50)  # MACD building momentum
-                price = price_trend + base_price * macd_influence
-                
-            elif scenario == 'bearish_divergence':
-                # Price trend up but MACD building momentum down
-                price_trend = base_price * (1 + 0.02 * (50 - i) / 50)  # Price rising
-                macd_influence = -0.001 * np.sin(i * 0.3) * (i / 50)  # MACD building down momentum
-                price = price_trend + base_price * macd_influence
-                
-            elif scenario == 'take_profit':
-                # Strong trend after entry
-                if i < 70:
-                    price = base_price * (1 + 0.001 * i)  # Gradual rise
-                else:
-                    price = base_price * (1 + 0.03 + 0.002 * (i - 70))  # Acceleration
-                    
-            elif scenario == 'stop_loss':
-                # Adverse movement after entry
-                if i < 70:
-                    price = base_price * (1 + 0.001 * i)  # Initial rise
-                else:
-                    price = base_price * (1 - 0.05 - 0.001 * (i - 70))  # Sharp decline
-                    
-            else:  # neutral
-                price = base_price * (1 + 0.001 * np.random.normal(0, 1))
-            
-            # Add some noise
-            price += price * 0.0005 * np.random.normal(0, 1)
-            prices.append(max(price, 0.01))  # Ensure positive price
-            
-            # Volume patterns
-            base_volume = 1000000
-            if scenario in ['bullish_divergence', 'bearish_divergence'] and i > 80:
-                volume = base_volume * (2 + np.random.uniform(0, 1))  # High volume for signal
-            else:
-                volume = base_volume * (0.5 + np.random.uniform(0, 1))
-            volumes.append(volume)
-        
-        # Create DataFrame
-        df = pd.DataFrame({
-            'timestamp': timestamps,
-            'open': prices,
-            'high': [p * (1 + np.random.uniform(0, 0.002)) for p in prices],
-            'low': [p * (1 - np.random.uniform(0, 0.002)) for p in prices],
-            'close': prices,
-            'volume': volumes
-        })
-        
-        # Calculate technical indicators
-        df = self._add_technical_indicators(df)
-        return df
-    
-    def _create_smart_money_test_data(self, base_price: float, timestamps: List[datetime], scenario: str) -> pd.DataFrame:
-        """Create Smart Money-specific test scenarios"""
-        prices_high = []
-        prices_low = []
-        prices_close = []
-        volumes = []
-        
-        for i, timestamp in enumerate(timestamps):
-            base_vol = 500000
-            
-            if scenario == 'liquidity_sweep_long':
-                if i < 80:
-                    # Build up to swing low
-                    price = base_price * (1 - 0.01 * np.sin(i * 0.1))
-                elif i == 85:
-                    # Sweep below swing low (liquidity hunt)
-                    price = base_price * 0.985  # -1.5% sweep
-                    base_vol *= 3  # High volume on sweep
-                else:
-                    # Recovery above swing low
-                    price = base_price * (1 + 0.01 * (i - 85) / 15)
-                    
-            elif scenario == 'liquidity_sweep_short':
-                if i < 80:
-                    # Build up to swing high
-                    price = base_price * (1 + 0.01 * np.sin(i * 0.1))
-                elif i == 85:
-                    # Sweep above swing high (liquidity hunt)
-                    price = base_price * 1.015  # +1.5% sweep
-                    base_vol *= 3  # High volume on sweep
-                else:
-                    # Recovery below swing high
-                    price = base_price * (1 - 0.01 * (i - 85) / 15)
-                    
-            elif scenario == 'take_profit':
-                # Strong directional move after sweep
-                if i < 70:
-                    price = base_price
-                else:
-                    price = base_price * (1 + 0.025 * (i - 70) / 30)  # 2.5% move
-                    
-            elif scenario == 'stop_loss':
-                # Failed reversal
-                if i < 80:
-                    price = base_price
-                elif i < 85:
-                    price = base_price * (1 + 0.005)  # Small bounce
-                else:
-                    price = base_price * (1 - 0.03)  # Continued in original direction
-                    
-            else:  # neutral
-                price = base_price * (1 + 0.001 * np.random.normal(0, 1))
-            
-            # Add noise and create OHLC
-            noise = price * 0.0003 * np.random.normal(0, 1)
-            close_price = price + noise
-            high_price = close_price * (1 + abs(np.random.normal(0, 0.001)))
-            low_price = close_price * (1 - abs(np.random.normal(0, 0.001)))
-            
-            prices_high.append(high_price)
-            prices_low.append(low_price)
-            prices_close.append(close_price)
-            
-            # Volume
-            volume = base_vol * (0.5 + np.random.uniform(0, 1.5))
-            volumes.append(volume)
-        
-        # Create DataFrame
-        df = pd.DataFrame({
-            'timestamp': timestamps,
-            'open': prices_close,  # Simplified
-            'high': prices_high,
-            'low': prices_low,
-            'close': prices_close,
-            'volume': volumes
-        })
-        
-        return df
-    
-    def _add_technical_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Add technical indicators to DataFrame"""
-        try:
-            # RSI
-            delta = df['close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rs = gain / loss
-            df['rsi'] = 100 - (100 / (1 + rs))
-            
-            # EMAs for MACD
-            df['ema_12'] = df['close'].ewm(span=12).mean()
-            df['ema_26'] = df['close'].ewm(span=26).mean()
-            
-            # MACD
-            df['macd'] = df['ema_12'] - df['ema_26']
-            df['macd_signal'] = df['macd'].ewm(span=9).mean()
-            df['macd_histogram'] = df['macd'] - df['macd_signal']
-            
-            # Moving averages
-            df['sma_20'] = df['close'].rolling(window=20).mean()
-            df['sma_50'] = df['close'].rolling(window=50).mean()
-            
-            return df
-            
-        except Exception as e:
-            self.logger.error(f"Error adding technical indicators: {e}")
-            return df
-    
-    def test_macd_strategy(self, scenario: str) -> Dict[str, Any]:
-        """Test MACD Divergence strategy with specific scenario"""
-        try:
-            self.logger.info(f"🔬 TESTING MACD STRATEGY | Scenario: {scenario.upper()}")
-            
-            config = self.test_strategies['macd_divergence'].copy()
-            symbol = config['symbol']
-            
-            # Create test data
-            df = self.create_test_market_data(symbol, 'macd_divergence', scenario)
-            if df.empty:
-                return {'success': False, 'error': 'Failed to create test data'}
-            
-            # Test signal generation
-            signal = self.signal_processor.evaluate_macd_divergence(df, config)
-            
-            if signal:
-                self.logger.info(f"✅ MACD SIGNAL GENERATED | {signal.signal_type} | Entry: ${signal.entry_price:.4f}")
-                
-                # Test position execution
-                position = self.order_manager.execute_signal(signal, config)
-                
-                if position:
-                    self.logger.info(f"✅ POSITION OPENED | Trade ID: {position.trade_id}")
-                    
-                    # Test scenarios
-                    result = self._test_position_lifecycle(position, config, scenario, df)
-                    result['strategy'] = 'MACD_DIVERGENCE'
-                    result['signal_generated'] = True
-                    result['position_opened'] = True
-                    
-                    return result
-                else:
-                    return {
-                        'strategy': 'MACD_DIVERGENCE',
-                        'scenario': scenario,
-                        'signal_generated': True,
-                        'position_opened': False,
-                        'success': False,
-                        'error': 'Failed to open position'
-                    }
-            else:
-                self.logger.warning(f"⚠️ NO MACD SIGNAL GENERATED for scenario: {scenario}")
-                return {
-                    'strategy': 'MACD_DIVERGENCE',
-                    'scenario': scenario,
-                    'signal_generated': False,
-                    'position_opened': False,
-                    'success': False,
-                    'error': 'No signal generated'
-                }
-                
-        except Exception as e:
-            self.logger.error(f"❌ MACD TEST ERROR: {e}")
-            return {'success': False, 'error': str(e)}
-    
-    def test_smart_money_strategy(self, scenario: str) -> Dict[str, Any]:
-        """Test Smart Money Reversal strategy with specific scenario"""
-        try:
-            self.logger.info(f"🔬 TESTING SMART MONEY STRATEGY | Scenario: {scenario.upper()}")
-            
-            config = self.test_strategies['smart_money'].copy()
-            symbol = config['symbol']
-            
-            # Create test data
-            df = self.create_test_market_data(symbol, 'smart_money', scenario)
-            if df.empty:
-                return {'success': False, 'error': 'Failed to create test data'}
-            
-            # Create Smart Money strategy instance
-            smart_money = SmartMoneyStrategy(config)
-            
-            # Convert DataFrame to klines format for Smart Money strategy
-            klines = []
-            for _, row in df.iterrows():
-                kline = [
-                    int(row['timestamp'].timestamp() * 1000),  # timestamp
-                    str(row['open']),   # open
-                    str(row['high']),   # high
-                    str(row['low']),    # low
-                    str(row['close']),  # close
-                    str(row['volume']), # volume
-                ]
-                klines.append(kline)
-            
-            # Test signal generation
-            current_price = df['close'].iloc[-1]
-            signal = smart_money.analyze_market(klines, current_price)
-            
-            if signal:
-                self.logger.info(f"✅ SMART MONEY SIGNAL GENERATED | {signal.signal_type} | Entry: ${signal.entry_price:.4f}")
-                
-                # Test position execution
-                position = self.order_manager.execute_signal(signal, config)
-                
-                if position:
-                    self.logger.info(f"✅ POSITION OPENED | Trade ID: {position.trade_id}")
-                    
-                    # Test scenarios
-                    result = self._test_position_lifecycle(position, config, scenario, df)
-                    result['strategy'] = 'SMART_MONEY'
-                    result['signal_generated'] = True
-                    result['position_opened'] = True
-                    
-                    return result
-                else:
-                    return {
-                        'strategy': 'SMART_MONEY',
-                        'scenario': scenario,
-                        'signal_generated': True,
-                        'position_opened': False,
-                        'success': False,
-                        'error': 'Failed to open position'
-                    }
-            else:
-                self.logger.warning(f"⚠️ NO SMART MONEY SIGNAL GENERATED for scenario: {scenario}")
-                return {
-                    'strategy': 'SMART_MONEY',
-                    'scenario': scenario,
-                    'signal_generated': False,
-                    'position_opened': False,
-                    'success': False,
-                    'error': 'No signal generated'
-                }
-                
-        except Exception as e:
-            self.logger.error(f"❌ SMART MONEY TEST ERROR: {e}")
-            return {'success': False, 'error': str(e)}
-    
-    def _test_position_lifecycle(self, position: Position, config: Dict, scenario: str, df: pd.DataFrame) -> Dict[str, Any]:
-        """Test complete position lifecycle from entry to exit"""
-        try:
-            result = {
-                'scenario': scenario,
-                'trade_id': position.trade_id,
-                'entry_price': position.entry_price,
-                'symbol': position.symbol,
-                'side': position.side,
-                'quantity': position.quantity,
-                'margin_used': getattr(position, 'actual_margin_used', config.get('margin', 10.0)),
-                'success': True
-            }
-            
-            # Verify database entry
-            trade_data = self.trade_db.get_trade(position.trade_id)
-            if trade_data:
-                self.logger.info(f"✅ DATABASE RECORD CREATED | Trade ID: {position.trade_id}")
-                result['database_entry'] = True
-            else:
-                self.logger.error(f"❌ DATABASE RECORD MISSING | Trade ID: {position.trade_id}")
-                result['database_entry'] = False
-                result['success'] = False
-            
-            # Simulate price movement based on scenario
-            if scenario in ['take_profit', 'bullish_divergence', 'liquidity_sweep_long']:
-                # Simulate profitable movement
-                if position.side == 'BUY':
-                    exit_price = position.entry_price * 1.025  # +2.5% profit
-                else:
-                    exit_price = position.entry_price * 0.975  # +2.5% profit for short
-                exit_reason = "Take Profit Hit"
-                
-            elif scenario in ['stop_loss', 'bearish_divergence', 'liquidity_sweep_short']:
-                # Simulate loss scenario
-                if position.side == 'BUY':
-                    exit_price = position.entry_price * 0.985  # -1.5% loss
-                else:
-                    exit_price = position.entry_price * 1.015  # -1.5% loss for short
-                exit_reason = "Stop Loss Hit"
-                
-            else:
-                # Neutral exit
-                exit_price = position.entry_price * 1.005  # Small profit
-                exit_reason = "Manual Exit"
-            
-            # Test partial take profit if applicable
-            partial_tp_tested = False
-            if config.get('partial_tp_pnl_threshold', 0) > 0:
-                # Simulate partial TP trigger
-                partial_price = position.entry_price * 1.015 if position.side == 'BUY' else position.entry_price * 0.985
-                partial_tp_result = self.order_manager.check_partial_take_profit(config['name'], partial_price)
-                if partial_tp_result:
-                    self.logger.info(f"✅ PARTIAL TAKE PROFIT EXECUTED")
-                    result['partial_tp_executed'] = True
-                    partial_tp_tested = True
-                else:
-                    result['partial_tp_executed'] = False
-            
-            # Close position
-            self.logger.info(f"🔄 CLOSING POSITION | Exit Price: ${exit_price:.4f} | Reason: {exit_reason}")
-            
-            # Manually set exit price for testing (since we're not using real market)
-            close_result = self.order_manager.close_position(config['name'], exit_reason)
-            
-            if close_result:
-                self.logger.info(f"✅ POSITION CLOSED | P&L: ${close_result.get('pnl_usdt', 0):.2f} USDT")
-                result['position_closed'] = True
-                result['exit_price'] = close_result.get('exit_price', exit_price)
-                result['pnl_usdt'] = close_result.get('pnl_usdt', 0)
-                result['pnl_percentage'] = close_result.get('pnl_percentage', 0)
-                result['exit_reason'] = exit_reason
-                
-                # Verify database update
-                updated_trade = self.trade_db.get_trade(position.trade_id)
-                if updated_trade and updated_trade.get('trade_status') == 'CLOSED':
-                    self.logger.info(f"✅ DATABASE UPDATED | Status: CLOSED")
-                    result['database_updated'] = True
-                else:
-                    self.logger.error(f"❌ DATABASE NOT UPDATED | Trade ID: {position.trade_id}")
-                    result['database_updated'] = False
-                    result['success'] = False
-                    
-            else:
-                self.logger.error(f"❌ FAILED TO CLOSE POSITION")
-                result['position_closed'] = False
-                result['success'] = False
-            
-            return result
-            
-        except Exception as e:
-            self.logger.error(f"❌ POSITION LIFECYCLE TEST ERROR: {e}")
-            return {'success': False, 'error': str(e)}
-    
-    def run_comprehensive_tests(self) -> Dict[str, Any]:
-        """Run comprehensive tests for both strategies"""
-        try:
-            self.logger.info("🚀 STARTING COMPREHENSIVE STRATEGY TESTING")
-            
-            # Test scenarios for each strategy
-            test_scenarios = {
-                'macd_divergence': [
-                    'bullish_divergence',
-                    'bearish_divergence', 
-                    'take_profit',
-                    'stop_loss'
-                ],
-                'smart_money': [
-                    'liquidity_sweep_long',
-                    'liquidity_sweep_short',
-                    'take_profit',
-                    'stop_loss'
-                ]
-            }
-            
-            all_results = []
-            
-            # Test MACD Strategy
-            self.logger.info("=" * 60)
-            self.logger.info("🔬 TESTING MACD DIVERGENCE STRATEGY")
-            self.logger.info("=" * 60)
-            
-            for scenario in test_scenarios['macd_divergence']:
-                self.logger.info(f"\n📊 Testing MACD scenario: {scenario}")
-                result = self.test_macd_strategy(scenario)
-                result['timestamp'] = datetime.now().isoformat()
-                all_results.append(result)
-                time.sleep(2)  # Brief pause between tests
-            
-            # Test Smart Money Strategy
-            self.logger.info("=" * 60)
-            self.logger.info("🧠 TESTING SMART MONEY STRATEGY")
-            self.logger.info("=" * 60)
-            
-            for scenario in test_scenarios['smart_money']:
-                self.logger.info(f"\n🎯 Testing Smart Money scenario: {scenario}")
-                result = self.test_smart_money_strategy(scenario)
-                result['timestamp'] = datetime.now().isoformat()
-                all_results.append(result)
-                time.sleep(2)  # Brief pause between tests
-            
-            # Generate summary
-            summary = self._generate_test_summary(all_results)
-            
-            self.logger.info("=" * 60)
-            self.logger.info("📈 TEST SUMMARY")
-            self.logger.info("=" * 60)
-            
-            for key, value in summary.items():
-                self.logger.info(f"{key}: {value}")
-            
-            return {
-                'summary': summary,
-                'detailed_results': all_results,
-                'test_completed': True,
-                'timestamp': datetime.now().isoformat()
-            }
-            
-        except Exception as e:
-            self.logger.error(f"❌ COMPREHENSIVE TEST ERROR: {e}")
-            return {'success': False, 'error': str(e)}
-    
-    def _generate_test_summary(self, results: List[Dict]) -> Dict[str, Any]:
-        """Generate comprehensive test summary"""
-        summary = {
-            'total_tests': len(results),
-            'successful_tests': 0,
-            'failed_tests': 0,
-            'macd_tests': 0,
-            'smart_money_tests': 0,
-            'signals_generated': 0,
-            'positions_opened': 0,
-            'positions_closed': 0,
-            'database_entries': 0,
-            'database_updates': 0,
-            'partial_tp_executed': 0,
-            'avg_pnl_usdt': 0,
-            'total_pnl_usdt': 0
-        }
-        
-        total_pnl = 0
-        pnl_count = 0
-        
-        for result in results:
-            if result.get('success', False):
-                summary['successful_tests'] += 1
-            else:
-                summary['failed_tests'] += 1
-            
-            if result.get('strategy') == 'MACD_DIVERGENCE':
-                summary['macd_tests'] += 1
-            elif result.get('strategy') == 'SMART_MONEY':
-                summary['smart_money_tests'] += 1
-            
-            if result.get('signal_generated', False):
-                summary['signals_generated'] += 1
-            
-            if result.get('position_opened', False):
-                summary['positions_opened'] += 1
-            
-            if result.get('position_closed', False):
-                summary['positions_closed'] += 1
-            
-            if result.get('database_entry', False):
-                summary['database_entries'] += 1
-            
-            if result.get('database_updated', False):
-                summary['database_updates'] += 1
-            
-            if result.get('partial_tp_executed', False):
-                summary['partial_tp_executed'] += 1
-            
-            if 'pnl_usdt' in result:
-                total_pnl += result['pnl_usdt']
-                pnl_count += 1
-        
-        if pnl_count > 0:
-            summary['avg_pnl_usdt'] = round(total_pnl / pnl_count, 2)
-            summary['total_pnl_usdt'] = round(total_pnl, 2)
-        
-        return summary
 
-def main():
-    """Run the comprehensive strategy tests"""
-    try:
-        print("🚀 INITIALIZING STRATEGY TESTING ENVIRONMENT")
-        
-        tester = StrategyTester()
-        
-        # Verify connection
-        if not tester.binance_client.test_connection():
-            print("❌ BINANCE CONNECTION FAILED - Cannot proceed with tests")
-            return
-        
-        print("✅ BINANCE CONNECTION VERIFIED")
-        
-        # Run comprehensive tests
-        results = tester.run_comprehensive_tests()
-        
-        if results.get('test_completed', False):
-            print("\n🎉 ALL TESTS COMPLETED SUCCESSFULLY")
-            print(f"📊 Summary: {results['summary']}")
-            
-            # Save results to file
-            import json
-            with open('strategy_test_results.json', 'w') as f:
-                json.dump(results, f, indent=2)
-            print("💾 Test results saved to strategy_test_results.json")
-            
+    def generate_test_signals(self, strategy: str, count: int = 3) -> List[Dict[str, Any]]:
+        """Generate test signals for strategy testing"""
+        signals = []
+        symbol = self.test_symbols[strategy]
+
+        # Get current price for realistic testing
+        try:
+            current_price = float(self.client.client.get_symbol_ticker(symbol=symbol)['price'])
+        except Exception as e:
+            print(f"⚠️ Could not fetch current price for {symbol}, using mock price")
+            current_price = 100.0 if symbol == 'SOLUSDT' else 2500.0
+
+        for i in range(count):
+            # Generate different signal types
+            signal_types = ['LONG', 'SHORT'] if strategy == 'smart_money' else ['LONG']
+            signal_type = random.choice(signal_types)
+
+            # Simulate price variations for realistic testing
+            price_variation = random.uniform(-0.02, 0.02)  # ±2% variation
+            entry_price = current_price * (1 + price_variation)
+
+            signal = {
+                'strategy': strategy,
+                'symbol': symbol,
+                'signal_type': signal_type,
+                'entry_price': entry_price,
+                'timestamp': datetime.now() - timedelta(minutes=i*30),
+                'confidence': random.uniform(0.7, 0.95),
+                'test_id': f"TEST_{strategy.upper()}_{i+1}",
+                'simulated': True
+            }
+
+            signals.append(signal)
+
+        return signals
+
+    async def simulate_entry(self, signal: Dict[str, Any]) -> Dict[str, Any]:
+        """Simulate strategy entry with full trade lifecycle"""
+        strategy = signal['strategy']
+        config = self.strategy_configs[strategy]
+
+        print(f"\n🎯 TESTING {config['name']} ENTRY")
+        print(f"Symbol: {signal['symbol']}")
+        print(f"Signal: {signal['signal_type']}")
+        print(f"Entry Price: ${signal['entry_price']:.4f}")
+        print(f"Test ID: {signal['test_id']}")
+
+        # Calculate position details
+        position_size_usdt = config['position_size_usdt']
+        leverage = config['leverage']
+        entry_price = signal['entry_price']
+
+        # Calculate quantity based on USDT amount
+        quantity = (position_size_usdt * leverage) / entry_price
+
+        # Calculate take profit and stop loss prices
+        if signal['signal_type'] == 'LONG':
+            take_profit_price = entry_price * (1 + config['take_profit_percent'] / 100)
+            stop_loss_price = entry_price * (1 - config['stop_loss_percent'] / 100)
         else:
-            print(f"❌ TESTS FAILED: {results.get('error', 'Unknown error')}")
-        
-    except Exception as e:
-        print(f"❌ CRITICAL ERROR: {e}")
-        import traceback
-        print(traceback.format_exc())
+            take_profit_price = entry_price * (1 - config['take_profit_percent'] / 100)
+            stop_loss_price = entry_price * (1 + config['stop_loss_percent'] / 100)
+
+        # Create trade entry data
+        trade_data = {
+            'trade_id': signal['test_id'],
+            'strategy_name': config['name'],
+            'symbol': signal['symbol'],
+            'side': signal['signal_type'],
+            'quantity': quantity,
+            'entry_price': entry_price,
+            'take_profit_price': take_profit_price,
+            'stop_loss_price': stop_loss_price,
+            'leverage': leverage,
+            'position_size_usdt': position_size_usdt,
+            'trade_status': 'OPEN',
+            'entry_time': signal['timestamp'].isoformat(),
+            'test_mode': True,
+            'simulated': True
+        }
+
+        print(f"💰 Position Size: ${position_size_usdt} USDT")
+        print(f"📊 Leverage: {leverage}x")
+        print(f"📈 Quantity: {quantity:.6f} {signal['symbol'][:-4]}")
+        print(f"🎯 Take Profit: ${take_profit_price:.4f}")
+        print(f"🛑 Stop Loss: ${stop_loss_price:.4f}")
+
+        # Record entry in database
+        try:
+            self.trade_db.record_trade_entry(trade_data)
+            print(f"✅ Trade recorded in database")
+        except Exception as e:
+            print(f"❌ Database recording failed: {e}")
+
+        # Record in trade logger
+        try:
+            self.trade_logger.log_trade_entry(trade_data)
+            print(f"✅ Trade logged in trade logger")
+        except Exception as e:
+            print(f"❌ Trade logger failed: {e}")
+
+        return trade_data
+
+    async def simulate_exit(self, trade_data: Dict[str, Any], exit_type: str) -> Dict[str, Any]:
+        """Simulate trade exit (TP/SL/Manual)"""
+        print(f"\n🚪 SIMULATING EXIT - {exit_type}")
+
+        entry_price = trade_data['entry_price']
+
+        # Determine exit price based on exit type
+        if exit_type == 'TAKE_PROFIT':
+            exit_price = trade_data['take_profit_price']
+            exit_reason = 'Take Profit Hit'
+        elif exit_type == 'STOP_LOSS':
+            exit_price = trade_data['stop_loss_price'] 
+            exit_reason = 'Stop Loss Hit'
+        else:  # MANUAL
+            # Simulate manual exit at random price between entry and TP
+            if trade_data['side'] == 'LONG':
+                exit_price = random.uniform(entry_price, trade_data['take_profit_price'])
+            else:
+                exit_price = random.uniform(trade_data['take_profit_price'], entry_price)
+            exit_reason = 'Manual Exit'
+
+        # Calculate PnL
+        quantity = trade_data['quantity']
+        if trade_data['side'] == 'LONG':
+            pnl_usdt = quantity * (exit_price - entry_price)
+        else:
+            pnl_usdt = quantity * (entry_price - exit_price)
+
+        pnl_percentage = (pnl_usdt / trade_data['position_size_usdt']) * 100
+
+        # Update trade data
+        trade_data.update({
+            'exit_price': exit_price,
+            'exit_time': datetime.now().isoformat(),
+            'exit_reason': exit_reason,
+            'pnl_usdt': pnl_usdt,
+            'pnl_percentage': pnl_percentage,
+            'trade_status': 'CLOSED'
+        })
+
+        print(f"💸 Exit Price: ${exit_price:.4f}")
+        print(f"💰 PnL: ${pnl_usdt:.2f} USDT ({pnl_percentage:.2f}%)")
+        print(f"📝 Exit Reason: {exit_reason}")
+
+        # Record exit in database
+        try:
+            self.trade_db.record_trade_exit(trade_data['trade_id'], trade_data)
+            print(f"✅ Exit recorded in database")
+        except Exception as e:
+            print(f"❌ Database exit recording failed: {e}")
+
+        # Record in trade logger
+        try:
+            self.trade_logger.log_trade_exit(trade_data)
+            print(f"✅ Exit logged in trade logger")
+        except Exception as e:
+            print(f"❌ Trade logger exit failed: {e}")
+
+        return trade_data
+
+    async def test_strategy(self, strategy: str, num_tests: int = 3):
+        """Test complete strategy lifecycle"""
+        print(f"\n{'='*60}")
+        print(f"🧪 TESTING STRATEGY: {strategy.upper()}")
+        print(f"{'='*60}")
+
+        # Generate test signals
+        signals = self.generate_test_signals(strategy, num_tests)
+
+        completed_trades = []
+
+        for i, signal in enumerate(signals):
+            print(f"\n--- TEST {i+1}/{num_tests} ---")
+
+            # Simulate entry
+            trade_data = await self.simulate_entry(signal)
+
+            # Wait a bit to simulate time passage
+            await asyncio.sleep(1)
+
+            # Randomly choose exit type for testing
+            exit_types = ['TAKE_PROFIT', 'STOP_LOSS', 'MANUAL']
+            weights = [0.4, 0.3, 0.3]  # 40% TP, 30% SL, 30% Manual
+            exit_type = random.choices(exit_types, weights=weights)[0]
+
+            # Simulate exit
+            completed_trade = await self.simulate_exit(trade_data, exit_type)
+            completed_trades.append(completed_trade)
+
+            print(f"✅ Test {i+1} completed")
+            await asyncio.sleep(1)
+
+        return completed_trades
+
+    def generate_test_report(self, strategy: str, trades: List[Dict[str, Any]]):
+        """Generate comprehensive test report"""
+        print(f"\n{'='*60}")
+        print(f"📊 TEST REPORT: {strategy.upper()}")
+        print(f"{'='*60}")
+
+        total_trades = len(trades)
+        winning_trades = [t for t in trades if t['pnl_usdt'] > 0]
+        losing_trades = [t for t in trades if t['pnl_usdt'] <= 0]
+
+        total_pnl = sum(t['pnl_usdt'] for t in trades)
+        win_rate = len(winning_trades) / total_trades * 100
+
+        print(f"📈 Total Trades: {total_trades}")
+        print(f"✅ Winning Trades: {len(winning_trades)}")
+        print(f"❌ Losing Trades: {len(losing_trades)}")
+        print(f"🎯 Win Rate: {win_rate:.1f}%")
+        print(f"💰 Total PnL: ${total_pnl:.2f} USDT")
+        print(f"📊 Average PnL per Trade: ${total_pnl/total_trades:.2f} USDT")
+
+        if winning_trades:
+            avg_win = sum(t['pnl_usdt'] for t in winning_trades) / len(winning_trades)
+            print(f"📈 Average Win: ${avg_win:.2f} USDT")
+
+        if losing_trades:
+            avg_loss = sum(t['pnl_usdt'] for t in losing_trades) / len(losing_trades)
+            print(f"📉 Average Loss: ${avg_loss:.2f} USDT")
+
+        print(f"\n🔍 DETAILED TRADE BREAKDOWN:")
+        for i, trade in enumerate(trades, 1):
+            status = "✅ WIN" if trade['pnl_usdt'] > 0 else "❌ LOSS"
+            print(f"  {i}. {trade['trade_id']} - {status} - ${trade['pnl_usdt']:.2f} - {trade['exit_reason']}")
+
+    async def verify_database_records(self, strategy: str):
+        """Verify that all test trades are properly recorded in database"""
+        print(f"\n🔍 VERIFYING DATABASE RECORDS FOR {strategy.upper()}")
+
+        # Check trade database
+        try:
+            trades = self.trade_db.get_all_trades()
+            test_trades = {tid: data for tid, data in trades.items() 
+                          if data.get('test_mode') and data.get('strategy_name', '').lower().replace(' ', '_') == strategy}
+
+            print(f"📊 Found {len(test_trades)} test trades in database")
+
+            for trade_id, data in test_trades.items():
+                status = data.get('trade_status', 'UNKNOWN')
+                pnl = data.get('pnl_usdt', 0)
+                print(f"  - {trade_id}: {status} (PnL: ${pnl:.2f})")
+
+        except Exception as e:
+            print(f"❌ Database verification failed: {e}")
+
+        # Check trade logger
+        try:
+            logger_file = "trading_data/trades/all_trades.json"
+            if os.path.exists(logger_file):
+                with open(logger_file, 'r') as f:
+                    logger_data = json.load(f)
+
+                test_logged_trades = [trade for trade in logger_data 
+                                    if trade.get('test_mode') and 
+                                    trade.get('strategy_name', '').lower().replace(' ', '_') == strategy]
+
+                print(f"📝 Found {len(test_logged_trades)} test trades in logger")
+
+                for trade in test_logged_trades:
+                    trade_id = trade.get('trade_id', 'UNKNOWN')
+                    status = trade.get('trade_status', 'UNKNOWN') 
+                    pnl = trade.get('pnl_usdt', 0)
+                    print(f"  - {trade_id}: {status} (PnL: ${pnl:.2f})")
+            else:
+                print(f"⚠️ Trade logger file not found")
+
+        except Exception as e:
+            print(f"❌ Trade logger verification failed: {e}")
+
+    async def cleanup_test_data(self):
+        """Clean up test data after testing"""
+        print(f"\n🧹 CLEANING UP TEST DATA")
+
+        try:
+            # Remove test trades from database
+            trades = self.trade_db.get_all_trades()
+            test_trade_ids = [tid for tid, data in trades.items() if data.get('test_mode')]
+
+            for trade_id in test_trade_ids:
+                self.trade_db.remove_trade(trade_id)
+
+            print(f"🗑️ Removed {len(test_trade_ids)} test trades from database")
+
+            # Note: We won't clean trade logger as it's meant to be permanent record
+            print(f"📝 Trade logger entries preserved for historical analysis")
+
+        except Exception as e:
+            print(f"❌ Cleanup failed: {e}")
+
+async def main():
+    """Main testing function"""
+    print("🧪 STRATEGY ENTRY TESTING SYSTEM")
+    print("Testing MACD Divergence and Smart Money strategies")
+    print("=" * 60)
+
+    tester = StrategyTester()
+
+    # Test both strategies
+    strategies_to_test = ['macd_divergence', 'smart_money']
+    all_results = {}
+
+    for strategy in strategies_to_test:
+        print(f"\n🚀 STARTING TESTS FOR {strategy.upper()}")
+
+        # Run tests
+        completed_trades = await tester.test_strategy(strategy, num_tests=3)
+        all_results[strategy] = completed_trades
+
+        # Generate report
+        tester.generate_test_report(strategy, completed_trades)
+
+        # Verify database records
+        await tester.verify_database_records(strategy)
+
+        print(f"✅ {strategy.upper()} testing completed")
+        await asyncio.sleep(2)
+
+    # Overall summary
+    print(f"\n{'='*60}")
+    print(f"🏁 TESTING COMPLETE - OVERALL SUMMARY")
+    print(f"{'='*60}")
+
+    total_trades = sum(len(trades) for trades in all_results.values())
+    total_pnl = sum(sum(t['pnl_usdt'] for t in trades) for trades in all_results.values())
+
+    print(f"📊 Total Strategies Tested: {len(strategies_to_test)}")
+    print(f"📈 Total Trades Executed: {total_trades}")
+    print(f"💰 Combined PnL: ${total_pnl:.2f} USDT")
+
+    for strategy, trades in all_results.items():
+        strategy_pnl = sum(t['pnl_usdt'] for t in trades)
+        win_rate = len([t for t in trades if t['pnl_usdt'] > 0]) / len(trades) * 100
+        print(f"  - {strategy.upper()}: {len(trades)} trades, ${strategy_pnl:.2f} PnL, {win_rate:.1f}% win rate")
+
+    print(f"\n💡 RECOMMENDATIONS:")
+    print(f"1. Check web dashboard for updated trade records")
+    print(f"2. Review database synchronization between systems")
+    print(f"3. Analyze exit reasons and PnL distribution")
+    print(f"4. Use insights to optimize real trading parameters")
+
+    # Ask about cleanup
+    print(f"\n🧹 Cleanup test data? (y/n): ", end='')
+    try:
+        choice = input().lower().strip()
+        if choice == 'y':
+            await tester.cleanup_test_data()
+            print(f"✅ Test data cleaned up")
+        else:
+            print(f"📊 Test data preserved for analysis")
+    except:
+        print(f"📊 Test data preserved for analysis")
+
+    print(f"\n🎉 Strategy testing completed successfully!")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
+```
