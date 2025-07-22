@@ -1297,7 +1297,7 @@
       "entry_price": 3.5176,
       "trade_status": "OPEN",
       "created_at": "2025-07-22T12:21:21.953802",
-      "last_verified": "2025-07-22T12:53:00.932992",
+      "last_verified": "2025-07-22T12:57:58.901435",
       "sync_status": "BINANCE_VERIFIED",
       "position_value_usdt": 29.8996,
       "leverage": 5,
@@ -1339,5 +1339,5 @@
       "closed_at": "2025-07-22T12:48:08.831863"
     }
   },
-  "last_updated": "2025-07-22T12:53:00.933383"
+  "last_updated": "2025-07-22T12:57:58.902017"
 }
