@@ -734,3 +734,10 @@ class BotManager:
                 return
 
             # Check if strategy already has an active position
+            if self.order_manager.has_active_position(strategy_name):
+                self.logger.debug(f"🔄 STRATEGY SKIP | {strategy_name.upper()} | {strategy_config['symbol']} | Already has active position")
+                return
+
+        except Exception as e:
+            self.logger.error(f"❌ STRATEGY ERROR | {strategy_name} | {e}")
+            return
