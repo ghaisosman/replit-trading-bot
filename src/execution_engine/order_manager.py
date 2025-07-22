@@ -1280,3 +1280,10 @@ Remaining Position: {position.remaining_quantity} {position.symbol.replace('USDT
                     'pnl_percentage': pnl_percentage,
                     'pnl_usdt': pnl_usdt
                 }
+
+            # If no stop loss triggered, return None
+            return None
+
+        except Exception as e:
+            self.logger.error(f"Error checking exit conditions: {e}")
+            return None
