@@ -104,7 +104,7 @@ class SignalProcessor:
             # Get configurable RSI levels
             rsi_long_entry = config.get('rsi_long_entry', 40)
             rsi_short_entry = config.get('rsi_short_entry', 60)
-            
+
             # DEBUG: Log the actual config values being used
             self.logger.info(f"🔍 RSI STRATEGY CONFIG CHECK:")
             self.logger.info(f"   Current RSI: {rsi_current:.2f}")
@@ -159,16 +159,16 @@ class SignalProcessor:
         """MACD Divergence strategy evaluation - Uses dedicated strategy class"""
         try:
             from src.execution_engine.strategies.macd_divergence_strategy import MACDDivergenceStrategy
-            
+
             strategy_name = config.get('name', 'macd_divergence')
             strategy = MACDDivergenceStrategy(strategy_name, config)
-            
+
             # Calculate indicators
             df_with_indicators = strategy.calculate_indicators(df.copy())
-            
+
             # Evaluate signal
             signal = strategy.evaluate_entry_signal(df_with_indicators)
-            
+
             return signal
 
         except Exception as e:
@@ -179,16 +179,16 @@ class SignalProcessor:
         """Engulfing Pattern strategy evaluation"""
         try:
             from src.execution_engine.strategies.engulfing_pattern_strategy import EngulfingPatternStrategy
-            
+
             strategy_name = config.get('name', 'engulfing_pattern')
             strategy = EngulfingPatternStrategy(strategy_name, config)
-            
+
             # Calculate indicators
             df_with_indicators = strategy.calculate_indicators(df.copy())
-            
+
             # Evaluate signal
             signal = strategy.evaluate_entry_signal(df_with_indicators)
-            
+
             return signal
 
         except Exception as e:
@@ -219,7 +219,7 @@ class SignalProcessor:
                 # Get configurable RSI exit levels
                 rsi_long_exit = strategy_config.get('rsi_long_exit', 70)
                 rsi_short_exit = strategy_config.get('rsi_short_exit', 30)
-                
+
                 # DEBUG: Log exit threshold checking
                 self.logger.debug(f"🔍 RSI EXIT CHECK | Current: {rsi_current:.2f} | Long Exit: {rsi_long_exit} | Short Exit: {rsi_short_exit} | Side: {position_side}")
 
@@ -237,13 +237,13 @@ class SignalProcessor:
             elif 'engulfing' in strategy_name.lower():
                 try:
                     from src.execution_engine.strategies.engulfing_pattern_strategy import EngulfingPatternStrategy
-                    
+
                     strategy = EngulfingPatternStrategy(strategy_name, strategy_config)
                     exit_reason = strategy.evaluate_exit_signal(df, position)
-                    
+
                     if exit_reason:
                         return exit_reason
-                        
+
                 except Exception as e:
                     self.logger.error(f"Error in Engulfing Pattern exit evaluation: {e}")
 
@@ -251,13 +251,13 @@ class SignalProcessor:
             elif 'macd' in strategy_name.lower():
                 try:
                     from src.execution_engine.strategies.macd_divergence_strategy import MACDDivergenceStrategy
-                    
+
                     strategy = MACDDivergenceStrategy(strategy_name, strategy_config)
                     exit_reason = strategy.evaluate_exit_signal(df, position)
-                    
+
                     if exit_reason:
                         return exit_reason
-                        
+
                 except Exception as e:
                     self.logger.error(f"Error in MACD exit evaluation: {e}")
 

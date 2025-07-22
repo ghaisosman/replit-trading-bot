@@ -27,20 +27,20 @@ from src.execution_engine.strategies.engulfing_pattern_strategy import Engulfing
 
 class BacktestEngine:
     """Comprehensive backtesting engine for all strategies"""
-    
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.binance_client = BinanceClientWrapper()
         self.price_fetcher = PriceFetcher(self.binance_client)
         self.signal_processor = SignalProcessor()
-        
+
         # Backtest results storage
         self.results = {
             'trades': [],
             'summary': {},
             'strategy_performance': {}
         }
-        
+
         # Strategy configurations templates
         self.strategy_configs = {
             'rsi_oversold': {
@@ -125,30 +125,30 @@ class BacktestEngine:
             # Validate inputs
             if not symbol or not interval or not start_date or not end_date:
                 raise ValueError("Missing required parameters: symbol, interval, start_date, or end_date")
-            
+
             # Parse dates
             try:
                 start_dt = datetime.strptime(start_date, '%Y-%m-%d')
                 end_dt = datetime.strptime(end_date, '%Y-%m-%d')
             except ValueError as e:
                 raise ValueError(f"Invalid date format. Use YYYY-MM-DD. Error: {e}")
-            
+
             # Validate date range
             if start_dt >= end_dt:
                 raise ValueError("Start date must be before end date")
-            
+
             if end_dt > datetime.now():
                 raise ValueError("End date cannot be in the future")
-            
+
             # Convert to milliseconds
             start_ms = int(start_dt.timestamp() * 1000)
             end_ms = int(end_dt.timestamp() * 1000)
-            
+
             # Generate unique identifier for this data request
             data_request_id = f"{symbol}_{interval}_{start_date}_{end_date}_{hash(str(datetime.now().timestamp()))}"
             self.logger.info(f"📅 Fetching historical data for {symbol} {interval} from {start_date} to {end_date}")
             self.logger.info(f"🆔 Data Request ID: {data_request_id}")
-            
+
             # Test API connection first
             try:
                 if self.binance_client.is_futures:
@@ -167,28 +167,28 @@ class BacktestEngine:
                     raise Exception(f"API test failed - no data returned for {symbol}")
             except Exception as api_error:
                 raise Exception(f"Binance API connection failed: {api_error}")
-            
+
             # Calculate interval in milliseconds
             interval_ms = self._interval_to_ms(interval)
             max_candles_per_request = 1000
-            
+
             # Calculate expected number of candles
             total_duration_ms = end_ms - start_ms
             expected_candles = total_duration_ms // interval_ms
             self.logger.info(f"📊 Expected approximately {expected_candles} candles for this period")
-            
+
             # Get historical data in chunks
             all_klines = []
             current_start = start_ms
             chunk_count = 0
             failed_chunks = 0
-            
+
             while current_start < end_ms and chunk_count < 100:  # Safety limit
                 chunk_count += 1
                 current_end = min(current_start + (max_candles_per_request * interval_ms), end_ms)
-                
+
                 self.logger.info(f"🔄 Fetching chunk {chunk_count}: {datetime.fromtimestamp(current_start/1000)} to {datetime.fromtimestamp(current_end/1000)}")
-                
+
                 try:
                     # Use proper Binance API call with start and end times
                     if self.binance_client.is_futures:
@@ -207,7 +207,7 @@ class BacktestEngine:
                             end_str=str(current_end),
                             limit=max_candles_per_request
                         )
-                    
+
                     if not klines:
                         failed_chunks += 1
                         self.logger.warning(f"⚠️ No data returned for chunk {chunk_count}")
@@ -220,88 +220,88 @@ class BacktestEngine:
                             kline_timestamp = int(kline[0])
                             if start_ms <= kline_timestamp <= end_ms:
                                 filtered_klines.append(kline)
-                        
+
                         all_klines.extend(filtered_klines)
                         self.logger.info(f"✅ Added {len(filtered_klines)} candles from chunk {chunk_count}")
-                        
+
                         # Update current_start based on the last kline timestamp
                         if filtered_klines:
                             last_timestamp = int(filtered_klines[-1][0])
                             current_start = last_timestamp + interval_ms
                         else:
                             current_start = current_end
-                
+
                 except Exception as chunk_error:
                     failed_chunks += 1
                     self.logger.error(f"❌ Error fetching chunk {chunk_count}: {chunk_error}")
                     if failed_chunks > 5:
                         raise Exception(f"Too many API failures. Cannot fetch reliable data for {symbol}")
                     current_start = current_end
-                
+
                 # Rate limiting
                 import time
                 time.sleep(0.1)
-            
+
             # Validate we got meaningful data
             if not all_klines:
                 raise Exception(f"No historical data available for {symbol} in the period {start_date} to {end_date}. This could be due to: 1) Symbol not existing during this period, 2) Invalid symbol name, 3) API restrictions, or 4) Market was closed/not trading.")
-            
+
             if len(all_klines) < 50:
                 raise Exception(f"Insufficient data: Only {len(all_klines)} candles found. Need at least 50 for reliable backtesting. Try a longer time period or different timeframe.")
-            
+
             # Validate data uniqueness to prevent cached/identical results
             unique_prices = len(set([float(kline[4]) for kline in all_klines]))  # close prices
             if unique_prices < len(all_klines) * 0.7:  # Less than 70% unique prices suggests bad data
                 self.logger.warning(f"⚠️ Data quality issue: Only {unique_prices}/{len(all_klines)} unique prices found")
-            
+
             # Log first and last few candles for validation
             self.logger.info(f"📊 Data Sample Validation:")
             self.logger.info(f"   First candle: {datetime.fromtimestamp(int(all_klines[0][0])/1000)} | Close: ${float(all_klines[0][4]):.2f}")
             self.logger.info(f"   Last candle: {datetime.fromtimestamp(int(all_klines[-1][0])/1000)} | Close: ${float(all_klines[-1][4]):.2f}")
             self.logger.info(f"   Price range: ${min([float(k[4]) for k in all_klines]):.2f} - ${max([float(k[4]) for k in all_klines]):.2f}")
-            
+
             # Convert to DataFrame
             df = pd.DataFrame(all_klines, columns=[
                 'timestamp', 'open', 'high', 'low', 'close', 'volume',
                 'close_time', 'quote_asset_volume', 'number_of_trades',
                 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
             ])
-            
+
             # Validate data integrity
             if df.empty:
                 raise Exception("DataFrame is empty after conversion")
-            
+
             # Convert data types with error checking
             numeric_columns = ['open', 'high', 'low', 'close', 'volume']
             for col in numeric_columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
                 if df[col].isna().all():
                     raise Exception(f"All values in column '{col}' are invalid")
-            
+
             # Check for data quality issues
             nan_count = df[numeric_columns].isna().sum().sum()
             if nan_count > 0:
                 self.logger.warning(f"⚠️ Found {nan_count} NaN values in price data - filling with forward fill")
                 df[numeric_columns] = df[numeric_columns].fillna(method='ffill')
-            
+
             # Timestamp processing
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             df.set_index('timestamp', inplace=True)
-            
+
             # Remove duplicates and sort
             df = df.sort_index()
             df = df[~df.index.duplicated(keep='last')]
-            
+
             # Keep only OHLCV columns
             df = df[['open', 'high', 'low', 'close', 'volume']]
-            
+
             # Validate price data makes sense
             if (df['close'] <= 0).any():
                 raise Exception("Invalid price data: Found zero or negative prices")
-            
+
             if (df['volume'] < 0).any():
                 raise Exception("Invalid volume data: Found negative volume")
-            
+
             # Calculate indicators using the same method as live trading
             try:
                 df_with_indicators = self.price_fetcher.calculate_indicators(df.copy())
@@ -310,22 +310,22 @@ class BacktestEngine:
                 df = df_with_indicators
             except Exception as indicator_error:
                 raise Exception(f"Failed to calculate indicators: {indicator_error}")
-            
+
             # Final validation
             actual_data_range = f"{df.index[0].strftime('%Y-%m-%d')} to {df.index[-1].strftime('%Y-%m-%d')}"
             requested_range = f"{start_date} to {end_date}"
-            
+
             if len(df) < expected_candles * 0.8:  # Less than 80% of expected data
                 self.logger.warning(f"⚠️ Got {len(df)} candles, expected ~{expected_candles}. Some data may be missing.")
-            
+
             self.logger.info(f"✅ Historical data processed successfully:")
             self.logger.info(f"   📊 Candles: {len(df)}")
             self.logger.info(f"   📅 Actual range: {actual_data_range}")
             self.logger.info(f"   📅 Requested range: {requested_range}")
             self.logger.info(f"   💲 Price range: ${df['close'].min():.2f} - ${df['close'].max():.2f}")
-            
+
             return df
-            
+
         except Exception as e:
             error_msg = f"Failed to fetch historical data for {symbol}: {str(e)}"
             self.logger.error(f"❌ {error_msg}")
@@ -355,46 +355,46 @@ class BacktestEngine:
             self.logger.info(f"🚀 Starting backtest for {strategy_name}")
             self.logger.info(f"📅 Period: {start_date} to {end_date}")
             self.logger.info(f"📊 Config: {config}")
-            
+
             # Validate configuration
             if not config.get('symbol'):
                 return {'error': 'Missing symbol in configuration'}
             if not config.get('timeframe'):
                 return {'error': 'Missing timeframe in configuration'}
-            
+
             # CRITICAL: Validate that key strategy parameters are set and different from defaults
             self.logger.info(f"🔍 STRATEGY VALIDATION for {strategy_name}:")
-            
+
             # Check if this is an RSI strategy and validate RSI parameters
             if 'rsi' in strategy_name.lower():
                 rsi_long_entry = config.get('rsi_long_entry')
                 rsi_short_entry = config.get('rsi_short_entry')
                 rsi_long_exit = config.get('rsi_long_exit')
                 rsi_short_exit = config.get('rsi_short_exit')
-                
+
                 self.logger.info(f"   RSI Long Entry: {rsi_long_entry}")
                 self.logger.info(f"   RSI Short Entry: {rsi_short_entry}")
                 self.logger.info(f"   RSI Long Exit: {rsi_long_exit}")
                 self.logger.info(f"   RSI Short Exit: {rsi_short_exit}")
-                
+
                 # Warn if using template defaults
                 template_config = self.strategy_configs.get(strategy_name, {})
                 if (rsi_long_entry == template_config.get('rsi_long_entry') and 
                     rsi_short_entry == template_config.get('rsi_short_entry')):
                     self.logger.warning(f"⚠️ Using template RSI values - configuration may not have been applied!")
-            
+
             # Validate margin and leverage
             margin = config.get('margin')
             leverage = config.get('leverage')
             max_loss_pct = config.get('max_loss_pct')
-            
+
             self.logger.info(f"   Margin: ${margin}")
             self.logger.info(f"   Leverage: {leverage}x")
             self.logger.info(f"   Max Loss: {max_loss_pct}%")
-            
+
             symbol = config['symbol']
             timeframe = config['timeframe']
-            
+
             # Get historical data with proper error handling
             try:
                 df = self.get_historical_data(symbol, timeframe, start_date, end_date)
@@ -402,49 +402,49 @@ class BacktestEngine:
                     return {'error': f'No historical data available for {symbol} on {timeframe} timeframe between {start_date} and {end_date}'}
             except Exception as data_error:
                 return {'error': f'Data fetch failed: {str(data_error)}'}
-            
+
             # Validate we have enough data for backtesting
             if len(df) < 100:
                 return {'error': f'Insufficient data for backtesting. Got {len(df)} candles, need at least 100. Try a longer time period.'}
-            
+
             # Initialize strategy-specific handler
             try:
                 strategy_handler = self._get_strategy_handler(strategy_name, config)
             except Exception as strategy_error:
                 return {'error': f'Strategy initialization failed: {str(strategy_error)}'}
-            
+
             # Validate indicators are calculated
             required_indicators = self._get_required_indicators(strategy_name)
             missing_indicators = [ind for ind in required_indicators if ind not in df.columns]
             if missing_indicators:
                 return {'error': f'Missing required indicators for {strategy_name}: {missing_indicators}'}
-            
+
             # Backtest variables
             trades = []
             current_position = None
             last_trade_exit_time = None
             cooldown_period = timedelta(seconds=config.get('cooldown_period', 300))
             signals_generated = 0
-            
+
             self.logger.info(f"📊 Processing {len(df)} candles for backtesting...")
-            
+
             # Process each candle
             for i in range(50, len(df)):  # Start from 50 to ensure indicators are calculated
                 current_time = df.index[i]
                 current_data = df.iloc[:i+1]  # Data up to current candle
                 current_price = df.iloc[i]['close']
-                
+
                 # Skip if in cooldown period
                 if last_trade_exit_time and current_time < last_trade_exit_time + cooldown_period:
                     continue
-                
+
                 # Check for exit conditions if we have a position
                 if current_position:
                     try:
                         exit_result = self._check_exit_conditions(
                             current_position, current_data, current_price, strategy_handler, config
                         )
-                        
+
                         if exit_result:
                             # Close position
                             trade_result = self._close_position(
@@ -453,30 +453,30 @@ class BacktestEngine:
                             trades.append(trade_result)
                             current_position = None
                             last_trade_exit_time = current_time
-                            
+
                             self.logger.info(f"📊 Trade #{len(trades)} closed: {trade_result['exit_reason']} | PnL: ${trade_result['pnl_usdt']:.2f}")
                             continue
                     except Exception as exit_error:
                         self.logger.error(f"Error checking exit conditions: {exit_error}")
                         continue
-                
+
                 # Check for entry conditions if no position
                 if not current_position:
                     try:
                         entry_signal = self._check_entry_conditions(current_data, strategy_handler, config)
-                        
+
                         if entry_signal:
                             signals_generated += 1
                             # Open position
                             current_position = self._open_position(
                                 entry_signal, current_price, current_time, config
                             )
-                            
+
                             self.logger.info(f"🟢 Position #{signals_generated} opened: {entry_signal.signal_type.value} | Entry: ${current_price:.4f} | Reason: {entry_signal.reason}")
                     except Exception as entry_error:
                         self.logger.error(f"Error checking entry conditions: {entry_error}")
                         continue
-            
+
             # Close any remaining position at the end
             if current_position:
                 final_price = df.iloc[-1]['close']
@@ -486,28 +486,28 @@ class BacktestEngine:
                 )
                 trades.append(trade_result)
                 self.logger.info(f"📊 Final trade closed at backtest end | PnL: ${trade_result['pnl_usdt']:.2f}")
-            
+
             # Log backtest summary
             self.logger.info(f"✅ Backtest completed:")
             self.logger.info(f"   📊 Total signals generated: {signals_generated}")
             self.logger.info(f"   📊 Total trades completed: {len(trades)}")
             self.logger.info(f"   📅 Data period: {df.index[0].strftime('%Y-%m-%d %H:%M')} to {df.index[-1].strftime('%Y-%m-%d %H:%M')}")
-            
+
             # Validate we had some trading activity
             if signals_generated == 0:
                 return {'error': f'No trading signals generated during the backtest period. This could indicate: 1) Strategy conditions were never met, 2) Configuration parameters are too restrictive, or 3) Market conditions were not suitable for this strategy.'}
-            
+
             # Calculate strategy performance
             try:
                 performance = self._calculate_performance(trades, config)
             except Exception as perf_error:
                 return {'error': f'Performance calculation failed: {str(perf_error)}'}
-            
+
             # Generate configuration hash to track uniqueness
             import hashlib
             config_str = json.dumps(config, sort_keys=True)
             config_hash = hashlib.md5(config_str.encode()).hexdigest()[:8]
-            
+
             self.logger.info(f"🔍 BACKTEST RESULT SUMMARY:")
             self.logger.info(f"   Config Hash: {config_hash}")
             self.logger.info(f"   Total Trades: {len(trades)}")
@@ -515,7 +515,7 @@ class BacktestEngine:
             if len(trades) > 0:
                 total_pnl = sum(t['pnl_usdt'] for t in trades)
                 self.logger.info(f"   Total PnL: ${total_pnl:.2f}")
-            
+
             return {
                 'strategy_name': strategy_name,
                 'symbol': symbol,
@@ -531,7 +531,7 @@ class BacktestEngine:
                 'price_range': f"${df['close'].min():.2f} - ${df['close'].max():.2f}",
                 'success': True
             }
-            
+
         except Exception as e:
             error_msg = f"Backtest failed for {strategy_name}: {str(e)}"
             self.logger.error(f"❌ {error_msg}")
@@ -588,21 +588,21 @@ class BacktestEngine:
             margin = config.get('margin', 50.0)
             max_loss_pct = config.get('max_loss_pct', 10.0)
             leverage = config.get('leverage', 5)
-            
+
             # Calculate current PnL correctly
             entry_price = position['entry_price']
             quantity = position['quantity']
             side = position['side']
-            
+
             # Calculate PnL in USDT
             if side == 'BUY':
                 pnl_usdt = (current_price - entry_price) * quantity
             else:  # SELL
                 pnl_usdt = (entry_price - current_price) * quantity
-            
+
             # Calculate PnL percentage against margin (not position value)
             pnl_percentage = (pnl_usdt / margin) * 100
-            
+
             # Check stop loss based on percentage loss against margin
             if pnl_percentage <= -max_loss_pct:
                 return {
@@ -610,11 +610,11 @@ class BacktestEngine:
                     'type': 'stop_loss',
                     'pnl_percentage': pnl_percentage
                 }
-            
+
             # Check partial take profit if enabled
             partial_tp_threshold = config.get('partial_tp_pnl_threshold', 0.0)
             partial_tp_percentage = config.get('partial_tp_position_percentage', 0.0)
-            
+
             if (partial_tp_threshold > 0 and partial_tp_percentage > 0 and 
                 not position.get('partial_tp_triggered', False)):
                 pnl_percentage = (pnl / margin) * 100
@@ -626,7 +626,7 @@ class BacktestEngine:
                         'type': 'partial_tp',
                         'partial': True
                     }
-            
+
             # Check strategy-specific exit conditions
             if strategy_handler and hasattr(strategy_handler, 'evaluate_exit_signal'):
                 exit_reason = strategy_handler.evaluate_exit_signal(df, position)
@@ -641,29 +641,29 @@ class BacktestEngine:
                     # Get current RSI for exit conditions
                     if 'rsi' in df.columns and len(df) > 0:
                         current_rsi = df['rsi'].iloc[-1]
-                        
+
                         # RSI exit conditions for RSI-based strategies
                         if 'rsi' in config.get('name', '').lower():
                             rsi_long_exit = config.get('rsi_long_exit', 70)
                             rsi_short_exit = config.get('rsi_short_exit', 30)
-                            
+
                             # Long position: exit when RSI reaches overbought
                             if side == 'BUY' and current_rsi >= rsi_long_exit:
                                 return {
                                     'reason': f'Take Profit (RSI {rsi_long_exit}+)',
                                     'type': 'strategy_exit'
                                 }
-                            
+
                             # Short position: exit when RSI reaches oversold
                             elif side == 'SELL' and current_rsi <= rsi_short_exit:
                                 return {
                                     'reason': f'Take Profit (RSI {rsi_short_exit}-)',
                                     'type': 'strategy_exit'
                                 }
-                
+
                 except Exception as e:
                     self.logger.error(f"Error in strategy exit evaluation: {e}")
-                
+
                 # Fallback to signal processor
                 try:
                     exit_reason = self.signal_processor.evaluate_exit_conditions(df, position, config)
@@ -674,9 +674,9 @@ class BacktestEngine:
                         }
                 except Exception as e:
                     self.logger.error(f"Error in signal processor exit evaluation: {e}")
-            
+
             return None
-            
+
         except Exception as e:
             self.logger.error(f"Error checking exit conditions: {e}")
             return None
@@ -685,18 +685,18 @@ class BacktestEngine:
         """Open a new position"""
         margin = config.get('margin', 50.0)
         leverage = config.get('leverage', 5)
-        
+
         # Calculate position size - quantity should represent the actual coins/tokens
         # For futures trading: notional_value = margin * leverage, quantity = notional_value / price
         notional_value = margin * leverage
         quantity = notional_value / price
-        
+
         # Validate position size
         if quantity <= 0:
             raise ValueError(f"Invalid quantity calculated: {quantity}")
-        
+
         self.logger.info(f"📊 Position Details: Margin=${margin} | Leverage={leverage}x | Notional=${notional_value} | Price=${price} | Qty={quantity:.8f}")
-        
+
         return {
             'entry_time': timestamp,
             'entry_price': price,
@@ -716,32 +716,32 @@ class BacktestEngine:
         side = position['side']
         margin_used = position['margin_used']
         leverage = position['leverage']
-        
+
         # Calculate PnL in USDT - this is the actual profit/loss
         if side == 'BUY':
             pnl_usdt = (price - entry_price) * quantity
         else:  # SELL
             pnl_usdt = (entry_price - price) * quantity
-        
+
         # Calculate percentage returns against margin (what trader actually risked)
         pnl_percentage = (pnl_usdt / margin_used) * 100
-        
+
         # Calculate price change percentage for validation
         if side == 'BUY':
             price_change_pct = ((price - entry_price) / entry_price) * 100
         else:  # SELL
             price_change_pct = ((entry_price - price) / entry_price) * 100
-        
+
         # Log detailed calculation for debugging
         self.logger.info(f"📊 Trade Calculation Details:")
         self.logger.info(f"   Entry: ${entry_price:.4f} | Exit: ${price:.4f} | Side: {side}")
         self.logger.info(f"   Quantity: {quantity:.8f} | Margin: ${margin_used} | Leverage: {leverage}x")
         self.logger.info(f"   Price Change: {price_change_pct:+.2f}% | PnL: ${pnl_usdt:+.2f} | PnL%: {pnl_percentage:+.2f}%")
-        
+
         # Calculate duration
         duration = timestamp - position['entry_time']
         duration_minutes = duration.total_seconds() / 60
-        
+
         return {
             'entry_time': position['entry_time'],
             'exit_time': timestamp,
@@ -774,37 +774,37 @@ class BacktestEngine:
                 'profitable_trades': 0,
                 'losing_trades': 0
             }
-        
+
         # Basic statistics
         total_trades = len(trades)
         profitable_trades = len([t for t in trades if t['pnl_usdt'] > 0])
         losing_trades = len([t for t in trades if t['pnl_usdt'] < 0])
         break_even_trades = total_trades - profitable_trades - losing_trades
-        
+
         # PnL statistics
         total_pnl = sum(t['pnl_usdt'] for t in trades)
         total_pnl_percentage = sum(t['pnl_percentage'] for t in trades)
         avg_pnl_per_trade = total_pnl / total_trades
         avg_pnl_percentage = total_pnl_percentage / total_trades
-        
+
         # Win/Loss statistics
         win_rate = (profitable_trades / total_trades) * 100
         max_win = max(t['pnl_usdt'] for t in trades)
         max_loss = min(t['pnl_usdt'] for t in trades)
-        
+
         # Duration statistics
         avg_duration = sum(t['duration_minutes'] for t in trades) / total_trades
-        
+
         # Risk metrics
         margin_per_trade = config.get('margin', 50.0)
         max_loss_pct = config.get('max_loss_pct', 10.0)
         max_risk_per_trade = margin_per_trade * (max_loss_pct / 100)
-        
+
         # Calculate drawdown
         running_pnl = 0
         peak_pnl = 0
         max_drawdown = 0
-        
+
         for trade in trades:
             running_pnl += trade['pnl_usdt']
             if running_pnl > peak_pnl:
@@ -812,7 +812,7 @@ class BacktestEngine:
             drawdown = peak_pnl - running_pnl
             if drawdown > max_drawdown:
                 max_drawdown = drawdown
-        
+
         # Sharpe ratio approximation (using trade PnL standard deviation)
         if len(trades) > 1:
             pnl_values = [t['pnl_usdt'] for t in trades]
@@ -820,7 +820,7 @@ class BacktestEngine:
             sharpe_ratio = avg_pnl_per_trade / pnl_std if pnl_std > 0 else 0
         else:
             sharpe_ratio = 0
-        
+
         return {
             'total_trades': total_trades,
             'profitable_trades': profitable_trades,
@@ -846,19 +846,19 @@ class BacktestEngine:
         self.logger.info(f"🚀 Starting comprehensive backtest")
         self.logger.info(f"📅 Period: {start_date} to {end_date}")
         self.logger.info(f"📊 Testing {len(test_configs)} strategy configurations")
-        
+
         all_results = []
-        
+
         for config in test_configs:
             strategy_name = config.get('strategy_name')
             self.logger.info(f"\n🔄 Testing {strategy_name} on {config.get('symbol')} {config.get('timeframe')}")
-            
+
             result = self.backtest_strategy(strategy_name, config, start_date, end_date)
             all_results.append(result)
-        
+
         # Generate comprehensive summary
         summary = self._generate_summary_report(all_results)
-        
+
         return {
             'backtest_period': f"{start_date} to {end_date}",
             'test_configs': test_configs,
@@ -871,21 +871,21 @@ class BacktestEngine:
         """Generate comprehensive summary report"""
         if not results:
             return {}
-        
+
         valid_results = [r for r in results if 'error' not in r]
-        
+
         if not valid_results:
             return {'error': 'No valid backtest results'}
-        
+
         # Overall statistics
         total_strategies_tested = len(valid_results)
         total_trades_all = sum(len(r.get('trades', [])) for r in valid_results)
-        
+
         # Aggregate performance
         all_trades = []
         for result in valid_results:
             all_trades.extend(result.get('trades', []))
-        
+
         if all_trades:
             total_pnl = sum(t['pnl_usdt'] for t in all_trades)
             profitable_trades = len([t for t in all_trades if t['pnl_usdt'] > 0])
@@ -893,7 +893,7 @@ class BacktestEngine:
         else:
             total_pnl = 0
             overall_win_rate = 0
-        
+
         # Best and worst performing strategies
         strategy_performance = []
         for result in valid_results:
@@ -910,13 +910,13 @@ class BacktestEngine:
                     'max_drawdown': perf['max_drawdown_usdt'],
                     'sharpe_ratio': perf['sharpe_ratio']
                 })
-        
+
         # Sort by total PnL
         strategy_performance.sort(key=lambda x: x['total_pnl'], reverse=True)
-        
+
         best_strategy = strategy_performance[0] if strategy_performance else None
         worst_strategy = strategy_performance[-1] if strategy_performance else None
-        
+
         return {
             'total_strategies_tested': total_strategies_tested,
             'total_trades_all_strategies': total_trades_all,
@@ -931,10 +931,10 @@ class BacktestEngine:
     def _generate_recommendations(self, strategy_performance: List[Dict]) -> List[str]:
         """Generate trading recommendations based on backtest results"""
         recommendations = []
-        
+
         if not strategy_performance:
             return ["No strategy performance data available for recommendations"]
-        
+
         # Top performing strategy
         best = strategy_performance[0]
         if best['total_pnl'] > 0:
@@ -942,7 +942,7 @@ class BacktestEngine:
                 f"✅ {best['strategy_name']} on {best['symbol']} ({best['timeframe']}) shows best performance "
                 f"with ${best['total_pnl']:.2f} total PnL and {best['win_rate']:.1f}% win rate"
             )
-        
+
         # Strategies with high win rates
         high_win_rate_strategies = [s for s in strategy_performance if s['win_rate'] >= 60]
         if high_win_rate_strategies:
@@ -950,7 +950,7 @@ class BacktestEngine:
                 f"🎯 Strategies with 60%+ win rate: " + 
                 ", ".join([f"{s['strategy_name']} ({s['win_rate']:.1f}%)" for s in high_win_rate_strategies[:3]])
             )
-        
+
         # Risk warnings
         high_drawdown_strategies = [s for s in strategy_performance if s['max_drawdown'] > 100]
         if high_drawdown_strategies:
@@ -958,15 +958,15 @@ class BacktestEngine:
                 f"⚠️ High risk strategies (>$100 max drawdown): " + 
                 ", ".join([f"{s['strategy_name']} (${s['max_drawdown']:.2f})" for s in high_drawdown_strategies[:3]])
             )
-        
+
         # General recommendations
         profitable_count = len([s for s in strategy_performance if s['total_pnl'] > 0])
         if profitable_count > 0:
             recommendations.append(f"📊 {profitable_count}/{len(strategy_performance)} strategies showed profitability")
-        
+
         if any(s['sharpe_ratio'] > 1.0 for s in strategy_performance):
             recommendations.append("🏆 Some strategies show excellent risk-adjusted returns (Sharpe > 1.0)")
-        
+
         return recommendations
 
     def export_results(self, results: Dict[str, Any], filename: str = None) -> str:
@@ -974,12 +974,12 @@ class BacktestEngine:
         if not filename:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"backtest_results_{timestamp}.json"
-        
+
         # Ensure trading_data directory exists
         os.makedirs("trading_data", exist_ok=True)
-        
+
         filepath = f"trading_data/{filename}"
-        
+
         # Convert datetime objects to strings for JSON serialization
         def convert_datetime(obj):
             if isinstance(obj, datetime):
@@ -989,25 +989,25 @@ class BacktestEngine:
             elif isinstance(obj, list):
                 return [convert_datetime(item) for item in obj]
             return obj
-        
+
         serializable_results = convert_datetime(results)
-        
+
         with open(filepath, 'w') as f:
             json.dump(serializable_results, f, indent=2)
-        
+
         self.logger.info(f"📁 Results exported to: {filepath}")
         return filepath
 
 class BacktestWebInterface:
     """Web interface for the backtesting system"""
-    
+
     def __init__(self):
         self.engine = BacktestEngine()
-    
+
     def get_strategy_templates(self) -> Dict[str, Any]:
         """Get strategy configuration templates for the web interface"""
         return self.engine.strategy_configs
-    
+
     def run_backtest_from_web(self, form_data: Dict[str, Any]) -> Dict[str, Any]:
         """Run backtest from web form data"""
         try:
@@ -1015,37 +1015,37 @@ class BacktestWebInterface:
             strategy_name = form_data.get('strategy_name')
             start_date = form_data.get('start_date')
             end_date = form_data.get('end_date')
-            
+
             if not strategy_name:
                 return {'success': False, 'error': 'Strategy name is required'}
             if not start_date:
                 return {'success': False, 'error': 'Start date is required'}
             if not end_date:
                 return {'success': False, 'error': 'End date is required'}
-            
+
             # Build configuration starting with template
             base_config = self.engine.strategy_configs.get(strategy_name, {}).copy()
-            
+
             # CRITICAL: Extract symbol and timeframe FIRST from form data
             symbol = form_data.get('symbol', '').strip().upper()
             timeframe = form_data.get('timeframe', '').strip()
-            
+
             # Set critical fields with validation
             if symbol:
                 base_config['symbol'] = symbol
             elif 'symbol' not in base_config or not base_config['symbol']:
                 base_config['symbol'] = 'BTCUSDT'  # Default fallback
-                
+
             if timeframe:
                 base_config['timeframe'] = timeframe
             elif 'timeframe' not in base_config or not base_config['timeframe']:
                 base_config['timeframe'] = '15m'  # Default fallback
-            
+
             # DEBUG: Log original template values
             print(f"🔍 ORIGINAL TEMPLATE CONFIG for {strategy_name}:")
             for key, value in base_config.items():
                 print(f"   {key}: {value}")
-            
+
             # Override with form values - ensure critical fields are set
             for key, value in form_data.items():
                 if key not in ['strategy_name', 'start_date', 'end_date'] and value is not None and str(value).strip():
@@ -1066,31 +1066,31 @@ class BacktestWebInterface:
                     else:
                         # New field not in template
                         base_config[key] = value
-            
+
             # Final validation
             required_fields = ['symbol', 'timeframe', 'margin', 'leverage', 'max_loss_pct']
             missing_fields = []
             for field in required_fields:
                 if field not in base_config or base_config[field] is None:
                     missing_fields.append(field)
-            
+
             if missing_fields:
                 return {
                     'success': False,
                     'error': f'Configuration missing required fields: {", ".join(missing_fields)}'
                 }
-            
+
             # DEBUG: Log configuration changes
             print(f"🔍 FORM DATA RECEIVED:")
             for key, value in form_data.items():
                 if key not in ['strategy_name', 'start_date', 'end_date'] and value is not None and str(value).strip():
                     print(f"   {key}: {value} (type: {type(value).__name__})")
-            
+
             # DEBUG: Log final configuration with type verification
             print(f"🔍 FINAL BACKTEST CONFIG for {strategy_name}:")
             for key, value in base_config.items():
                 print(f"   {key}: {value} (type: {type(value).__name__})")
-            
+
             # VERIFY: Check if critical parameters actually changed
             changed_params = []
             original_config = self.engine.strategy_configs.get(strategy_name, {})
@@ -1098,15 +1098,15 @@ class BacktestWebInterface:
                 if key in base_config and key in original_config:
                     if base_config[key] != original_config[key]:
                         changed_params.append(f"{key}: {original_config[key]} → {base_config[key]}")
-            
+
             if changed_params:
                 print(f"✅ PARAMETERS CHANGED: {', '.join(changed_params)}")
             else:
                 print(f"⚠️ NO PARAMETERS CHANGED - using template defaults")
-            
+
             # Run single strategy backtest
             result = self.engine.backtest_strategy(strategy_name, base_config, start_date, end_date)
-            
+
             # Check if backtest failed
             if not result.get('success', True) or 'error' in result:
                 return {
@@ -1114,7 +1114,7 @@ class BacktestWebInterface:
                     'error': result.get('error', 'Backtest execution failed'),
                     'result': result
                 }
-            
+
             # Export results
             try:
                 filename = self.engine.export_results({
@@ -1124,13 +1124,13 @@ class BacktestWebInterface:
             except Exception as export_error:
                 print(f"⚠️ Export failed: {export_error}")
                 filename = None
-            
+
             return {
                 'success': True,
                 'result': result,
                 'exported_file': filename
             }
-            
+
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -1145,7 +1145,7 @@ web_interface = BacktestWebInterface()
 if __name__ == "__main__":
     # Example usage
     engine = BacktestEngine()
-    
+
     # Example configuration
     test_configs = [
         {
@@ -1172,7 +1172,7 @@ if __name__ == "__main__":
             'macd_signal': 9
         }
     ]
-    
+
     # Run backtest
     print("🚀 Starting backtest example...")
     results = engine.run_comprehensive_backtest(
@@ -1180,7 +1180,7 @@ if __name__ == "__main__":
         start_date="2024-01-01", 
         end_date="2024-01-31"
     )
-    
+
     # Export results
     filename = engine.export_results(results)
     print(f"✅ Backtest completed! Results saved to: {filename}")
