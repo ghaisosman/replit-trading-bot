@@ -529,7 +529,11 @@ class BacktestEngine:
             trades = []
             current_position = None
             last_trade_exit_time = None
-            cooldown_period = timedelta(seconds=config.get('cooldown_period', 300))
+            cooldown_seconds = config.get('cooldown_period', 300)
+            # Ensure cooldown_period is an integer
+            if isinstance(cooldown_seconds, str):
+                cooldown_seconds = int(float(cooldown_seconds))
+            cooldown_period = timedelta(seconds=cooldown_seconds)
             signals_generated = 0
             
             # Log cooldown period to verify config is being used

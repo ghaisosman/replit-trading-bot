@@ -189,27 +189,13 @@
                                 <div class="config-group">
                                     <h6>Trading Parameters</h6>
                                     <div class="row">
-                                        <div class="col-md-3">
-                                            <label for="rsi_symbol" class="form-label">Symbol</label>
-                                            <input type="text" class="form-control" id="rsi_symbol" value="BTCUSDT">
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label for="rsi_timeframe" class="form-label">Timeframe</label>
-                                            <select class="form-control" id="rsi_timeframe">
-                                                <option value="5m">5 minutes</option>
-                                                <option value="15m" selected>15 minutes</option>
-                                                <option value="30m">30 minutes</option>
-                                                <option value="1h">1 hour</option>
-                                                <option value="4h">4 hours</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-6">
                                             <label for="rsi_margin" class="form-label">Margin (USDT)</label>
-                                            <input type="number" class="form-control" id="rsi_margin" value="50" step="0.1">
+                                            <input type="number" class="form-control" id="rsi_margin" name="margin" value="50" step="0.1">
                                         </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-6">
                                             <label for="rsi_leverage" class="form-label">Leverage</label>
-                                            <input type="number" class="form-control" id="rsi_leverage" value="5" min="1" max="125">
+                                            <input type="number" class="form-control" id="rsi_leverage" name="leverage" value="5" min="1" max="125">
                                         </div>
                                     </div>
                                 </div>
@@ -219,19 +205,19 @@
                                     <div class="row">
                                         <div class="col-md-3">
                                             <label for="rsi_long_entry" class="form-label">Long Entry RSI</label>
-                                            <input type="number" class="form-control" id="rsi_long_entry" value="30" min="10" max="50">
+                                            <input type="number" class="form-control" id="rsi_long_entry" name="rsi_long_entry" value="30" min="10" max="50">
                                         </div>
                                         <div class="col-md-3">
                                             <label for="rsi_long_exit" class="form-label">Long Exit RSI</label>
-                                            <input type="number" class="form-control" id="rsi_long_exit" value="70" min="50" max="90">
+                                            <input type="number" class="form-control" id="rsi_long_exit" name="rsi_long_exit" value="70" min="50" max="90">
                                         </div>
                                         <div class="col-md-3">
                                             <label for="rsi_short_entry" class="form-label">Short Entry RSI</label>
-                                            <input type="number" class="form-control" id="rsi_short_entry" value="70" min="50" max="90">
+                                            <input type="number" class="form-control" id="rsi_short_entry" name="rsi_short_entry" value="70" min="50" max="90">
                                         </div>
                                         <div class="col-md-3">
                                             <label for="rsi_short_exit" class="form-label">Short Exit RSI</label>
-                                            <input type="number" class="form-control" id="rsi_short_exit" value="30" min="10" max="50">
+                                            <input type="number" class="form-control" id="rsi_short_exit" name="rsi_short_exit" value="30" min="10" max="50">
                                         </div>
                                     </div>
                                 </div>
@@ -241,15 +227,15 @@
                                     <div class="row">
                                         <div class="col-md-4">
                                             <label for="rsi_max_loss" class="form-label">Max Loss %</label>
-                                            <input type="number" class="form-control" id="rsi_max_loss" value="10" step="0.1">
+                                            <input type="number" class="form-control" id="rsi_max_loss" name="max_loss_pct" value="10" step="0.1">
                                         </div>
                                         <div class="col-md-4">
                                             <label for="rsi_partial_tp_threshold" class="form-label">Partial TP Threshold %</label>
-                                            <input type="number" class="form-control" id="rsi_partial_tp_threshold" value="0" step="0.1">
+                                            <input type="number" class="form-control" id="rsi_partial_tp_threshold" name="partial_tp_pnl_threshold" value="0" step="0.1">
                                         </div>
                                         <div class="col-md-4">
                                             <label for="rsi_partial_tp_percentage" class="form-label">Partial TP Size %</label>
-                                            <input type="number" class="form-control" id="rsi_partial_tp_percentage" value="0" step="0.1">
+                                            <input type="number" class="form-control" id="rsi_partial_tp_percentage" name="partial_tp_position_percentage" value="0" step="0.1">
                                         </div>
                                     </div>
                                 </div>
@@ -262,27 +248,13 @@
                                 <div class="config-group">
                                     <h6>Trading Parameters</h6>
                                     <div class="row">
-                                        <div class="col-md-3">
-                                            <label for="macd_symbol" class="form-label">Symbol</label>
-                                            <input type="text" class="form-control" id="macd_symbol" value="BTCUSDT">
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label for="macd_timeframe" class="form-label">Timeframe</label>
-                                            <select class="form-control" id="macd_timeframe">
-                                                <option value="5m" selected>5 minutes</option>
-                                                <option value="15m">15 minutes</option>
-                                                <option value="30m">30 minutes</option>
-                                                <option value="1h">1 hour</option>
-                                                <option value="4h">4 hours</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-6">
                                             <label for="macd_margin" class="form-label">Margin (USDT)</label>
-                                            <input type="number" class="form-control" id="macd_margin" value="50" step="0.1">
+                                            <input type="number" class="form-control" id="macd_margin" name="margin" value="50" step="0.1">
                                         </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-6">
                                             <label for="macd_leverage" class="form-label">Leverage</label>
-                                            <input type="number" class="form-control" id="macd_leverage" value="5" min="1" max="125">
+                                            <input type="number" class="form-control" id="macd_leverage" name="leverage" value="5" min="1" max="125">
                                         </div>
                                     </div>
                                 </div>
@@ -335,26 +307,13 @@
                                 <div class="config-group">
                                     <h6>Trading Parameters</h6>
                                     <div class="row">
-                                        <div class="col-md-3">
-                                            <label for="engulfing_symbol" class="form-label">Symbol</label>
-                                            <input type="text" class="form-control" id="engulfing_symbol" value="BTCUSDT">
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label for="engulfing_timeframe" class="form-label">Timeframe</label>
-                                            <select class="form-control" id="engulfing_timeframe">
-                                                <option value="15m">15 minutes</option>
-                                                <option value="30m">30 minutes</option>
-                                                <option value="1h" selected>1 hour</option>
-                                                <option value="4h">4 hours</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-6">
                                             <label for="engulfing_margin" class="form-label">Margin (USDT)</label>
-                                            <input type="number" class="form-control" id="engulfing_margin" value="50" step="0.1">
+                                            <input type="number" class="form-control" id="engulfing_margin" name="margin" value="50" step="0.1">
                                         </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-6">
                                             <label for="engulfing_leverage" class="form-label">Leverage</label>
-                                            <input type="number" class="form-control" id="engulfing_leverage" value="5" min="1" max="125">
+                                            <input type="number" class="form-control" id="engulfing_leverage" name="leverage" value="5" min="1" max="125">
                                         </div>
                                     </div>
                                 </div>
@@ -385,26 +344,13 @@
                                 <div class="config-group">
                                     <h6>Trading Parameters</h6>
                                     <div class="row">
-                                        <div class="col-md-3">
-                                            <label for="smart_symbol" class="form-label">Symbol</label>
-                                            <input type="text" class="form-control" id="smart_symbol" value="ETHUSDT">
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label for="smart_timeframe" class="form-label">Timeframe</label>
-                                            <select class="form-control" id="smart_timeframe">
-                                                <option value="15m" selected>15 minutes</option>
-                                                <option value="30m">30 minutes</option>
-                                                <option value="1h">1 hour</option>
-                                                <option value="4h">4 hours</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-6">
                                             <label for="smart_margin" class="form-label">Margin (USDT)</label>
-                                            <input type="number" class="form-control" id="smart_margin" value="75" step="0.1">
+                                            <input type="number" class="form-control" id="smart_margin" name="margin" value="75" step="0.1">
                                         </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-6">
                                             <label for="smart_leverage" class="form-label">Leverage</label>
-                                            <input type="number" class="form-control" id="smart_leverage" value="3" min="1" max="125">
+                                            <input type="number" class="form-control" id="smart_leverage" name="leverage" value="3" min="1" max="125">
                                         </div>
                                     </div>
                                 </div>
@@ -530,17 +476,22 @@
             document.getElementById('loadingSpinner').style.display = 'block';
             document.getElementById('resultsSection').style.display = 'none';
 
-            // Collect basic parameters - ENSURE main form fields are captured
-            const symbolElement = document.getElementById('symbol');
-            const timeframeElement = document.getElementById('timeframe');
-
+            // Collect all form data including strategy-specific parameters
+            const formData = new FormData(document.getElementById('backtestForm'));
             const params = {
                 strategy_name: strategy,
                 start_date: document.getElementById('startDate').value,
                 end_date: document.getElementById('endDate').value,
-                symbol: symbolElement.value.trim() || 'BTCUSDT',
-                timeframe: timeframeElement.value.trim() || '15m'
+                symbol: document.getElementById('symbol').value.trim() || 'BTCUSDT',
+                timeframe: document.getElementById('timeframe').value.trim() || '15m'
             };
+
+            // Add all form data to params
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'strategy_name' && key !== 'start_date' && key !== 'end_date' && value.trim() !== '') {
+                    params[key] = value;
+                }
+            }
 
             // Force ensure we have symbol and timeframe
             if (!params.symbol || params.symbol === '') {
