@@ -246,6 +246,17 @@ class BacktestEngine:
             if len(all_klines) < 50:
                 raise Exception(f"Insufficient data: Only {len(all_klines)} candles found. Need at least 50 for reliable backtesting. Try a longer time period or different timeframe.")
             
+            # Validate data uniqueness to prevent cached/identical results
+            unique_prices = len(set([float(kline[4]) for kline in all_klines]))  # close prices
+            if unique_prices < len(all_klines) * 0.7:  # Less than 70% unique prices suggests bad data
+                self.logger.warning(f"⚠️ Data quality issue: Only {unique_prices}/{len(all_klines)} unique prices found")
+            
+            # Log first and last few candles for validation
+            self.logger.info(f"📊 Data Sample Validation:")
+            self.logger.info(f"   First candle: {datetime.fromtimestamp(int(all_klines[0][0])/1000)} | Close: ${float(all_klines[0][4]):.2f}")
+            self.logger.info(f"   Last candle: {datetime.fromtimestamp(int(all_klines[-1][0])/1000)} | Close: ${float(all_klines[-1][4]):.2f}")
+            self.logger.info(f"   Price range: ${min([float(k[4]) for k in all_klines]):.2f} - ${max([float(k[4]) for k in all_klines]):.2f}")
+            
             # Convert to DataFrame
             df = pd.DataFrame(all_klines, columns=[
                 'timestamp', 'open', 'high', 'low', 'close', 'volume',
@@ -529,23 +540,28 @@ class BacktestEngine:
             # Check stop loss first (based on max loss percentage)
             margin = config.get('margin', 50.0)
             max_loss_pct = config.get('max_loss_pct', 10.0)
-            max_loss_amount = margin * (max_loss_pct / 100)
+            leverage = config.get('leverage', 5)
             
-            # Calculate current PnL
+            # Calculate current PnL correctly
             entry_price = position['entry_price']
             quantity = position['quantity']
             side = position['side']
             
+            # Calculate PnL in USDT
             if side == 'BUY':
-                pnl = (current_price - entry_price) * quantity
+                pnl_usdt = (current_price - entry_price) * quantity
             else:  # SELL
-                pnl = (entry_price - current_price) * quantity
+                pnl_usdt = (entry_price - current_price) * quantity
             
-            # Check stop loss
-            if pnl <= -max_loss_amount:
+            # Calculate PnL percentage against margin (not position value)
+            pnl_percentage = (pnl_usdt / margin) * 100
+            
+            # Check stop loss based on percentage loss against margin
+            if pnl_percentage <= -max_loss_pct:
                 return {
                     'reason': f'Stop Loss (Max Loss {max_loss_pct}%)',
-                    'type': 'stop_loss'
+                    'type': 'stop_loss',
+                    'pnl_percentage': pnl_percentage
                 }
             
             # Check partial take profit if enabled
@@ -574,12 +590,43 @@ class BacktestEngine:
                     }
             else:
                 # Use signal processor for RSI and other strategies
-                exit_reason = self.signal_processor.evaluate_exit_conditions(df, position, config)
-                if exit_reason:
-                    return {
-                        'reason': exit_reason,
-                        'type': 'strategy_exit'
-                    }
+                try:
+                    # Get current RSI for exit conditions
+                    if 'rsi' in df.columns and len(df) > 0:
+                        current_rsi = df['rsi'].iloc[-1]
+                        
+                        # RSI exit conditions for RSI-based strategies
+                        if 'rsi' in config.get('name', '').lower():
+                            rsi_long_exit = config.get('rsi_long_exit', 70)
+                            rsi_short_exit = config.get('rsi_short_exit', 30)
+                            
+                            # Long position: exit when RSI reaches overbought
+                            if side == 'BUY' and current_rsi >= rsi_long_exit:
+                                return {
+                                    'reason': f'Take Profit (RSI {rsi_long_exit}+)',
+                                    'type': 'strategy_exit'
+                                }
+                            
+                            # Short position: exit when RSI reaches oversold
+                            elif side == 'SELL' and current_rsi <= rsi_short_exit:
+                                return {
+                                    'reason': f'Take Profit (RSI {rsi_short_exit}-)',
+                                    'type': 'strategy_exit'
+                                }
+                
+                except Exception as e:
+                    self.logger.error(f"Error in strategy exit evaluation: {e}")
+                
+                # Fallback to signal processor
+                try:
+                    exit_reason = self.signal_processor.evaluate_exit_conditions(df, position, config)
+                    if exit_reason:
+                        return {
+                            'reason': exit_reason,
+                            'type': 'strategy_exit'
+                        }
+                except Exception as e:
+                    self.logger.error(f"Error in signal processor exit evaluation: {e}")
             
             return None
             
@@ -592,9 +639,16 @@ class BacktestEngine:
         margin = config.get('margin', 50.0)
         leverage = config.get('leverage', 5)
         
-        # Calculate position size
+        # Calculate position size - quantity should represent the actual coins/tokens
+        # For futures trading: notional_value = margin * leverage, quantity = notional_value / price
         notional_value = margin * leverage
         quantity = notional_value / price
+        
+        # Validate position size
+        if quantity <= 0:
+            raise ValueError(f"Invalid quantity calculated: {quantity}")
+        
+        self.logger.info(f"📊 Position Details: Margin=${margin} | Leverage={leverage}x | Notional=${notional_value} | Price=${price} | Qty={quantity:.8f}")
         
         return {
             'entry_time': timestamp,
@@ -614,15 +668,28 @@ class BacktestEngine:
         quantity = position['quantity']
         side = position['side']
         margin_used = position['margin_used']
+        leverage = position['leverage']
         
-        # Calculate PnL
+        # Calculate PnL in USDT - this is the actual profit/loss
         if side == 'BUY':
-            pnl = (price - entry_price) * quantity
+            pnl_usdt = (price - entry_price) * quantity
         else:  # SELL
-            pnl = (entry_price - price) * quantity
+            pnl_usdt = (entry_price - price) * quantity
         
-        # Calculate percentage returns
-        pnl_percentage = (pnl / margin_used) * 100
+        # Calculate percentage returns against margin (what trader actually risked)
+        pnl_percentage = (pnl_usdt / margin_used) * 100
+        
+        # Calculate price change percentage for validation
+        if side == 'BUY':
+            price_change_pct = ((price - entry_price) / entry_price) * 100
+        else:  # SELL
+            price_change_pct = ((entry_price - price) / entry_price) * 100
+        
+        # Log detailed calculation for debugging
+        self.logger.info(f"📊 Trade Calculation Details:")
+        self.logger.info(f"   Entry: ${entry_price:.4f} | Exit: ${price:.4f} | Side: {side}")
+        self.logger.info(f"   Quantity: {quantity:.8f} | Margin: ${margin_used} | Leverage: {leverage}x")
+        self.logger.info(f"   Price Change: {price_change_pct:+.2f}% | PnL: ${pnl_usdt:+.2f} | PnL%: {pnl_percentage:+.2f}%")
         
         # Calculate duration
         duration = timestamp - position['entry_time']
@@ -640,7 +707,7 @@ class BacktestEngine:
             'leverage': position['leverage'],
             'entry_reason': position['entry_reason'],
             'exit_reason': reason,
-            'pnl_usdt': pnl,
+            'pnl_usdt': pnl_usdt,
             'pnl_percentage': pnl_percentage,
             'trade_status': 'CLOSED'
         }

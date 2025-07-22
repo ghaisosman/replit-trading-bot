@@ -193,8 +193,9 @@ class SignalProcessor:
         try:
             current_price = df['close'].iloc[-1]
             entry_price = position['entry_price']
-            stop_loss = position['stop_loss']
-            take_profit = position['take_profit']
+            # These fields might not exist in backtest positions
+            stop_loss = position.get('stop_loss', None)
+            take_profit = position.get('take_profit', None)
             position_side = position.get('side', 'BUY')
             side = position.get('side')
 
