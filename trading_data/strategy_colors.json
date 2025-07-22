@@ -26,7 +26,8 @@
     "XRPUSDT": "\u001b[95m",
     "DEVELOPMENT": "\u001b[95m",
     "USDT": "\u001b[95m",
-    "_RECOVERED": "\u001b[95m"
+    "_RECOVERED": "\u001b[95m",
+    "BCHUSDT": "\u001b[95m"
   },
   "active_position_colors": {
     "LOADED": "\u001b[1;95m",
@@ -55,6 +56,7 @@
     "XRPUSDT": "\u001b[1;95m",
     "DEVELOPMENT": "\u001b[1;95m",
     "USDT": "\u001b[1;95m",
-    "_RECOVERED": "\u001b[1;95m"
+    "_RECOVERED": "\u001b[1;95m",
+    "BCHUSDT": "\u001b[1;95m"
   }
 }
