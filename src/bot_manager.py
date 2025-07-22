@@ -688,9 +688,9 @@ class BotManager:
                             self.order_manager.active_positions[strategy_name] = position
                             self.logger.info(f"✅ RECOVERED POSITION | {strategy_name} | {trade_data['symbol']} | {trade_data['side']} | Entry: ${trade_data['entry_price']}")
 
-                except Exception as e:
-                    self.logger.error(f"❌ Error recovering position {trade_id}: {e}")
-                    continue
+                    except Exception as e:
+                        self.logger.error(f"❌ Error recovering position {trade_id}: {e}")
+                        continue
 
                 self.logger.info(f"🛡️ POSITION RECOVERY: Successfully loaded {len(self.order_manager.active_positions)} active positions")
             else:
