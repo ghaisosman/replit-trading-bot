@@ -28,12 +28,38 @@ def run_web_dashboard():
         # Get port from environment
         port = int(os.environ.get('PORT', 5000))
 
-        # Run Flask app
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
+        # Enhanced Flask startup with better error handling
+        try:
+            # Primary startup method
+            app.run(
+                host='0.0.0.0', 
+                port=port, 
+                debug=False, 
+                use_reloader=False, 
+                threaded=True,
+                processes=1
+            )
+        except Exception as primary_error:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Primary web startup failed: {primary_error}")
+            
+            # Alternative startup method
+            try:
+                logger.info("🔄 Trying alternative web dashboard startup...")
+                from werkzeug.serving import make_server
+                server = make_server('0.0.0.0', port, app, threaded=True)
+                logger.info(f"✅ Web dashboard started on port {port} (alternative method)")
+                server.serve_forever()
+            except Exception as alt_error:
+                logger.error(f"Alternative web startup also failed: {alt_error}")
+                raise
 
     except Exception as e:
         logger = logging.getLogger(__name__)
-        logger.error(f"Web dashboard error: {e}")
+        logger.error(f"Web dashboard critical error: {e}")
+        # Don't let web dashboard failure crash the entire application
+        import time
+        time.sleep(60)  # Wait before potential restart
 
 async def main():
     print(">>> ENTERED main()")

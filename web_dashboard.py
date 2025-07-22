@@ -2376,16 +2376,27 @@ def start_web_dashboard(debug=False, use_reloader=False):
     try:
         logger.info("🌐 WEB INTERFACE: Starting Flask web dashboard...")
 
-        # Try to start auto-restart loop as a background task
-        try:
-            asyncio.ensure_future(auto_restart_bot())  # Schedule immediately
-        except Exception as async_error:
-            logger.error(f"Failed to start auto-restart task: {async_error}")
-
-        app.run(debug=debug, use_reloader=use_reloader, host='0.0.0.0', port=5000)
+        # Start Flask with proper error handling and threading
+        app.run(
+            debug=debug, 
+            use_reloader=use_reloader, 
+            host='0.0.0.0', 
+            port=5000,
+            threaded=True,
+            processes=1
+        )
 
     except Exception as e:
         logger.critical(f"Failed to start web dashboard: {e}")
+        # Try alternative startup method
+        try:
+            logger.info("🔄 Attempting alternative Flask startup...")
+            from werkzeug.serving import make_server
+            server = make_server('0.0.0.0', 5000, app, threaded=True)
+            logger.info("✅ Flask server started on alternative method")
+            server.serve_forever()
+        except Exception as alt_error:
+            logger.critical(f"Alternative Flask startup also failed: {alt_error}")
 
 if __name__ == '__main__':
     # Set debug to True only during development - NEVER in production
