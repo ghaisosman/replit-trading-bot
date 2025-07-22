@@ -163,6 +163,21 @@ class EngulfingRSIStrategy:
         # Check if current candle is stable
         stable_candle = self.is_stable_candle(df, atr_series, current_index)
         
+        # Validate current price and ATR before generating signals
+        if current_price <= 0 or pd.isna(current_price):
+            return {
+                'signal': 'HOLD',
+                'confidence': 0.0,
+                'reason': f'Invalid current price: {current_price}'
+            }
+            
+        if pd.isna(current_atr) or current_atr <= 0:
+            return {
+                'signal': 'HOLD',
+                'confidence': 0.0,
+                'reason': f'Invalid ATR value: {current_atr}'
+            }
+
         # Long entry conditions
         if (bullish_engulfing and 
             stable_candle and 
@@ -172,6 +187,14 @@ class EngulfingRSIStrategy:
             # Calculate TP/SL levels based on ATR
             tp_level = current_price + (current_atr * self.tp_atr_multiplier)
             sl_level = current_price - (current_atr * self.sl_atr_multiplier)
+            
+            # Validate TP/SL levels
+            if sl_level <= 0 or tp_level <= 0:
+                return {
+                    'signal': 'HOLD',
+                    'confidence': 0.0,
+                    'reason': f'Invalid TP/SL calculation: TP={tp_level:.4f}, SL={sl_level:.4f}'
+                }
             
             return {
                 'signal': 'BUY',
@@ -194,6 +217,14 @@ class EngulfingRSIStrategy:
             # Calculate TP/SL levels based on ATR
             tp_level = current_price - (current_atr * self.tp_atr_multiplier)
             sl_level = current_price + (current_atr * self.sl_atr_multiplier)
+            
+            # Validate TP/SL levels
+            if sl_level <= 0 or tp_level <= 0:
+                return {
+                    'signal': 'HOLD',
+                    'confidence': 0.0,
+                    'reason': f'Invalid TP/SL calculation: TP={tp_level:.4f}, SL={sl_level:.4f}'
+                }
             
             return {
                 'signal': 'SELL',
