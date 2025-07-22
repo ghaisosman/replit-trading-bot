@@ -30,6 +30,9 @@ class SignalProcessor:
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        # Clear any cached configurations on initialization
+        self._config_cache = {}
+        self._strategy_cache = {}
 
     def evaluate_entry_conditions(self, df: pd.DataFrame, strategy_config: Dict) -> Optional[TradingSignal]:
         """Evaluate entry conditions based on strategy"""
@@ -93,7 +96,11 @@ class SignalProcessor:
     def _evaluate_rsi_oversold(self, df: pd.DataFrame, current_price: float, config: Dict) -> Optional[TradingSignal]:
         """RSI strategy evaluation for both long and short signals"""
         try:
+            # Clear any cached values to ensure fresh evaluation
+            self._config_cache.clear()
+            
             if 'rsi' not in df.columns:
+                self.logger.warning(f"❌ RSI column not found in DataFrame. Available columns: {list(df.columns)}")
                 return None
 
             rsi_current = df['rsi'].iloc[-1]
@@ -101,16 +108,21 @@ class SignalProcessor:
             leverage = config.get('leverage', 5)
             max_loss_pct = config.get('max_loss_pct', 10)  # 10% of margin
 
-            # Get configurable RSI levels
+            # Get configurable RSI levels with explicit logging
             rsi_long_entry = config.get('rsi_long_entry', 40)
             rsi_short_entry = config.get('rsi_short_entry', 60)
 
-            # DEBUG: Log the actual config values being used
-            self.logger.info(f"🔍 RSI STRATEGY CONFIG CHECK:")
+            # COMPREHENSIVE DEBUG: Log ALL config values being used
+            self.logger.info(f"🔍 RSI STRATEGY CONFIG CHECK (FRESH):")
+            self.logger.info(f"   Strategy Name: {config.get('name', 'unknown')}")
+            self.logger.info(f"   Symbol: {config.get('symbol', 'N/A')}")
             self.logger.info(f"   Current RSI: {rsi_current:.2f}")
-            self.logger.info(f"   Long Entry Threshold: {rsi_long_entry} (from config: {config.get('rsi_long_entry', 'NOT SET')})")
-            self.logger.info(f"   Short Entry Threshold: {rsi_short_entry} (from config: {config.get('rsi_short_entry', 'NOT SET')})")
+            self.logger.info(f"   Long Entry Threshold: {rsi_long_entry} (config key exists: {'rsi_long_entry' in config})")
+            self.logger.info(f"   Short Entry Threshold: {rsi_short_entry} (config key exists: {'rsi_short_entry' in config})")
             self.logger.info(f"   Margin: ${margin} | Leverage: {leverage}x | Max Loss: {max_loss_pct}%")
+            
+            # Log the complete config for debugging
+            self.logger.debug(f"📋 Complete config received: {config}")
 
             # Calculate stop loss based on PnL (10% of margin)
             max_loss_amount = margin * (max_loss_pct / 100)
