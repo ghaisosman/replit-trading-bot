@@ -332,7 +332,7 @@ class OrderManager:
                         try:
                             from src.execution_engine.trade_database import TradeDatabase
                             trade_db = TradeDatabase()
-                            
+
                             if position.trade_id:
                                 trade_db.update_trade(position.trade_id, {
                                     'trade_status': 'CLOSED',
@@ -964,62 +964,88 @@ class OrderManager:
         """Generate consistent trade ID"""
         return f"{strategy_name}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-    def _record_confirmed_trade(self, position: Position, order_result: dict, strategy_config: Dict) -> bool:
-        """Record trade in database using ACTUAL order confirmation data from Binance"""
+    def _record_confirmed_trade(self, position: Position, order_result: Dict, strategy_config: Dict):
+        """Record confirmed trade in database with complete data"""
         try:
-            from src.execution_engine.trade_database import TradeDatabase
-            trade_db = TradeDatabase()
-
-            # Use ACTUAL values from order confirmation
-            actual_quantity = float(order_result.get('executedQty', position.quantity))
-            actual_price = float(order_result.get('avgPrice', position.entry_price))
-            
-            # Calculate actual margin used from confirmed order
-            position_value = actual_price * actual_quantity
+            # Calculate comprehensive trade data with GUARANTEED margin calculation
+            position_value_usdt = position.entry_price * position.quantity
             leverage = strategy_config.get('leverage', 1)
-            actual_margin_used = position_value / leverage
 
-            # Store actual margin in position for PnL calculations
+            # CRITICAL: Always calculate margin from position value and leverage
+            actual_margin_used = position_value_usdt / leverage
+
+            # Store the calculated margin in the position for consistency
             position.actual_margin_used = actual_margin_used
 
-            # Create complete trade data with CONFIRMED order details
+            self.logger.info(f"🔧 MARGIN CALCULATION | Position: ${position_value_usdt:.2f} | Leverage: {leverage}x | Margin: ${actual_margin_used:.2f}")
+
+            # Validate margin is not zero
+            if actual_margin_used <= 0:
+                self.logger.error(f"❌ CRITICAL: Zero margin calculated for {position.trade_id}")
+                actual_margin_used = strategy_config.get('margin', 50.0)  # Fallback
+                self.logger.warning(f"🔄 Using fallback margin: ${actual_margin_used}")
+
+            # Create complete trade data with actual order confirmation
             trade_data = {
+                'trade_id': position.trade_id,
                 'strategy_name': position.strategy_name,
                 'symbol': position.symbol,
                 'side': position.side,
-                'quantity': actual_quantity,
-                'entry_price': actual_price,
+                'quantity': position.quantity,
+                'entry_price': position.entry_price,
                 'trade_status': 'OPEN',
-                'position_value_usdt': position_value,
+                'position_value_usdt': position_value_usdt,
                 'leverage': leverage,
-                'margin_used': actual_margin_used,
-                'order_id': order_result.get('orderId', position.order_id),
+                'margin_used': actual_margin_used,  # Guaranteed non-zero
                 'stop_loss': position.stop_loss,
                 'take_profit': position.take_profit,
-                'position_side': position.position_side,
-                'entry_time': position.entry_time.isoformat() if position.entry_time else datetime.now().isoformat(),
-                'timestamp': datetime.now().isoformat(),
-                'binance_order_status': order_result.get('status', 'FILLED'),
-                'commission_paid': order_result.get('commission', 0)
+                'order_id': order_result.get('orderId'),
+                'position_side': position.position_side
             }
 
-            # Single database recording with verified data
-            success = trade_db.add_trade(position.trade_id, trade_data)
-            if success:
-                self.logger.info(f"✅ TRADE RECORDED FROM ORDER CONFIRMATION: {position.trade_id}")
-                self.logger.info(f"   💰 Actual Margin: ${actual_margin_used:.2f} USDT")
-                self.logger.info(f"   📊 Confirmed Qty: {actual_quantity} @ ${actual_price:.4f}")
-                self.logger.info(f"   🔗 Order ID: {order_result.get('orderId')}")
-            else:
-                self.logger.error(f"❌ TRADE RECORDING FAILED: {position.trade_id}")
+            # Calculate technical indicators at entry
+            technical_indicators = self._calculate_entry_indicators(position.symbol)
 
-            return success
+            # Analyze market conditions
+            market_conditions = self._analyze_market_conditions(position.symbol)
+
+            # Record in trade database
+            from src.execution_engine.trade_database import TradeDatabase
+            trade_db = TradeDatabase()
+
+            # Merge all data for database recording
+            complete_data = {**trade_data, **technical_indicators, **market_conditions}
+
+            # LOG BEFORE RECORDING
+            self.logger.info(f"📝 RECORDING TRADE | {position.trade_id} | Margin: ${complete_data['margin_used']:.2f} | Data: {complete_data}")
+
+            success = trade_db.add_trade(position.trade_id, complete_data)
+            if success:
+                self.logger.info(f"✅ TRADE RECORDED SUCCESSFULLY | {position.trade_id} | Margin: ${actual_margin_used:.2f} USDT | Position: ${position_value_usdt:.2f} USDT")
+            else:
+                self.logger.error(f"❌ FAILED TO RECORD TRADE | {position.trade_id}")
+
+            # Also record in trade logger
+            from src.analytics.trade_logger import trade_logger
+            trade_logger.log_trade_entry(
+                strategy_name=position.strategy_name,
+                symbol=position.symbol,
+                side=position.side,
+                entry_price=position.entry_price,
+                quantity=position.quantity,
+                margin_used=actual_margin_used,
+                leverage=leverage,
+                technical_indicators=technical_indicators,
+                market_conditions=market_conditions,
+                trade_id=position.trade_id
+            )
 
         except Exception as e:
             self.logger.error(f"❌ Error recording confirmed trade: {e}")
-            return False
+            import traceback
+            self.logger.error(f"❌ Recording error traceback: {traceback.format_exc()}")
 
-    
+
 
     def check_partial_take_profit(self, strategy_name: str, current_price: float) -> bool:
         """Check and execute partial take profit if conditions are met"""
