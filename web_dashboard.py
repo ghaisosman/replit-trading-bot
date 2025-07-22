@@ -1399,7 +1399,6 @@ def get_positions():
         # Check if bot is running
         is_running = getattr(current_bot, 'is_running', False)
         if not is_running:
-```python
             default_response['status'] = 'bot_stopped'
             return jsonify(default_response)
 
