@@ -778,10 +778,16 @@ class BacktestEngine:
 
     def _check_exit_conditions(self, position: Dict, df: pd.DataFrame, current_price: float, 
                               strategy_handler, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Check exit conditions for current position"""
+        """Check exit conditions for current position with ACCURATE stop loss enforcement"""
         try:
-            # Check stop loss first (based on max loss percentage)
-            margin = config.get('margin', 50.0)
+            # CRITICAL: Get actual margin used for this position (not config margin)
+            actual_margin_used = position.get('actual_margin_used') or position.get('margin_used')
+            
+            # Fallback to config margin if not available
+            if not actual_margin_used:
+                actual_margin_used = config.get('margin', 50.0)
+                self.logger.warning(f"⚠️ Using fallback margin ${actual_margin_used} - actual margin not found")
+            
             max_loss_pct = config.get('max_loss_pct', 10.0)
             leverage = config.get('leverage', 5)
 
@@ -796,15 +802,32 @@ class BacktestEngine:
             else:  # SELL
                 pnl_usdt = (entry_price - current_price) * quantity
 
-            # Calculate PnL percentage against margin (not position value)
-            pnl_percentage = (pnl_usdt / margin) * 100
+            # FIXED: Calculate PnL percentage against ACTUAL margin invested (not config margin)
+            pnl_percentage = (pnl_usdt / actual_margin_used) * 100
 
-            # Check stop loss based on percentage loss against margin
-            if pnl_percentage <= -max_loss_pct:
+            # ENHANCED: Also check stop loss price directly for validation
+            stop_loss_price = position.get('stop_loss')
+            stop_loss_triggered_by_price = False
+            
+            if stop_loss_price:
+                if side == 'BUY' and current_price <= stop_loss_price:
+                    stop_loss_triggered_by_price = True
+                elif side == 'SELL' and current_price >= stop_loss_price:
+                    stop_loss_triggered_by_price = True
+
+            # Check stop loss - either by percentage OR by price
+            if pnl_percentage <= -max_loss_pct or stop_loss_triggered_by_price:
+                reason = f'Stop Loss (Max Loss {max_loss_pct}%)' if pnl_percentage <= -max_loss_pct else f'Stop Loss (Price: ${stop_loss_price:.4f})'
+                
+                self.logger.info(f"🛑 STOP LOSS TRIGGERED | {side} | Entry: ${entry_price:.4f} | Current: ${current_price:.4f}")
+                self.logger.info(f"   💰 PnL: ${pnl_usdt:.2f} ({pnl_percentage:.2f}%) | Margin: ${actual_margin_used:.2f}")
+                self.logger.info(f"   🎯 SL Price: ${stop_loss_price:.4f} | Price Trigger: {stop_loss_triggered_by_price}")
+                
                 return {
-                    'reason': f'Stop Loss (Max Loss {max_loss_pct}%)',
+                    'reason': reason,
                     'type': 'stop_loss',
-                    'pnl_percentage': pnl_percentage
+                    'pnl_percentage': pnl_percentage,
+                    'pnl_usdt': pnl_usdt
                 }
 
             # Check partial take profit if enabled
