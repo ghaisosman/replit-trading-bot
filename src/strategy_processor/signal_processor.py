@@ -45,6 +45,10 @@ class SignalProcessor:
                 return self._evaluate_rsi_oversold(df, current_price, strategy_config)
             elif 'macd' in strategy_name.lower():
                 return self._evaluate_macd_divergence(df, current_price, strategy_config)
+            elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
+                # Smart Money strategy is handled directly by the strategy class
+                # Signal processor doesn't need to generate signals for it
+                return None
             else:
                 self.logger.warning(f"Unknown strategy type: {strategy_name}")
                 return None
