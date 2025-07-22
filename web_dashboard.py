@@ -777,8 +777,7 @@ def get_strategies():
                     config.setdefault('session_filter_enabled', True)
                     config.setdefault('allowed_sessions', ['LONDON', 'NEW_YORK'])
                     config.setdefault('trend_filter_enabled',True)
-                    config```python
-.setdefault('min_volume', 100000)
+                    config.setdefault('min_volume', 100000)
                     config.setdefault('decimals', 2)
                     config.setdefault('cooldown_period', 300)
 
