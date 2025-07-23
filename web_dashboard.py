@@ -421,7 +421,6 @@ def start_bot():
             
             # Fallback to subprocess method with better process isolation
             import subprocess
-            import os
             
             env = os.environ.copy()
             env['PYTHONUNBUFFERED'] = '1'  # Ensure output is not buffered
