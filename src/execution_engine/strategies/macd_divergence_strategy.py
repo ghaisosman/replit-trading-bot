@@ -20,8 +20,8 @@ class MACDDivergenceStrategy:
     - Stop loss by config/max_loss_pct
     """
 
-    def __init__(self, strategy_name: str, config: Dict[str, Any]):
-        self.strategy_name = strategy_name
+    def __init__(self, config: Dict[str, Any]):
+        self.strategy_name = config.get('name', 'macd_divergence')
         self.config = config
         self.logger = logging.getLogger(__name__)
 
