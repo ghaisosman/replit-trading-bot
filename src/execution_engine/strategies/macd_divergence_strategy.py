@@ -92,6 +92,13 @@ class MACDDivergenceStrategy:
             self.logger.info(f"🔍 MACD Analysis: MACD={macd_current:.6f}, Signal={signal_current:.6f}, Histogram={histogram_current:.6f}")
             self.logger.info(f"🔍 Momentum: Current={histogram_current:.6f}, Prev={histogram_prev:.6f}, Change={histogram_momentum:.6f}")
             self.logger.info(f"🔍 Thresholds: Histogram>={self.min_histogram_threshold}, Distance>={self.entry_threshold:.6f} (actual: {line_distance:.6f})")
+            
+            # Check if we're in bearish territory for post-crossover logic
+            if macd_current < signal_current and histogram_current < 0:
+                self.logger.info(f"🔍 BEARISH TERRITORY: MACD below signal, histogram negative")
+                self.logger.info(f"🔍 Histogram momentum check: {histogram_current:.6f} < {histogram_prev:.6f} = {histogram_current < histogram_prev}")
+                self.logger.info(f"🔍 Momentum threshold check: {abs(histogram_momentum):.6f} >= {self.min_histogram_threshold} = {abs(histogram_momentum) >= self.min_histogram_threshold}")
+                self.logger.info(f"🔍 Distance threshold check: {line_distance:.6f} >= {self.entry_threshold * 0.5:.6f} = {line_distance >= self.entry_threshold * 0.5}")
 
             # --- BULLISH ENTRY: Pre-crossover momentum and divergence ---
             if (
@@ -153,13 +160,14 @@ class MACDDivergenceStrategy:
 
             # --- ALTERNATIVE: Post-crossover momentum (if pre-crossover fails) ---
             # Check for recent crossover with continued momentum
-            elif (
-                macd_current < signal_current and  # Currently below signal (bearish)
+            if (
+                macd_current < signal_current and  # Currently below signal (bearish crossover happened)
                 histogram_current < 0 and  # Negative histogram
                 histogram_current < histogram_prev and  # Still falling
                 abs(histogram_momentum) >= self.min_histogram_threshold and
                 line_distance >= self.entry_threshold * 0.5  # Reduced threshold for post-crossover
             ):
+                self.logger.info(f"🔴 POST-CROSSOVER BEARISH conditions met!")
                 momentum_confirmed = True
                 if self.confirmation_candles > 1:
                     for i in range(self.confirmation_candles):
@@ -169,15 +177,44 @@ class MACDDivergenceStrategy:
                 if momentum_confirmed:
                     stop_loss = current_price * (1 + stop_loss_pct / 100)
                     take_profit = current_price * 0.95  # Placeholder
-                    self.logger.info(f"🔴 MACD BEARISH ENTRY: Pre-crossover divergence, histogram falling")
+                    self.logger.info(f"🔴 MACD BEARISH ENTRY: Post-crossover momentum, histogram still falling")
                     return TradingSignal(
                         signal_type=SignalType.SELL,
-                        confidence=0.8,
+                        confidence=0.7,
                         entry_price=current_price,
                         stop_loss=stop_loss,
                         take_profit=take_profit,
                         symbol=self.config.get('symbol', ''),
-                        reason=f"MACD BEARISH PRE-CROSS: Histogram falling ({histogram_current:.6f}→{histogram_prev:.6f})"
+                        reason=f"MACD BEARISH POST-CROSS: Histogram falling ({histogram_current:.6f}→{histogram_prev:.6f})"
+                    )
+            
+            # --- BULLISH POST-CROSSOVER: Similar logic for bullish signals ---
+            elif (
+                macd_current > signal_current and  # Currently above signal (bullish crossover happened)
+                histogram_current > 0 and  # Positive histogram
+                histogram_current > histogram_prev and  # Still rising
+                abs(histogram_momentum) >= self.min_histogram_threshold and
+                line_distance >= self.entry_threshold * 0.5  # Reduced threshold for post-crossover
+            ):
+                self.logger.info(f"🟢 POST-CROSSOVER BULLISH conditions met!")
+                momentum_confirmed = True
+                if self.confirmation_candles > 1:
+                    for i in range(self.confirmation_candles):
+                        if histogram.iloc[-i-1] <= histogram.iloc[-i-2]:
+                            momentum_confirmed = False
+                            break
+                if momentum_confirmed:
+                    stop_loss = current_price * (1 - stop_loss_pct / 100)
+                    take_profit = current_price * 1.05  # Placeholder
+                    self.logger.info(f"🟢 MACD BULLISH ENTRY: Post-crossover momentum, histogram still rising")
+                    return TradingSignal(
+                        signal_type=SignalType.BUY,
+                        confidence=0.7,
+                        entry_price=current_price,
+                        stop_loss=stop_loss,
+                        take_profit=take_profit,
+                        symbol=self.config.get('symbol', ''),
+                        reason=f"MACD BULLISH POST-CROSS: Histogram rising ({histogram_current:.6f}→{histogram_prev:.6f})"
                     )
 
             return None

@@ -153,8 +153,7 @@ class SignalProcessor:
         try:
             from src.execution_engine.strategies.macd_divergence_strategy import MACDDivergenceStrategy
             
-            strategy_name = config.get('name', 'macd_divergence')
-            strategy = MACDDivergenceStrategy(strategy_name, config)
+            strategy = MACDDivergenceStrategy(config)
             
             # Calculate indicators
             df_with_indicators = strategy.calculate_indicators(df.copy())
@@ -241,7 +240,7 @@ class SignalProcessor:
                 try:
                     from src.execution_engine.strategies.macd_divergence_strategy import MACDDivergenceStrategy
                     
-                    strategy = MACDDivergenceStrategy(strategy_name, strategy_config)
+                    strategy = MACDDivergenceStrategy(strategy_config)
                     exit_reason = strategy.evaluate_exit_signal(df, position)
                     
                     if exit_reason:
