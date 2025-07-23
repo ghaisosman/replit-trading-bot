@@ -2073,17 +2073,49 @@
         let updateTimeouts = {};
         let pollingActive = true;
 
-         // Simple API request function without complex error handling
+         // Enhanced API request function with better error handling
         function apiRequest(url) {
             return fetch(url)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('HTTP ' + response.status);
                     }
+                    
+                    // Check if response is actually JSON
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        throw new Error('Invalid response format');
+                    }
+                    
                     return response.json();
                 })
                 .catch(error => {
                     console.log('API request failed for', url, ':', error.message || 'Unknown error');
+                    
+                    // Return appropriate fallback based on endpoint
+                    if (url.includes('/api/bot/status')) {
+                        return { 
+                            success: true, 
+                            running: false, 
+                            status: 'connection_error',
+                            active_positions: 0,
+                            strategies: 0,
+                            balance: 0.0
+                        };
+                    } else if (url.includes('/api/console-log')) {
+                        return { 
+                            success: true, 
+                            logs: [`[${new Date().toLocaleTimeString()}] ⚠️ Connection issue - retrying...`],
+                            count: 1
+                        };
+                    } else if (url.includes('/api/positions')) {
+                        return { 
+                            success: true, 
+                            positions: [], 
+                            count: 0 
+                        };
+                    }
+                    
                     return { success: false, error: error.message };
                 });
         }
