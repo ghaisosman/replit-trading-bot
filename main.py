@@ -15,128 +15,25 @@ bot_manager = None
 shutdown_event = asyncio.Event()
 
 def signal_handler(signum, frame):
-    """Handle termination signals with improved logic"""
-    global bot_manager
-    
+    """Handle termination signals"""
     print(f"\n🛑 Shutdown signal received: {signum}")
-    
-    # Only shutdown if this is intended (not from process conflicts)
-    if signum == signal.SIGTERM:
-        # Check if this is a graceful shutdown request
-        if bot_manager and hasattr(bot_manager, 'is_running') and bot_manager.is_running:
-            print("🔄 Graceful shutdown initiated...")
-            shutdown_event.set()
-        else:
-            print("⚠️ SIGTERM received but bot not running - ignoring signal")
-            return
-    else:
-        # SIGINT (Ctrl+C) always triggers shutdown
-        print("🔄 Manual shutdown requested...")
-        shutdown_event.set()
+    shutdown_event.set()
 
 def run_web_dashboard():
-    """Run the web dashboard in a separate thread"""
-    import socket
-    import time
-    import logging
-    
-    # Initialize logger for this thread
-    logger = logging.getLogger(__name__)
-
-    def is_port_in_use(port):
-        """Check if port is already in use"""
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(('0.0.0.0', port))
-                return False
-            except OSError:
-                return True
-
-    def cleanup_existing_processes():
-        """Clean up any existing processes that might conflict"""
-        try:
-            import psutil
-            current_pid = os.getpid()
-            cleaned_processes = 0
-            
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                try:
-                    if proc.info['pid'] == current_pid:
-                        continue
-                        
-                    # Check for other main.py processes
-                    if proc.info['cmdline'] and any('main.py' in str(cmd) for cmd in proc.info['cmdline']):
-                        logger.info(f"🔧 Terminating conflicting process {proc.info['pid']}")
-                        proc.terminate()
-                        try:
-                            proc.wait(timeout=3)
-                            cleaned_processes += 1
-                        except psutil.TimeoutExpired:
-                            logger.info(f"🔫 Force killing process {proc.info['pid']}")
-                            proc.kill()
-                            cleaned_processes += 1
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-                    
-            if cleaned_processes > 0:
-                logger.info(f"🧹 Cleaned up {cleaned_processes} conflicting processes")
-                time.sleep(2)  # Give time for cleanup
-                
-        except ImportError:
-            logger.warning("⚠️ psutil not available, cannot cleanup processes")
-
+    """Run web dashboard in separate thread"""
     try:
-        # First clean up any conflicting processes
-        cleanup_existing_processes()
-        
-        # Check if port 5000 is in use
-        if is_port_in_use(5000):
-            logger.warning("🔄 Port 5000 in use, waiting for it to become available...")
-            time.sleep(3)
+        # Import here to avoid circular imports
+        from web_dashboard import app
 
-            # If still in use, try to find the process and stop it
-            if is_port_in_use(5000):
-                try:
-                    import psutil
-                    for proc in psutil.process_iter(['pid', 'name']):
-                        try:
-                            # Skip our own process
-                            if proc.info['pid'] == os.getpid():
-                                continue
-                                
-                            # Get connections separately as it's not a basic attribute
-                            process = psutil.Process(proc.info['pid'])
-                            # Use net_connections to avoid deprecation warning
-                            try:
-                                connections = process.net_connections()
-                            except AttributeError:
-                                # Fallback for older psutil versions
-                                connections = process.connections()
-                            for conn in connections:
-                                if conn.laddr.port == 5000:
-                                    logger.info(f"🔧 Terminating process {proc.info['pid']} using port 5000")
-                                    proc.terminate()
-                                    try:
-                                        proc.wait(timeout=3)
-                                    except psutil.TimeoutExpired:
-                                        # Force kill if terminate doesn't work
-                                        logger.info(f"🔫 Force killing process {proc.info['pid']}")
-                                        proc.kill()
-                                    break
-                        except (psutil.NoSuchProcess, psutil.AccessDenied, AttributeError):
-                            continue
+        # Get port from environment
+        port = int(os.environ.get('PORT', 5000))
 
-                    time.sleep(2)  # Give it time to release the port
-                except ImportError:
-                    logger.warning("⚠️ psutil not available, cannot auto-resolve port conflict")
+        # Run Flask app
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
 
-        # Start the web dashboard
-        import web_dashboard
-        web_dashboard.app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
     except Exception as e:
+        logger = logging.getLogger(__name__)
         logger.error(f"Web dashboard error: {e}")
-        import traceback
-        logger.error(f"Full traceback: {traceback.format_exc()}")
 
 async def main():
     print(">>> ENTERED main()")
@@ -183,41 +80,41 @@ async def main():
             restart_attempts = 0
             max_restart_attempts = 5  # Increased attempts
             syntax_error_detected = False
-
+            
             while True:
                 # Check if web thread is still alive
                 if not web_thread.is_alive():
                     restart_attempts += 1
-
+                    
                     logger.error(f"🔍 DEBUG: Web thread status - Alive: {web_thread.is_alive()}")
                     logger.error(f"🔍 DEBUG: Restart attempt {restart_attempts}/{max_restart_attempts}")
-
+                    
                     if restart_attempts <= max_restart_attempts and not syntax_error_detected:
                         logger.error(f"🚨 Web dashboard thread died! Restarting... (Attempt {restart_attempts}/{max_restart_attempts})")
-
+                        
                         # Check if it's a syntax error by looking at recent logs
                         # (This is a simple heuristic - in production you'd want more sophisticated error detection)
-
+                        
                         # Wait a bit before restarting to avoid rapid restart loops
                         wait_time = min(10, 2 * restart_attempts)  # Progressive backoff
                         logger.info(f"🔍 DEBUG: Waiting {wait_time}s before restart attempt...")
                         await asyncio.sleep(wait_time)
-
+                        
                         logger.info(f"🔍 DEBUG: Creating new web dashboard thread...")
                         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
                         web_thread.start()
-
+                        
                         # Give it more time to start
                         startup_wait = 5
                         logger.info(f"🔍 DEBUG: Waiting {startup_wait}s for web dashboard startup...")
                         await asyncio.sleep(startup_wait)
-
+                        
                         # Check if the new thread is alive
                         if web_thread.is_alive():
                             logger.info("✅ Web dashboard restart successful")
                         else:
                             logger.error("❌ Web dashboard restart failed immediately")
-
+                            
                     else:
                         if syntax_error_detected:
                             logger.error(f"🚫 Syntax error detected - stopping restart attempts.")
@@ -231,10 +128,10 @@ async def main():
                     if restart_attempts > 0:
                         logger.info(f"✅ Web dashboard recovered after {restart_attempts} restart attempts")
                     restart_attempts = 0
-
+                
                 # Check every 10 seconds
                 await asyncio.sleep(10)
-
+                
         except KeyboardInterrupt:
             logger.info("🔴 Render deployment shutdown")
             if bot_manager and bot_manager.is_running:
@@ -260,21 +157,22 @@ async def main():
 
         # Keep the process alive indefinitely - web dashboard controls everything
         try:
-            while not shutdown_event.is_set():
+            while True:
                 # Check if web thread is still alive
                 if not web_thread.is_alive():
                     logger.error("🚨 Web dashboard thread died! Restarting...")
                     web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
                     web_thread.start()
-
+                
                 # Check if bot needs to be cleaned up
                 current_bot = sys.modules['__main__'].bot_manager
                 if current_bot and hasattr(current_bot, 'is_running') and not current_bot.is_running:
-                    # Clean up stopped bot but keep reference for restart
-                    logger.info("🔄 Bot stopped - ready for restart")
-
+                    # Clean up stopped bot
+                    sys.modules['__main__'].bot_manager = None
+                    globals()['bot_manager'] = None
+                
                 await asyncio.sleep(5)
-
+                
         except KeyboardInterrupt:
             logger.info("🔴 Development mode shutdown")
             current_bot = sys.modules['__main__'].bot_manager

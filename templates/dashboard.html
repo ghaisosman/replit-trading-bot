@@ -434,16 +434,6 @@
             text-align: center;
             width: 100%;
         }
-
-        .rsi-neutral {
-            color: #666;
-            font-weight: normal;
-        }
-
-        .rsi-unavailable {
-            color: #999;
-            font-style: italic;
-        }
     </style>
 </head>
 <body class="bg-light">
@@ -1167,12 +1157,7 @@
                     'Content-Type': 'application/json',
                 }
             })
-            .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
+            .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     location.reload();
@@ -1181,81 +1166,10 @@
                 }
             })
             .catch(error => {
-                console.error(`API call failed for ${endpoint}:`, error.message || error);
+                console.error('Error:', error);
                 alert('Connection error');
             });
         });
-
-        // Safe API request helper with timeout
-        function apiRequest(url, options = {}) {
-            const defaultOptions = {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                timeout: 5000,
-                ...options
-            };
-            
-            return fetch(url, defaultOptions);
-        }
-
-        // Safe API call with fallback data
-        function safeApiCall(url) {
-            return fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                timeout: 5000
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    throw new Error('Invalid response format');
-                }
-                
-                return response.json();
-            });
-        }
-
-        // Get default response for failed API calls
-        function getDefaultResponse(endpoint) {
-            const defaults = {
-                '/api/bot/status': {
-                    success: false,
-                    running: false,
-                    is_running: false,
-                    status: 'unknown',
-                    active_positions: 0,
-                    strategies: 0,
-                    balance: 0.0
-                },
-                '/api/console-log': {
-                    success: true,
-                    logs: ['Console temporarily unavailable'],
-                    timestamp: Date.now()
-                },
-                '/api/positions': {
-                    success: true,
-                    positions: [],
-                    count: 0
-                },
-                '/api/balance': {
-                    success: true,
-                    balance: 0.0,
-                    currency: 'USDT'
-                }
-            };
-            
-            return defaults[endpoint] || { success: false, error: 'Unknown endpoint' };
-        }
 
         // Refresh data
         function refreshData() {
@@ -1440,106 +1354,69 @@
             }
         }
 
-        // Simple bot status update with better error handling
+        // Simple bot status update
         function updateBotStatus() {
-            fetch('/api/bot/status', {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                timeout: 5000
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                // Check if response is actually JSON
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    throw new Error('Invalid response format - not JSON');
-                }
-                
-                return response.json();
-            })
-            .then(data => {
-                // Validate response structure
-                if (typeof data !== 'object' || data === null) {
-                    throw new Error('Invalid response structure');
-                }
-                
-                if (data.success !== undefined) {
-                    const statusElement = document.getElementById('statusBadge');
-                    const botToggle = document.getElementById('botToggle');
-                    const botStatus = document.getElementById('botStatus');
-                    const activePositions = document.getElementById('activePositions');
-                    const activeStrategies = document.getElementById('activeStrategies');
-                    const balanceElement = document.getElementById('balance');
+            apiRequest('/api/bot/status')
+                .then(data => {
+                    if (data && data.success !== false) {
+                        const statusElement = document.getElementById('statusBadge');
+                        const botToggle = document.getElementById('botToggle');
+                        const botStatus = document.getElementById('botStatus');
+                        const activePositions = document.getElementById('activePositions');
+                        const activeStrategies = document.getElementById('activeStrategies');
+                        const balanceElement = document.getElementById('balance');
 
-                    const isRunning = data.running || data.is_running || false;
+                        const isRunning = data.running || data.is_running || false;
 
-                    // Update button
-                    if (botToggle) {
-                        botToggle.disabled = false;
-                        if (isRunning) {
-                            botToggle.textContent = 'Stop Bot';
-                            botToggle.className = 'btn btn-danger btn-sm';
-                        } else {
-                            botToggle.textContent = 'Start Bot';
-                            botToggle.className = 'btn btn-success btn-sm';
+                        // Update button
+                        if (botToggle) {
+                            botToggle.disabled = false;
+                            if (isRunning) {
+                                botToggle.textContent = 'Stop Bot';
+                                botToggle.className = 'btn btn-danger btn-sm';
+                            } else {
+                                botToggle.textContent = 'Start Bot';
+                                botToggle.className = 'btn btn-success btn-sm';
+                            }
+                        }
+
+                        // Update status
+                        if (statusElement) {
+                            if (isRunning) {
+                                statusElement.textContent = 'RUNNING';
+                                statusElement.className = 'badge bg-success me-2';
+                            } else {
+                                statusElement.textContent = 'STOPPED';
+                                statusElement.className = 'badge bg-danger me-2';
+                            }
+                        }
+
+                        if (botStatus) {
+                            if (isRunning) {
+                                botStatus.textContent = 'RUNNING';
+                                botStatus.className = 'badge bg-success';
+                            } else {
+                                botStatus.textContent = 'STOPPED';
+                                botStatus.className = 'badge bg-danger';
+                            }
+                        }
+
+                        if (activePositions) {
+                            activePositions.textContent = data.active_positions || 0;
+                        }
+
+                        if (activeStrategies) {
+                            activeStrategies.textContent = data.strategies || 0;
+                        }
+
+                        if (balanceElement && data.balance !== undefined) {
+                            balanceElement.textContent = data.balance.toFixed(2);
                         }
                     }
-
-                    // Update status
-                    if (statusElement) {
-                        if (isRunning) {
-                            statusElement.textContent = 'RUNNING';
-                            statusElement.className = 'badge bg-success me-2';
-                        } else {
-                            statusElement.textContent = 'STOPPED';
-                            statusElement.className = 'badge bg-danger me-2';
-                        }
-                    }
-
-                    if (botStatus) {
-                        if (isRunning) {
-                            botStatus.textContent = 'RUNNING';
-                            botStatus.className = 'badge bg-success';
-                        } else {
-                            botStatus.textContent = 'STOPPED';
-                            botStatus.className = 'badge bg-danger';
-                        }
-                    }
-
-                    if (activePositions) {
-                        activePositions.textContent = data.active_positions || 0;
-                    }
-
-                    if (activeStrategies) {
-                        activeStrategies.textContent = data.strategies || 0;
-                    }
-
-                    if (balanceElement && data.balance !== undefined) {
-                        balanceElement.textContent = data.balance.toFixed(2);
-                    }
-                } else {
-                    console.log('Invalid response structure:', data);
-                    updateBotStatusErrorUI({ status: 'invalid_response' });
-                }
-            })
-            .catch(error => {
-                console.error('Bot status update failed:', error.message || error);
-                
-                // Handle specific error types
-                if (error.message.includes('JSON')) {
-                    updateBotStatusErrorUI({ status: 'json_parse_error' });
-                } else if (error.message.includes('HTTP')) {
-                    updateBotStatusErrorUI({ status: 'http_error' });
-                } else {
-                    updateBotStatusErrorUI({ status: 'network_error' });
-                }
-            });
+                })
+                .catch(error => {
+                    console.error('Error updating bot status:', error);
+                });
         }
 
          function updateBotStatusErrorUI(errorData) {
@@ -1614,37 +1491,17 @@
         }
         // Simple balance update
         function updateBalance() {
-            // Check cache first
-            const cachedData = getCachedData('balance');
-            if (cachedData) {
-
-                return;
-            }
-
-            // Check if we can make a new request
-            if (!canMakeRequest('balance')) {
-                return; // Skip this update cycle
-            }
-
-            markRequestStart('balance');
-
-            fetch('/api/balance')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
+            apiRequest('/api/balance')
                 .then(data => {
-                    setCachedData('balance', data);
-
+                    if (data && data.success !== false) {
+                        const balance = document.getElementById('balance');
+                        if (balance) {
+                            balance.textContent = (data.total_balance || 0).toFixed(2);
+                        }
+                    }
                 })
                 .catch(error => {
-                    console.log('API call failed for', '/api/balance', ':', error.message);
-
-                })
-                .finally(() => {
-                    markRequestEnd('balance');
+                    console.error('Error updating balance:', error);
                 });
         }
 
@@ -1672,7 +1529,6 @@
                     return data;
                 })
                 .catch(error => {
-                    console.log('Console log API failed:', error.message);
                     updateConsoleLogErrorUI();
                     markRequestEnd('consoleLog', false);
                     return getDefaultResponse('/api/console-log');
@@ -2058,20 +1914,15 @@
             markRequestStart('positions');
 
             fetch('/api/positions')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
                     setCachedData('positions', data);
                     updatePositionsUI(data);
                 })
                 .catch(error => {
-            console.log('Error updating positions:', error.message || error);
-            document.getElementById('positionsTableBody').innerHTML = '<tr><td colspan="9" class="text-warning text-center">Error loading positions</td></tr>';
-        })
+                    console.error('Error updating positions:', error);
+                    document.getElementById('positionsTableBody').innerHTML = '<tr><td colspan="9" class="text-warning text-center">Error loading positions</td></tr>';
+                })
                 .finally(() => {
                     markRequestEnd('positions');
                 });
@@ -2114,51 +1965,51 @@
 
 
         function fetchRSI(symbol, index) {
-            fetch(`/api/rsi/${symbol}`)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}`);
+            fetch('/api/rsi/' + symbol)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success && data.rsi !== undefined) {
+                        let rsiValue = data.rsi;
+                        let rsiClass = 'bg-secondary';
+                        let rsiText = 'RSI: ' + rsiValue;
+
+                        // Add note indicator if it's estimated/fallback
+                        if (data.note) {
+                            rsiText += ' (~)';
                         }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.success !== false && data.rsi !== undefined) {
-                            let rsiValue = data.rsi;
-                            let rsiClass = 'bg-secondary';
-                            let rsiText = 'RSI: ' + rsiValue;
 
-                            // Add note indicator if it's estimated/fallback
-                            if (data.note) {
-                                rsiText += ' (~)';
-                            }
-
-                            // Color code RSI values
-                            if (rsiValue <= 30) {
-                                rsiClass = 'bg-success'; // Oversold - green
-                            } else if (rsiValue >= 70) {
-                                rsiClass = 'bg-danger'; // Overbought - red
-                            } else if (rsiValue <= 40) {
-                                rsiClass = 'bg-info'; // Low - blue
-                            } else if (rsiValue >= 60) {
-                                rsiClass = 'bg-warning'; // High - yellow
-                            }
-
-                            const rsiElement = document.getElementById('rsi-' + index);
-                            if (rsiElement) {
-                                rsiElement.className = `badge ${rsiClass}`;
-                                rsiElement.textContent = rsiText;
-                            }
-                        } else {
-                            const rsiElement = document.getElementById('rsi-' + index);
-                            if (rsiElement) {
-                                rsiElement.className = 'badge bg-danger';
-                                rsiElement.textContent = 'RSI: Error';
-                                rsiElement.title = data.error || 'Failed to calculate RSI';
-                            }
+                        // Color code RSI values
+                        if (rsiValue <= 30) {
+                            rsiClass = 'bg-success'; // Oversold - green
+                        } else if (rsiValue >= 70) {
+                            rsiClass = 'bg-danger'; // Overbought - red
+                        } else if (rsiValue <= 40) {
+                            rsiClass = 'bg-info'; // Low - blue
+                        } else if (rsiValue >= 60) {
+                            rsiClass = 'bg-warning'; // High - yellow
                         }
-                    })
-                    .catch(error => {
-                console.log(`RSI fetch error for ${symbol}:`, error.message || error);
+
+                        const rsiElement = document.getElementById('rsi-' + index);
+                        if (rsiElement) {
+                            rsiElement.className = `badge ${rsiClass}`;
+                            rsiElement.textContent = rsiText;
+                        }
+                    } else {
+                        const rsiElement = document.getElementById('rsi-' + index);
+                        if (rsiElement) {
+                            rsiElement.className = 'badge bg-danger';
+                            rsiElement.textContent = 'RSI: Error';
+                            rsiElement.title = data.error || 'Failed to calculate RSI';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.debug('RSI fetch error for ' + symbol + ':', error);
                     const rsiElement = document.getElementById('rsi-' + index);
                     if (rsiElement) {
                         rsiElement.className = 'badge bg-secondary';
@@ -2172,49 +2023,17 @@
         let updateTimeouts = {};
         let pollingActive = true;
 
-         // Enhanced API request function with better error handling
+         // Simple API request function without complex error handling
         function apiRequest(url) {
             return fetch(url)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('HTTP ' + response.status);
                     }
-                    
-                    // Check if response is actually JSON
-                    const contentType = response.headers.get('content-type');
-                    if (!contentType || !contentType.includes('application/json')) {
-                        throw new Error('Invalid response format');
-                    }
-                    
                     return response.json();
                 })
                 .catch(error => {
-                    console.log('API request failed for', url, ':', error.message || 'Unknown error');
-                    
-                    // Return appropriate fallback based on endpoint
-                    if (url.includes('/api/bot/status')) {
-                        return { 
-                            success: true, 
-                            running: false, 
-                            status: 'connection_error',
-                            active_positions: 0,
-                            strategies: 0,
-                            balance: 0.0
-                        };
-                    } else if (url.includes('/api/console-log')) {
-                        return { 
-                            success: true, 
-                            logs: [`[${new Date().toLocaleTimeString()}] ⚠️ Connection issue - retrying...`],
-                            count: 1
-                        };
-                    } else if (url.includes('/api/positions')) {
-                        return { 
-                            success: true, 
-                            positions: [], 
-                            count: 0 
-                        };
-                    }
-                    
+                    console.error('API request failed:', error);
                     return { success: false, error: error.message };
                 });
         }
@@ -2493,12 +2312,7 @@
         function loadStrategiesWithCacheBust() {
             const timestamp = new Date().getTime();
             fetch('/api/strategies?_t=' + timestamp)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(strategies => {
                     // Update global strategies cache
                     window.strategiesData = strategies;
@@ -2515,12 +2329,7 @@
             // Force fresh data fetch with timestamp to bypass cache
             const timestamp = new Date().getTime();
             fetch('/api/strategies?_t=' + timestamp)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(strategies => {
                     const config = strategies[strategyName];
                     if (config) {
@@ -2546,7 +2355,7 @@
         }
 
         function disableStrategy(strategyName) {
-            if (confirm('Are you sure you want to disable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n'+
+            if (confirm('Are you sure you want to disable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n' +
                        'This will stop the bot from scanning for new trades for this strategy.\n' +
                        'Existing positions will remain active.')) {
 
@@ -2557,7 +2366,7 @@
                 // Store original state for rollback
                 const originalHTML = button.innerHTML;
                 const originalClass = button.className;
-                constoriginalOnclick = button.getAttribute('onclick');
+                const originalOnclick = button.getAttribute('onclick');
 
                 // Immediately update button state to show feedback
                 button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Disabling...';
@@ -2570,12 +2379,7 @@
                         'Content-Type': 'application/json'
                     }
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(result => {
                     if (result.success) {
                         // Update button to enable state and store the new state
@@ -2639,12 +2443,7 @@ button.className = originalClass;
                         'Content-Type': 'application/json'
                     }
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(result => {
                     if (result.success) {
                         // Update button to disable state and store the new state
@@ -2814,12 +2613,7 @@ button.className = originalClass;
             currentStrategyName = strategyName;
 
             fetch('/api/strategies')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
                     const config = data[strategyName];
                     if (config) {
@@ -2947,7 +2741,7 @@ button.className = originalClass;
                 updates.macd_entry_threshold = parseFloat(document.getElementById('macdEntryThreshold').value);
                 updates.macd_exit_threshold = parseFloat(document.getElementById('macdExitThreshold').value);
                 updates.histogram_divergence_lookback = parseInt(document.getElementById('histogramDivergenceLookback').value);
-                updates.priceDivergenceLookback = parseInt(document.getElementById('priceDivergenceLookback').value);
+                updates.price_divergence_lookback = parseInt(document.getElementById('priceDivergenceLookback').value);
                 updates.confirmation_candles = parseInt(document.getElementById('confirmationCandles').value);
                 updates.divergence_strength_min = parseFloat(document.getElementById('divergenceStrengthMin').value);
             }
@@ -2965,12 +2759,7 @@ button.className = originalClass;
                 },
                 body: JSON.stringify(updates)
             })
-            .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
+            .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     // Always show success message first
@@ -3064,12 +2853,7 @@ button.className = originalClass;
                 },
                 body: JSON.stringify(newStrategy)
             })
-            .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
+            .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     // Close modal
@@ -3292,7 +3076,7 @@ button.className = originalClass;
                 formData.macd_entry_threshold = parseFloat(document.getElementById('macdEntryThreshold').value);
                 formData.macd_exit_threshold = parseFloat(document.getElementById('macdExitThreshold').value);
                 formData.histogram_divergence_lookback = parseInt(document.getElementById('histogramDivergenceLookback').value);
-                formData.priceDivergenceLookback = parseInt(document.getElementById('priceDivergenceLookback').value);
+                formData.price_divergence_lookback = parseInt(document.getElementById('priceDivergenceLookback').value);
                 formData.confirmation_candles = parseInt(document.getElementById('confirmationCandles').value);
                 formData.divergence_strength_min = parseFloat(document.getElementById('divergenceStrengthMin').value);
             }
