@@ -57,11 +57,15 @@ class MACDDivergenceStrategy:
             return df
 
     def evaluate_entry_signal(self, df: pd.DataFrame) -> Optional[TradingSignal]:
-        """Evaluate entry conditions for MACD Divergence strategy - Simplified for reliability"""
+        """Evaluate entry conditions for MACD Divergence strategy - Fixed crossover detection"""
         try:
             if df.empty or len(df) < 50:
                 return None
 
+            # Calculate indicators if not present
+            if 'macd' not in df.columns:
+                df = self.calculate_indicators(df)
+                
             if 'macd' not in df.columns or 'macd_signal' not in df.columns or 'macd_histogram' not in df.columns:
                 return None
 
@@ -74,36 +78,41 @@ class MACDDivergenceStrategy:
             stop_loss_pct = (max_loss_amount / notional_value) * 100
             stop_loss_pct = max(1.0, min(stop_loss_pct, 15.0))
 
-            # Get recent data (last 5 candles should be enough)
-            recent_length = min(5, len(df))
-            macd_line = df['macd'].iloc[-recent_length:]
-            signal_line = df['macd_signal'].iloc[-recent_length:]
-            histogram = df['macd_histogram'].iloc[-recent_length:]
-
-            if len(histogram) < 2:
+            # Get recent data (need at least 2 candles for crossover detection)
+            if len(df) < 2:
                 return None
 
             # Current values
-            macd_current = macd_line.iloc[-1]
-            signal_current = signal_line.iloc[-1]
-            histogram_current = histogram.iloc[-1]
+            macd_current = df['macd'].iloc[-1]
+            signal_current = df['macd_signal'].iloc[-1]
+            histogram_current = df['macd_histogram'].iloc[-1]
             
             # Previous values
-            macd_prev = macd_line.iloc[-2]
-            signal_prev = signal_line.iloc[-2]
-            histogram_prev = histogram.iloc[-2]
+            macd_prev = df['macd'].iloc[-2]
+            signal_prev = df['macd_signal'].iloc[-2]
+            histogram_prev = df['macd_histogram'].iloc[-2]
 
-            self.logger.info(f"🔍 MACD Simple Check: MACD={macd_current:.6f}, Signal={signal_current:.6f}, Histogram={histogram_current:.6f}")
-            self.logger.info(f"🔍 Previous: MACD={macd_prev:.6f}, Signal={signal_prev:.6f}, Histogram={histogram_prev:.6f}")
+            # Check for NaN values
+            if pd.isna(macd_current) or pd.isna(signal_current) or pd.isna(macd_prev) or pd.isna(signal_prev):
+                return None
+
+            self.logger.info(f"🔍 MACD Crossover Check:")
+            self.logger.info(f"   Current: MACD={macd_current:.6f}, Signal={signal_current:.6f}, Histogram={histogram_current:.6f}")
+            self.logger.info(f"   Previous: MACD={macd_prev:.6f}, Signal={signal_prev:.6f}, Histogram={histogram_prev:.6f}")
 
             # --- BULLISH CROSSOVER: MACD crosses above Signal ---
-            if (macd_prev <= signal_prev and macd_current > signal_current and 
-                abs(histogram_current) > self.min_histogram_threshold):
-                
+            bullish_cross = (macd_prev <= signal_prev and macd_current > signal_current)
+            histogram_meets_threshold = abs(histogram_current) > self.min_histogram_threshold
+            
+            if bullish_cross and histogram_meets_threshold:
                 stop_loss = current_price * (1 - stop_loss_pct / 100)
                 take_profit = current_price * 1.05
                 
-                self.logger.info(f"🟢 MACD BULLISH CROSSOVER: MACD crossed above Signal")
+                self.logger.info(f"🟢 MACD BULLISH CROSSOVER DETECTED!")
+                self.logger.info(f"   MACD crossed from {macd_prev:.6f} to {macd_current:.6f}")
+                self.logger.info(f"   Signal: {signal_prev:.6f} to {signal_current:.6f}")
+                self.logger.info(f"   Histogram: {histogram_current:.6f} (threshold: {self.min_histogram_threshold})")
+                
                 return TradingSignal(
                     signal_type=SignalType.BUY,
                     confidence=0.8,
@@ -115,13 +124,17 @@ class MACDDivergenceStrategy:
                 )
 
             # --- BEARISH CROSSOVER: MACD crosses below Signal ---
-            elif (macd_prev >= signal_prev and macd_current < signal_current and 
-                  abs(histogram_current) > self.min_histogram_threshold):
-                
+            bearish_cross = (macd_prev >= signal_prev and macd_current < signal_current)
+            
+            if bearish_cross and histogram_meets_threshold:
                 stop_loss = current_price * (1 + stop_loss_pct / 100)
                 take_profit = current_price * 0.95
                 
-                self.logger.info(f"🔴 MACD BEARISH CROSSOVER: MACD crossed below Signal")
+                self.logger.info(f"🔴 MACD BEARISH CROSSOVER DETECTED!")
+                self.logger.info(f"   MACD crossed from {macd_prev:.6f} to {macd_current:.6f}")
+                self.logger.info(f"   Signal: {signal_prev:.6f} to {signal_current:.6f}")
+                self.logger.info(f"   Histogram: {histogram_current:.6f} (threshold: {self.min_histogram_threshold})")
+                
                 return TradingSignal(
                     signal_type=SignalType.SELL,
                     confidence=0.8,
@@ -132,10 +145,13 @@ class MACDDivergenceStrategy:
                     reason=f"MACD BEARISH CROSSOVER: MACD {macd_current:.6f} < Signal {signal_current:.6f}"
                 )
 
+            self.logger.info(f"   No crossover detected (Bullish: {bullish_cross}, Bearish: {bearish_cross}, Histogram OK: {histogram_meets_threshold})")
             return None
 
         except Exception as e:
             self.logger.error(f"Error evaluating entry signal for {self.strategy_name}: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             return None
 
     def evaluate_exit_signal(self, df: pd.DataFrame, position: Dict) -> Optional[str]:
