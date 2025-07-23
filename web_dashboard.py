@@ -26,90 +26,6 @@ app.secret_key = 'your-secret-key-here'
 # Enable CORS for web dashboard
 CORS(app)
 
-# Process stability monitoring with enhanced error recovery
-import threading
-import time
-import gc
-import sys
-
-class ProcessHealthMonitor:
-    def __init__(self):
-        self.last_health_check = time.time()
-        self.health_status = True
-        self.error_count = 0
-        self.restart_threshold = 5  # Reduced threshold
-        self.error_reset_interval = 300  # Reset errors every 5 minutes
-        self.last_error_reset = time.time()
-        
-    def report_error(self):
-        current_time = time.time()
-        
-        # Reset error count periodically
-        if current_time - self.last_error_reset > self.error_reset_interval:
-            self.error_count = 0
-            self.last_error_reset = current_time
-            
-        self.error_count += 1
-        if self.error_count > self.restart_threshold:
-            self.cleanup_process()
-            
-    def cleanup_process(self):
-        """Enhanced cleanup to prevent memory leaks and crashes"""
-        try:
-            gc.collect()  # Force garbage collection
-            # Reset error count after cleanup
-            self.error_count = 0
-            self.last_error_reset = time.time()
-        except Exception:
-            pass  # Don't let cleanup itself crash
-
-health_monitor = ProcessHealthMonitor()
-
-# Enhanced error handlers with process monitoring
-@app.errorhandler(500)
-def handle_internal_error(error):
-    """Enhanced handler for HTTP 500 errors with process monitoring"""
-    logger.error(f"HTTP 500 error caught: {error}")
-    health_monitor.report_error()
-    
-    return jsonify({
-        'success': True,  # Changed to True to prevent frontend errors
-        'error': 'Server recovered from error',
-        'message': 'Request handled with recovery',
-        'timestamp': datetime.now().strftime('%H:%M:%S'),
-        'status': 'recovered',
-        'process_stable': True
-    }), 200
-
-@app.errorhandler(502)
-def handle_bad_gateway(error):
-    """Enhanced handler for HTTP 502 errors with recovery"""
-    logger.error(f"HTTP 502 error caught: {error}")
-    health_monitor.report_error()
-    
-    return jsonify({
-        'success': True,  # Changed to True to prevent frontend errors
-        'error': 'Gateway recovered',
-        'message': 'Service restored',
-        'timestamp': datetime.now().strftime('%H:%M:%S'),
-        'status': 'gateway_recovered',
-        'process_stable': True
-    }), 200
-
-@app.errorhandler(Exception)
-def handle_all_exceptions(error):
-    """Catch-all exception handler to prevent process crashes"""
-    logger.error(f"Unhandled exception: {error}")
-    health_monitor.report_error()
-    
-    return jsonify({
-        'success': True,
-        'error': 'Exception handled gracefully',
-        'message': 'Request processed safely',
-        'timestamp': datetime.now().strftime('%H:%M:%S'),
-        'status': 'exception_handled'
-    }), 200
-
 # Suppress Flask's default request logging to reduce console noise
 import logging as flask_logging
 werkzeug_logger = flask_logging.getLogger('werkzeug')
@@ -329,7 +245,6 @@ try:
     from src.data_fetcher.balance_fetcher import BalanceFetcher
     from src.bot_manager import BotManager
     from src.utils.logger import setup_logger
-    import pandas as pd  # Add pandas import for RSI calculations
 
     # Setup proper logging
     setup_logger()
@@ -367,75 +282,6 @@ except ImportError as e:
 @app.route('/healthz')
 def healthz():
     return 'OK', 200
-
-@app.route('/api/health')
-def api_health():
-    """Comprehensive API health check"""
-    try:
-        current_time = datetime.now().strftime('%H:%M:%S')
-        
-        # Test database connectivity
-        db_status = 'healthy'
-        try:
-            if IMPORTS_AVAILABLE:
-                from src.execution_engine.trade_database import TradeDatabase
-                trade_db = TradeDatabase()
-                db_status = 'connected'
-            else:
-                db_status = 'demo_mode'
-        except Exception as e:
-            db_status = f'error: {str(e)}'
-
-        # Test configuration system
-        config_status = 'healthy'
-        try:
-            if IMPORTS_AVAILABLE:
-                strategies = trading_config_manager.get_all_strategies()
-                config_status = f'loaded ({len(strategies)} strategies)'
-            else:
-                config_status = 'demo_mode'
-        except Exception as e:
-            config_status = f'error: {str(e)}'
-
-        # Test Binance client
-        binance_status = 'healthy'
-        try:
-            if IMPORTS_AVAILABLE and binance_client:
-                # Simple connectivity test
-                binance_status = 'connected'
-            else:
-                binance_status = 'demo_mode'
-        except Exception as e:
-            binance_status = f'error: {str(e)}'
-
-        health_data = {
-            'status': 'healthy',
-            'timestamp': current_time,
-            'api_version': '2.0',
-            'components': {
-                'web_server': 'running',
-                'database': db_status,
-                'configuration': config_status,
-                'binance_client': binance_status,
-                'imports': 'available' if IMPORTS_AVAILABLE else 'demo_mode'
-            },
-            'endpoints': {
-                'bot_status': '/api/bot/status',
-                'strategies': '/api/strategies',
-                'positions': '/api/positions',
-                'balance': '/api/balance',
-                'console_log': '/api/console-log'
-            }
-        }
-
-        return jsonify(health_data)
-
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'error': str(e),
-            'timestamp': datetime.now().strftime('%H:%M:%S')
-        }), 500
 
 @app.route('/api/dashboard/health')
 def dashboard_health():
@@ -561,153 +407,83 @@ def dashboard():
 
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
-    """Start the trading bot from web interface with bulletproof error handling"""
-    global bot_manager, bot_running, shared_bot_manager, bot_thread
-    
+    """Start the trading bot with improved connection handling"""
+    global bot_manager, bot_thread, bot_running, shared_bot_manager
+
     try:
-        logger.info("🌐 WEB INTERFACE: Bot start request received")
-        
-        # Always return success to prevent 500 errors - with detailed status
-        current_time = datetime.now().strftime('%H:%M:%S')
-        
-        # Check if bot is already running
+        logger = logging.getLogger(__name__)
+        logger.info("🔍 DEBUG: Bot start request received via web dashboard")
+
+        # Check if any bot is currently running
         current_bot = get_shared_bot_manager()
-        if current_bot and hasattr(current_bot, 'is_running') and current_bot.is_running:
-            return jsonify({
-                'success': True,
-                'message': 'Bot is already running',
-                'status': 'already_running',
-                'timestamp': current_time,
-                'action': 'none_required'
-            }), 200
-        
-        # Check if imports are available
-        if not IMPORTS_AVAILABLE:
-            return jsonify({
-                'success': True,  # Changed to True to prevent frontend errors
-                'message': 'Bot functionality running in demo mode - use Run button to start actual trading',
-                'status': 'demo_mode',
-                'timestamp': current_time,
-                'action': 'use_run_button'
-            }), 200
-        
-        # Try to start bot with comprehensive error handling
-        try:
-            from src.bot_manager import BotManager
-            
-            # Create new bot instance with error protection
+        logger.info(f"🔍 DEBUG: Shared bot manager status: {current_bot is not None}")
+        if current_bot:
+            is_running = getattr(current_bot, 'is_running', False)
+            logger.info(f"🔍 DEBUG: Shared bot is_running: {is_running}")
+            if is_running:
+                return jsonify({'success': False, 'message': 'Bot is already running'})
+
+        logger.info(f"🔍 DEBUG: Bot thread status - Running: {bot_running}, Thread alive: {bot_thread.is_alive() if bot_thread else 'No thread'}")
+        if bot_running and bot_thread and bot_thread.is_alive():
+            return jsonify({'success': False, 'message': 'Bot is already running in web dashboard'})
+
+        logger.info("🌐 WEB INTERFACE: Starting bot from dashboard")
+        logger.info("🔍 DEBUG: Setting bot_running = True")
+        bot_running = True
+
+        # Start bot in separate thread with proper cleanup
+        def run_bot():
+            global bot_running
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            bot_instance = None
+
             try:
-                new_bot = BotManager()
-                logger.info("✅ Bot manager created successfully")
-            except Exception as bot_creation_error:
-                logger.error(f"Bot creation failed: {bot_creation_error}")
-                return jsonify({
-                    'success': True,  # Still return success to prevent 500
-                    'message': f'Bot creation failed: Use Run button to start manually',
-                    'status': 'creation_failed',
-                    'timestamp': current_time,
-                    'action': 'use_run_button',
-                    'error_detail': str(bot_creation_error)
-                }), 200
-            
-            # Update global references safely
-            try:
-                import sys
-                sys.modules['__main__'].bot_manager = new_bot
-                globals()['bot_manager'] = new_bot
-                globals()['shared_bot_manager'] = new_bot
-                logger.info("✅ Global references updated")
-            except Exception as ref_error:
-                logger.error(f"Reference update failed: {ref_error}")
-            
-            # Start bot in background thread with enhanced error handling
-            def run_bot_safely():
+                # Create fresh bot manager instance
+                from src.bot_manager import BotManager
+                bot_instance = BotManager()
+
+                # Update global references
+                sys.modules['__main__'].bot_manager = bot_instance
+                globals()['bot_manager'] = bot_instance
+
+                logger.info("🚀 STARTING BOT FROM WEB INTERFACE")
+
+                # Run the bot
+                loop.run_until_complete(bot_instance.start())
+
+            except Exception as e:
+                logger.error(f"Bot runtime error: {e}")
                 try:
-                    logger.info("🔄 Starting bot thread...")
-                    import asyncio
-                    
-                    # Create new event loop for this thread
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    
-                    # Run the bot
-                    loop.run_until_complete(new_bot.start())
-                    
-                except Exception as thread_error:
-                    logger.error(f"Bot thread error: {thread_error}")
-                    # Don't let thread errors crash the web interface
-                finally:
-                    try:
-                        loop.close()
-                    except:
-                        pass
-                    globals()['bot_running'] = False
-                    logger.info("🔴 Bot thread completed")
-            
-            # Start the thread
-            try:
-                bot_thread = threading.Thread(target=run_bot_safely, daemon=True, name="BotThread")
-                bot_thread.start()
-                
-                # Update running state
-                bot_running = True
-                globals()['bot_running'] = True
-                
-                logger.info("🚀 BOT STARTED VIA WEB INTERFACE")
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Trading bot started successfully via web interface',
-                    'status': 'started',
-                    'timestamp': current_time,
-                    'action': 'bot_started',
-                    'thread_id': bot_thread.ident if bot_thread else None
-                }), 200
-                
-            except Exception as thread_start_error:
-                logger.error(f"Thread start failed: {thread_start_error}")
-                return jsonify({
-                    'success': True,  # Still return success
-                    'message': 'Bot thread start failed - use Run button to start manually',
-                    'status': 'thread_failed',
-                    'timestamp': current_time,
-                    'action': 'use_run_button',
-                    'error_detail': str(thread_start_error)
-                }), 200
-                
-        except ImportError as import_error:
-            logger.error(f"Import failed: {import_error}")
-            return jsonify({
-                'success': True,  # Prevent 500 errors
-                'message': 'Bot imports failed - use Run button to start bot manually',
-                'status': 'import_failed',
-                'timestamp': current_time,
-                'action': 'use_run_button',
-                'error_detail': str(import_error)
-            }), 200
-        
-        except Exception as general_error:
-            logger.error(f"General bot start error: {general_error}")
-            return jsonify({
-                'success': True,  # Prevent 500 errors
-                'message': 'Bot start encountered issues - use Run button for manual start',
-                'status': 'general_error',
-                'timestamp': current_time,
-                'action': 'use_run_button',
-                'error_detail': str(general_error)
-            }), 200
-            
-    except Exception as critical_error:
-        logger.error(f"Critical error in bot start endpoint: {critical_error}")
-        # Absolute fallback - never return 500
-        return jsonify({
-            'success': True,  # Prevent 500 errors that break frontend
-            'message': 'Critical error occurred - please use Run button to start bot',
-            'status': 'critical_error',
-            'timestamp': datetime.now().strftime('%H:%M:%S'),
-            'action': 'use_run_button',
-            'error_detail': str(critical_error)
-        }), 200
+                    if bot_instance:
+                        bot_instance.telegram_reporter.report_bot_stopped(f"Error: {str(e)}")
+                except:
+                    pass
+            finally:
+                # Cleanup
+                bot_running = False
+                if bot_instance:
+                    bot_instance.is_running = False
+                logger.info("🔴 BOT STOPPED - Web interface remains active")
+                try:
+                    loop.close()
+                except:
+                    pass
+
+        # Start in daemon thread
+        bot_thread = threading.Thread(target=run_bot, daemon=True)
+        bot_thread.start()
+
+        # Wait a moment for startup
+        import time
+        time.sleep(0.5)
+
+        return jsonify({'success': True, 'message': 'Bot started successfully from web interface'})
+
+    except Exception as e:
+        bot_running = False
+        logger.error(f"Failed to start bot: {e}")
+        return jsonify({'success': False, 'message': f'Failed to start bot: {e}'})
 
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
@@ -825,202 +601,114 @@ import sys
 @app.route('/api/bot_status')
 @rate_limit('bot_status', max_requests=20, window_seconds=60)
 def get_bot_status():
-    """Get current bot status with ABSOLUTE bulletproof error handling - NEVER fails or returns 502"""
-    
-    # CRITICAL: Wrap everything in try-except to prevent ANY 502 errors
-    try:
-        # Safe timestamp generation
-        try:
-            current_time = datetime.now().strftime('%H:%M:%S')
-        except:
-            current_time = '00:00:00'
-        
-        # Initialize safe defaults
-        bot_actually_running = False
-        active_positions = 0
-        balance = 169.1
-        status_detail = 'checking'
-        
-        # Safe bot manager check
-        try:
-            current_bot = get_shared_bot_manager()
-            if current_bot and hasattr(current_bot, 'is_running'):
-                bot_actually_running = bool(current_bot.is_running)
-                status_detail = 'bot_running' if bot_actually_running else 'bot_stopped'
-                
-                # Safe position count
-                try:
-                    if hasattr(current_bot, 'order_manager') and current_bot.order_manager:
-                        positions = getattr(current_bot.order_manager, 'active_positions', {})
-                        active_positions = len(positions) if positions else 0
-                except Exception as pos_error:
-                    logger.debug(f"Position count error: {pos_error}")
-                    active_positions = 0
-                    
-        except Exception as bot_check_error:
-            logger.debug(f"Bot check error: {bot_check_error}")
-            status_detail = 'bot_check_failed'
-        
-        # Safe balance check
-        try:
-            if IMPORTS_AVAILABLE and balance_fetcher:
-                balance_value = balance_fetcher.get_usdt_balance()
-                if balance_value is not None and isinstance(balance_value, (int, float)):
-                    balance = float(balance_value)
-        except Exception as balance_error:
-            logger.debug(f"Balance check error: {balance_error}")
-            # Keep default balance
-        
-        # Build response with maximum safety
-        try:
-            response = {
-                'success': True,
-                'running': bot_actually_running,
-                'is_running': bot_actually_running,
-                'active_positions': active_positions,
-                'strategies': 5,
-                'balance': balance,
-                'status': status_detail,
-                'last_update': current_time,
-                'timestamp': current_time,
-                'connection_stable': True,
-                'development_mode': True,
-                'api_version': '2.0'
-            }
-            
-            # Test JSON serialization before sending
-            import json
-            json.dumps(response)
-            
-            return jsonify(response), 200
-            
-        except Exception as response_error:
-            logger.error(f"Response building error: {response_error}")
-            # Fall through to emergency response
-        
-    except Exception as critical_error:
-        logger.error(f"Critical bot status error: {critical_error}")
-        # Continue to emergency response
-    
-    # EMERGENCY FALLBACK - Absolute minimal response that always works
-    try:
-        emergency_response = {
-            'success': True,
-            'running': False,
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': 0,
-            'balance': 0.0,
-            'status': 'emergency_fallback',
-            'timestamp': '00:00:00',
-            'error_handled': True,
-            'api_version': '2.0'
+    """Get current bot status with bulletproof error handling and comprehensive debugging"""
+    global bot_running
+    current_time = datetime.now().strftime('%H:%M:%S')
+    request_id = f"status_{int(time.time() * 1000)}"
+
+    logger.debug(f"🔍 DEBUG [{request_id}]: Bot status API called")
+
+    # FIXED: Always return complete JSON structure to prevent parsing errors
+    default_response = {
+        'success': True,
+        'running': False,
+        'is_running': False,
+        'active_positions': 0,
+        'strategies': 0,
+        'balance': 0.0,
+        'status': 'checking',
+        'last_update': current_time,
+        'timestamp': current_time,
+        'debug_info': {
+            'request_id': request_id,
+            'endpoint': 'bot_status',
+            'response_size': 0
         }
-        
-        return jsonify(emergency_response), 200
-        
-    except Exception as emergency_error:
-        # If even the emergency response fails, return the most basic possible response
-        logger.error(f"Emergency response failed: {emergency_error}")
-        
-        # Last resort - manual JSON response
-        basic_json = '{"success":true,"running":false,"status":"critical_fallback","timestamp":"00:00:00"}'
-        from flask import Response
-        return Response(basic_json, status=200, mimetype='application/json')
+    }
 
     try:
-        # Method 1: Check for running bot manager
+        logger.debug(f"🔍 DEBUG [{request_id}]: Getting bot manager...")
+
+        # Try to get current bot manager
         current_bot_manager = get_bot_manager()
+
         if current_bot_manager:
+            logger.debug(f"🔍 DEBUG [{request_id}]: Bot manager found")
+
+            # Get running status
             is_running = getattr(current_bot_manager, 'is_running', False)
-            if is_running:
-                default_response.update({
-                    'running': True,
-                    'is_running': True,
-                    'status': 'running_detected',
-                    'debug_info': {'detection_method': 'bot_manager'}
-                })
-                
-                # Get detailed info
-                if hasattr(current_bot_manager, 'order_manager') and current_bot_manager.order_manager:
-                    active_count = len(getattr(current_bot_manager.order_manager, 'active_positions', {}))
-                    default_response['active_positions'] = active_count
+            default_response.update({
+                'running': is_running,
+                'is_running': is_running,
+                'status': 'running' if is_running else 'stopped'
+            })
+            logger.debug(f"🔍 DEBUG [{request_id}]: Bot running status: {is_running}")
 
-                if hasattr(current_bot_manager, 'strategies'):
-                    strategies_count = len(current_bot_manager.strategies)
-                    default_response['strategies'] = strategies_count
+            # Get active positions count
+            if hasattr(current_bot_manager, 'order_manager') and current_bot_manager.order_manager:
+                active_count = len(getattr(current_bot_manager.order_manager, 'active_positions', {}))
+                default_response['active_positions'] = active_count
+                logger.debug(f"🔍 DEBUG [{request_id}]: Active positions: {active_count}")
 
-                return jsonify(default_response)
+            # Get strategies count
+            if hasattr(current_bot_manager, 'strategies'):
+                strategies_count = len(current_bot_manager.strategies)
+                default_response['strategies'] = strategies_count
+                logger.debug(f"🔍 DEBUG [{request_id}]: Strategies count: {strategies_count}")
 
-        # Method 2: Check for running process
+            # Try to get balance
+            try:
+                if hasattr(current_bot_manager, 'balance_fetcher'):
+                    balance = current_bot_manager.balance_fetcher.get_usdt_balance()
+                    if balance is not None:
+                        default_response['balance'] = float(balance)
+                        logger.debug(f"🔍 DEBUG [{request_id}]: Balance retrieved: {balance}")
+            except Exception as balance_error:
+                logger.warning(f"🔍 DEBUG [{request_id}]: Balance fetch failed: {balance_error}")
+
+        else:
+            logger.debug(f"🔍 DEBUG [{request_id}]: No bot manager found")
+
+        # Calculate response size for debugging
+        import json
+        response_json = json.dumps(default_response)
+        default_response['debug_info']['response_size'] = len(response_json)
+
+        logger.debug(f"🔍 DEBUG [{request_id}]: Response prepared, size: {len(response_json)} chars")
+
+        # CRITICAL: Validate JSON before sending
         try:
-            import psutil
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                try:
-                    if proc.info['name'] in ['python', 'python3']:
-                        cmdline = proc.info['cmdline']
-                        if cmdline and 'main.py' in ' '.join(cmdline):
-                            default_response.update({
-                                'running': True,
-                                'is_running': True,
-                                'status': 'process_detected',
-                                'strategies': 5,  # Known strategies from config
-                                'debug_info': {
-                                    'detection_method': 'process_scan',
-                                    'pid': proc.info['pid']
-                                }
-                            })
-                            return jsonify(default_response)
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-        except ImportError:
-            pass
-
-        # Method 3: Check workflow status if available
-        try:
-            # If we can detect the workflow is running, assume bot is running
-            workflow_running = True  # This would need actual workflow detection
-            if workflow_running:
-                default_response.update({
-                    'running': True,
-                    'is_running': True,
-                    'status': 'workflow_detected',
-                    'strategies': 5,
-                    'debug_info': {'detection_method': 'workflow_status'}
-                })
-                return jsonify(default_response)
-        except:
-            pass
-
-        # Default: No bot detected
-        default_response.update({
-            'status': 'stopped',
-            'debug_info': {'detection_method': 'none_detected'}
-        })
+            json.loads(json.dumps(default_response))  # Test JSON serialization
+            logger.debug(f"✅ DEBUG [{request_id}]: JSON validation passed")
+        except Exception as json_error:
+            logger.error(f"❌ DEBUG [{request_id}]: JSON validation FAILED: {json_error}")
+            # Return minimal safe response
+            safe_response = {
+                'success': False,
+                'error': 'JSON serialization failed',
+                'timestamp': current_time,
+                'debug_info': {'request_id': request_id, 'json_error': str(json_error)}
+            }
+            return jsonify(safe_response)
 
         return jsonify(default_response)
 
     except Exception as e:
         logger.error(f"❌ DEBUG [{request_id}]: Bot status API error: {e}")
-        
-        # Always return valid JSON even on error
-        error_response = {
-            'success': True,  # Keep success=True to prevent frontend errors
-            'running': False,
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': 0,
-            'balance': 0.0,
+        import traceback
+        logger.error(f"❌ DEBUG [{request_id}]: Full traceback: {traceback.format_exc()}")
+
+        default_response.update({
+            'success': False,
             'status': 'api_error',
             'error': str(e),
-            'last_update': current_time,
-            'timestamp': current_time,
             'debug_info': {
                 'request_id': request_id,
-                'error_type': type(e).__name__
+                'error_type': type(e).__name__,
+                'traceback': traceback.format_exc()[-500:]  # Last 500 chars
             }
-        }
-        return jsonify(error_response)
+        })
+        return jsonify(default_response)
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -1032,9 +720,6 @@ def get_strategies():
 
             # Get all strategies from web dashboard configuration manager
             strategies = trading_config_manager.get_all_strategies()
-            
-            # Get validation status
-            validation_status = trading_config_manager.get_strategy_validation_status()
 
             # Ensure ALL configurable parameters are present for each strategy
             for name, config in strategies.items():
@@ -1108,13 +793,7 @@ def get_strategies():
 
             logger.info(f"🌐 WEB DASHBOARD: Serving COMPLETE configurations for {len(strategies)} strategies")
             logger.info(f"📋 All parameters available for manual configuration via dashboard")
-            
-            # Include validation status in response
-            response_data = {
-                'strategies': strategies,
-                'validation_status': validation_status
-            }
-            return jsonify(response_data)
+            return jsonify(strategies)
         else:
             # Return comprehensive default strategies for demo
             return jsonify({
@@ -1198,32 +877,18 @@ def create_strategy():
         except (ValueError, TypeError):
             return jsonify({'success': False, 'message': 'Invalid margin or leverage values'})
 
-        # Determine strategy type
-        strategy_type = None
-        if 'rsi' in strategy_name.lower():
-            strategy_type = 'rsi'
-        elif 'macd' in strategy_name.lower():
-            strategy_type = 'macd'
-        elif 'engulfing' in strategy_name.lower():
-            strategy_type = 'engulfing'
-        elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
-            strategy_type = 'smart_money'
-        
-        if not strategy_type:
-            return jsonify({'success': False, 'message': 'Cannot determine strategy type from name'})
-
-        # Create complete strategy configuration using the new method
-        new_config = trading_config_manager.create_complete_strategy(strategy_name, strategy_type)
-        
-        # Override with user-provided values
-        new_config.update({
+        # Create comprehensive strategy configuration with web dashboard as source of truth
+        new_config = {
             'symbol': symbol,
             'margin': margin,
             'leverage': leverage,
             'timeframe': data.get('timeframe', '15m'),
             'max_loss_pct': float(data.get('max_loss_pct', 10.0)),
-            'assessment_interval': int(data.get('assessment_interval', 60))
-        })
+            'assessment_interval': int(data.get('assessment_interval', 60)),
+            'cooldown_period': int(data.get('cooldown_period', 300)),
+            'decimals': 2 if 'ETH' in symbol or 'SOL' in symbol else 3,
+            'min_volume': 1000000
+        }
 
         # Add strategy-specific parameters with validation
 
@@ -1832,77 +1497,60 @@ def get_positions():
 
 @app.route('/api/rsi/<symbol>')
 def get_rsi(symbol):
-    """Bulletproof RSI endpoint - NEVER returns 502 or any error"""
-    # CRITICAL: Use try-except around everything to prevent ANY errors
+    """Get RSI value for a symbol with comprehensive error handling"""
     try:
-        # Validate symbol input safely
-        if not symbol:
-            symbol = 'BTCUSDT'
-        
-        # Always return success with realistic demo values
-        demo_rsi_values = {
-            'BTCUSDT': 52.3,
-            'ETHUSDT': 48.7,
-            'SOLUSDT': 44.9,
-            'XRPUSDT': 56.2,
-            'ADAUSDT': 51.1,
-            'DOTUSDT': 49.5,
-            'LINKUSDT': 53.8,
-            'BNBUSDT': 54.1,
-            'TRXUSDT': 47.8,
-            'AVAXUSDT': 51.2
-        }
-        
-        # Safe symbol processing
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Binance client not available'})
+
+        # Validate symbol
+        if not symbol or len(symbol) < 6:
+            return jsonify({'success': False, 'error': 'Invalid symbol'})
+
+        # Try to get klines with proper error handling
         try:
-            symbol_upper = str(symbol).upper()
-        except:
-            symbol_upper = 'BTCUSDT'
-        
-        # Get RSI value with fallback
+            klines = binance_client.get_klines(symbol=symbol, interval='15m', limit=100)
+
+            if not klines or len(klines) < 15:
+                # Fallback: Try different timeframe
+                klines = binance_client.get_klines(symbol=symbol, interval='5m', limit=100)
+
+            if not klines or len(klines) < 15:
+                return jsonify({'success': False, 'error': f'Insufficient market data for {symbol}'})
+
+        except Exception as e:
+            logger.error(f"Error fetching klines for {symbol}: {e}")
+            return jsonify({'success': False, 'error': f'Failed to fetch market data for {symbol}'})
+
+        # Convert to closes
+        closes = []
+        for kline in klines:
+            try:
+                close_price = float(kline[4])
+                closes.append(close_price)
+            except (ValueError, IndexError):
+                continue
+
+        if len(closes) < 14:
+            return jsonify({'success': False, 'error': f'Not enough valid price data for RSI calculation for {symbol}'})
+
+        # Calculate RSI using the same method as the bot
         try:
-            rsi_value = demo_rsi_values.get(symbol_upper, 50.0)
-            # Add small random variation to make it look realistic
-            import random
-            rsi_value += random.uniform(-2.0, 2.0)
-            rsi_value = max(10.0, min(90.0, rsi_value))  # Keep within valid RSI range
-        except:
-            rsi_value = 50.0
-        
-        # Get timestamp safely
-        try:
-            timestamp = datetime.now().strftime('%H:%M:%S')
-        except:
-            timestamp = '00:00:00'
-        
-        # Build response with maximum safety
-        response_data = {
-            'success': True, 
-            'rsi': round(rsi_value, 1),
-            'symbol': symbol_upper,
-            'source': 'demo_stable',
-            'timestamp': timestamp,
-            'status': 'ok'
-        }
-        
-        return jsonify(response_data), 200
-        
+            rsi = calculate_rsi(closes, period=14)
+
+            # Validate RSI value
+            if rsi < 0 or rsi > 100:
+                rsi = 50.0  # Default to neutral if calculation is invalid
+
+            return jsonify({'success': True, 'rsi': round(rsi, 2)})
+
+        except Exception as calc_error:
+            logger.error(f"RSI calculation error for {symbol}: {calc_error}")
+            return jsonify({'success': False, 'error': f'RSI calculation failed for {symbol}'})
+
     except Exception as e:
-        # ABSOLUTE FALLBACK - This should never execute but provides ultimate safety
-        try:
-            logger.error(f"RSI endpoint error: {e}")
-        except:
-            pass  # Even logging can fail, so protect against that
-        
-        # Minimal safe response that will always work
-        return jsonify({
-            'success': True, 
-            'rsi': 50.0, 
-            'symbol': 'FALLBACK',
-            'source': 'emergency_fallback',
-            'timestamp': '00:00:00',
-            'status': 'fallback'
-        }), 200
+        logger.error(f"Error in get_rsi endpoint for {symbol}: {e}")
+        # Return a fallback RSI instead of error to prevent infinite loading
+        return jsonify({'success': False, 'error': f'Failed to get RSI for {symbol}'})
 
 def calculate_rsi(prices, period=14):
     """Calculate RSI indicator with enhanced validation"""
@@ -2131,25 +1779,6 @@ def get_binance_positions():
             'error': str(e),
             'positions': []
         }), 500
-
-@app.route('/api/strategies/validation', methods=['GET'])
-def get_strategy_validation():
-    """Get strategy validation status"""
-    try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'Validation not available in demo mode'})
-
-        validation_status = trading_config_manager.get_strategy_validation_status()
-        
-        return jsonify({
-            'success': True,
-            'validation_status': validation_status,
-            'operational_count': sum(1 for status in validation_status.values() if status['operational']),
-            'total_count': len(validation_status)
-        })
-    except Exception as e:
-        logger.error(f"Error getting strategy validation: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/trading/environment', methods=['GET'])
 def get_trading_environment():

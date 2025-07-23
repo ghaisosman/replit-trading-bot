@@ -1145,9 +1145,6 @@
 
         // Add autoRefresh variable
         let autoRefresh = true;
-        let strategiesCache = {};
-        let validationStatusCache = {};
-        let wsConnection = null;
 
         // Bot control functions
         document.getElementById('botToggle').addEventListener('click', function() {
@@ -1357,7 +1354,7 @@
             }
         }
 
-        // Enhanced bot status update with better error handling
+        // Simple bot status update
         function updateBotStatus() {
             apiRequest('/api/bot/status')
                 .then(data => {
@@ -1370,38 +1367,23 @@
                         const balanceElement = document.getElementById('balance');
 
                         const isRunning = data.running || data.is_running || false;
-                        const detectionMethod = data.debug_info?.detection_method || 'unknown';
 
-                        // Update button based on detection method
+                        // Update button
                         if (botToggle) {
                             botToggle.disabled = false;
                             if (isRunning) {
-                                // If bot is detected as running, disable start and enable stop
-                                if (detectionMethod === 'process_detected' || detectionMethod === 'workflow_detected') {
-                                    botToggle.textContent = 'Bot Running (Use Run Button)';
-                                    botToggle.className = 'btn btn-warning btn-sm';
-                                    botToggle.disabled = true;
-                                } else {
-                                    botToggle.textContent = 'Stop Bot';
-                                    botToggle.className = 'btn btn-danger btn-sm';
-                                }
+                                botToggle.textContent = 'Stop Bot';
+                                botToggle.className = 'btn btn-danger btn-sm';
                             } else {
-                                botToggle.textContent = 'Use Run Button Above';
-                                botToggle.className = 'btn btn-info btn-sm';
-                                botToggle.disabled = true;
+                                botToggle.textContent = 'Start Bot';
+                                botToggle.className = 'btn btn-success btn-sm';
                             }
                         }
 
-                        // Update status with detection info
+                        // Update status
                         if (statusElement) {
                             if (isRunning) {
-                                let statusText = 'RUNNING';
-                                if (detectionMethod === 'process_detected') {
-                                    statusText = 'RUNNING (Process)';
-                                } else if (detectionMethod === 'workflow_detected') {
-                                    statusText = 'RUNNING (Workflow)';
-                                }
-                                statusElement.textContent = statusText;
+                                statusElement.textContent = 'RUNNING';
                                 statusElement.className = 'badge bg-success me-2';
                             } else {
                                 statusElement.textContent = 'STOPPED';
@@ -1424,20 +1406,16 @@
                         }
 
                         if (activeStrategies) {
-                            activeStrategies.textContent = data.strategies || 5; // Default to 5 known strategies
+                            activeStrategies.textContent = data.strategies || 0;
                         }
 
                         if (balanceElement && data.balance !== undefined) {
                             balanceElement.textContent = data.balance.toFixed(2);
                         }
-                    } else {
-                        // Handle API errors gracefully
-                        updateBotStatusErrorUI(data);
                     }
                 })
                 .catch(error => {
                     console.error('Error updating bot status:', error);
-                    updateBotStatusErrorUI({ status: 'network_error', error: error.message });
                 });
         }
 
@@ -2045,43 +2023,19 @@
         let updateTimeouts = {};
         let pollingActive = true;
 
-         // Enhanced API request function with better error handling
+         // Simple API request function without complex error handling
         function apiRequest(url) {
-            return fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                timeout: 10000
-            })
-            .then(response => {
-                if (!response.ok) {
-                    if (response.status === 502) {
-                        throw new Error('Server temporarily unavailable');
+            return fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
                     }
-                    throw new Error('HTTP ' + response.status);
-                }
-                return response.json();
-            })
-            .catch(error => {
-                console.error('API request failed for', url, ':', error);
-                
-                // Return appropriate fallback based on endpoint
-                if (url.includes('/api/bot/status')) {
-                    return {
-                        success: true,
-                        running: false,
-                        is_running: false,
-                        active_positions: 0,
-                        strategies: 0,
-                        balance: 0.0,
-                        status: 'connection_error'
-                    };
-                }
-                
-                return { success: false, error: error.message };
-            });
+                    return response.json();
+                })
+                .catch(error => {
+                    console.error('API request failed:', error);
+                    return { success: false, error: error.message };
+                });
         }
 
         // FIXED: Enhanced safe API response handler to prevent parsing errors
@@ -2359,16 +2313,10 @@
             const timestamp = new Date().getTime();
             fetch('/api/strategies?_t=' + timestamp)
                 .then(response => response.json())
-                .then(data => {
-                    // Handle new data structure with validation status
-                    if (data.strategies) {
-                        strategiesCache = data.strategies;
-                        validationStatusCache = data.validation_status || {};
-                    } else {
-                        // Fallback for old format
-                        strategiesCache = data;
-                        validationStatusCache = {};
-                    }
+                .then(strategies => {
+                    // Update global strategies cache
+                    window.strategiesData = strategies;
+                    window.strategiesCache = strategies;
                     console.log('🔄 Strategies data refreshed with latest configurations');
                 })
                 .catch(error => {
@@ -2382,8 +2330,8 @@
             const timestamp = new Date().getTime();
             fetch('/api/strategies?_t=' + timestamp)
                 .then(response => response.json())
-                .then(data => {
-                    const config = strategiesCache[strategyName];
+                .then(strategies => {
+                    const config = strategies[strategyName];
                     if (config) {
                         editStrategyConfig(strategyName);
                     } else {

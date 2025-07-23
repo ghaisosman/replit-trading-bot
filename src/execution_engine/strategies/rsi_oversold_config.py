@@ -1,29 +1,67 @@
-# DEPRECATED: This file is kept for backwards compatibility only
-# RSI strategies now use the web dashboard as the single source of truth
+from typing import Dict, Any
 
-import logging
+# DEPRECATED: WEB DASHBOARD IS NOW SINGLE SOURCE OF TRUTH
+# This file is kept for backwards compatibility only
+# All configurations are now managed through the web dashboard
 
 class RSIOversoldConfig:
-    """DEPRECATED: Use web dashboard for configuration"""
+    """Configuration for RSI Oversold Strategy"""
+
+    _config_file = "src/execution_engine/strategies/rsi_config_data.json"
 
     @staticmethod
     def get_config():
-        """DEPRECATED: Use web dashboard for configuration"""
-        logging.getLogger(__name__).warning(
-            "DEPRECATED: RSIOversoldConfig.get_config() is deprecated. "
-            "Use web dashboard for strategy configuration."
-        )
+        """Get RSI strategy configuration"""
+        import json
+        import os
 
-        return {
-            'message': 'USE_WEB_DASHBOARD_ONLY',
-            'deprecated': True
+        default_config = {
+            'max_loss_pct': 5,   # Maximum loss percentage before stop loss (5% for RSI strategy)
+            'rsi_period': 14,    # RSI calculation period
+            'rsi_long_entry': 40,  # RSI level for long entry
+            'rsi_long_exit': 70,   # RSI level for long exit
+            'rsi_short_entry': 60, # RSI level for short entry  
+            'rsi_short_exit': 30,  # RSI level for short exit
+            'min_volume': 1000000, # Minimum 24h volume
+            'cooldown_period': 300 # Cooldown in seconds between trades
         }
+
+        # Try to load from file
+        try:
+            if os.path.exists(RSIOversoldConfig._config_file):
+                with open(RSIOversoldConfig._config_file, 'r') as f:
+                    saved_config = json.load(f)
+                    default_config.update(saved_config)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Could not load RSI config from file: {e}")
+
+        return default_config
 
     @staticmethod
     def update_config(updates):
-        """DEPRECATED: Use web dashboard for configuration updates"""
-        logging.getLogger(__name__).warning(
-            "DEPRECATED: RSIOversoldConfig.update_config() is deprecated. "
-            "Use web dashboard for strategy configuration updates."
-        )
-        return False
+        """Update and save RSI strategy configuration"""
+        import json
+        import os
+
+        # Get current config
+        current_config = RSIOversoldConfig.get_config()
+
+        # Update with new values
+        current_config.update(updates)
+
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(RSIOversoldConfig._config_file), exist_ok=True)
+
+        # Save to file
+        try:
+            with open(RSIOversoldConfig._config_file, 'w') as f:
+                json.dump(current_config, f, indent=2)
+
+            import logging
+            logging.getLogger(__name__).info(f"✅ RSI config saved: {updates}")
+            return True
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"❌ Failed to save RSI config: {e}")
+            return False
