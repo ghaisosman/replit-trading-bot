@@ -191,18 +191,38 @@ class SignalProcessor:
             from src.execution_engine.strategies.macd_divergence_strategy import MACDDivergenceStrategy
 
             strategy_name = config.get('name', 'macd_divergence')
+            
+            # Debug: Log configuration being used
+            self.logger.info(f"🔍 MACD SIGNAL PROCESSOR - Config: {config}")
+            
             strategy = MACDDivergenceStrategy(strategy_name, config)
 
             # Calculate indicators
             df_with_indicators = strategy.calculate_indicators(df.copy())
+            
+            # Debug: Log indicator values
+            if not df_with_indicators.empty and len(df_with_indicators) > 0:
+                if 'macd' in df_with_indicators.columns:
+                    macd_val = df_with_indicators['macd'].iloc[-1]
+                    signal_val = df_with_indicators['macd_signal'].iloc[-1] if 'macd_signal' in df_with_indicators.columns else None
+                    hist_val = df_with_indicators['macd_histogram'].iloc[-1] if 'macd_histogram' in df_with_indicators.columns else None
+                    
+                    self.logger.info(f"🔍 CALCULATED INDICATORS - MACD: {macd_val:.6f}, Signal: {signal_val:.6f}, Histogram: {hist_val:.6f}")
 
             # Evaluate signal
             signal = strategy.evaluate_entry_signal(df_with_indicators)
+            
+            if signal:
+                self.logger.info(f"🎯 MACD SIGNAL GENERATED: {signal.signal_type.value} at {signal.entry_price:.4f}")
+            else:
+                self.logger.debug(f"🔍 MACD: No signal generated for {strategy_name}")
 
             return signal
 
         except Exception as e:
             self.logger.error(f"Error in MACD divergence evaluation: {e}")
+            import traceback
+            self.logger.error(f"MACD evaluation traceback: {traceback.format_exc()}")
             return None
 
     def _evaluate_engulfing_pattern(self, df: pd.DataFrame, current_price: float, config: Dict) -> Optional[TradingSignal]:

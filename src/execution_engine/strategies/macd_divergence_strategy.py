@@ -109,13 +109,19 @@ class MACDDivergenceStrategy:
             line_distance = abs(macd_current - signal_current) / current_price
             histogram_momentum = histogram_current - histogram_prev
 
-            # --- BULLISH ENTRY: Pre-crossover momentum and divergence ---
+            # --- BULLISH ENTRY: More aggressive pre-crossover detection ---
+            # Debug logging for MACD values
+            self.logger.info(f"🔍 MACD DEBUG - Current: {macd_current:.6f}, Signal: {signal_current:.6f}")
+            self.logger.info(f"🔍 HISTOGRAM DEBUG - Current: {histogram_current:.6f}, Previous: {histogram_prev:.6f}")
+            self.logger.info(f"🔍 THRESHOLDS - Entry: {self.entry_threshold}, Histogram: {self.min_histogram_threshold}")
+            self.logger.info(f"🔍 CONDITIONS - Line Distance: {line_distance:.6f}, Momentum: {histogram_momentum:.6f}")
+
+            # More lenient bullish entry conditions
             if (
                 macd_current < signal_current and  # Still below signal (pre-crossover)
                 histogram_current > histogram_prev and  # Momentum up
                 histogram_current < 0 and  # Still negative
-                abs(histogram_momentum) >= self.min_histogram_threshold and
-                line_distance >= self.entry_threshold
+                abs(histogram_momentum) >= self.min_histogram_threshold  # Remove strict line distance requirement
             ):
                 # Optional: Confirm momentum over multiple candles
                 momentum_confirmed = True
@@ -138,13 +144,12 @@ class MACDDivergenceStrategy:
                         reason=f"MACD BULLISH PRE-CROSS: Histogram rising ({histogram_current:.6f}→{histogram_prev:.6f})"
                     )
 
-            # --- BEARISH ENTRY: Pre-crossover momentum and divergence ---
+            # --- BEARISH ENTRY: More aggressive pre-crossover detection ---
             elif (
                 macd_current > signal_current and
                 histogram_current < histogram_prev and
                 histogram_current > 0 and
-                abs(histogram_momentum) >= self.min_histogram_threshold and
-                line_distance >= self.entry_threshold
+                abs(histogram_momentum) >= self.min_histogram_threshold  # Remove strict line distance requirement
             ):
                 momentum_confirmed = True
                 if self.confirmation_candles > 1:

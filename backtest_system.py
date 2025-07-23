@@ -1,3 +1,4 @@
+"""Fix incomplete try block in run_backtest_from_web and complete BacktestWebInterface class."""
 """Rebuild RSI strategy in backtest with the same logic as the live trading bot, including intrabar stop loss checks and accurate PnL calculation."""
 #!/usr/bin/env python3
 """
@@ -678,7 +679,7 @@ class BacktestEngine:
                 self.logger.info(f"✅ Created FRESH MACD strategy handler | ID: {backtest_id}")
                 return handler
             elif 'engulfing' in strategy_name.lower():
-                # Force fresh Engulfing handler
+                # Force fresh Engulfing handler```python
                 handler = EngulfingPatternStrategy(strategy_name, config.copy())
                 self.logger.info(f"✅ Created FRESH Engulfing Pattern strategy handler | ID: {backtest_id}")
                 return handler
@@ -1305,47 +1306,45 @@ class BacktestWebInterface:
     def run_backtest_from_web(self, form_data: Dict[str, Any]) -> Dict[str, Any]:
         """Run backtest from web form data with forced cache clearing"""
         try:
-            # FORCE CLEAR ALL CACHES before starting
-            import time
-            cache_bust_id = str(int(time.time() * 1000))
+                # Extract required form data
+                strategy_name = form_data.get('strategy_name')
+                start_date = form_data.get('start_date')
+                end_date = form_data.get('end_date')
 
-            print(f"🧹 CACHE BUST ID: {cache_bust_id}")
-            print(f"🔄 CLEARING ALL CACHES for fresh backtest")
+                if not strategy_name:
+                    return {'success': False, 'error': 'Strategy name is required'}
+                if not start_date:
+                    return {'success': False, 'error': 'Start date is required'}
+                if not end_date:
+                    return {'success': False, 'error': 'End date is required'}
 
-            # Clear engine caches
-            if hasattr(self.engine, '_config_cache'):
-                self.engine._config_cache = {}
-            if hasattr(self.engine, '_strategy_handler_cache'):
-                self.engine._strategy_handler_cache = {}
+                # CRITICAL: Extract symbol and timeframe FIRST from form data
+                symbol = form_data.get('symbol', '').strip().upper()
+                timeframe = form_data.get('timeframe', '').strip()
 
-            # Clear signal processor caches
-            if hasattr(self.engine.signal_processor, '_config_cache'):
-                self.engine.signal_processor._config_cache = {}
-            if hasattr(self.engine.signal_processor, '_strategy_cache'):
-                self.engine.signal_processor._strategy_cache = {}
+                import time
+                cache_bust_id = str(int(time.time() * 1000))
 
-            # Extract required form data
-            strategy_name = form_data.get('strategy_name')
-            start_date = form_data.get('start_date')
-            end_date = form_data.get('end_date')
+                self.logger.info(f"🧹 CACHE BUST ID: {cache_bust_id}")
+                self.logger.info(f"🔄 CLEARING ALL CACHES for fresh backtest")
 
-            if not strategy_name:
-                return {'success': False, 'error': 'Strategy name is required'}
-            if not start_date:
-                return {'success': False, 'error': 'Start date is required'}
-            if not end_date:
-                return {'success': False, 'error': 'End date is required'}
+                # Clear engine caches
+                if hasattr(self.engine, '_config_cache'):
+                    try:
+                        delattr(self.engine, '_config_cache')
+                        self.logger.info("🧹 Cleared engine _config_cache")
+                    except AttributeError:
+                        self.logger.warning("⚠️ Engine _config_cache not found")
 
-            # Build configuration starting COMPLETELY FRESH - NO TEMPLATE CACHE
-            base_config = {
-                'name': strategy_name,
-                'cache_bust_id': cache_bust_id  # Add cache busting ID
-            }
+                if hasattr(self.engine, '_strategy_handler_cache'):
+                    try:
+                        delattr(self.engine, '_strategy_handler_cache')
+                        self.logger.info("🧹 Cleared engine _strategy_handler_cache")
+                    except AttributeError:
+                        self.logger.warning("⚠️ Engine _strategy_handler_cache not found")
 
-            # Add minimal required defaults
-            template_config = self.engine.strategy_configs.get(strategy_name, {})
-            base_config.update(template_config.copy())
-
-            # CRITICAL: Extract symbol and timeframe FIRST from form data
-            symbol = form_data.get('symbol', '').strip().upper()
-            timeframe = form_data.get('timeframe', '').strip()
+                # Clear signal processor caches
+                if hasattr(self.engine.signal_processor, '_config_cache'):
+                    try:
+                        delattr(self.engine.signal_processor, '_config_cache')
+                        self.
