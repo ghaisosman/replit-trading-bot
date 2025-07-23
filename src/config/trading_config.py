@@ -52,6 +52,10 @@ class TradingConfigManager:
                 import logging
                 logging.getLogger(__name__).warning(f"Could not load web dashboard configs: {e}")
                 self.strategy_configs = {}
+        else:
+            self.strategy_configs = {}
+            import logging
+            logging.getLogger(__name__).info(f"🌐 WEB DASHBOARD: No existing configs found - using defaults")
 
     def _save_web_dashboard_configs(self):
         """Save web dashboard configurations (single persistent storage)"""
