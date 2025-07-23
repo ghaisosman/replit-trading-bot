@@ -976,7 +976,7 @@ class OrderManager:
         return f"{strategy_name}_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
     def _record_confirmed_trade(self, position: Position, order_result: Dict, strategy_config: Dict):
-        """Record confirmed trade in database with complete data"""
+        """Record confirmed trade in database ONLY, then sync to logger - Option 1 Implementation"""
         try:
             # Calculate comprehensive trade data with GUARANTEED margin calculation
             position_value_usdt = position.entry_price * position.quantity
@@ -1020,36 +1020,24 @@ class OrderManager:
             # Analyze market conditions
             market_conditions = self._analyze_market_conditions(position.symbol)
 
-            # Record in trade database
+            # Merge all data for single database recording
+            complete_data = {**trade_data, **technical_indicators, **market_conditions}
+
+            # OPTION 1: Record ONLY in database first (single source of truth)
             from src.execution_engine.trade_database import TradeDatabase
             trade_db = TradeDatabase()
 
-            # Merge all data for database recording
-            complete_data = {**trade_data, **technical_indicators, **market_conditions}
-
-            # LOG BEFORE RECORDING
-            self.logger.info(f"📝 RECORDING TRADE | {position.trade_id} | Margin: ${complete_data['margin_used']:.2f} | Data: {complete_data}")
+            self.logger.info(f"📝 RECORDING TRADE (DATABASE ONLY) | {position.trade_id} | Margin: ${complete_data['margin_used']:.2f}")
 
             success = trade_db.add_trade(position.trade_id, complete_data)
             if success:
-                self.logger.info(f"✅ TRADE RECORDED SUCCESSFULLY | {position.trade_id} | Margin: ${actual_margin_used:.2f} USDT | Position: ${position_value_usdt:.2f} USDT")
+                self.logger.info(f"✅ TRADE RECORDED IN DATABASE | {position.trade_id} | Margin: ${actual_margin_used:.2f} USDT")
+                
+                # Now sync to trade logger (database is source of truth)
+                self._sync_database_to_logger(position.trade_id, complete_data)
+                
             else:
-                self.logger.error(f"❌ FAILED TO RECORD TRADE | {position.trade_id}")
-
-            # Also record in trade logger
-            from src.analytics.trade_logger import trade_logger
-            trade_logger.log_trade_entry(
-                strategy_name=position.strategy_name,
-                symbol=position.symbol,
-                side=position.side,
-                entry_price=position.entry_price,
-                quantity=position.quantity,
-                margin_used=actual_margin_used,
-                leverage=leverage,
-                technical_indicators=technical_indicators,
-                market_conditions=market_conditions,
-                trade_id=position.trade_id
-            )
+                self.logger.error(f"❌ FAILED TO RECORD TRADE IN DATABASE | {position.trade_id}")
 
         except Exception as e:
             self.logger.error(f"❌ Error recording confirmed trade: {e}")
@@ -1201,6 +1189,41 @@ Remaining Position: {position.remaining_quantity} {position.symbol.replace('USDT
 
         except Exception as e:
             self.logger.error(f"❌ TELEGRAM: Failed to send partial TP notification: {e}")
+
+    def _sync_database_to_logger(self, trade_id: str, trade_data: Dict):
+        """Sync trade from database to logger (database is source of truth)"""
+        try:
+            from src.analytics.trade_logger import trade_logger
+            
+            # Create logger-compatible data
+            logger_data = trade_data.copy()
+            
+            # Ensure timestamp is datetime object
+            if 'timestamp' not in logger_data:
+                logger_data['timestamp'] = datetime.now()
+            elif isinstance(logger_data['timestamp'], str):
+                logger_data['timestamp'] = datetime.fromisoformat(logger_data['timestamp'])
+            
+            # Map database fields to logger fields
+            field_mapping = {
+                'margin_used': 'margin_used',
+                'position_value_usdt': 'position_value_usdt'
+            }
+            
+            for db_field, logger_field in field_mapping.items():
+                if db_field in logger_data and logger_field not in logger_data:
+                    logger_data[logger_field] = logger_data[db_field]
+            
+            # Use logger's log_trade method to add the trade
+            success = trade_logger.log_trade(logger_data)
+            
+            if success:
+                self.logger.info(f"✅ SYNCED TO LOGGER | {trade_id} | Database → Logger sync complete")
+            else:
+                self.logger.error(f"❌ FAILED TO SYNC TO LOGGER | {trade_id}")
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error syncing database to logger: {e}")
 
     def _log_trade_for_validation(self, position: Position) -> None:
         """Log trade details for validation purposes with error handling"""

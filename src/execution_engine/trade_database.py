@@ -192,6 +192,32 @@ class TradeDatabase:
             logging.getLogger(__name__).error(f"Error finding trade by position: {e}")
             return None
 
+    def sync_trade_to_logger(self, trade_id: str):
+        """Sync a specific trade from database to logger"""
+        try:
+            if trade_id not in self.trades:
+                self.logger.warning(f"Trade {trade_id} not found in database for sync")
+                return False
+
+            trade_data = self.trades[trade_id]
+
+            # Import logger
+            from src.analytics.trade_logger import trade_logger
+
+            # Sync the trade
+            success = trade_logger.log_trade(trade_data)
+            
+            if success:
+                self.logger.info(f"✅ Synced trade {trade_id} from database to logger")
+            else:
+                self.logger.error(f"❌ Failed to sync trade {trade_id} to logger")
+                
+            return success
+
+        except Exception as e:
+            self.logger.error(f"❌ Error syncing trade {trade_id} to logger: {e}")
+            return False
+
     def sync_from_logger(self):
         """Sync database with trade logger - logger is source of truth"""
         try:

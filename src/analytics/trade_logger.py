@@ -154,8 +154,8 @@ class TradeLogger:
         self.logger.info(f"📝 TRADE ENTRY LOGGED | {trade_id} | {symbol} | {side} | ${entry_price:.4f}")
         self.logger.debug(f"📝 TRADE DETAILS: {trade_record.to_dict()}")
 
-        # Sync to database - simplified approach
-        self._sync_to_database(trade_id, trade_record)
+        # NOTE: No longer syncing to database here - database is now source of truth
+        self.logger.debug(f"📝 LOGGER: Trade added to logger only (database sync handled elsewhere)")
 
         return trade_id
 
@@ -499,13 +499,24 @@ class TradeLogger:
             return None
 
     def log_trade(self, trade_data: Dict[str, Any]):
-        """Log a complete trade record"""
+        """Log a complete trade record with duplicate prevention"""
         try:
             # Handle both dictionary and TradeRecord objects
             if hasattr(trade_data, 'to_dict'):
                 trade_dict = trade_data.to_dict()
             else:
                 trade_dict = trade_data.copy()
+
+            trade_id = trade_dict.get('trade_id')
+            if not trade_id:
+                self.logger.error(f"❌ No trade_id provided for logging")
+                return False
+
+            # Check for duplicates first
+            for existing_trade in self.trades:
+                if existing_trade.trade_id == trade_id:
+                    self.logger.warning(f"⚠️ Trade {trade_id} already exists in logger - skipping duplicate")
+                    return True  # Return success since trade is already logged
 
             # Clean up any old field names that might cause issues
             if 'position_size_usdt' in trade_dict:
@@ -538,7 +549,7 @@ class TradeLogger:
 
             missing_fields = [field for field in required_fields if field not in trade_dict]
             if missing_fields:
-                self.logger.error(f"❌ Error logging ML trade: Missing required fields: {missing_fields}")
+                self.logger.error(f"❌ Error logging trade: Missing required fields: {missing_fields}")
                 return False
 
             trade_record = TradeRecord(**{k: v for k, v in trade_dict.items() 
@@ -548,13 +559,13 @@ class TradeLogger:
             self.trades.append(trade_record)
             self._save_trades()
 
-            self.logger.info(f"📝 ML TRADE LOGGED | {trade_record.trade_id} | {trade_record.symbol} | {trade_record.side} | ${trade_record.entry_price:.4f}")
-            self.logger.debug(f"📝 ML TRADE DETAILS: {trade_record.to_dict()}")
+            self.logger.info(f"📝 TRADE LOGGED FROM DATABASE | {trade_record.trade_id} | {trade_record.symbol} | {trade_record.side} | ${trade_record.entry_price:.4f}")
+            self.logger.debug(f"📝 TRADE DETAILS: {trade_record.to_dict()}")
 
             return True
 
         except Exception as e:
-            self.logger.error(f"❌ Error logging ML trade: {e}")
+            self.logger.error(f"❌ Error logging trade: {e}")
             return False
 
     def _save_trades(self):
