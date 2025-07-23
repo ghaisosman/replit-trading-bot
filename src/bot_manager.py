@@ -9,8 +9,8 @@ from src.data_fetcher.price_fetcher import PriceFetcher
 from src.data_fetcher.balance_fetcher import BalanceFetcher
 from src.strategy_processor.signal_processor import SignalProcessor
 from src.execution_engine.order_manager import OrderManager
-from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
-from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
+# Strategy configs are now managed through the web dashboard configuration system
+# No need for individual config imports anymore
 from src.reporting.telegram_reporter import TelegramReporter
 from src.config.trading_config import trading_config_manager
 from src.execution_engine.trade_monitor import TradeMonitor
