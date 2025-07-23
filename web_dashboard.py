@@ -561,25 +561,88 @@ def dashboard():
 
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
-    """Bulletproof bot start endpoint - never returns 500"""
+    """Start the trading bot from web interface"""
+    global bot_manager, bot_running, shared_bot_manager, bot_thread
+    
     try:
+        logger.info("🌐 WEB INTERFACE: Bot start request received")
+        
+        # Check if bot is already running
+        current_bot = get_shared_bot_manager()
+        if current_bot and hasattr(current_bot, 'is_running') and current_bot.is_running:
+            return jsonify({
+                'success': True,
+                'message': 'Bot is already running',
+                'status': 'already_running',
+                'timestamp': datetime.now().strftime('%H:%M:%S')
+            }), 200
+        
+        # Import and create new bot manager
+        if IMPORTS_AVAILABLE:
+            try:
+                from src.bot_manager import BotManager
+                
+                # Create new bot instance
+                new_bot = BotManager()
+                
+                # Update global references
+                import sys
+                sys.modules['__main__'].bot_manager = new_bot
+                globals()['bot_manager'] = new_bot
+                globals()['shared_bot_manager'] = new_bot
+                
+                # Start bot in background thread
+                def run_bot():
+                    try:
+                        import asyncio
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        loop.run_until_complete(new_bot.start())
+                        loop.close()
+                    except Exception as e:
+                        logger.error(f"Bot thread error: {e}")
+                    finally:
+                        globals()['bot_running'] = False
+                
+                bot_thread = threading.Thread(target=run_bot, daemon=True)
+                bot_thread.start()
+                
+                # Update running state
+                bot_running = True
+                
+                logger.info("🚀 BOT STARTED VIA WEB INTERFACE")
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Trading bot started successfully',
+                    'status': 'started',
+                    'timestamp': datetime.now().strftime('%H:%M:%S')
+                }), 200
+                
+            except Exception as e:
+                logger.error(f"Failed to start bot: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': f'Failed to start bot: {str(e)}',
+                    'status': 'start_failed',
+                    'timestamp': datetime.now().strftime('%H:%M:%S')
+                }), 500
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Bot functionality not available in demo mode',
+                'status': 'demo_mode',
+                'timestamp': datetime.now().strftime('%H:%M:%S')
+            }), 400
+            
+    except Exception as e:
+        logger.error(f"Critical error in bot start: {e}")
         return jsonify({
-            'success': True,
-            'message': 'Please use the Run button at the top of the screen to start the trading bot',
-            'status': 'use_run_button',
-            'instruction': 'Click the "Run" button to start the bot',
-            'development_mode': True,
-            'action_required': 'use_run_button',
+            'success': False,
+            'message': f'Critical error: {str(e)}',
+            'status': 'critical_error',
             'timestamp': datetime.now().strftime('%H:%M:%S')
-        }), 200
-    except Exception:
-        # Ultimate failsafe - never return 500
-        return jsonify({
-            'success': True,
-            'message': 'Use the Run button to start the bot',
-            'status': 'use_run_button',
-            'development_mode': True
-        }), 200
+        }), 500
 
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
@@ -700,44 +763,42 @@ def get_bot_status():
     """Get current bot status with bulletproof error handling - NEVER fails"""
     current_time = datetime.now().strftime('%H:%M:%S')
     
-    # BULLETPROOF: Always return valid JSON structure - no exceptions
     try:
-        # Default safe response
+        # Check for actual running bot
+        current_bot = get_shared_bot_manager()
+        bot_actually_running = False
+        active_positions = 0
+        
+        if current_bot and hasattr(current_bot, 'is_running'):
+            bot_actually_running = current_bot.is_running
+            if hasattr(current_bot, 'order_manager') and current_bot.order_manager:
+                active_positions = len(getattr(current_bot.order_manager, 'active_positions', {}))
+        
+        # Get balance
+        balance = 169.1  # Default
+        if IMPORTS_AVAILABLE and balance_fetcher:
+            try:
+                balance_value = balance_fetcher.get_usdt_balance()
+                if balance_value is not None:
+                    balance = float(balance_value)
+            except:
+                pass  # Keep default balance
+        
+        # Return accurate status
         response = {
             'success': True,
-            'running': True,  # Show as running since web dashboard is active
-            'is_running': True,
-            'active_positions': 0,
+            'running': bot_actually_running,
+            'is_running': bot_actually_running,
+            'active_positions': active_positions,
             'strategies': 5,
-            'balance': 169.1,
-            'status': 'web_dashboard_active',
+            'balance': balance,
+            'status': 'bot_running' if bot_actually_running else 'bot_stopped',
             'last_update': current_time,
             'timestamp': current_time,
             'connection_stable': True,
             'development_mode': True
         }
         
-        # Try to get actual data but never fail
-        try:
-            current_bot = get_shared_bot_manager()
-            if current_bot and hasattr(current_bot, 'order_manager'):
-                active_count = len(getattr(current_bot.order_manager, 'active_positions', {}))
-                response['active_positions'] = active_count
-                response['status'] = 'bot_manager_active'
-            
-            # Try to get balance
-            if IMPORTS_AVAILABLE and balance_fetcher:
-                try:
-                    balance = balance_fetcher.get_usdt_balance()
-                    if balance is not None:
-                        response['balance'] = float(balance)
-                except:
-                    pass  # Keep default balance
-                    
-        except Exception as e:
-            logger.debug(f"Error getting extended bot status: {e}")
-            # Keep default values - don't fail
-            
         return jsonify(response), 200
         
     except Exception as e:
@@ -746,12 +807,12 @@ def get_bot_status():
         # Ultimate fallback - minimal but valid response that never fails
         return jsonify({
             'success': True,
-            'running': True,
-            'is_running': True,
+            'running': False,
+            'is_running': False,
             'active_positions': 0,
             'strategies': 5,
             'balance': 169.1,
-            'status': 'fallback_active',
+            'status': 'error_fallback',
             'timestamp': datetime.now().strftime('%H:%M:%S'),
             'error_handled': True
         }), 200
