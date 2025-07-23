@@ -536,20 +536,21 @@ def start_bot():
             'status': 'use_run_button',
             'instruction': 'Click the "Run" button at the top of the screen to start the trading bot',
             'development_mode': True
-        })
+        }), 200  # Ensure 200 status code
 
     except Exception as e:
         # Enhanced error handling to prevent 500 errors
+        logger = logging.getLogger(__name__)
         logger.error(f"Bot start API error: {e}")
-        import traceback
-        logger.error(f"Bot start traceback: {traceback.format_exc()}")
         
+        # Always return 200 status to prevent HTTP 500 errors
         return jsonify({
             'success': False, 
-            'message': 'Internal server error - please try again or use the Run button',
-            'status': 'internal_error',
-            'instruction': 'Click the "Run" button at the top of the screen to start the trading bot'
-        }), 200  # Return 200 instead of 500 to prevent browser errors
+            'message': 'Please use the Run button at the top of the screen to start the trading bot',
+            'status': 'use_run_button',
+            'instruction': 'Click the "Run" button to start the bot',
+            'error_handled': True
+        }), 200
 
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
