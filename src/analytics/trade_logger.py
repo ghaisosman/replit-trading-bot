@@ -154,50 +154,8 @@ class TradeLogger:
         self.logger.info(f"📝 TRADE ENTRY LOGGED | {trade_id} | {symbol} | {side} | ${entry_price:.4f}")
         self.logger.debug(f"📝 TRADE DETAILS: {trade_record.to_dict()}")
 
-        # Add to trade database for position validation with complete data
-        try:
-            from src.execution_engine.trade_database import TradeDatabase
-            trade_db = TradeDatabase()
-            trade_dict = trade_record.to_dict()
-
-            # Ensure all required fields are present for database
-            if 'margin_used' not in trade_dict or trade_dict['margin_used'] is None:
-                trade_dict['margin_used'] = margin_used
-            if 'leverage' not in trade_dict or trade_dict['leverage'] is None:
-                trade_dict['leverage'] = leverage
-            if 'position_value_usdt' not in trade_dict or trade_dict['position_value_usdt'] is None:
-                trade_dict['position_value_usdt'] = position_value_usdt
-
-            # CRITICAL FIX: Ensure technical indicators are properly passed
-            if technical_indicators:
-                trade_dict.update({
-                    'rsi_at_entry': technical_indicators.get('rsi'),
-                    'macd_at_entry': technical_indicators.get('macd'),
-                    'sma_20_at_entry': technical_indicators.get('sma_20'),
-                    'sma_50_at_entry': technical_indicators.get('sma_50'),
-                    'volume_at_entry': technical_indicators.get('volume'),
-                    'entry_signal_strength': technical_indicators.get('signal_strength')
-                })
-
-            # CRITICAL FIX: Ensure market conditions are properly passed
-            if market_conditions:
-                trade_dict.update({
-                    'market_trend': market_conditions.get('trend'),
-                    'volatility_score': market_conditions.get('volatility'),
-                    'market_phase': market_conditions.get('phase')
-                })
-
-            success = trade_db.add_trade(trade_id, trade_dict)
-            if not success:
-                self.logger.error(f"❌ Failed to add trade to database: {trade_id}")
-            else:
-                self.logger.debug(f"✅ Trade {trade_id} added to both logger and database with complete data")
-                self.logger.debug(f"✅ Technical indicators: {technical_indicators}")
-                self.logger.debug(f"✅ Market conditions: {market_conditions}")
-        except Exception as e:
-            self.logger.error(f"❌ Could not add trade to database: {e}")
-            import traceback
-            self.logger.error(f"❌ Database add error traceback: {traceback.format_exc()}")
+        # Sync to database - simplified approach
+        self._sync_to_database(trade_id, trade_record)
 
         return trade_id
 
@@ -259,40 +217,8 @@ class TradeLogger:
         # Save updated trades
         self._save_trades()
 
-        # CRITICAL FIX: Sync exit data with trade database
-        try:
-            from src.execution_engine.trade_database import TradeDatabase
-            trade_db = TradeDatabase()
-
-            # Update database with complete exit data
-            exit_updates = {
-                'trade_status': 'CLOSED',
-                'exit_price': exit_price,
-                'exit_reason': exit_reason,
-                'pnl_usdt': pnl_usdt,
-                'pnl_percentage': pnl_percentage,
-                'duration_minutes': trade_record.duration_minutes,
-                'exit_time': actual_exit_time.isoformat(),
-                'risk_reward_ratio': trade_record.risk_reward_ratio,
-                'max_drawdown': max_drawdown,
-                'sync_status': 'LOGGER_SYNCED',
-                'last_verified': datetime.now().isoformat()
-            }
-
-            trade_db.update_trade(trade_id, exit_updates)
-            self.logger.info(f"✅ Trade exit data synced to database: {trade_id}")
-
-            # BULLETPROOF VERIFICATION: Ensure sync actually worked
-            db_trade = trade_db.get_trade(trade_id)
-            if db_trade and db_trade.get('trade_status') == 'CLOSED':
-                self.logger.debug(f"🛡️ SYNC VERIFIED: {trade_id} properly closed in database")
-            else:
-                self.logger.error(f"🚨 SYNC FAILED: {trade_id} not properly updated in database")
-
-        except Exception as e:
-            self.logger.error(f"❌ Failed to sync exit data to database for {trade_id}: {e}")
-            # Log critical sync failure for investigation
-            self._log_sync_failure('EXIT_SYNC', trade_id, str(e))
+        # Sync updated trade to database
+        self._sync_to_database(trade_id, trade_record)
 
         self.logger.info(f"📝 TRADE EXIT LOGGED | {trade_id} | PnL: ${pnl_usdt:.2f} ({pnl_percentage:+.2f}%) | Duration: {trade_record.duration_minutes}min")
 
@@ -669,3 +595,26 @@ class TradeLogger:
 
 # Global trade logger instance
 trade_logger = TradeLogger()
+    def _sync_to_database(self, trade_id: str, trade_record: TradeRecord):
+        """Sync trade record to database - simplified approach"""
+        try:
+            from src.execution_engine.trade_database import TradeDatabase
+            trade_db = TradeDatabase()
+            
+            # Convert trade record to dict
+            trade_dict = trade_record.to_dict()
+            
+            # Add or update in database
+            if trade_id in trade_db.trades:
+                success = trade_db.update_trade(trade_id, trade_dict)
+            else:
+                success = trade_db.add_trade(trade_id, trade_dict)
+            
+            if success:
+                self.logger.debug(f"✅ Trade {trade_id} synced to database")
+            else:
+                self.logger.error(f"❌ Failed to sync trade {trade_id} to database")
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error syncing trade {trade_id} to database: {e}")
+
