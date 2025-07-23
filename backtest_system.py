@@ -1306,117 +1306,153 @@ class BacktestWebInterface:
     def run_backtest_from_web(self, form_data: Dict[str, Any]) -> Dict[str, Any]:
         """Run backtest from web form data with forced cache clearing"""
         try:
-                # Extract required form data
-                strategy_name = form_data.get('strategy_name')
-                start_date = form_data.get('start_date')
-                end_date = form_data.get('end_date')
+            import time
+            cache_bust_id = str(int(time.time() * 1000))
 
-                if not strategy_name:
-                    return {'success': False, 'error': 'Strategy name is required'}
-                if not start_date:
-                    return {'success': False, 'error': 'Start date is required'}
-                if not end_date:
-                    return {'success': False, 'error': 'End date is required'}
+            self.logger.info(f"🧹 CACHE BUST ID: {cache_bust_id}")
+            self.logger.info(f"🔄 CLEARING ALL CACHES for fresh backtest")
 
-                # Build configuration starting COMPLETELY FRESH - NO TEMPLATE CACHE
-                base_config = {
-                    'name': strategy_name,
-                    'cache_bust_id': cache_bust_id  # Add cache busting ID
-                }
+            # Clear engine caches
+            if hasattr(self.engine, '_config_cache'):
+                try:
+                    delattr(self.engine, '_config_cache')
+                    self.logger.info("🧹 Cleared engine _config_cache")
+                except AttributeError:
+                    self.logger.warning("⚠️ Engine _config_cache not found")
 
-                # Add minimal required defaults
-                template_config = self.engine.strategy_configs.get(strategy_name, {})
-                base_config.update(template_config.copy())
+            if hasattr(self.engine, '_strategy_handler_cache'):
+                try:
+                    delattr(self.engine, '_strategy_handler_cache')
+                    self.logger.info("🧹 Cleared engine _strategy_handler_cache")
+                except AttributeError:
+                    self.logger.warning("⚠️ Engine _strategy_handler_cache not found")
 
-                # CRITICAL: Extract symbol and timeframe FIRST from form data
-                symbol = form_data.get('symbol', '').strip().upper()
-                timeframe = form_data.get('timeframe', '').strip()
+            # Clear signal processor caches
+            if hasattr(self.engine.signal_processor, '_config_cache'):
+                try:
+                    delattr(self.engine.signal_processor, '_config_cache')
+                    self.logger.info("🧹 Cleared signal processor _config_cache")
+                except AttributeError:
+                    self.logger.warning("⚠️ Signal processor _config_cache not found")
 
-                if not symbol:
-                    return {'success': False, 'error': 'Symbol is required'}
-                if not timeframe:
-                    return {'success': False, 'error': 'Timeframe is required'}
+            if hasattr(self.engine.signal_processor, '_strategy_cache'):
+                try:
+                    delattr(self.engine.signal_processor, '_strategy_cache')
+                    self.logger.info("🧹 Cleared signal processor _strategy_cache")
+                except AttributeError:
+                    self.logger.warning("⚠️ Signal processor _strategy_cache not found")
 
-                # Override with form data to ensure fresh configuration
+            # Extract required form data
+            strategy_name = form_data.get('strategy_name')
+            start_date = form_data.get('start_date')
+            end_date = form_data.get('end_date')
+
+            if not strategy_name:
+                return {'success': False, 'error': 'Strategy name is required'}
+            if not start_date:
+                return {'success': False, 'error': 'Start date is required'}
+            if not end_date:
+                return {'success': False, 'error': 'End date is required'}
+
+            # Build configuration starting COMPLETELY FRESH - NO TEMPLATE CACHE
+            base_config = {
+                'name': strategy_name,
+                'cache_bust_id': cache_bust_id  # Add cache busting ID
+            }
+
+            # Add minimal required defaults
+            template_config = self.engine.strategy_configs.get(strategy_name, {})
+            base_config.update(template_config.copy())
+
+            # CRITICAL: Extract symbol and timeframe FIRST from form data
+            symbol = form_data.get('symbol', '').strip().upper()
+            timeframe = form_data.get('timeframe', '').strip()
+
+            if not symbol:
+                return {'success': False, 'error': 'Symbol is required'}
+            if not timeframe:
+                return {'success': False, 'error': 'Timeframe is required'}
+
+            # Override with form data to ensure fresh configuration
+            base_config.update({
+                'symbol': symbol,
+                'timeframe': timeframe,
+                'margin': float(form_data.get('margin', 50.0)),
+                'leverage': int(form_data.get('leverage', 5)),
+                'max_loss_pct': float(form_data.get('max_loss_pct', 10.0)),
+                'assessment_interval': int(form_data.get('assessment_interval', 60)),
+                'cooldown_period': int(form_data.get('cooldown_period', 300)),
+                'decimals': int(form_data.get('decimals', 2))
+            })
+
+            # Add strategy-specific parameters
+            if 'rsi' in strategy_name.lower():
                 base_config.update({
-                    'symbol': symbol,
-                    'timeframe': timeframe,
-                    'margin': float(form_data.get('margin', 50.0)),
-                    'leverage': int(form_data.get('leverage', 5)),
-                    'max_loss_pct': float(form_data.get('max_loss_pct', 10.0)),
-                    'assessment_interval': int(form_data.get('assessment_interval', 60)),
-                    'cooldown_period': int(form_data.get('cooldown_period', 300)),
-                    'decimals': int(form_data.get('decimals', 2))
+                    'rsi_period': int(form_data.get('rsi_period', 14)),
+                    'rsi_long_entry': int(form_data.get('rsi_long_entry', 30)),
+                    'rsi_long_exit': int(form_data.get('rsi_long_exit', 70)),
+                    'rsi_short_entry': int(form_data.get('rsi_short_entry', 70)),
+                    'rsi_short_exit': int(form_data.get('rsi_short_exit', 30)),
+                    'partial_tp_pnl_threshold': float(form_data.get('partial_tp_pnl_threshold', 0.0)),
+                    'partial_tp_position_percentage': float(form_data.get('partial_tp_position_percentage', 0.0))
+                })
+            elif 'macd' in strategy_name.lower():
+                base_config.update({
+                    'macd_fast': int(form_data.get('macd_fast', 12)),
+                    'macd_slow': int(form_data.get('macd_slow', 26)),
+                    'macd_signal': int(form_data.get('macd_signal', 9)),
+                    'min_histogram_threshold': float(form_data.get('min_histogram_threshold', 0.0001)),
+                    'macd_entry_threshold': float(form_data.get('macd_entry_threshold', 0.0015)),
+                    'macd_exit_threshold': float(form_data.get('macd_exit_threshold', 0.002)),
+                    'confirmation_candles': int(form_data.get('confirmation_candles', 1)),
+                    'divergence_strength_min': float(form_data.get('divergence_strength_min', 0.6)),
+                    'histogram_divergence_lookback': int(form_data.get('histogram_divergence_lookback', 10)),
+                    'price_divergence_lookback': int(form_data.get('price_divergence_lookback', 10))
+                })
+            elif 'engulfing' in strategy_name.lower():
+                base_config.update({
+                    'rsi_period': int(form_data.get('rsi_period', 14)),
+                    'rsi_threshold': float(form_data.get('rsi_threshold', 50)),
+                    'rsi_long_exit': int(form_data.get('rsi_long_exit', 70)),
+                    'rsi_short_exit': int(form_data.get('rsi_short_exit', 30)),
+                    'stable_candle_ratio': float(form_data.get('stable_candle_ratio', 0.5)),
+                    'price_lookback_bars': int(form_data.get('price_lookback_bars', 5)),
+                    'partial_tp_pnl_threshold': float(form_data.get('partial_tp_pnl_threshold', 0.0)),
+                    'partial_tp_position_percentage': float(form_data.get('partial_tp_position_percentage', 0.0))
+                })
+            elif 'smart_money' in strategy_name.lower():
+                base_config.update({
+                    'swing_lookback_period': int(form_data.get('swing_lookback_period', 25)),
+                    'sweep_threshold_pct': float(form_data.get('sweep_threshold_pct', 0.1)),
+                    'reversion_candles': int(form_data.get('reversion_candles', 3)),
+                    'volume_spike_multiplier': float(form_data.get('volume_spike_multiplier', 2.0)),
+                    'min_swing_distance_pct': float(form_data.get('min_swing_distance_pct', 1.0))
                 })
 
-                # Add strategy-specific parameters
-                if 'rsi' in strategy_name.lower():
-                    base_config.update({
-                        'rsi_period': int(form_data.get('rsi_period', 14)),
-                        'rsi_long_entry': int(form_data.get('rsi_long_entry', 30)),
-                        'rsi_long_exit': int(form_data.get('rsi_long_exit', 70)),
-                        'rsi_short_entry': int(form_data.get('rsi_short_entry', 70)),
-                        'rsi_short_exit': int(form_data.get('rsi_short_exit', 30)),
-                        'partial_tp_pnl_threshold': float(form_data.get('partial_tp_pnl_threshold', 0.0)),
-                        'partial_tp_position_percentage': float(form_data.get('partial_tp_position_percentage', 0.0))
-                    })
-                elif 'macd' in strategy_name.lower():
-                    base_config.update({
-                        'macd_fast': int(form_data.get('macd_fast', 12)),
-                        'macd_slow': int(form_data.get('macd_slow', 26)),
-                        'macd_signal': int(form_data.get('macd_signal', 9)),
-                        'min_histogram_threshold': float(form_data.get('min_histogram_threshold', 0.0001)),
-                        'macd_entry_threshold': float(form_data.get('macd_entry_threshold', 0.0015)),
-                        'macd_exit_threshold': float(form_data.get('macd_exit_threshold', 0.002)),
-                        'confirmation_candles': int(form_data.get('confirmation_candles', 1)),
-                        'divergence_strength_min': float(form_data.get('divergence_strength_min', 0.6)),
-                        'histogram_divergence_lookback': int(form_data.get('histogram_divergence_lookback', 10)),
-                        'price_divergence_lookback': int(form_data.get('price_divergence_lookback', 10))
-                    })
-                elif 'engulfing' in strategy_name.lower():
-                    base_config.update({
-                        'rsi_period': int(form_data.get('rsi_period', 14)),
-                        'rsi_threshold': float(form_data.get('rsi_threshold', 50)),
-                        'rsi_long_exit': int(form_data.get('rsi_long_exit', 70)),
-                        'rsi_short_exit': int(form_data.get('rsi_short_exit', 30)),
-                        'stable_candle_ratio': float(form_data.get('stable_candle_ratio', 0.5)),
-                        'price_lookback_bars': int(form_data.get('price_lookback_bars', 5)),
-                        'partial_tp_pnl_threshold': float(form_data.get('partial_tp_pnl_threshold', 0.0)),
-                        'partial_tp_position_percentage': float(form_data.get('partial_tp_position_percentage', 0.0))
-                    })
-                elif 'smart_money' in strategy_name.lower():
-                    base_config.update({
-                        'swing_lookback_period': int(form_data.get('swing_lookback_period', 25)),
-                        'sweep_threshold_pct': float(form_data.get('sweep_threshold_pct', 0.1)),
-                        'reversion_candles': int(form_data.get('reversion_candles', 3)),
-                        'volume_spike_multiplier': float(form_data.get('volume_spike_multiplier', 2.0)),
-                        'min_swing_distance_pct': float(form_data.get('min_swing_distance_pct', 1.0))
+            self.logger.info(f"🔍 Final configuration for {strategy_name}:")
+            for key, value in sorted(base_config.items()):
+                self.logger.info(f"   {key}: {value}")
+
+            # Run the backtest with fresh configuration
+            try:
+                result = self.engine.backtest_strategy(
+                    strategy_name, 
+                    base_config, 
+                    start_date, 
+                    end_date
+                )
+
+                if result.get('success'):
+                    # Export results
+                    self.engine.export_results({
+                        'backtest_type': 'single_strategy',
+                        'result': result
                     })
 
-                self.logger.info(f"🔍 Final configuration for {strategy_name}:")
-                for key, value in sorted(base_config.items()):
-                    self.logger.info(f"   {key}: {value}")
+                return result
 
-                # Run the backtest with fresh configuration
-                try:
-                    result = self.engine.backtest_strategy(
-                        strategy_name, 
-                        base_config, 
-                        start_date, 
-                        end_date
-                    )
-
-                    if result.get('success'):
-                        # Export results
-                        self.engine.export_results({
-                            'backtest_type': 'single_strategy',
-                            'result': result
-                        })
-
-                    return result
-
-                except Exception as backtest_error:
-                    return {'success': False, 'error': f'Backtest execution failed: {str(backtest_error)}'}
+            except Exception as backtest_error:
+                return {'success': False, 'error': f'Backtest execution failed: {str(backtest_error)}'}
 
         except Exception as e:
             error_msg = f"Failed to run backtest from web: {str(e)}"
@@ -1425,11 +1461,10 @@ class BacktestWebInterface:
             self.logger.error(f"Full traceback: {traceback.format_exc()}")
             return {'success': False, 'error': error_msg}
 
-# Example usage
+# Example usage and web interface creation
+web_interface = BacktestWebInterface()
+
 if __name__ == "__main__":
-    # Create web interface
-    web_interface = BacktestWebInterface()
-    
     # Example backtest configuration
     sample_config = {
         'strategy_name': 'rsi_oversold',
@@ -1455,30 +1490,3 @@ if __name__ == "__main__":
         print(f"📊 Win Rate: {result['performance']['win_rate']:.1f}%")
     else:
         print(f"❌ Backtest failed: {result.get('error', 'Unknown error')}")
-
-                import time
-                cache_bust_id = str(int(time.time() * 1000))
-
-                self.logger.info(f"🧹 CACHE BUST ID: {cache_bust_id}")
-                self.logger.info(f"🔄 CLEARING ALL CACHES for fresh backtest")
-
-                # Clear engine caches
-                if hasattr(self.engine, '_config_cache'):
-                    try:
-                        delattr(self.engine, '_config_cache')
-                        self.logger.info("🧹 Cleared engine _config_cache")
-                    except AttributeError:
-                        self.logger.warning("⚠️ Engine _config_cache not found")
-
-                if hasattr(self.engine, '_strategy_handler_cache'):
-                    try:
-                        delattr(self.engine, '_strategy_handler_cache')
-                        self.logger.info("🧹 Cleared engine _strategy_handler_cache")
-                    except AttributeError:
-                        self.logger.warning("⚠️ Engine _strategy_handler_cache not found")
-
-                # Clear signal processor caches
-                if hasattr(self.engine.signal_processor, '_config_cache'):
-                    try:
-                        delattr(self.engine.signal_processor, '_config_cache')
-                        self.logger.info("🧹 Cleared signal processor _config_cache")
