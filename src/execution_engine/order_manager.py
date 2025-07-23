@@ -714,28 +714,29 @@ class OrderManager:
         """Get position history"""
         return self.position_history.copy()
 
+# FIXED: These two methods are now inside the class!
 def has_position_on_symbol(self, symbol: str, side: str = None) -> bool:
-        """Check if there's already a position on this symbol (optionally with specific side)"""
-        try:
-            for position in self.active_positions.values():
-                if position.symbol == symbol:
-                    if side is None or position.side == side:
-                        return True
-            return False
-        except Exception as e:
-            self.logger.error(f"Error checking position on symbol: {e}")
-            return False
+    """Check if there's already a position on this symbol (optionally with specific side)"""
+    try:
+        for position in self.active_positions.values():
+            if position.symbol == symbol:
+                if side is None or position.side == side:
+                    return True
+        return False
+    except Exception as e:
+        self.logger.error(f"Error checking position on symbol: {e}")
+        return False
 
-    def get_position_on_symbol(self, symbol: str) -> Optional[Position]:
-        """Get existing position on symbol if any"""
-        try:
-            for position in self.active_positions.values():
-                if position.symbol == symbol:
-                    return position
-            return None
-        except Exception as e:
-            self.logger.error(f"Error getting position on symbol: {e}")
-            return None
+def get_position_on_symbol(self, symbol: str) -> Optional[Position]:
+    """Get existing position on symbol if any"""
+    try:
+        for position in self.active_positions.values():
+            if position.symbol == symbol:
+                return position
+        return None
+    except Exception as e:
+        self.logger.error(f"Error getting position on symbol: {e}")
+        return None
 
     def clear_orphan_position(self, strategy_name: str) -> bool:
         """Clear an orphan position (bot opened, manually closed)"""
