@@ -496,21 +496,27 @@ def start_bot():
                     'status': 'already_running'
                 })
 
-        logger.info(f"🔍 DEBUG: Bot thread status - Running: {bot_running}, Thread alive: {bot_thread.is_alive() if bot_thread else 'No thread'}")
-        if bot_running and bot_thread and bot_thread.is_alive():
+        # Safe bot thread checking
+        bot_thread_alive = False
+        try:
+            bot_thread_alive = bot_thread and bot_thread.is_alive()
+        except (AttributeError, NameError):
+            bot_thread_alive = False
+
+        logger.info(f"🔍 DEBUG: Bot thread status - Running: {bot_running}, Thread alive: {bot_thread_alive}")
+        if bot_running and bot_thread_alive:
             return jsonify({
                 'success': False, 
                 'message': 'Bot is already running in web dashboard',
                 'status': 'already_running'
             })
 
-        # If bot is already running but not detected, return success
+        # Check for already running processes safely
         try:
-            # Quick check if main.py is already running
             import psutil
             for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
                 try:
-                    if proc.info['name'] == 'python' or proc.info['name'] == 'python3':
+                    if proc.info['name'] in ['python', 'python3']:
                         cmdline = proc.info['cmdline']
                         if cmdline and 'main.py' in ' '.join(cmdline):
                             return jsonify({
@@ -518,25 +524,32 @@ def start_bot():
                                 'message': 'Bot is already running (detected running process)',
                                 'status': 'detected_running'
                             })
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                except (psutil.NoSuchProcess, psutil.AccessDenied, TypeError):
                     continue
         except ImportError:
             pass  # psutil not available
 
+        # Return standard response for development mode
         return jsonify({
             'success': False, 
-            'message': 'Bot start via dashboard is disabled. Use the Run button above to start the bot.',
+            'message': 'Bot start via dashboard is disabled in development mode. Use the Run button above to start the bot.',
             'status': 'use_run_button',
-            'instruction': 'Click the "Run" button at the top of the screen to start the trading bot'
+            'instruction': 'Click the "Run" button at the top of the screen to start the trading bot',
+            'development_mode': True
         })
 
     except Exception as e:
-        logger.error(f"Failed to start bot: {e}")
+        # Enhanced error handling to prevent 500 errors
+        logger.error(f"Bot start API error: {e}")
+        import traceback
+        logger.error(f"Bot start traceback: {traceback.format_exc()}")
+        
         return jsonify({
             'success': False, 
-            'message': f'Error: {str(e)}',
-            'status': 'error'
-        }), 500
+            'message': 'Internal server error - please try again or use the Run button',
+            'status': 'internal_error',
+            'instruction': 'Click the "Run" button at the top of the screen to start the trading bot'
+        }), 200  # Return 200 instead of 500 to prevent browser errors
 
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
