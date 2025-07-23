@@ -1186,6 +1186,77 @@
             });
         });
 
+        // Safe API request helper with timeout
+        function apiRequest(url, options = {}) {
+            const defaultOptions = {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                timeout: 5000,
+                ...options
+            };
+            
+            return fetch(url, defaultOptions);
+        }
+
+        // Safe API call with fallback data
+        function safeApiCall(url) {
+            return fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                timeout: 5000
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Invalid response format');
+                }
+                
+                return response.json();
+            });
+        }
+
+        // Get default response for failed API calls
+        function getDefaultResponse(endpoint) {
+            const defaults = {
+                '/api/bot/status': {
+                    success: false,
+                    running: false,
+                    is_running: false,
+                    status: 'unknown',
+                    active_positions: 0,
+                    strategies: 0,
+                    balance: 0.0
+                },
+                '/api/console-log': {
+                    success: true,
+                    logs: ['Console temporarily unavailable'],
+                    timestamp: Date.now()
+                },
+                '/api/positions': {
+                    success: true,
+                    positions: [],
+                    count: 0
+                },
+                '/api/balance': {
+                    success: true,
+                    balance: 0.0,
+                    currency: 'USDT'
+                }
+            };
+            
+            return defaults[endpoint] || { success: false, error: 'Unknown endpoint' };
+        }
+
         // Refresh data
         function refreshData() {
             updateBotStatus();
@@ -1369,79 +1440,106 @@
             }
         }
 
-        // Simple bot status update
+        // Simple bot status update with better error handling
         function updateBotStatus() {
-            apiRequest('/api/bot/status')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('HTTP ' + response.status);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success !== undefined) {
-                        const statusElement = document.getElementById('statusBadge');
-                        const botToggle = document.getElementById('botToggle');
-                        const botStatus = document.getElementById('botStatus');
-                        const activePositions = document.getElementById('activePositions');
-                        const activeStrategies = document.getElementById('activeStrategies');
-                        const balanceElement = document.getElementById('balance');
+            fetch('/api/bot/status', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                timeout: 5000
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                // Check if response is actually JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Invalid response format - not JSON');
+                }
+                
+                return response.json();
+            })
+            .then(data => {
+                // Validate response structure
+                if (typeof data !== 'object' || data === null) {
+                    throw new Error('Invalid response structure');
+                }
+                
+                if (data.success !== undefined) {
+                    const statusElement = document.getElementById('statusBadge');
+                    const botToggle = document.getElementById('botToggle');
+                    const botStatus = document.getElementById('botStatus');
+                    const activePositions = document.getElementById('activePositions');
+                    const activeStrategies = document.getElementById('activeStrategies');
+                    const balanceElement = document.getElementById('balance');
 
-                        const isRunning = data.running || data.is_running || false;
+                    const isRunning = data.running || data.is_running || false;
 
-                        // Update button
-                        if (botToggle) {
-                            botToggle.disabled = false;
-                            if (isRunning) {
-                                botToggle.textContent = 'Stop Bot';
-                                botToggle.className = 'btn btn-danger btn-sm';
-                            } else {
-                                botToggle.textContent = 'Start Bot';
-                                botToggle.className = 'btn btn-success btn-sm';
-                            }
-                        }
-
-                        // Update status
-                        if (statusElement) {
-                            if (isRunning) {
-                                statusElement.textContent = 'RUNNING';
-                                statusElement.className = 'badge bg-success me-2';
-                            } else {
-                                statusElement.textContent = 'STOPPED';
-                                statusElement.className = 'badge bg-danger me-2';
-                            }
-                        }
-
-                        if (botStatus) {
-                            if (isRunning) {
-                                botStatus.textContent = 'RUNNING';
-                                botStatus.className = 'badge bg-success';
-                            } else {
-                                botStatus.textContent = 'STOPPED';
-                                botStatus.className = 'badge bg-danger';
-                            }
-                        }
-
-                        if (activePositions) {
-                            activePositions.textContent = data.active_positions || 0;
-                        }
-
-                        if (activeStrategies) {
-                            activeStrategies.textContent = data.strategies || 0;
-                        }
-
-                        if (balanceElement && data.balance !== undefined) {
-                            balanceElement.textContent = data.balance.toFixed(2);
+                    // Update button
+                    if (botToggle) {
+                        botToggle.disabled = false;
+                        if (isRunning) {
+                            botToggle.textContent = 'Stop Bot';
+                            botToggle.className = 'btn btn-danger btn-sm';
+                        } else {
+                            botToggle.textContent = 'Start Bot';
+                            botToggle.className = 'btn btn-success btn-sm';
                         }
                     }
-                 else {
-                        updateBotStatusErrorUI(data);
+
+                    // Update status
+                    if (statusElement) {
+                        if (isRunning) {
+                            statusElement.textContent = 'RUNNING';
+                            statusElement.className = 'badge bg-success me-2';
+                        } else {
+                            statusElement.textContent = 'STOPPED';
+                            statusElement.className = 'badge bg-danger me-2';
+                        }
                     }
-                })
-                .catch(error => {
-                    console.log('Bot status update failed:', error.message || 'Connection error');
+
+                    if (botStatus) {
+                        if (isRunning) {
+                            botStatus.textContent = 'RUNNING';
+                            botStatus.className = 'badge bg-success';
+                        } else {
+                            botStatus.textContent = 'STOPPED';
+                            botStatus.className = 'badge bg-danger';
+                        }
+                    }
+
+                    if (activePositions) {
+                        activePositions.textContent = data.active_positions || 0;
+                    }
+
+                    if (activeStrategies) {
+                        activeStrategies.textContent = data.strategies || 0;
+                    }
+
+                    if (balanceElement && data.balance !== undefined) {
+                        balanceElement.textContent = data.balance.toFixed(2);
+                    }
+                } else {
+                    console.log('Invalid response structure:', data);
+                    updateBotStatusErrorUI({ status: 'invalid_response' });
+                }
+            })
+            .catch(error => {
+                console.error('Bot status update failed:', error.message || error);
+                
+                // Handle specific error types
+                if (error.message.includes('JSON')) {
+                    updateBotStatusErrorUI({ status: 'json_parse_error' });
+                } else if (error.message.includes('HTTP')) {
+                    updateBotStatusErrorUI({ status: 'http_error' });
+                } else {
                     updateBotStatusErrorUI({ status: 'network_error' });
-                });
+                }
+            });
         }
 
          function updateBotStatusErrorUI(errorData) {
@@ -1567,13 +1665,14 @@
             markRequestStart('consoleLog');
 
             return safeApiCall('/api/console-log')
-                .then(response => {
+                .then(data => {
                     setCachedData('consoleLog', data);
                     updateConsoleLogUI(data);
                     markRequestEnd('consoleLog', true);
                     return data;
                 })
                 .catch(error => {
+                    console.log('Console log API failed:', error.message);
                     updateConsoleLogErrorUI();
                     markRequestEnd('consoleLog', false);
                     return getDefaultResponse('/api/console-log');

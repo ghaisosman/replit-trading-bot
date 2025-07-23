@@ -251,6 +251,9 @@ def get_latest_trade_data():
 def get_bot_status():
     """Get current bot status with proper error handling"""
     try:
+        # Set proper content type header
+        from flask import Response
+        
         # Check if bot is running by looking for bot manager
         import sys
         main_module = sys.modules.get('__main__')
@@ -273,39 +276,55 @@ def get_bot_status():
                     strategies = len(bot_manager.strategies)
                     
                 # Try to get balance
-                from src.binance_client.client import BinanceClientWrapper
-                binance_client = BinanceClientWrapper()
-                account = binance_client.client.futures_account()
-                balance = float(account['availableBalance'])
+                if is_running:  # Only try to get balance if bot is actually running
+                    try:
+                        from src.binance_client.client import BinanceClientWrapper
+                        binance_client = BinanceClientWrapper()
+                        account = binance_client.client.futures_account()
+                        balance = float(account['availableBalance'])
+                    except Exception as balance_error:
+                        logger.debug(f"Could not get balance: {balance_error}")
+                        balance = 0.0
+                        
             except Exception as detail_error:
-                logger.warning(f"Could not get detailed bot status: {detail_error}")
+                logger.debug(f"Could not get detailed bot status: {detail_error}")
 
         # Also check for processes as backup
         if not is_running:
             try:
                 import psutil
                 for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                    if proc.info['cmdline'] and any('main.py' in str(cmd) for cmd in proc.info['cmdline']):
-                        is_running = True
-                        break
-            except Exception:
-                pass
+                    try:
+                        if proc.info['cmdline'] and any('main.py' in str(cmd) for cmd in proc.info['cmdline']):
+                            is_running = True
+                            break
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+            except Exception as proc_error:
+                logger.debug(f"Process check failed: {proc_error}")
 
+        # Ensure we have valid data
         response_data = {
             'success': True,
-            'running': is_running,
-            'is_running': is_running,
+            'running': bool(is_running),
+            'is_running': bool(is_running),
             'status': 'running' if is_running else 'stopped',
-            'active_positions': active_positions,
-            'strategies': strategies,
-            'balance': balance,
+            'active_positions': int(active_positions),
+            'strategies': int(strategies),
+            'balance': float(balance),
             'timestamp': datetime.now().isoformat()
         }
 
-        return jsonify(response_data)
+        # Force JSON response with proper headers
+        response = jsonify(response_data)
+        response.headers['Content-Type'] = 'application/json'
+        return response
         
     except Exception as e:
         logger.error(f"Bot status API error: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
         error_response = {
             'success': False,
             'running': False,
@@ -314,10 +333,13 @@ def get_bot_status():
             'active_positions': 0,
             'strategies': 0,
             'balance': 0.0,
-            'message': str(e),
+            'error': str(e),
             'timestamp': datetime.now().isoformat()
         }
-        return jsonify(error_response), 200  # Return 200 to prevent client errors
+        
+        response = jsonify(error_response)
+        response.headers['Content-Type'] = 'application/json'
+        return response, 200
 
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
