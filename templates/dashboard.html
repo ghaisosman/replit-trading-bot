@@ -434,6 +434,16 @@
             text-align: center;
             width: 100%;
         }
+
+        .rsi-neutral {
+            color: #666;
+            font-weight: normal;
+        }
+
+        .rsi-unavailable {
+            color: #999;
+            font-style: italic;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -1362,9 +1372,14 @@
         // Simple bot status update
         function updateBotStatus() {
             apiRequest('/api/bot/status')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    if (data && data.success !== false) {
-                    if (data && data.success !== false) {
+                    if (data.success !== undefined) {
                         const statusElement = document.getElementById('statusBadge');
                         const botToggle = document.getElementById('botToggle');
                         const botStatus = document.getElementById('botStatus');
@@ -1419,7 +1434,7 @@
                             balanceElement.textContent = data.balance.toFixed(2);
                         }
                     }
-                } else {
+                 else {
                         updateBotStatusErrorUI(data);
                     }
                 })
@@ -1946,7 +1961,7 @@
             fetch('/api/positions')
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        throw new Error(`HTTP ${response.status}`);
                     }
                     return response.json();
                 })
@@ -2000,50 +2015,50 @@
 
 
         function fetchRSI(symbol, index) {
-            fetch('/api/rsi/' + symbol)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('HTTP ' + response.status);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success && data.rsi !== undefined) {
-                        let rsiValue = data.rsi;
-                        let rsiClass = 'bg-secondary';
-                        let rsiText = 'RSI: ' + rsiValue;
+            fetch(`/api/rsi/${symbol}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success !== false && data.rsi !== undefined) {
+                            let rsiValue = data.rsi;
+                            let rsiClass = 'bg-secondary';
+                            let rsiText = 'RSI: ' + rsiValue;
 
-                        // Add note indicator if it's estimated/fallback
-                        if (data.note) {
-                            rsiText += ' (~)';
-                        }
+                            // Add note indicator if it's estimated/fallback
+                            if (data.note) {
+                                rsiText += ' (~)';
+                            }
 
-                        // Color code RSI values
-                        if (rsiValue <= 30) {
-                            rsiClass = 'bg-success'; // Oversold - green
-                        } else if (rsiValue >= 70) {
-                            rsiClass = 'bg-danger'; // Overbought - red
-                        } else if (rsiValue <= 40) {
-                            rsiClass = 'bg-info'; // Low - blue
-                        } else if (rsiValue >= 60) {
-                            rsiClass = 'bg-warning'; // High - yellow
-                        }
+                            // Color code RSI values
+                            if (rsiValue <= 30) {
+                                rsiClass = 'bg-success'; // Oversold - green
+                            } else if (rsiValue >= 70) {
+                                rsiClass = 'bg-danger'; // Overbought - red
+                            } else if (rsiValue <= 40) {
+                                rsiClass = 'bg-info'; // Low - blue
+                            } else if (rsiValue >= 60) {
+                                rsiClass = 'bg-warning'; // High - yellow
+                            }
 
-                        const rsiElement = document.getElementById('rsi-' + index);
-                        if (rsiElement) {
-                            rsiElement.className = `badge ${rsiClass}`;
-                            rsiElement.textContent = rsiText;
+                            const rsiElement = document.getElementById('rsi-' + index);
+                            if (rsiElement) {
+                                rsiElement.className = `badge ${rsiClass}`;
+                                rsiElement.textContent = rsiText;
+                            }
+                        } else {
+                            const rsiElement = document.getElementById('rsi-' + index);
+                            if (rsiElement) {
+                                rsiElement.className = 'badge bg-danger';
+                                rsiElement.textContent = 'RSI: Error';
+                                rsiElement.title = data.error || 'Failed to calculate RSI';
+                            }
                         }
-                    } else {
-                        const rsiElement = document.getElementById('rsi-' + index);
-                        if (rsiElement) {
-                            rsiElement.className = 'badge bg-danger';
-                            rsiElement.textContent = 'RSI: Error';
-                            rsiElement.title = data.error || 'Failed to calculate RSI';
-                        }
-                    }
-                })
-                .catch(error => {
+                    })
+                    .catch(error => {
                 console.log(`RSI fetch error for ${symbol}:`, error.message || error);
                     const rsiElement = document.getElementById('rsi-' + index);
                     if (rsiElement) {
@@ -2400,7 +2415,7 @@
         }
 
         function disableStrategy(strategyName) {
-            if (confirm('Are you sure you want to disable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n' +
+            if (confirm('Are you sure you want to disable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n'+
                        'This will stop the bot from scanning for new trades for this strategy.\n' +
                        'Existing positions will remain active.')) {
 
