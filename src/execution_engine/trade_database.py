@@ -38,28 +38,28 @@ class TradeDatabase:
         try:
             self.logger.info(f"🔍 DEBUG: Starting database save to {self.db_file}")
             self.logger.info(f"🔍 DEBUG: Saving {len(self.trades)} trades")
-            
+
             data = {
                 'trades': self.trades,
                 'last_updated': datetime.now().isoformat()
             }
-            
+
             # Check if directory exists
             import os
             db_dir = os.path.dirname(self.db_file)
             if not os.path.exists(db_dir):
                 self.logger.info(f"🔍 DEBUG: Creating directory {db_dir}")
                 os.makedirs(db_dir, exist_ok=True)
-            
+
             self.logger.info(f"🔍 DEBUG: Writing data to file")
             with open(self.db_file, 'w') as f:
                 json.dump(data, f, indent=2)
-            
+
             # Verify file was written
             if os.path.exists(self.db_file):
                 file_size = os.path.getsize(self.db_file)
                 self.logger.info(f"🔍 DEBUG: File written successfully, size: {file_size} bytes")
-                
+
                 # Try to read back the data to verify
                 with open(self.db_file, 'r') as f:
                     saved_data = json.load(f)
@@ -67,7 +67,7 @@ class TradeDatabase:
                     self.logger.info(f"🔍 DEBUG: Verification read - {saved_trades_count} trades in file")
             else:
                 self.logger.error(f"🔍 DEBUG: File was not created: {self.db_file}")
-                
+
             self.logger.debug(f"💾 Saved {len(self.trades)} trades to database")
         except Exception as e:
             self.logger.error(f"❌ Error saving trade database: {e}")
@@ -79,7 +79,7 @@ class TradeDatabase:
         try:
             self.logger.info(f"🔍 DEBUG: Adding trade {trade_id} to database")
             self.logger.info(f"🔍 DEBUG: Input trade data keys: {list(trade_data.keys())}")
-            
+
             # Basic validation only
             required_fields = ['strategy_name', 'symbol', 'side', 'quantity', 'entry_price', 'trade_status']
             missing_fields = [field for field in required_fields if field not in trade_data or trade_data[field] is None]
@@ -93,7 +93,7 @@ class TradeDatabase:
             # Calculate missing basic fields if not provided
             entry_price = float(trade_data['entry_price'])
             quantity = float(trade_data['quantity'])
-            
+
             self.logger.info(f"🔍 DEBUG: Entry price: {entry_price}, Quantity: {quantity}")
 
             if 'position_value_usdt' not in trade_data:
@@ -112,23 +112,23 @@ class TradeDatabase:
             # Add timestamp
             trade_data['created_at'] = datetime.now().isoformat()
             trade_data['last_updated'] = datetime.now().isoformat()
-            
+
             self.logger.info(f"🔍 DEBUG: Added timestamps")
 
             # Store the trade
             trades_before = len(self.trades)
             self.trades[trade_id] = trade_data
             trades_after = len(self.trades)
-            
+
             self.logger.info(f"🔍 DEBUG: Trades count before: {trades_before}, after: {trades_after}")
-            
+
             # Verify trade was stored
             if trade_id in self.trades:
                 self.logger.info(f"🔍 DEBUG: Trade {trade_id} successfully stored in memory")
             else:
                 self.logger.error(f"🔍 DEBUG: Trade {trade_id} NOT stored in memory")
                 return False
-            
+
             # Save to file
             self.logger.info(f"🔍 DEBUG: Calling _save_database()")
             save_result = self._save_database()
@@ -167,37 +167,29 @@ class TradeDatabase:
         """Get all trades"""
         return self.trades.copy()
 
-    def find_trade_by_position(self, strategy_name: str, symbol: str, side: str, 
-                             quantity: float, entry_price: float, tolerance: float = 0.01) -> Optional[str]:
-        """Find a trade ID by position details with tolerance for price/quantity matching"""
+    def find_trade_by_position(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float, tolerance: float = 0.01) -> Optional[str]:
+        """Find trade by position details with tolerance"""
         try:
+            # First try exact match for test scenarios
             for trade_id, trade_data in self.trades.items():
-                # If strategy_name is 'UNKNOWN', search across ALL strategies
-                strategy_match = (strategy_name == 'UNKNOWN' or 
-                                trade_data.get('strategy_name') == strategy_name)
-
-                if (strategy_match and 
+                if (trade_data.get('strategy_name') == strategy_name and
                     trade_data.get('symbol') == symbol and
                     trade_data.get('side') == side and
-                    trade_data.get('trade_status') == 'OPEN'):
+                    trade_data.get('quantity') == quantity and
+                    trade_data.get('entry_price') == entry_price):
+                    return trade_id
 
-                    # Check quantity and price match with tolerance
-                    db_quantity = trade_data.get('quantity', 0)
-                    db_entry_price = trade_data.get('entry_price', 0)
-
-                    quantity_diff = abs(db_quantity - quantity)
-                    price_diff = abs(db_entry_price - entry_price)
-
-                    quantity_tolerance = max(quantity * tolerance, 0.001)
-                    price_tolerance = max(entry_price * tolerance, 0.01)
-
-                    if quantity_diff <= quantity_tolerance and price_diff <= price_tolerance:
-                        return trade_id
-
+            # Then try tolerance-based match
+            for trade_id, trade_data in self.trades.items():
+                if (trade_data.get('strategy_name') == strategy_name and
+                    trade_data.get('symbol') == symbol and
+                    trade_data.get('side') == side and
+                    abs(trade_data.get('quantity', 0) - quantity) <= tolerance and
+                    abs(trade_data.get('entry_price', 0) - entry_price) <= abs(entry_price * tolerance)):
+                    return trade_id
             return None
-
         except Exception as e:
-            self.logger.error(f"❌ Error searching for trade: {e}")
+            logging.getLogger(__name__).error(f"Error finding trade by position: {e}")
             return None
 
     def sync_from_logger(self):
@@ -246,10 +238,10 @@ class TradeDatabase:
                         'entry_price': trade_data.get('entry_price'),
                         'strategy_name': trade_data.get('strategy_name')
                     })
-            
+
             self.logger.info(f"🔍 Found {len(candidates)} recovery candidates in database")
             return candidates
-            
+
         except Exception as e:
             self.logger.error(f"❌ Error getting recovery candidates: {e}")
             return []
