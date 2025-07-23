@@ -96,10 +96,89 @@ def api_strategies():
     """API endpoint for strategy data"""
     try:
         strategies = trading_config_manager.get_all_strategies()
-        return jsonify(strategies)
+        return jsonify({
+            'success': True,
+            'strategies': strategies,
+            'count': len(strategies),
+            'timestamp': datetime.now().isoformat()
+        })
     except Exception as e:
         logger.error(f"API strategies error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'strategies': {},
+            'count': 0,
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+@app.route('/api/strategies/<strategy_name>', methods=['POST'])
+def update_strategy_api(strategy_name):
+    """Update strategy configuration via API"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+        # Update strategy with validation
+        safety_warnings = trading_config_manager.update_strategy_params(strategy_name, data)
+
+        response = {
+            'success': True, 
+            'message': f'Strategy {strategy_name} updated successfully',
+            'timestamp': datetime.now().isoformat()
+        }
+
+        if safety_warnings:
+            response['safety_warnings'] = safety_warnings
+
+        return jsonify(response)
+
+    except Exception as e:
+        logger.error(f"Update strategy API error: {e}")
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+@app.route('/api/strategies/<strategy_name>/disable', methods=['POST'])
+def disable_strategy_api(strategy_name):
+    """Disable a strategy via API"""
+    try:
+        trading_config_manager.update_strategy_params(strategy_name, {'enabled': False})
+        logger.info(f"🛑 Strategy {strategy_name} disabled via API")
+        return jsonify({
+            'success': True, 
+            'message': f'Strategy {strategy_name} disabled',
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Disable strategy API error: {e}")
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+@app.route('/api/strategies/<strategy_name>/enable', methods=['POST'])
+def enable_strategy_api(strategy_name):
+    """Enable a strategy via API"""
+    try:
+        trading_config_manager.update_strategy_params(strategy_name, {'enabled': True})
+        logger.info(f"✅ Strategy {strategy_name} enabled via API")
+        return jsonify({
+            'success': True, 
+            'message': f'Strategy {strategy_name} enabled',
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Enable strategy API error: {e}")
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 @app.route('/disable_strategy', methods=['POST'])
 def disable_strategy():
@@ -172,43 +251,142 @@ def get_latest_trade_data():
 def get_bot_status():
     """Get current bot status"""
     try:
-        # Check if bot is running
-        import psutil
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-            if proc.info['cmdline'] and 'main.py' in ' '.join(proc.info['cmdline']):
-                return jsonify({
-                    'status': 'running',
-                    'pid': proc.info['pid'],
-                    'uptime': 'active'
-                })
+        # Check if bot is running by looking for bot manager
+        import sys
+        main_module = sys.modules.get('__main__')
+        bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
+        
+        is_running = False
+        if bot_manager and hasattr(bot_manager, 'is_running'):
+            is_running = bot_manager.is_running
+        
+        # Also check for processes as backup
+        if not is_running:
+            try:
+                import psutil
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    if proc.info['cmdline'] and any('main.py' in str(cmd) for cmd in proc.info['cmdline']):
+                        is_running = True
+                        break
+            except Exception:
+                pass
 
-        return jsonify({'status': 'stopped'})
+        return jsonify({
+            'success': True,
+            'running': is_running,
+            'is_running': is_running,
+            'status': 'running' if is_running else 'stopped',
+            'active_positions': 0,
+            'strategies': 0,
+            'timestamp': datetime.now().isoformat()
+        })
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        logger.error(f"Bot status API error: {e}")
+        return jsonify({
+            'success': False,
+            'running': False,
+            'is_running': False,
+            'status': 'error',
+            'message': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
     """Start the trading bot"""
     try:
+        # Check if bot is already running
+        import sys
+        main_module = sys.modules.get('__main__')
+        bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
+        
+        if bot_manager and hasattr(bot_manager, 'is_running') and bot_manager.is_running:
+            return jsonify({
+                'success': False, 
+                'message': 'Bot is already running',
+                'timestamp': datetime.now().isoformat()
+            })
+        
+        # Start bot in subprocess
         import subprocess
-        subprocess.Popen(['python', 'main.py'])
-        return jsonify({'success': True, 'message': 'Bot starting...'})
+        import os
+        
+        # Start the bot process
+        subprocess.Popen(['python', 'main.py'], 
+                        cwd=os.getcwd(),
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL)
+        
+        logger.info("🤖 Bot start requested via web dashboard")
+        return jsonify({
+            'success': True, 
+            'message': 'Bot starting...',
+            'timestamp': datetime.now().isoformat()
+        })
+        
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        logger.error(f"Bot start API error: {e}")
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
     """Stop the trading bot"""
     try:
+        # First try to stop via bot manager
+        import sys
+        main_module = sys.modules.get('__main__')
+        bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
+        
+        if bot_manager and hasattr(bot_manager, 'stop'):
+            try:
+                import asyncio
+                # Try to stop gracefully
+                asyncio.create_task(bot_manager.stop("Dashboard stop request"))
+                logger.info("🛑 Bot stop requested via web dashboard (graceful)")
+                return jsonify({
+                    'success': True, 
+                    'message': 'Bot stopping gracefully...',
+                    'timestamp': datetime.now().isoformat()
+                })
+            except Exception as graceful_error:
+                logger.warning(f"Graceful stop failed: {graceful_error}")
+        
+        # Fallback to process termination
         import psutil
+        stopped_processes = 0
         for proc in psutil.process_iter(['pid', 'cmdline']):
-            if proc.info['cmdline'] and 'main.py' in ' '.join(proc.info['cmdline']):
-                proc.terminate()
-                return jsonify({'success': True, 'message': 'Bot stopped'})
+            try:
+                if proc.info['cmdline'] and any('main.py' in str(cmd) for cmd in proc.info['cmdline']):
+                    proc.terminate()
+                    stopped_processes += 1
+                    logger.info(f"🛑 Terminated bot process PID {proc.pid}")
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
 
-        return jsonify({'success': False, 'message': 'Bot not running'})
+        if stopped_processes > 0:
+            return jsonify({
+                'success': True, 
+                'message': f'Bot stopped ({stopped_processes} processes terminated)',
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'message': 'No bot processes found running',
+                'timestamp': datetime.now().isoformat()
+            })
+            
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        logger.error(f"Bot stop API error: {e}")
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 @app.route('/api/balance')
 def get_balance():
@@ -242,44 +420,71 @@ def get_balance():
 def get_positions():
     """Get current positions"""
     try:
-        # Try to get positions from binance client
+        # First try to get positions from trade database
+        active_positions = []
         try:
-            from src.binance_client.client import BinanceClientWrapper
-            binance_client = BinanceClientWrapper()
-            positions = binance_client.client.futures_position_information()
+            from src.execution_engine.trade_database import TradeDatabase
+            trade_db = TradeDatabase()
+            
+            # Get active trades from database
+            for trade_id, trade_data in trade_db.trades.items():
+                if trade_data.get('status') == 'OPEN' or trade_data.get('trade_status') == 'OPEN':
+                    active_positions.append({
+                        'strategy': trade_data.get('strategy_name', 'Unknown'),
+                        'symbol': trade_data.get('symbol', 'Unknown'),
+                        'side': trade_data.get('side', 'Unknown'),
+                        'entry_price': trade_data.get('entry_price', 0),
+                        'margin_invested': trade_data.get('margin_used', 0),
+                        'current_price': trade_data.get('entry_price', 0),  # Fallback to entry price
+                        'pnl': trade_data.get('pnl_usdt', 0),
+                        'pnl_percent': trade_data.get('pnl_percentage', 0)
+                    })
+        except Exception as db_error:
+            logger.warning(f"Could not get positions from database: {db_error}")
+        
+        # If no database positions, try Binance API
+        if not active_positions:
+            try:
+                from src.binance_client.client import BinanceClientWrapper
+                binance_client = BinanceClientWrapper()
+                positions = binance_client.client.futures_position_information()
 
-            # Filter out zero positions
-            active_positions = [
-                pos for pos in positions 
-                if float(pos['positionAmt']) != 0
-            ]
+                # Filter out zero positions
+                binance_positions = [
+                    pos for pos in positions 
+                    if float(pos['positionAmt']) != 0
+                ]
 
-            formatted_positions = []
-            for pos in active_positions:
-                formatted_positions.append({
-                    'symbol': pos['symbol'],
-                    'side': 'LONG' if float(pos['positionAmt']) > 0 else 'SHORT',
-                    'size': abs(float(pos['positionAmt'])),
-                    'entry_price': float(pos['entryPrice']),
-                    'current_price': float(pos['markPrice']),
-                    'pnl': float(pos['unRealizedProfit']),
-                    'pnl_percentage': float(pos['percentage']) if 'percentage' in pos else 0
-                })
+                for pos in binance_positions:
+                    active_positions.append({
+                        'strategy': 'Manual',
+                        'symbol': pos['symbol'],
+                        'side': 'LONG' if float(pos['positionAmt']) > 0 else 'SHORT',
+                        'entry_price': float(pos['entryPrice']),
+                        'margin_invested': abs(float(pos['positionAmt']) * float(pos['entryPrice'])),
+                        'current_price': float(pos['markPrice']),
+                        'pnl': float(pos['unRealizedProfit']),
+                        'pnl_percent': float(pos['percentage']) if 'percentage' in pos else 0
+                    })
+            except Exception as api_error:
+                logger.warning(f"Could not get positions from Binance API: {api_error}")
 
-            return jsonify({
-                'success': True,
-                'positions': formatted_positions
-            })
-        except Exception as e:
-            # Return empty positions if binance connection fails
-            return jsonify({
-                'success': True,
-                'positions': [],
-                'note': 'Mock data - Binance connection unavailable'
-            })
+        return jsonify({
+            'success': True,
+            'positions': active_positions,
+            'count': len(active_positions),
+            'timestamp': datetime.now().isoformat()
+        })
+        
     except Exception as e:
         logger.error(f"Positions API error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'positions': [],
+            'count': 0,
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 @app.route('/api/console-log')
 def get_console_log():
@@ -297,19 +502,30 @@ def get_console_log():
                 logs = bot_manager.log_handler.get_recent_logs(limit=20)
             else:
                 logs = [
-                    'Web dashboard active - Bot can be controlled via interface',
-                    'System monitoring active',
-                    'Ready for trading operations'
+                    '[' + datetime.now().strftime('%H:%M:%S') + '] 🌐 Web dashboard active - Bot can be controlled via interface',
+                    '[' + datetime.now().strftime('%H:%M:%S') + '] 📊 System monitoring active',
+                    '[' + datetime.now().strftime('%H:%M:%S') + '] ✅ Ready for trading operations'
                 ]
-        except Exception:
-            logs = ['Dashboard active', 'System ready']
+        except Exception as e:
+            current_time = datetime.now().strftime('%H:%M:%S')
+            logs = [
+                f'[{current_time}] 🌐 Dashboard active',
+                f'[{current_time}] 📊 System ready'
+            ]
             
         return jsonify({
+            'success': True,
             'logs': logs,
             'timestamp': time.time()
         })
     except Exception as e:
-        return jsonify({'error': str(e)})
+        logger.error(f"Console log API error: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'logs': ['Error loading console logs'],
+            'timestamp': time.time()
+        }), 500
 
 @app.route('/api/rsi/<symbol>')
 def get_rsi_data(symbol):

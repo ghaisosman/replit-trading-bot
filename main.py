@@ -37,7 +37,43 @@ def run_web_dashboard():
             except OSError:
                 return True
 
+    def cleanup_existing_processes():
+        """Clean up any existing processes that might conflict"""
+        try:
+            import psutil
+            current_pid = os.getpid()
+            cleaned_processes = 0
+            
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    if proc.info['pid'] == current_pid:
+                        continue
+                        
+                    # Check for other main.py processes
+                    if proc.info['cmdline'] and any('main.py' in str(cmd) for cmd in proc.info['cmdline']):
+                        logger.info(f"🔧 Terminating conflicting process {proc.info['pid']}")
+                        proc.terminate()
+                        try:
+                            proc.wait(timeout=3)
+                            cleaned_processes += 1
+                        except psutil.TimeoutExpired:
+                            logger.info(f"🔫 Force killing process {proc.info['pid']}")
+                            proc.kill()
+                            cleaned_processes += 1
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+                    
+            if cleaned_processes > 0:
+                logger.info(f"🧹 Cleaned up {cleaned_processes} conflicting processes")
+                time.sleep(2)  # Give time for cleanup
+                
+        except ImportError:
+            logger.warning("⚠️ psutil not available, cannot cleanup processes")
+
     try:
+        # First clean up any conflicting processes
+        cleanup_existing_processes()
+        
         # Check if port 5000 is in use
         if is_port_in_use(5000):
             logger.warning("🔄 Port 5000 in use, waiting for it to become available...")
@@ -49,6 +85,10 @@ def run_web_dashboard():
                     import psutil
                     for proc in psutil.process_iter(['pid', 'name']):
                         try:
+                            # Skip our own process
+                            if proc.info['pid'] == os.getpid():
+                                continue
+                                
                             # Get connections separately as it's not a basic attribute
                             process = psutil.Process(proc.info['pid'])
                             # Use net_connections to avoid deprecation warning
