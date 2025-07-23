@@ -1198,6 +1198,9 @@ Remaining Position: {position.remaining_quantity} {position.symbol.replace('USDT
             # Create logger-compatible data
             logger_data = trade_data.copy()
             
+            # CRITICAL: Ensure trade_id is explicitly set
+            logger_data['trade_id'] = trade_id
+            
             # Ensure timestamp is datetime object
             if 'timestamp' not in logger_data:
                 logger_data['timestamp'] = datetime.now()
