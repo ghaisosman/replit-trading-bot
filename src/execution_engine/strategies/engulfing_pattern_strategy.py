@@ -38,8 +38,13 @@ class EngulfingPatternStrategy:
     def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calculate all required indicators for the strategy"""
         try:
-            if df.empty or len(df) < max(50, self.rsi_period + self.price_lookback_bars):
+            if df.empty or len(df) < max(50, self.rsi_period + self.price_lookback_bars + 5):
+                self.logger.warning(f"Insufficient data for indicators: {len(df)} rows")
                 return df
+
+            # Ensure data is sorted by timestamp
+            if 'timestamp' in df.columns:
+                df = df.sort_values('timestamp').reset_index(drop=True)
 
             # Calculate RSI
             df['rsi'] = self._calculate_rsi(df['close'], self.rsi_period)
@@ -56,31 +61,50 @@ class EngulfingPatternStrategy:
             # Calculate price lookback data
             df[f'close_{self.price_lookback_bars}_ago'] = df['close'].shift(self.price_lookback_bars)
             
-            # Calculate engulfing patterns
+            # Calculate engulfing patterns (only after we have previous candle data)
             df['bullish_engulfing'] = self._detect_bullish_engulfing(df)
             df['bearish_engulfing'] = self._detect_bearish_engulfing(df)
             
             # Calculate stable candle condition
             df['stable_candle'] = self._detect_stable_candle(df)
             
+            # Log pattern detection results for debugging
+            if len(df) > 10:
+                recent_bullish = df['bullish_engulfing'].iloc[-10:].sum()
+                recent_bearish = df['bearish_engulfing'].iloc[-10:].sum()
+                if recent_bullish > 0 or recent_bearish > 0:
+                    self.logger.info(f"🔍 Pattern Detection: {recent_bullish} bullish + {recent_bearish} bearish engulfing in last 10 candles")
+            
             return df
 
         except Exception as e:
             self.logger.error(f"Error calculating indicators for {self.strategy_name}: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             return df
 
     def _calculate_rsi(self, prices: pd.Series, period: int) -> pd.Series:
-        """Calculate RSI indicator"""
+        """Calculate RSI indicator with proper Wilder's smoothing"""
         try:
             delta = prices.diff()
             gain = delta.where(delta > 0, 0)
             loss = -delta.where(delta < 0, 0)
             
-            avg_gain = gain.rolling(window=period).mean()
-            avg_loss = loss.rolling(window=period).mean()
+            # Use exponential weighted moving average (Wilder's smoothing)
+            # Alpha = 1/period for Wilder's smoothing
+            alpha = 1.0 / period
+            
+            avg_gain = gain.ewm(alpha=alpha, adjust=False).mean()
+            avg_loss = loss.ewm(alpha=alpha, adjust=False).mean()
+            
+            # Avoid division by zero
+            avg_loss = avg_loss.replace(0, np.finfo(float).eps)
             
             rs = avg_gain / avg_loss
             rsi = 100 - (100 / (1 + rs))
+            
+            # Ensure RSI is within valid range
+            rsi = rsi.clip(0, 100)
             
             return rsi
 
@@ -112,13 +136,16 @@ class EngulfingPatternStrategy:
             # Current candle is bullish (green)
             curr_bullish = df['close'] > df['open']
             
-            # Current close is above previous open (engulfing)
-            engulfing = df['close'] > df['prev_open']
+            # Current candle body completely engulfs previous candle body
+            # Current open is below previous close AND current close is above previous open
+            body_engulfing = (df['open'] < df['prev_close']) & (df['close'] > df['prev_open'])
             
-            # Additional validation: current low should be below previous low
-            body_engulfing = df['open'] < df['prev_close']
+            # Additional validation: ensure significant engulfing (not just tiny overlap)
+            prev_body_size = abs(df['prev_open'] - df['prev_close'])
+            curr_body_size = abs(df['open'] - df['close'])
+            significant_engulfing = curr_body_size > (prev_body_size * 0.8)  # Current body at least 80% of previous
             
-            bullish_engulfing = prev_bearish & curr_bullish & engulfing & body_engulfing
+            bullish_engulfing = prev_bearish & curr_bullish & body_engulfing & significant_engulfing
             
             return bullish_engulfing
 
@@ -135,13 +162,16 @@ class EngulfingPatternStrategy:
             # Current candle is bearish (red)
             curr_bearish = df['close'] < df['open']
             
-            # Current close is below previous open (engulfing)
-            engulfing = df['close'] < df['prev_open']
+            # Current candle body completely engulfs previous candle body
+            # Current open is above previous close AND current close is below previous open
+            body_engulfing = (df['open'] > df['prev_close']) & (df['close'] < df['prev_open'])
             
-            # Additional validation: current high should be above previous high
-            body_engulfing = df['open'] > df['prev_close']
+            # Additional validation: ensure significant engulfing (not just tiny overlap)
+            prev_body_size = abs(df['prev_open'] - df['prev_close'])
+            curr_body_size = abs(df['open'] - df['close'])
+            significant_engulfing = curr_body_size > (prev_body_size * 0.8)  # Current body at least 80% of previous
             
-            bearish_engulfing = prev_bullish & curr_bearish & engulfing & body_engulfing
+            bearish_engulfing = prev_bullish & curr_bearish & body_engulfing & significant_engulfing
             
             return bearish_engulfing
 
@@ -153,7 +183,21 @@ class EngulfingPatternStrategy:
         """Detect stable candle based on body-to-range ratio"""
         try:
             candle_body = abs(df['close'] - df['open'])
-            stable = (candle_body / df['true_range']) > self.stable_candle_ratio
+            
+            # Avoid division by zero
+            true_range_safe = df['true_range'].replace(0, np.finfo(float).eps)
+            
+            # Calculate body-to-range ratio
+            body_ratio = candle_body / true_range_safe
+            
+            # Stable candle: body is significant portion of total range
+            stable = body_ratio > self.stable_candle_ratio
+            
+            # Additional validation: ensure candle has meaningful size
+            min_body_size = df['close'] * 0.001  # Minimum 0.1% of price
+            meaningful_size = candle_body > min_body_size
+            
+            stable = stable & meaningful_size
             
             return stable
 
