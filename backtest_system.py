@@ -1318,9 +1318,143 @@ class BacktestWebInterface:
                 if not end_date:
                     return {'success': False, 'error': 'End date is required'}
 
+                # Build configuration starting COMPLETELY FRESH - NO TEMPLATE CACHE
+                base_config = {
+                    'name': strategy_name,
+                    'cache_bust_id': cache_bust_id  # Add cache busting ID
+                }
+
+                # Add minimal required defaults
+                template_config = self.engine.strategy_configs.get(strategy_name, {})
+                base_config.update(template_config.copy())
+
                 # CRITICAL: Extract symbol and timeframe FIRST from form data
                 symbol = form_data.get('symbol', '').strip().upper()
                 timeframe = form_data.get('timeframe', '').strip()
+
+                if not symbol:
+                    return {'success': False, 'error': 'Symbol is required'}
+                if not timeframe:
+                    return {'success': False, 'error': 'Timeframe is required'}
+
+                # Override with form data to ensure fresh configuration
+                base_config.update({
+                    'symbol': symbol,
+                    'timeframe': timeframe,
+                    'margin': float(form_data.get('margin', 50.0)),
+                    'leverage': int(form_data.get('leverage', 5)),
+                    'max_loss_pct': float(form_data.get('max_loss_pct', 10.0)),
+                    'assessment_interval': int(form_data.get('assessment_interval', 60)),
+                    'cooldown_period': int(form_data.get('cooldown_period', 300)),
+                    'decimals': int(form_data.get('decimals', 2))
+                })
+
+                # Add strategy-specific parameters
+                if 'rsi' in strategy_name.lower():
+                    base_config.update({
+                        'rsi_period': int(form_data.get('rsi_period', 14)),
+                        'rsi_long_entry': int(form_data.get('rsi_long_entry', 30)),
+                        'rsi_long_exit': int(form_data.get('rsi_long_exit', 70)),
+                        'rsi_short_entry': int(form_data.get('rsi_short_entry', 70)),
+                        'rsi_short_exit': int(form_data.get('rsi_short_exit', 30)),
+                        'partial_tp_pnl_threshold': float(form_data.get('partial_tp_pnl_threshold', 0.0)),
+                        'partial_tp_position_percentage': float(form_data.get('partial_tp_position_percentage', 0.0))
+                    })
+                elif 'macd' in strategy_name.lower():
+                    base_config.update({
+                        'macd_fast': int(form_data.get('macd_fast', 12)),
+                        'macd_slow': int(form_data.get('macd_slow', 26)),
+                        'macd_signal': int(form_data.get('macd_signal', 9)),
+                        'min_histogram_threshold': float(form_data.get('min_histogram_threshold', 0.0001)),
+                        'macd_entry_threshold': float(form_data.get('macd_entry_threshold', 0.0015)),
+                        'macd_exit_threshold': float(form_data.get('macd_exit_threshold', 0.002)),
+                        'confirmation_candles': int(form_data.get('confirmation_candles', 1)),
+                        'divergence_strength_min': float(form_data.get('divergence_strength_min', 0.6)),
+                        'histogram_divergence_lookback': int(form_data.get('histogram_divergence_lookback', 10)),
+                        'price_divergence_lookback': int(form_data.get('price_divergence_lookback', 10))
+                    })
+                elif 'engulfing' in strategy_name.lower():
+                    base_config.update({
+                        'rsi_period': int(form_data.get('rsi_period', 14)),
+                        'rsi_threshold': float(form_data.get('rsi_threshold', 50)),
+                        'rsi_long_exit': int(form_data.get('rsi_long_exit', 70)),
+                        'rsi_short_exit': int(form_data.get('rsi_short_exit', 30)),
+                        'stable_candle_ratio': float(form_data.get('stable_candle_ratio', 0.5)),
+                        'price_lookback_bars': int(form_data.get('price_lookback_bars', 5)),
+                        'partial_tp_pnl_threshold': float(form_data.get('partial_tp_pnl_threshold', 0.0)),
+                        'partial_tp_position_percentage': float(form_data.get('partial_tp_position_percentage', 0.0))
+                    })
+                elif 'smart_money' in strategy_name.lower():
+                    base_config.update({
+                        'swing_lookback_period': int(form_data.get('swing_lookback_period', 25)),
+                        'sweep_threshold_pct': float(form_data.get('sweep_threshold_pct', 0.1)),
+                        'reversion_candles': int(form_data.get('reversion_candles', 3)),
+                        'volume_spike_multiplier': float(form_data.get('volume_spike_multiplier', 2.0)),
+                        'min_swing_distance_pct': float(form_data.get('min_swing_distance_pct', 1.0))
+                    })
+
+                self.logger.info(f"🔍 Final configuration for {strategy_name}:")
+                for key, value in sorted(base_config.items()):
+                    self.logger.info(f"   {key}: {value}")
+
+                # Run the backtest with fresh configuration
+                try:
+                    result = self.engine.backtest_strategy(
+                        strategy_name, 
+                        base_config, 
+                        start_date, 
+                        end_date
+                    )
+
+                    if result.get('success'):
+                        # Export results
+                        self.engine.export_results({
+                            'backtest_type': 'single_strategy',
+                            'result': result
+                        })
+
+                    return result
+
+                except Exception as backtest_error:
+                    return {'success': False, 'error': f'Backtest execution failed: {str(backtest_error)}'}
+
+        except Exception as e:
+            error_msg = f"Failed to run backtest from web: {str(e)}"
+            self.logger.error(f"❌ {error_msg}")
+            import traceback
+            self.logger.error(f"Full traceback: {traceback.format_exc()}")
+            return {'success': False, 'error': error_msg}
+
+# Example usage
+if __name__ == "__main__":
+    # Create web interface
+    web_interface = BacktestWebInterface()
+    
+    # Example backtest configuration
+    sample_config = {
+        'strategy_name': 'rsi_oversold',
+        'symbol': 'BTCUSDT',
+        'timeframe': '15m',
+        'start_date': '2025-06-01',
+        'end_date': '2025-07-22',
+        'margin': 50.0,
+        'leverage': 5,
+        'max_loss_pct': 10.0,
+        'rsi_long_entry': 30,
+        'rsi_short_entry': 70,
+        'rsi_long_exit': 70,
+        'rsi_short_exit': 30
+    }
+    
+    print("🚀 Running example backtest...")
+    result = web_interface.run_backtest_from_web(sample_config)
+    
+    if result.get('success'):
+        print(f"✅ Backtest completed: {result['performance']['total_trades']} trades")
+        print(f"💰 Total PnL: ${result['performance']['total_pnl_usdt']:.2f}")
+        print(f"📊 Win Rate: {result['performance']['win_rate']:.1f}%")
+    else:
+        print(f"❌ Backtest failed: {result.get('error', 'Unknown error')}")
 
                 import time
                 cache_bust_id = str(int(time.time() * 1000))
@@ -1347,4 +1481,4 @@ class BacktestWebInterface:
                 if hasattr(self.engine.signal_processor, '_config_cache'):
                     try:
                         delattr(self.engine.signal_processor, '_config_cache')
-                        self.
+                        self.logger.info("🧹 Cleared signal processor _config_cache")
