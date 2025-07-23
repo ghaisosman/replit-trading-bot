@@ -602,19 +602,28 @@ class TradeLogger:
             # Convert trade record to dict
             trade_dict = trade_record.to_dict()
             
+            # Ensure proper formatting for database
+            if 'timestamp' in trade_dict and hasattr(trade_dict['timestamp'], 'isoformat'):
+                trade_dict['timestamp'] = trade_dict['timestamp'].isoformat()
+            
             # Add or update in database
             if trade_id in trade_db.trades:
                 success = trade_db.update_trade(trade_id, trade_dict)
+                self.logger.info(f"🔄 Updated trade {trade_id} in database")
             else:
                 success = trade_db.add_trade(trade_id, trade_dict)
+                self.logger.info(f"➕ Added new trade {trade_id} to database")
             
             if success:
-                self.logger.debug(f"✅ Trade {trade_id} synced to database")
+                self.logger.debug(f"✅ Trade {trade_id} synced to database successfully")
+                return True
             else:
                 self.logger.error(f"❌ Failed to sync trade {trade_id} to database")
+                return False
                 
         except Exception as e:
             self.logger.error(f"❌ Error syncing trade {trade_id} to database: {e}")
+            return False
 
 # Global trade logger instance
 trade_logger = TradeLogger()
