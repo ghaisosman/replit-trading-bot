@@ -1348,4 +1348,4 @@ class BacktestWebInterface:
 
             # CRITICAL: Extract symbol and timeframe FIRST from form data
             symbol = form_data.get('symbol', '').strip().upper()
-            timeframe = form_data.get('timeframe', '').
+            timeframe = form_data.get('timeframe', '').strip()
