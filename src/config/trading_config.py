@@ -454,7 +454,7 @@ class TradingConfigManager:
                     strategies[strategy_name].setdefault('macd_signal', 9)
                     strategies[strategy_name].setdefault('min_histogram_threshold', 0.00001)
                     strategies[strategy_name].setdefault('min_distance_threshold', 0.001)
-                    strategies[strategy_name].setdefault('confirmation_candles', 2)
+                    strategies[strategy_name].setdefault('confirmation_candles', 1)
                     strategies[strategy_name].setdefault('histogram_divergence_lookback', 10)
                     strategies[strategy_name].setdefault('price_divergence_lookback', 10)
                     strategies[strategy_name].setdefault('divergence_strength_min', 0.4)
@@ -533,7 +533,7 @@ class TradingConfigManager:
                 'macd_signal': 9,
                 'min_histogram_threshold': 0.0001,
                 'min_distance_threshold': 0.005,
-                'confirmation_candles': 2,
+                'confirmation_candles': 1,
                 'histogram_divergence_lookback': 10,
                 'price_divergence_lookback': 10,
                 'divergence_strength_min': 0.4,

@@ -99,10 +99,15 @@ class MACDDivergenceStrategy:
             self.logger.info(f"🔍 MACD Crossover Check:")
             self.logger.info(f"   Current: MACD={macd_current:.6f}, Signal={signal_current:.6f}, Histogram={histogram_current:.6f}")
             self.logger.info(f"   Previous: MACD={macd_prev:.6f}, Signal={signal_prev:.6f}, Histogram={histogram_prev:.6f}")
+            self.logger.info(f"   Data Length: {len(df)}, Close Price: ${current_price:.2f}")
+            self.logger.info(f"   Config Thresholds: Histogram={self.min_histogram_threshold}, Entry={self.entry_threshold}")
 
             # --- BULLISH CROSSOVER: MACD crosses above Signal ---
             bullish_cross = (macd_prev <= signal_prev and macd_current > signal_current)
             histogram_meets_threshold = abs(histogram_current) > self.min_histogram_threshold
+            
+            self.logger.info(f"   Bullish Cross Check: {bullish_cross} (prev: {macd_prev:.6f} <= {signal_prev:.6f}, curr: {macd_current:.6f} > {signal_current:.6f})")
+            self.logger.info(f"   Histogram Threshold Check: {histogram_meets_threshold} (|{histogram_current:.6f}| > {self.min_histogram_threshold})")
             
             if bullish_cross and histogram_meets_threshold:
                 stop_loss = current_price * (1 - stop_loss_pct / 100)
@@ -125,6 +130,8 @@ class MACDDivergenceStrategy:
 
             # --- BEARISH CROSSOVER: MACD crosses below Signal ---
             bearish_cross = (macd_prev >= signal_prev and macd_current < signal_current)
+            
+            self.logger.info(f"   Bearish Cross Check: {bearish_cross} (prev: {macd_prev:.6f} >= {signal_prev:.6f}, curr: {macd_current:.6f} < {signal_current:.6f})")
             
             if bearish_cross and histogram_meets_threshold:
                 stop_loss = current_price * (1 + stop_loss_pct / 100)
