@@ -1,4 +1,41 @@
 {
-  "trades": {},
-  "last_updated": "2025-07-23T15:08:02.498276"
+  "trades": {
+    "RECOVERY_manual_xrp_XRPUSDT_20250723_153455": {
+      "trade_id": "RECOVERY_manual_xrp_XRPUSDT_20250723_153455",
+      "strategy_name": "manual_xrp",
+      "symbol": "XRPUSDT",
+      "side": "BUY",
+      "quantity": 9.2,
+      "entry_price": 3.2689,
+      "trade_status": "OPEN",
+      "position_value_usdt": 30.073879999999996,
+      "leverage": 1,
+      "margin_used": 30.073879999999996,
+      "unrealized_pnl": 0.0,
+      "created_at": "2025-07-23T15:34:55.312832",
+      "last_updated": "2025-07-23T15:34:55.312835",
+      "recovery_trade": true,
+      "original_binance_data": {
+        "symbol": "XRPUSDT",
+        "initialMargin": "10.10439685",
+        "maintMargin": "0.15156594",
+        "unrealizedProfit": "0.23930994",
+        "positionInitialMargin": "10.10439685",
+        "openOrderInitialMargin": "0",
+        "leverage": "3",
+        "isolated": false,
+        "entryPrice": "3.2689",
+        "breakEvenPrice": "3.27053445",
+        "maxNotional": "25000000",
+        "positionSide": "LONG",
+        "positionAmt": "9.2",
+        "notional": "30.31318994",
+        "isolatedWallet": "0",
+        "updateTime": 1753283635946,
+        "bidNotional": "0",
+        "askNotional": "0"
+      }
+    }
+  },
+  "last_updated": "2025-07-23T15:34:55.317012"
 }
