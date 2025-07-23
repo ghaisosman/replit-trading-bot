@@ -51,12 +51,22 @@ def run_web_dashboard():
                         try:
                             # Get connections separately as it's not a basic attribute
                             process = psutil.Process(proc.info['pid'])
-                            connections = process.connections()
+                            # Use net_connections to avoid deprecation warning
+                            try:
+                                connections = process.net_connections()
+                            except AttributeError:
+                                # Fallback for older psutil versions
+                                connections = process.connections()
                             for conn in connections:
                                 if conn.laddr.port == 5000:
                                     logger.info(f"🔧 Terminating process {proc.info['pid']} using port 5000")
                                     proc.terminate()
-                                    proc.wait(timeout=3)
+                                    try:
+                                        proc.wait(timeout=3)
+                                    except psutil.TimeoutExpired:
+                                        # Force kill if terminate doesn't work
+                                        logger.info(f"🔫 Force killing process {proc.info['pid']}")
+                                        proc.kill()
                                     break
                         except (psutil.NoSuchProcess, psutil.AccessDenied, AttributeError):
                             continue
