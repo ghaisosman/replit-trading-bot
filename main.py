@@ -47,9 +47,12 @@ def run_web_dashboard():
             if is_port_in_use(5000):
                 try:
                     import psutil
-                    for proc in psutil.process_iter(['pid', 'name', 'connections']):
+                    for proc in psutil.process_iter(['pid', 'name']):
                         try:
-                            for conn in proc.info['connections'] or []:
+                            # Get connections separately as it's not a basic attribute
+                            process = psutil.Process(proc.info['pid'])
+                            connections = process.connections()
+                            for conn in connections:
                                 if conn.laddr.port == 5000:
                                     logger.info(f"🔧 Terminating process {proc.info['pid']} using port 5000")
                                     proc.terminate()
