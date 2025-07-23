@@ -36,19 +36,50 @@ class TradeDatabase:
     def _save_database(self):
         """Save trades to database file"""
         try:
+            self.logger.info(f"🔍 DEBUG: Starting database save to {self.db_file}")
+            self.logger.info(f"🔍 DEBUG: Saving {len(self.trades)} trades")
+            
             data = {
                 'trades': self.trades,
                 'last_updated': datetime.now().isoformat()
             }
+            
+            # Check if directory exists
+            import os
+            db_dir = os.path.dirname(self.db_file)
+            if not os.path.exists(db_dir):
+                self.logger.info(f"🔍 DEBUG: Creating directory {db_dir}")
+                os.makedirs(db_dir, exist_ok=True)
+            
+            self.logger.info(f"🔍 DEBUG: Writing data to file")
             with open(self.db_file, 'w') as f:
                 json.dump(data, f, indent=2)
+            
+            # Verify file was written
+            if os.path.exists(self.db_file):
+                file_size = os.path.getsize(self.db_file)
+                self.logger.info(f"🔍 DEBUG: File written successfully, size: {file_size} bytes")
+                
+                # Try to read back the data to verify
+                with open(self.db_file, 'r') as f:
+                    saved_data = json.load(f)
+                    saved_trades_count = len(saved_data.get('trades', {}))
+                    self.logger.info(f"🔍 DEBUG: Verification read - {saved_trades_count} trades in file")
+            else:
+                self.logger.error(f"🔍 DEBUG: File was not created: {self.db_file}")
+                
             self.logger.debug(f"💾 Saved {len(self.trades)} trades to database")
         except Exception as e:
             self.logger.error(f"❌ Error saving trade database: {e}")
+            import traceback
+            self.logger.error(f"🔍 DEBUG: Save traceback: {traceback.format_exc()}")
 
     def add_trade(self, trade_id: str, trade_data: Dict[str, Any]) -> bool:
         """Add a trade to the database - simplified version"""
         try:
+            self.logger.info(f"🔍 DEBUG: Adding trade {trade_id} to database")
+            self.logger.info(f"🔍 DEBUG: Input trade data keys: {list(trade_data.keys())}")
+            
             # Basic validation only
             required_fields = ['strategy_name', 'symbol', 'side', 'quantity', 'entry_price', 'trade_status']
             missing_fields = [field for field in required_fields if field not in trade_data or trade_data[field] is None]
@@ -57,33 +88,59 @@ class TradeDatabase:
                 self.logger.error(f"❌ Missing required fields {missing_fields} in trade {trade_id}")
                 return False
 
+            self.logger.info(f"🔍 DEBUG: All required fields present")
+
             # Calculate missing basic fields if not provided
             entry_price = float(trade_data['entry_price'])
             quantity = float(trade_data['quantity'])
+            
+            self.logger.info(f"🔍 DEBUG: Entry price: {entry_price}, Quantity: {quantity}")
 
             if 'position_value_usdt' not in trade_data:
                 trade_data['position_value_usdt'] = entry_price * quantity
+                self.logger.info(f"🔍 DEBUG: Calculated position_value_usdt: {trade_data['position_value_usdt']}")
 
             if 'leverage' not in trade_data:
                 trade_data['leverage'] = 1
+                self.logger.info(f"🔍 DEBUG: Set default leverage: 1")
 
             if 'margin_used' not in trade_data:
                 leverage = trade_data.get('leverage', 1)
                 trade_data['margin_used'] = (entry_price * quantity) / leverage
+                self.logger.info(f"🔍 DEBUG: Calculated margin_used: {trade_data['margin_used']}")
 
             # Add timestamp
             trade_data['created_at'] = datetime.now().isoformat()
             trade_data['last_updated'] = datetime.now().isoformat()
+            
+            self.logger.info(f"🔍 DEBUG: Added timestamps")
 
             # Store the trade
+            trades_before = len(self.trades)
             self.trades[trade_id] = trade_data
-            self._save_database()
+            trades_after = len(self.trades)
+            
+            self.logger.info(f"🔍 DEBUG: Trades count before: {trades_before}, after: {trades_after}")
+            
+            # Verify trade was stored
+            if trade_id in self.trades:
+                self.logger.info(f"🔍 DEBUG: Trade {trade_id} successfully stored in memory")
+            else:
+                self.logger.error(f"🔍 DEBUG: Trade {trade_id} NOT stored in memory")
+                return False
+            
+            # Save to file
+            self.logger.info(f"🔍 DEBUG: Calling _save_database()")
+            save_result = self._save_database()
+            self.logger.info(f"🔍 DEBUG: _save_database() completed")
 
             self.logger.info(f"✅ Trade added to database: {trade_id} | {trade_data['symbol']} | {trade_data['side']}")
             return True
 
         except Exception as e:
             self.logger.error(f"❌ Error adding trade to database: {e}")
+            import traceback
+            self.logger.error(f"🔍 DEBUG: Full traceback: {traceback.format_exc()}")
             return False
 
     def update_trade(self, trade_id: str, updates: Dict[str, Any]) -> bool:
