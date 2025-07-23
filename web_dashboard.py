@@ -344,9 +344,39 @@ def get_bot_status():
 
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
-    """Start the trading bot"""
+    """Start the trading bot with improved process management"""
     try:
-        # Check if bot is already running
+        # First, clean up any existing bot processes to prevent conflicts
+        import psutil
+        import time
+        
+        cleaned_processes = 0
+        current_pid = os.getpid()
+        
+        # Kill any existing main.py processes (except the current dashboard process)
+        for proc in psutil.process_iter(['pid', 'cmdline']):
+            try:
+                if proc.pid == current_pid:
+                    continue
+                    
+                cmdline = proc.info.get('cmdline', [])
+                if cmdline and any('main.py' in str(cmd) for cmd in cmdline):
+                    logger.info(f"🧹 Cleaning up existing bot process PID {proc.pid}")
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=3)
+                        cleaned_processes += 1
+                    except psutil.TimeoutExpired:
+                        proc.kill()
+                        cleaned_processes += 1
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        
+        if cleaned_processes > 0:
+            logger.info(f"🧹 Cleaned up {cleaned_processes} conflicting processes")
+            time.sleep(2)  # Give time for cleanup
+        
+        # Check if bot is already running in current process
         import sys
         main_module = sys.modules.get('__main__')
         bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
@@ -354,26 +384,64 @@ def start_bot():
         if bot_manager and hasattr(bot_manager, 'is_running') and bot_manager.is_running:
             return jsonify({
                 'success': False, 
-                'message': 'Bot is already running',
+                'message': 'Bot is already running in current process',
                 'timestamp': datetime.now().isoformat()
             })
 
-        # Start bot in subprocess
-        import subprocess
-        import os
+        # Start bot directly in current process instead of subprocess to avoid conflicts
+        try:
+            import asyncio
+            from src.bot_manager import BotManager
+            
+            # Initialize bot manager
+            if not bot_manager:
+                bot_manager = BotManager()
+                sys.modules['__main__'].bot_manager = bot_manager
+                globals()['bot_manager'] = bot_manager
+            
+            # Start bot asynchronously
+            if not bot_manager.is_running:
+                asyncio.create_task(bot_manager.start())
+                logger.info("🤖 Bot started directly via web dashboard")
+                
+                return jsonify({
+                    'success': True, 
+                    'message': 'Bot started successfully',
+                    'timestamp': datetime.now().isoformat()
+                })
+            else:
+                return jsonify({
+                    'success': False, 
+                    'message': 'Bot is already running',
+                    'timestamp': datetime.now().isoformat()
+                })
+                
+        except Exception as start_error:
+            logger.error(f"Direct bot start failed: {start_error}")
+            
+            # Fallback to subprocess method with better process isolation
+            import subprocess
+            import os
+            
+            env = os.environ.copy()
+            env['PYTHONUNBUFFERED'] = '1'  # Ensure output is not buffered
+            
+            # Start the bot process with proper isolation
+            process = subprocess.Popen(
+                ['python', 'main.py'], 
+                cwd=os.getcwd(),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True  # Create new process group
+            )
 
-        # Start the bot process
-        subprocess.Popen(['python', 'main.py'], 
-                        cwd=os.getcwd(),
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL)
-
-        logger.info("🤖 Bot start requested via web dashboard")
-        return jsonify({
-            'success': True, 
-            'message': 'Bot starting...',
-            'timestamp': datetime.now().isoformat()
-        })
+            logger.info(f"🤖 Bot started as subprocess PID {process.pid}")
+            return jsonify({
+                'success': True, 
+                'message': f'Bot starting as subprocess (PID {process.pid})...',
+                'timestamp': datetime.now().isoformat()
+            })
 
     except Exception as e:
         logger.error(f"Bot start API error: {e}")

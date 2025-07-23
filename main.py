@@ -15,9 +15,24 @@ bot_manager = None
 shutdown_event = asyncio.Event()
 
 def signal_handler(signum, frame):
-    """Handle termination signals"""
+    """Handle termination signals with improved logic"""
+    global bot_manager
+    
     print(f"\n🛑 Shutdown signal received: {signum}")
-    shutdown_event.set()
+    
+    # Only shutdown if this is intended (not from process conflicts)
+    if signum == signal.SIGTERM:
+        # Check if this is a graceful shutdown request
+        if bot_manager and hasattr(bot_manager, 'is_running') and bot_manager.is_running:
+            print("🔄 Graceful shutdown initiated...")
+            shutdown_event.set()
+        else:
+            print("⚠️ SIGTERM received but bot not running - ignoring signal")
+            return
+    else:
+        # SIGINT (Ctrl+C) always triggers shutdown
+        print("🔄 Manual shutdown requested...")
+        shutdown_event.set()
 
 def run_web_dashboard():
     """Run the web dashboard in a separate thread"""
@@ -245,7 +260,7 @@ async def main():
 
         # Keep the process alive indefinitely - web dashboard controls everything
         try:
-            while True:
+            while not shutdown_event.is_set():
                 # Check if web thread is still alive
                 if not web_thread.is_alive():
                     logger.error("🚨 Web dashboard thread died! Restarting...")
@@ -255,9 +270,8 @@ async def main():
                 # Check if bot needs to be cleaned up
                 current_bot = sys.modules['__main__'].bot_manager
                 if current_bot and hasattr(current_bot, 'is_running') and not current_bot.is_running:
-                    # Clean up stopped bot
-                    sys.modules['__main__'].bot_manager = None
-                    globals()['bot_manager'] = None
+                    # Clean up stopped bot but keep reference for restart
+                    logger.info("🔄 Bot stopped - ready for restart")
 
                 await asyncio.sleep(5)
 
