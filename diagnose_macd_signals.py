@@ -336,49 +336,49 @@ def diagnose_macd_strategy():
         return False
     
     # 8. SUMMARY AND RECOMMENDATIONS
-    print(f"\n📋 STEP 8: DIAGNOSIS SUMMARY AND RECOMMENDATIONS")
-    print("=" * 60)
-    
-    print(f"\n🎯 FINDINGS:")
-    if signals_detected:
-        print(f"✅ MACD calculation is working correctly")
-        print(f"✅ Signal detection logic can find crossovers")
-        print(f"❓ Issue may be in strategy implementation or configuration")
-    else:
-        print(f"❌ No MACD signals detected in recent data")
-        print(f"❓ Could be due to:")
-        print(f"   - Thresholds too restrictive")
-        print(f"   - Market conditions not suitable for MACD")
-        print(f"   - Strategy implementation issues")
-    
-    print(f"\n💡 RECOMMENDATIONS:")
-    
-    if threshold_failures.get('total_crossovers', 0) > 0:
-        if (threshold_failures.get('histogram_too_small', 0) + 
-            threshold_failures.get('distance_too_small', 0) + 
-            threshold_failures.get('both_too_small', 0)) > threshold_failures.get('total_crossovers', 1) * 0.5:
-            print(f"1. 🔧 REDUCE THRESHOLDS - Current settings are too restrictive")
-            print(f"   - Try min_histogram_threshold: 0.00005 (current: {min_histogram_threshold})")
-            print(f"   - Try min_distance_threshold: 0.001 (current: {min_distance_threshold})")
-    
-    if not signals_detected:
-        print(f"2. 📊 CHANGE TIMEFRAME - Try a different timeframe for more crossovers")
-        print(f"   - Current: {timeframe}, Try: 5m or 1h")
-    
-    print(f"3. 🎛️ ADJUST MACD PARAMETERS - Try more sensitive settings")
-    print(f"   - Current: Fast={fast_period}, Slow={slow_period}, Signal={signal_period}")
-    print(f"   - Try: Fast=8, Slow=21, Signal=5 (more sensitive)")
-    
-    print(f"4. ⏰ CHECK DIFFERENT TIME PERIODS - Current market may not be suitable")
-    
-    print(f"\n✅ DIAGNOSIS COMPLETE")
-    return True
-    
-except Exception as e:
-    print(f"\n❌ CRITICAL ERROR IN DIAGNOSIS: {e}")
-    import traceback
-    traceback.print_exc()
-    return False
+        print(f"\n📋 STEP 8: DIAGNOSIS SUMMARY AND RECOMMENDATIONS")
+        print("=" * 60)
+        
+        print(f"\n🎯 FINDINGS:")
+        if signals_detected:
+            print(f"✅ MACD calculation is working correctly")
+            print(f"✅ Signal detection logic can find crossovers")
+            print(f"❓ Issue may be in strategy implementation or configuration")
+        else:
+            print(f"❌ No MACD signals detected in recent data")
+            print(f"❓ Could be due to:")
+            print(f"   - Thresholds too restrictive")
+            print(f"   - Market conditions not suitable for MACD")
+            print(f"   - Strategy implementation issues")
+        
+        print(f"\n💡 RECOMMENDATIONS:")
+        
+        if threshold_failures.get('total_crossovers', 0) > 0:
+            if (threshold_failures.get('histogram_too_small', 0) + 
+                threshold_failures.get('distance_too_small', 0) + 
+                threshold_failures.get('both_too_small', 0)) > threshold_failures.get('total_crossovers', 1) * 0.5:
+                print(f"1. 🔧 REDUCE THRESHOLDS - Current settings are too restrictive")
+                print(f"   - Try min_histogram_threshold: 0.00005 (current: {min_histogram_threshold})")
+                print(f"   - Try min_distance_threshold: 0.001 (current: {min_distance_threshold})")
+        
+        if not signals_detected:
+            print(f"2. 📊 CHANGE TIMEFRAME - Try a different timeframe for more crossovers")
+            print(f"   - Current: {timeframe}, Try: 5m or 1h")
+        
+        print(f"3. 🎛️ ADJUST MACD PARAMETERS - Try more sensitive settings")
+        print(f"   - Current: Fast={fast_period}, Slow={slow_period}, Signal={signal_period}")
+        print(f"   - Try: Fast=8, Slow=21, Signal=5 (more sensitive)")
+        
+        print(f"4. ⏰ CHECK DIFFERENT TIME PERIODS - Current market may not be suitable")
+        
+        print(f"\n✅ DIAGNOSIS COMPLETE")
+        return True
+        
+    except Exception as e:
+        print(f"\n❌ CRITICAL ERROR IN DIAGNOSIS: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 if __name__ == "__main__":
     success = diagnose_macd_strategy()
