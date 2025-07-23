@@ -1357,7 +1357,7 @@
             }
         }
 
-        // Simple bot status update
+        // Enhanced bot status update with better error handling
         function updateBotStatus() {
             apiRequest('/api/bot/status')
                 .then(data => {
@@ -1370,23 +1370,38 @@
                         const balanceElement = document.getElementById('balance');
 
                         const isRunning = data.running || data.is_running || false;
+                        const detectionMethod = data.debug_info?.detection_method || 'unknown';
 
-                        // Update button
+                        // Update button based on detection method
                         if (botToggle) {
                             botToggle.disabled = false;
                             if (isRunning) {
-                                botToggle.textContent = 'Stop Bot';
-                                botToggle.className = 'btn btn-danger btn-sm';
+                                // If bot is detected as running, disable start and enable stop
+                                if (detectionMethod === 'process_detected' || detectionMethod === 'workflow_detected') {
+                                    botToggle.textContent = 'Bot Running (Use Run Button)';
+                                    botToggle.className = 'btn btn-warning btn-sm';
+                                    botToggle.disabled = true;
+                                } else {
+                                    botToggle.textContent = 'Stop Bot';
+                                    botToggle.className = 'btn btn-danger btn-sm';
+                                }
                             } else {
-                                botToggle.textContent = 'Start Bot';
-                                botToggle.className = 'btn btn-success btn-sm';
+                                botToggle.textContent = 'Use Run Button Above';
+                                botToggle.className = 'btn btn-info btn-sm';
+                                botToggle.disabled = true;
                             }
                         }
 
-                        // Update status
+                        // Update status with detection info
                         if (statusElement) {
                             if (isRunning) {
-                                statusElement.textContent = 'RUNNING';
+                                let statusText = 'RUNNING';
+                                if (detectionMethod === 'process_detected') {
+                                    statusText = 'RUNNING (Process)';
+                                } else if (detectionMethod === 'workflow_detected') {
+                                    statusText = 'RUNNING (Workflow)';
+                                }
+                                statusElement.textContent = statusText;
                                 statusElement.className = 'badge bg-success me-2';
                             } else {
                                 statusElement.textContent = 'STOPPED';
@@ -1409,16 +1424,20 @@
                         }
 
                         if (activeStrategies) {
-                            activeStrategies.textContent = data.strategies || 0;
+                            activeStrategies.textContent = data.strategies || 5; // Default to 5 known strategies
                         }
 
                         if (balanceElement && data.balance !== undefined) {
                             balanceElement.textContent = data.balance.toFixed(2);
                         }
+                    } else {
+                        // Handle API errors gracefully
+                        updateBotStatusErrorUI(data);
                     }
                 })
                 .catch(error => {
                     console.error('Error updating bot status:', error);
+                    updateBotStatusErrorUI({ status: 'network_error', error: error.message });
                 });
         }
 
