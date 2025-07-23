@@ -121,9 +121,10 @@ class TradingConfigManager:
         return config
 
     def update_strategy_params(self, strategy_name: str, updates: Dict[str, Any]):
-        """Update strategy parameters - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
-        # Validate and clean parameters
-        validated_updates = self._validate_parameters(updates)
+        """Update strategy parameters - SIMPLIFIED VALIDATION"""
+        # Apply only critical safety validation
+        from src.config.validation_safety import validation_safety
+        validated_updates, safety_warnings = validation_safety.validate_multiple_parameters(updates)
 
         # Initialize strategy config if not exists
         if strategy_name not in self.strategy_configs:
@@ -141,48 +142,8 @@ class TradingConfigManager:
         import logging
         logging.getLogger(__name__).info(f"🌐 WEB DASHBOARD: Updated {strategy_name} with {len(validated_updates)} parameters")
 
-    def _validate_parameters(self, updates: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate and clean parameters with safety checks"""
-        validated = {}
-
-        # Core trading parameters with safety validation
-        if 'symbol' in updates:
-            validated['symbol'] = str(updates['symbol']).upper()
-
-        if 'margin' in updates:
-            margin = float(updates['margin'])
-            validated['margin'] = max(1.0, margin)  # Minimum 1 USDT
-
-        if 'leverage' in updates:
-            leverage = int(updates['leverage'])
-            validated['leverage'] = max(1, min(125, leverage))  # 1-125x range
-
-        if 'timeframe' in updates:
-            valid_timeframes = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d']
-            timeframe = str(updates['timeframe'])
-            validated['timeframe'] = timeframe if timeframe in valid_timeframes else '15m'
-
-        if 'max_loss_pct' in updates:
-            max_loss = float(updates['max_loss_pct'])
-            validated['max_loss_pct'] = max(1.0, min(50.0, max_loss))  # 1-50% range
-
-        if 'assessment_interval' in updates:
-            interval = int(updates['assessment_interval'])
-            validated['assessment_interval'] = max(5, min(3600, interval))  # 5s-1h range
-
-        # Strategy-specific parameters
-        strategy_params = [
-            'decimals', 'cooldown_period', 'min_volume',
-            'rsi_period', 'rsi_long_entry', 'rsi_long_exit', 'rsi_short_entry', 'rsi_short_exit',
-            'macd_fast', 'macd_slow', 'macd_signal', 'macd_entry_threshold', 'macd_exit_threshold',
-            'min_histogram_threshold', 'confirmation_candles'
-        ]
-
-        for param in strategy_params:
-            if param in updates:
-                validated[param] = updates[param]
-
-        return validated
+        # Return safety warnings if any
+        return safety_warnings
 
     def _update_running_bot(self, strategy_name: str, updates: Dict[str, Any]):
         """Update running bot with new configuration"""
