@@ -680,8 +680,7 @@ class BacktestEngine:
             elif 'engulfing' in strategy_name.lower():
                 # Force fresh Engulfing handler
                 handler = EngulfingPatternStrategy(strategy_name, config.copy())
-                self.logger```python
-.info(f"✅ Created FRESH Engulfing Pattern strategy handler | ID: {backtest_id}")
+                self.logger.info(f"✅ Created FRESH Engulfing Pattern strategy handler | ID: {backtest_id}")
                 return handler
             elif 'smart_money' in strategy_name.lower():
                 # Force fresh Smart Money handler
