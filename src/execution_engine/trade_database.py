@@ -232,6 +232,28 @@ class TradeDatabase:
             self.logger.error(f"❌ Error syncing from logger: {e}")
             return 0
 
+    def get_recovery_candidates(self):
+        """Get open trades that could be recovered - simplified approach"""
+        try:
+            candidates = []
+            for trade_id, trade_data in self.trades.items():
+                if trade_data.get('trade_status') == 'OPEN':
+                    candidates.append({
+                        'trade_id': trade_id,
+                        'symbol': trade_data.get('symbol'),
+                        'side': trade_data.get('side'),
+                        'quantity': trade_data.get('quantity'),
+                        'entry_price': trade_data.get('entry_price'),
+                        'strategy_name': trade_data.get('strategy_name')
+                    })
+            
+            self.logger.info(f"🔍 Found {len(candidates)} recovery candidates in database")
+            return candidates
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error getting recovery candidates: {e}")
+            return []
+
     def cleanup_old_trades(self, days: int = 30):
         """Clean up trades older than specified days"""
         try:

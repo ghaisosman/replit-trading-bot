@@ -745,13 +745,24 @@ class OrderManager:
         Returns (is_legitimate, trade_id)
         """
         try:
-            self.logger.debug(f"🔍 VALIDATING POSITION | {strategy_name} | {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price}")
+            self.logger.info(f"🔍 DEBUG: VALIDATING POSITION | {strategy_name} | {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price}")
 
-            # Simple and reliable: Check if trade ID exists in database
+            # Check if trade ID exists in database with comprehensive tolerance
             try:
                 from src.execution_engine.trade_database import TradeDatabase
                 trade_db = TradeDatabase()
-                trade_id = trade_db.find_trade_by_position(strategy_name, symbol, side, quantity, entry_price, tolerance=0.01)
+                
+                # First try exact strategy match
+                trade_id = trade_db.find_trade_by_position(strategy_name, symbol, side, quantity, entry_price, tolerance=0.05)
+                
+                if not trade_id:
+                    # If no exact match, try searching all strategies (for recovered positions)
+                    self.logger.info(f"🔍 DEBUG: No exact strategy match, searching all strategies for {symbol}")
+                    trade_id = trade_db.find_trade_by_position('UNKNOWN', symbol, side, quantity, entry_price, tolerance=0.05)
+                    
+                    if trade_id:
+                        self.logger.info(f"🔍 DEBUG: Found matching trade in different strategy: {trade_id}")
+                
             except ImportError as e:
                 self.logger.warning(f"Trade database not available: {e}")
                 return False, None
@@ -760,14 +771,14 @@ class OrderManager:
                 return False, None
 
             if trade_id:
-                self.logger.info(f"✅ POSITION VALIDATED | Trade ID: {trade_id} | {strategy_name} | {symbol}")
+                self.logger.info(f"✅ DEBUG: POSITION VALIDATED | Trade ID: {trade_id} | {strategy_name} | {symbol}")
                 return True, trade_id
             else:
-                self.logger.warning(f"🚨 NO TRADE ID FOUND | {strategy_name} | {symbol} | Treating as manual position")
+                self.logger.warning(f"🚨 DEBUG: NO TRADE ID FOUND | {strategy_name} | {symbol} | Likely manual position")
                 return False, None
 
         except Exception as e:
-            self.logger.error(f"Error validating position legitimacy: {e}")
+            self.logger.error(f"❌ Error validating position legitimacy: {e}")
             return False, None
 
     def set_anomaly_detector(self, anomaly_detector):

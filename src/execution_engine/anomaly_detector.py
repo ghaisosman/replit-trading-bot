@@ -229,18 +229,23 @@ class AnomalyDetector:
 
     def register_bot_trade(self, symbol: str, strategy_name: str):
         """Register that bot just placed a trade or recovered a position"""
-        self.bot_trades_register[symbol] = datetime.now()
-
-        # For recovered positions during startup, extend protection period
+        current_time = datetime.now()
+        
+        # For recovered positions during startup, provide extended protection
         if not self.startup_complete:
-            # Extend protection to 5 minutes for recovered positions
-            extended_time = datetime.now() - timedelta(seconds=self.bot_trade_cooldown - 300)
-            self.bot_trades_register[symbol] = extended_time
-            self.logger.info(f"🔍 RECOVERED POSITION REGISTERED: {symbol} ({strategy_name}) - "
-                           f"Extended anomaly protection for 5 minutes")
+            # Give recovered positions 10 minutes of protection during startup
+            extended_protection_time = current_time - timedelta(seconds=self.bot_trade_cooldown - 600)
+            self.bot_trades_register[symbol] = extended_protection_time
+            self.logger.info(f"🔍 DEBUG: RECOVERED POSITION REGISTERED: {symbol} ({strategy_name}) - "
+                           f"Extended anomaly protection for 10 minutes during startup")
         else:
-            self.logger.info(f"🔍 BOT TRADE REGISTERED: {symbol} ({strategy_name}) - "
+            # Normal trade protection
+            self.bot_trades_register[symbol] = current_time
+            self.logger.info(f"🔍 DEBUG: BOT TRADE REGISTERED: {symbol} ({strategy_name}) - "
                            f"Anomaly detection paused for {self.bot_trade_cooldown}s")
+        
+        # Clear any existing anomalies for this symbol/strategy since it's now legitimate
+        self._clear_existing_anomalies_for_symbol(symbol, strategy_name)
 
     def is_bot_trade_protected(self, symbol: str) -> bool:
         """Check if symbol is protected due to recent bot trade"""
@@ -588,6 +593,27 @@ Symbol: {anomaly.symbol}
 
         for symbol in to_remove:
             del self.bot_trades_register[symbol]
+
+    def _clear_existing_anomalies_for_symbol(self, symbol: str, strategy_name: str):
+        """Clear any existing anomalies for a symbol when position is legitimately recovered"""
+        try:
+            cleared_count = 0
+            for anomaly_id, anomaly in list(self.db.anomalies.items()):
+                if (anomaly.symbol == symbol and 
+                    anomaly.strategy_name == strategy_name and 
+                    anomaly.status == AnomalyStatus.ACTIVE):
+                    
+                    self.db.update_anomaly(anomaly_id, 
+                                         status=AnomalyStatus.CLEARED,
+                                         cleared_at=datetime.now())
+                    cleared_count += 1
+                    self.logger.info(f"🧹 DEBUG: Cleared existing anomaly for recovered position: {anomaly_id}")
+            
+            if cleared_count > 0:
+                self.logger.info(f"🧹 DEBUG: Cleared {cleared_count} existing anomalies for {symbol} ({strategy_name})")
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error clearing existing anomalies: {e}")
 
     def has_blocking_anomaly(self, strategy_name: str) -> bool:
         """Check if strategy has blocking anomaly"""
