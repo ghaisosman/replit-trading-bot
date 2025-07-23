@@ -20,20 +20,42 @@ def signal_handler(signum, frame):
     shutdown_event.set()
 
 def run_web_dashboard():
-    """Run web dashboard in separate thread"""
+    """Run web dashboard with enhanced stability"""
     try:
         # Import here to avoid circular imports
         from web_dashboard import app
-
+        
+        # Configure Flask for maximum stability
+        app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max request
+        app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 300  # 5 minutes cache
+        app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 minutes
+        
         # Get port from environment
         port = int(os.environ.get('PORT', 5000))
 
-        # Run Flask app
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
+        # Run Flask app with enhanced settings for stability
+        app.run(
+            host='0.0.0.0', 
+            port=port, 
+            debug=False, 
+            use_reloader=False, 
+            threaded=True,
+            processes=1,  # Single process to prevent conflicts
+            request_handler=None  # Use default handler
+        )
 
     except Exception as e:
         logger = logging.getLogger(__name__)
         logger.error(f"Web dashboard error: {e}")
+        
+        # Try to restart after a delay if the web dashboard crashes
+        import time
+        time.sleep(5)
+        logger.info("Attempting to restart web dashboard after crash...")
+        try:
+            run_web_dashboard()  # Recursive restart attempt
+        except Exception as restart_error:
+            logger.error(f"Web dashboard restart failed: {restart_error}")
 
 async def main():
     print(">>> ENTERED main()")
