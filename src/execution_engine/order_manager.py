@@ -1190,7 +1190,7 @@ Remaining Position: {position.remaining_quantity} {position.symbol.replace('USDT
         except Exception as e:
             self.logger.error(f"❌ TELEGRAM: Failed to send partial TP notification: {e}")
 
-    def _sync_database_to_logger(self, trade_id: str, trade_data: Dict):
+    def _sync_database_to_logger(self, trade_id: str, trade_data: Dict) -> bool:
         """Sync trade from database to logger (database is source of truth)"""
         try:
             from src.analytics.trade_logger import trade_logger
@@ -1222,11 +1222,14 @@ Remaining Position: {position.remaining_quantity} {position.symbol.replace('USDT
             
             if success:
                 self.logger.info(f"✅ SYNCED TO LOGGER | {trade_id} | Database → Logger sync complete")
+                return True
             else:
                 self.logger.error(f"❌ FAILED TO SYNC TO LOGGER | {trade_id}")
+                return False
                 
         except Exception as e:
             self.logger.error(f"❌ Error syncing database to logger: {e}")
+            return False
 
     def _log_trade_for_validation(self, position: Position) -> None:
         """Log trade details for validation purposes with error handling"""

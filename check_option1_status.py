@@ -105,12 +105,18 @@ def check_option1_implementation():
         
         # Test sync to logger
         if db_success:
-            sync_success = order_manager._sync_database_to_logger(test_trade_id, test_data)
-            print(f"Sync to logger: {'SUCCESS' if sync_success else 'FAILED'}")
-            
-            # Verify in logger
-            logger_has_trade = any(t.trade_id == test_trade_id for t in trade_logger.trades)
-            print(f"Trade in logger: {'YES' if logger_has_trade else 'NO'}")
+            try:
+                sync_success = order_manager._sync_database_to_logger(test_trade_id, test_data)
+                print(f"Sync to logger: {'SUCCESS' if sync_success else 'FAILED'}")
+                
+                # Verify in logger
+                logger_has_trade = any(t.trade_id == test_trade_id for t in trade_logger.trades)
+                print(f"Trade in logger: {'YES' if logger_has_trade else 'NO'}")
+                
+            except Exception as sync_error:
+                print(f"❌ Sync error: {sync_error}")
+                print(f"Sync to logger: FAILED")
+                print(f"Trade in logger: NO")
             
         # Cleanup test trade
         if test_trade_id in trade_db.trades:
