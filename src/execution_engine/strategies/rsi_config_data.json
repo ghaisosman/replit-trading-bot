@@ -1,10 +1,6 @@
+
 {
-  "max_loss_pct": 5,
-  "rsi_period": 14,
-  "rsi_long_entry": 45,
-  "rsi_long_exit": 60,
-  "rsi_short_entry": 55,
-  "rsi_short_exit": 40,
-  "min_volume": 1000000,
-  "cooldown_period": 300
+  "deprecated": true,
+  "message": "This configuration file is deprecated. Use the web dashboard for all strategy configuration.",
+  "redirect": "WEB_DASHBOARD_ONLY"
 }

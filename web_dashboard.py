@@ -720,6 +720,9 @@ def get_strategies():
 
             # Get all strategies from web dashboard configuration manager
             strategies = trading_config_manager.get_all_strategies()
+            
+            # Get validation status
+            validation_status = trading_config_manager.get_strategy_validation_status()
 
             # Ensure ALL configurable parameters are present for each strategy
             for name, config in strategies.items():
@@ -793,7 +796,13 @@ def get_strategies():
 
             logger.info(f"🌐 WEB DASHBOARD: Serving COMPLETE configurations for {len(strategies)} strategies")
             logger.info(f"📋 All parameters available for manual configuration via dashboard")
-            return jsonify(strategies)
+            
+            # Include validation status in response
+            response_data = {
+                'strategies': strategies,
+                'validation_status': validation_status
+            }
+            return jsonify(response_data)
         else:
             # Return comprehensive default strategies for demo
             return jsonify({
@@ -877,18 +886,32 @@ def create_strategy():
         except (ValueError, TypeError):
             return jsonify({'success': False, 'message': 'Invalid margin or leverage values'})
 
-        # Create comprehensive strategy configuration with web dashboard as source of truth
-        new_config = {
+        # Determine strategy type
+        strategy_type = None
+        if 'rsi' in strategy_name.lower():
+            strategy_type = 'rsi'
+        elif 'macd' in strategy_name.lower():
+            strategy_type = 'macd'
+        elif 'engulfing' in strategy_name.lower():
+            strategy_type = 'engulfing'
+        elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
+            strategy_type = 'smart_money'
+        
+        if not strategy_type:
+            return jsonify({'success': False, 'message': 'Cannot determine strategy type from name'})
+
+        # Create complete strategy configuration using the new method
+        new_config = trading_config_manager.create_complete_strategy(strategy_name, strategy_type)
+        
+        # Override with user-provided values
+        new_config.update({
             'symbol': symbol,
             'margin': margin,
             'leverage': leverage,
             'timeframe': data.get('timeframe', '15m'),
             'max_loss_pct': float(data.get('max_loss_pct', 10.0)),
-            'assessment_interval': int(data.get('assessment_interval', 60)),
-            'cooldown_period': int(data.get('cooldown_period', 300)),
-            'decimals': 2 if 'ETH' in symbol or 'SOL' in symbol else 3,
-            'min_volume': 1000000
-        }
+            'assessment_interval': int(data.get('assessment_interval', 60))
+        })
 
         # Add strategy-specific parameters with validation
 
@@ -1779,6 +1802,25 @@ def get_binance_positions():
             'error': str(e),
             'positions': []
         }), 500
+
+@app.route('/api/strategies/validation', methods=['GET'])
+def get_strategy_validation():
+    """Get strategy validation status"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Validation not available in demo mode'})
+
+        validation_status = trading_config_manager.get_strategy_validation_status()
+        
+        return jsonify({
+            'success': True,
+            'validation_status': validation_status,
+            'operational_count': sum(1 for status in validation_status.values() if status['operational']),
+            'total_count': len(validation_status)
+        })
+    except Exception as e:
+        logger.error(f"Error getting strategy validation: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/trading/environment', methods=['GET'])
 def get_trading_environment():

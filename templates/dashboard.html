@@ -1145,6 +1145,9 @@
 
         // Add autoRefresh variable
         let autoRefresh = true;
+        let strategiesCache = {};
+        let validationStatusCache = {};
+        let wsConnection = null;
 
         // Bot control functions
         document.getElementById('botToggle').addEventListener('click', function() {
@@ -2313,10 +2316,16 @@
             const timestamp = new Date().getTime();
             fetch('/api/strategies?_t=' + timestamp)
                 .then(response => response.json())
-                .then(strategies => {
-                    // Update global strategies cache
-                    window.strategiesData = strategies;
-                    window.strategiesCache = strategies;
+                .then(data => {
+                    // Handle new data structure with validation status
+                    if (data.strategies) {
+                        strategiesCache = data.strategies;
+                        validationStatusCache = data.validation_status || {};
+                    } else {
+                        // Fallback for old format
+                        strategiesCache = data;
+                        validationStatusCache = {};
+                    }
                     console.log('🔄 Strategies data refreshed with latest configurations');
                 })
                 .catch(error => {
@@ -2330,8 +2339,8 @@
             const timestamp = new Date().getTime();
             fetch('/api/strategies?_t=' + timestamp)
                 .then(response => response.json())
-                .then(strategies => {
-                    const config = strategies[strategyName];
+                .then(data => {
+                    const config = strategiesCache[strategyName];
                     if (config) {
                         editStrategyConfig(strategyName);
                     } else {
