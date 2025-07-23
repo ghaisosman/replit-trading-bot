@@ -733,7 +733,7 @@ class BotManager:
                     positions = self.binance_client.client.futures_position_information(symbol=symbol)
                     for position in positions:
                         position_amt = float(position.get('positionAmt', 0))
-                        if abs(position_amt) > 0.001:
+                        if abs(position_amt) > 0:
                             self.logger.warning(f"⚠️ BINANCE POSITION EXISTS | {strategy_name.upper()} | {symbol} | Position: {position_amt} | Skipping new trade to prevent duplicates")
                             return
             except Exception as e:
@@ -984,71 +984,3 @@ class BotManager:
 
         except Exception as e:
             self.logger.error(f"Error in exit conditions check: {e}")
-
-    def _check_position_exit_conditions(self, position, current_price: float, strategy_config: dict) -> bool:
-        """Check if position should be closed based on exit conditions with ENHANCED stop loss monitoring"""
-        try:
-            # PRIORITY 1: Check stop loss first (most critical)
-            actual_margin_used = getattr(position, 'actual_margin_used', strategy_config.get('margin', 50.0))
-            max_loss_pct = strategy_config.get('max_loss_pct', 10.0)
-
-            # Calculate current PnL
-            if position.side == 'BUY':
-                pnl_usdt = (current_price - position.entry_price) * position.quantity
-            else:  # SELL
-                pnl_usdt = (position.entry_price - current_price) * position.quantity
-
-            pnl_percentage = (pnl_usdt / actual_margin_used) * 100
-
-            # CRITICAL: Stop loss check with both percentage and price
-            stop_loss_triggered = False
-            stop_loss_reason = ""
-
-            # Check percentage-based stop loss
-            if pnl_percentage <= -max_loss_pct:
-                stop_loss_triggered = True
-                stop_loss_reason = f"Max Loss {max_loss_pct}% exceeded ({pnl_percentage:.2f}%)"
-
-            # Check price-based stop loss
-            elif position.stop_loss:
-                if position.side == 'BUY' and current_price <= position.stop_loss:
-                    stop_loss_triggered = True
-                    stop_loss_reason = f"Price hit stop loss ${position.stop_loss:.4f}"
-                elif position.side == 'SELL' and current_price >= position.stop_loss:
-                    stop_loss_triggered = True
-                    stop_loss_reason = f"Price hit stop loss ${position.stop_loss:.4f}"
-
-            # IMMEDIATE exit if stop loss triggered
-            if stop_loss_triggered:
-                self.logger.error(f"🛑 STOP LOSS TRIGGERED | {position.strategy_name} | {stop_loss_reason}")
-                self.logger.error(f"   💰 Entry: ${position.entry_price:.4f} | Current: ${current_price:.4f}")
-                self.logger.error(f"   📊 PnL: ${pnl_usdt:.2f} ({pnl_percentage:.2f}%) | Margin: ${actual_margin_used:.2f}")
-
-                close_result = self.order_manager.close_position(position.strategy_name, f"Stop Loss: {stop_loss_reason}")
-                if close_result:
-                    self.logger.info(f"✅ Stop loss position closed for {position.strategy_name}")
-                    return True
-                else:
-                    self.logger.error(f"❌ Failed to close stop loss position for {position.strategy_name}")
-                    return False
-
-            # PRIORITY 2: Check other exit conditions (strategy-specific)
-            df = self.price_fetcher.get_latest_data(position.symbol, strategy_config.get('timeframe', '15m'))
-            if df is None or df.empty:
-                return False
-
-            # Check strategy-specific exit conditions
-            exit_result = self.signal_processor.evaluate_exit_conditions(df, asdict(position), strategy_config)
-
-            if exit_result:
-                self.logger.info(f"Strategy exit condition met for {position.strategy_name}: {exit_result}")
-                close_result = self.order_manager.close_position(position.strategy_name, exit_result)
-                if close_result:
-                    self.logger.info(f"Position closed successfully for {position.strategy_name}")
-                    return True
-
-            return False
-
-        except Exception as e:
-            self.logger.error(f"Error checking exit conditions for {position.strategy_name}: {e}")
-            return False

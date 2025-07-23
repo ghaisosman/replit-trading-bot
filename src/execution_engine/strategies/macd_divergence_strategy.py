@@ -25,7 +25,7 @@ class MACDDivergenceStrategy:
         self.config = config
         self.logger = logging.getLogger(__name__)
 
-        # Extract strategy-specific parameters with debug logging
+        # Extract strategy-specific parameters
         self.macd_fast = config.get('macd_fast', 12)
         self.macd_slow = config.get('macd_slow', 26)
         self.macd_signal = config.get('macd_signal', 9)
@@ -33,18 +33,6 @@ class MACDDivergenceStrategy:
         self.entry_threshold = config.get('macd_entry_threshold', config.get('min_distance_threshold', 0.0015))
         self.exit_threshold = config.get('macd_exit_threshold', 0.002)
         self.confirmation_candles = config.get('confirmation_candles', 1)
-        
-        # Debug: Log actual configuration values received
-        self.logger.info(f"🔍 MACD CONFIG DEBUG:")
-        for key, value in config.items():
-            if 'macd' in key.lower() or key in ['margin', 'leverage', 'max_loss_pct']:
-                self.logger.info(f"   {key}: {value}")
-        
-        # Validate configuration
-        if self.macd_fast >= self.macd_slow:
-            self.logger.warning(f"⚠️ Invalid MACD config: fast({self.macd_fast}) >= slow({self.macd_slow}), using defaults")
-            self.macd_fast = 12
-            self.macd_slow = 26
 
         self.logger.info(f"🆕 MACD DIVERGENCE STRATEGY INITIALIZED: {strategy_name}")
         self.logger.info(f"📊 Config: Fast={self.macd_fast}, Slow={self.macd_slow}, Signal={self.macd_signal}")
@@ -56,19 +44,11 @@ class MACDDivergenceStrategy:
             if df.empty or len(df) < max(50, self.macd_slow + self.macd_signal):
                 return df
 
-            self.logger.debug(f"🔧 Calculating MACD with parameters: Fast={self.macd_fast}, Slow={self.macd_slow}, Signal={self.macd_signal}")
-
             df['ema_fast'] = df['close'].ewm(span=self.macd_fast).mean()
             df['ema_slow'] = df['close'].ewm(span=self.macd_slow).mean()
             df['macd'] = df['ema_fast'] - df['ema_slow']
             df['macd_signal'] = df['macd'].ewm(span=self.macd_signal).mean()
             df['macd_histogram'] = df['macd'] - df['macd_signal']
-
-            # Validate calculations
-            if df['macd'].isna().all():
-                self.logger.error("❌ MACD calculation failed - all NaN values")
-            else:
-                self.logger.debug(f"✅ MACD calculated - range: {df['macd'].min():.6f} to {df['macd'].max():.6f}")
 
             return df
 
@@ -109,19 +89,13 @@ class MACDDivergenceStrategy:
             line_distance = abs(macd_current - signal_current) / current_price
             histogram_momentum = histogram_current - histogram_prev
 
-            # --- BULLISH ENTRY: More aggressive pre-crossover detection ---
-            # Debug logging for MACD values
-            self.logger.info(f"🔍 MACD DEBUG - Current: {macd_current:.6f}, Signal: {signal_current:.6f}")
-            self.logger.info(f"🔍 HISTOGRAM DEBUG - Current: {histogram_current:.6f}, Previous: {histogram_prev:.6f}")
-            self.logger.info(f"🔍 THRESHOLDS - Entry: {self.entry_threshold}, Histogram: {self.min_histogram_threshold}")
-            self.logger.info(f"🔍 CONDITIONS - Line Distance: {line_distance:.6f}, Momentum: {histogram_momentum:.6f}")
-
-            # More lenient bullish entry conditions
+            # --- BULLISH ENTRY: Pre-crossover momentum and divergence ---
             if (
                 macd_current < signal_current and  # Still below signal (pre-crossover)
                 histogram_current > histogram_prev and  # Momentum up
                 histogram_current < 0 and  # Still negative
-                abs(histogram_momentum) >= self.min_histogram_threshold  # Remove strict line distance requirement
+                abs(histogram_momentum) >= self.min_histogram_threshold and
+                line_distance >= self.entry_threshold
             ):
                 # Optional: Confirm momentum over multiple candles
                 momentum_confirmed = True
@@ -144,12 +118,13 @@ class MACDDivergenceStrategy:
                         reason=f"MACD BULLISH PRE-CROSS: Histogram rising ({histogram_current:.6f}→{histogram_prev:.6f})"
                     )
 
-            # --- BEARISH ENTRY: More aggressive pre-crossover detection ---
+            # --- BEARISH ENTRY: Pre-crossover momentum and divergence ---
             elif (
                 macd_current > signal_current and
                 histogram_current < histogram_prev and
                 histogram_current > 0 and
-                abs(histogram_momentum) >= self.min_histogram_threshold  # Remove strict line distance requirement
+                abs(histogram_momentum) >= self.min_histogram_threshold and
+                line_distance >= self.entry_threshold
             ):
                 momentum_confirmed = True
                 if self.confirmation_candles > 1:

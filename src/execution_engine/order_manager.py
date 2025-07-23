@@ -4,7 +4,6 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
 import json
-import pandas as pd
 from src.binance_client.client import BinanceClientWrapper
 from src.strategy_processor.signal_processor import TradingSignal, SignalType
 
@@ -1223,68 +1222,3 @@ Remaining Position: {position.remaining_quantity} {position.symbol.replace('USDT
         except Exception as e:
             self.logger.error(f"Error validating position details: {e}")
             return False
-
-    def _check_exit_conditions(self, position: Dict, df: pd.DataFrame, current_price: float, 
-                              strategy_handler, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Check exit conditions for current position with ENHANCED stop loss enforcement"""
-        try:
-            # CRITICAL: Get actual margin used for this position
-            actual_margin_used = getattr(position, 'actual_margin_used', None)
-
-            # Fallback to strategy config margin if not available
-            if not actual_margin_used:
-                if hasattr(position, 'strategy_config') and position.strategy_config:
-                    actual_margin_used = position.strategy_config.get('margin', 50.0)
-                else:
-                    actual_margin_used = config.get('margin', 50.0)
-                self.logger.warning(f"⚠️ Using fallback margin ${actual_margin_used} for stop loss calculation")
-
-            max_loss_pct = config.get('max_loss_pct', 10.0)
-            leverage = config.get('leverage', 5)
-
-            # Calculate current PnL correctly
-            entry_price = position.entry_price
-            quantity = position.quantity
-            side = position.side
-
-            # Calculate PnL in USDT
-            if side == 'BUY':
-                pnl_usdt = (current_price - entry_price) * quantity
-            else:  # SELL
-                pnl_usdt = (entry_price - current_price) * quantity
-
-            # FIXED: Calculate PnL percentage against ACTUAL margin invested
-            pnl_percentage = (pnl_usdt / actual_margin_used) * 100
-
-            # ENHANCED: Also check stop loss price directly
-            stop_loss_price = position.stop_loss
-            stop_loss_triggered_by_price = False
-
-            if stop_loss_price:
-                if side == 'BUY' and current_price <= stop_loss_price:
-                    stop_loss_triggered_by_price = True
-                elif side == 'SELL' and current_price >= stop_loss_price:
-                    stop_loss_triggered_by_price = True
-
-            # Check stop loss - either by percentage OR by price (whichever triggers first)
-            if pnl_percentage <= -max_loss_pct or stop_loss_triggered_by_price:
-                reason = f'Stop Loss (Max Loss {max_loss_pct}%)' if pnl_percentage <= -max_loss_pct else f'Stop Loss (Price: ${stop_loss_price:.4f})'
-
-                self.logger.info(f"🛑 STOP LOSS TRIGGERED | {position.strategy_name} | {side}")
-                self.logger.info(f"   💰 Entry: ${entry_price:.4f} | Current: ${current_price:.4f}")
-                self.logger.info(f"   📊 PnL: ${pnl_usdt:.2f} ({pnl_percentage:.2f}%) | Margin: ${actual_margin_used:.2f}")
-                self.logger.info(f"   🎯 SL Price: ${stop_loss_price:.4f} | Price Trigger: {stop_loss_triggered_by_price}")
-
-                return {
-                    'reason': reason,
-                    'type': 'stop_loss',
-                    'pnl_percentage': pnl_percentage,
-                    'pnl_usdt': pnl_usdt
-                }
-
-            # If no stop loss triggered, return None
-            return None
-
-        except Exception as e:
-            self.logger.error(f"Error checking exit conditions: {e}")
-            return None

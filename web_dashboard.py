@@ -2234,211 +2234,95 @@ def generate_market_analysis():
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/generate_ai_report', methods=['POST'])
-def generate_ai_report():
-    """Generate comprehensive AI trading report"""
+def generate_ai_ready_report():
+    """Generate comprehensive AI-ready report"""
     try:
         if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'AI features not available in demo mode'})
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
 
-        from src.analytics.ai_advisor import AIAdvisor
+        from src.analytics.ml_analyzer import ml_analyzer
+        from pathlib import Path
+        from datetime import datetime
 
-        advisor = AIAdvisor()
-        report = advisor.generate_comprehensive_report()
+        # Generate detailed report
+        report = ml_analyzer.generate_detailed_ai_report("comprehensive")
 
-        if "error" in report:
-            return jsonify({'success': False, 'error': report['error']})
+        # Save to file
+        reports_dir = Path("trading_data/ai_reports")
+        reports_dir.mkdir(exist_ok=True, parents=True)
 
-        return jsonify({'success': True, 'report': report})
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"ai_ready_report_{timestamp}.txt"
+        filepath = reports_dir / filename
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(report)
+
+        return jsonify({
+            'success': True, 
+            'filename': str(filepath),
+            'length': len(report)
+        })
 
     except Exception as e:
         logger.error(f"Error generating AI report: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/backtest')
-def backtest_page():
-    """Backtest page"""
+@app.route('/api/export_structured_data', methods=['POST'])
+def export_structured_ml_data():
+    """Export structured data for AI analysis"""
     try:
-        return render_template('backtest.html')
-    except Exception as e:
-        logger.error(f"Error loading backtest page: {e}")
-        return f"Error loading backtest page: {e}"
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
 
-@app.route('/api/backtest/templates')
-def get_backtest_templates():
-    """Get strategy templates for backtesting"""
-    try:
-        from backtest_system import web_interface
-        templates = web_interface.get_strategy_templates()
-        return jsonify({'success': True, 'templates': templates})
+        from src.analytics.ml_analyzer import ml_analyzer
+        from pathlib import Path
+        from datetime import datetime
+        import json
+
+        # Export structured data
+        structured_data = ml_analyzer.export_ai_ready_data("json")
+
+        if "error" in structured_data:
+            return jsonify({'success': False, 'error': structured_data['error']})
+
+        # Save to file
+        reports_dir = Path("trading_data/ai_reports")
+        reports_dir.mkdir(exist_ok=True, parents=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"structured_data_{timestamp}.json"
+        filepath = reports_dir / filename
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(structured_data, f, indent=2, ensure_ascii=False)
+
+        # Extract summary
+        summary = {
+            'total_trades': structured_data.get('report_metadata', {}).get('total_trades', 0),
+            'win_rate': structured_data.get('performance_summary', {}).get('win_rate', 0),
+            'total_pnl': structured_data.get('performance_summary', {}).get('total_pnl_percentage', 0),
+            'strategies': len(structured_data.get('strategy_breakdown', {}))
+        }
+
+        return jsonify({
+            'success': True, 
+            'filename': str(filepath),
+            'summary': summary
+        })
+
     except Exception as e:
-        logger.error(f"Error getting backtest templates: {e}")
+        logger.error(f"Error exporting structured data: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/backtest/run', methods=['POST'])
-def run_backtest():
-    """Run backtest with user configuration"""
-    try:
-        # Always return JSON, never HTML
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'Backtesting not available in demo mode. Please install required dependencies.'}), 200
+@app.route('/api/copy_report_clipboard', methods=['POST'])
+def copy_report_to_clipboard():
+    """""Generate and copy report to clipboard"""
+    return jsonify({'success': False, 'error': 'Not implemented'}), 501
 
-        # Safely import backtest system
-        try:
-            from backtest_system import web_interface
-        except ImportError as import_error:
-            error_msg = f"Backtest system import failed: {str(import_error)}"
-            logger.error(error_msg)
-            return jsonify({'success': False, 'error': 'Backtest system is not available. Please check if all dependencies are installed.'}), 200
-
-        # Get and validate JSON data
-        try:
-            form_data = request.get_json()
-        except Exception as json_error:
-            return jsonify({'success': False, 'error': f'Invalid JSON data: {str(json_error)}'}), 200
-            
-        if not form_data:
-            return jsonify({'success': False, 'error': 'No configuration data provided. Please fill out the backtest form.'}), 200
-
-        # Extract and validate core fields with debug logging
-        strategy_name = form_data.get('strategy_name', '').strip() if form_data.get('strategy_name') else ''
-        start_date = form_data.get('start_date', '').strip() if form_data.get('start_date') else ''
-        end_date = form_data.get('end_date', '').strip() if form_data.get('end_date') else ''
-        symbol = form_data.get('symbol', '').strip().upper() if form_data.get('symbol') else ''
-        timeframe = form_data.get('timeframe', '').strip() if form_data.get('timeframe') else ''
-
-        # Debug logging with safe access
-        logger.info(f"🔍 Backtest form data received:")
-        logger.info(f"   Strategy: '{strategy_name}'")
-        logger.info(f"   Symbol: '{symbol}'")
-        logger.info(f"   Timeframe: '{timeframe}'")
-        logger.info(f"   Start Date: '{start_date}'")
-        logger.info(f"   End Date: '{end_date}'")
-        logger.info(f"   All form keys: {list(form_data.keys()) if form_data else 'None'}")
-
-        # Validate required fields
-        if not strategy_name:
-            return jsonify({'success': False, 'error': 'Strategy name is required'}), 200
-        if not start_date:
-            return jsonify({'success': False, 'error': 'Start date is required'}), 200
-        if not end_date:
-            return jsonify({'success': False, 'error': 'End date is required'}), 200
-        if not symbol:
-            return jsonify({'success': False, 'error': 'Symbol is required - please select a trading pair'}), 200
-        if not timeframe:
-            return jsonify({'success': False, 'error': 'Timeframe is required - please select a timeframe'}), 200
-
-        # Validate date format
-        try:
-            from datetime import datetime
-            start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
-            
-            if start_dt >= end_dt:
-                return jsonify({'success': False, 'error': 'Start date must be before end date'}), 200
-            
-            if end_dt > datetime.now():
-                return jsonify({'success': False, 'error': 'End date cannot be in the future'}), 200
-                
-        except ValueError as date_error:
-            return jsonify({'success': False, 'error': f'Invalid date format: {str(date_error)}'}), 200
-
-        # Build proper configuration with safe value extraction
-        try:
-            backtest_config = {
-                'strategy_name': strategy_name,
-                'start_date': start_date,
-                'end_date': end_date,
-                'symbol': symbol,
-                'timeframe': timeframe,
-                'margin': float(form_data.get('margin', 50.0)),
-                'leverage': int(form_data.get('leverage', 5)),
-                'max_loss_pct': float(form_data.get('max_loss_pct', 10.0)),
-                'assessment_interval': int(form_data.get('assessment_interval', 60)),
-                'cooldown_period': int(form_data.get('cooldown_period', 300)),
-                'decimals': int(form_data.get('decimals', 2))
-            }
-        except (ValueError, TypeError) as value_error:
-            return jsonify({'success': False, 'error': f'Invalid parameter values: {str(value_error)}'}), 200
-
-        # Add strategy-specific parameters with safe extraction
-        try:
-            if 'rsi' in strategy_name.lower():
-                backtest_config.update({
-                    'rsi_period': int(form_data.get('rsi_period', 14)),
-                    'rsi_long_entry': int(form_data.get('rsi_long_entry', 30)),
-                    'rsi_long_exit': int(form_data.get('rsi_long_exit', 70)),
-                    'rsi_short_entry': int(form_data.get('rsi_short_entry', 70)),
-                    'rsi_short_exit': int(form_data.get('rsi_short_exit', 30))
-                })
-            elif 'macd' in strategy_name.lower():
-                backtest_config.update({
-                    'macd_fast': int(form_data.get('macd_fast', 12)),
-                    'macd_slow': int(form_data.get('macd_slow', 26)),
-                    'macd_signal': int(form_data.get('macd_signal', 9)),
-                    'min_histogram_threshold': float(form_data.get('min_histogram_threshold', 0.0001)),
-                    'macd_entry_threshold': float(form_data.get('macd_entry_threshold', 0.0015)),
-                    'macd_exit_threshold': float(form_data.get('macd_exit_threshold', 0.002)),
-                    'confirmation_candles': int(form_data.get('confirmation_candles', 1))
-                })
-            elif 'engulfing' in strategy_name.lower():
-                backtest_config.update({
-                    'rsi_period': int(form_data.get('rsi_period', 14)),
-                    'rsi_threshold': float(form_data.get('rsi_threshold', 50)),
-                    'rsi_long_exit': int(form_data.get('rsi_long_exit', 70)),
-                    'rsi_short_exit': int(form_data.get('rsi_short_exit', 30)),
-                    'stable_candle_ratio': float(form_data.get('stable_candle_ratio', 0.5)),
-                    'price_lookback_bars': int(form_data.get('price_lookback_bars', 5))
-                })
-            elif 'smart_money' in strategy_name.lower():
-                backtest_config.update({
-                    'swing_lookback_period': int(form_data.get('swing_lookback_period', 25)),
-                    'sweep_threshold_pct': float(form_data.get('sweep_threshold_pct', 0.1)),
-                    'reversion_candles': int(form_data.get('reversion_candles', 3)),
-                    'volume_spike_multiplier': float(form_data.get('volume_spike_multiplier', 2.0)),
-                    'min_swing_distance_pct': float(form_data.get('min_swing_distance_pct', 1.0))
-                })
-        except (ValueError, TypeError) as strategy_value_error:
-            return jsonify({'success': False, 'error': f'Invalid strategy parameters: {str(strategy_value_error)}'}), 200
-
-        # Log the configuration being sent
-        logger.info(f"🚀 Starting backtest: {strategy_name} on {symbol} {timeframe}")
-        logger.info(f"📊 Config: {backtest_config}")
-
-        # Run backtest with properly structured configuration
-        try:
-            result = web_interface.run_backtest_from_web(backtest_config)
-        except Exception as backtest_error:
-            error_msg = f"Backtest execution failed: {str(backtest_error)}"
-            logger.error(f"❌ {error_msg}")
-            import traceback
-            logger.error(f"Full traceback: {traceback.format_exc()}")
-            return jsonify({'success': False, 'error': error_msg}), 200
-        
-        # Validate result structure
-        if not isinstance(result, dict):
-            return jsonify({'success': False, 'error': 'Invalid backtest result format'}), 200
-            
-        # Check if backtest was successful
-        if not result.get('success'):
-            error_msg = result.get('error', 'Unknown backtest error')
-            logger.error(f"❌ Backtest failed: {error_msg}")
-            return jsonify({'success': False, 'error': error_msg}), 200
-        
-        # Check if the result contains an error in the backtest result itself
-        if result.get('result') and result['result'].get('error'):
-            error_msg = result['result']['error']
-            logger.error(f"❌ Backtest execution error: {error_msg}")
-            return jsonify({'success': False, 'error': error_msg}), 200
-        
-        logger.info(f"✅ Backtest completed successfully")
-        return jsonify(result), 200
-
-    except Exception as e:
-        error_msg = f"Unexpected error during backtest: {str(e)}"
-        logger.error(error_msg)
-        import traceback
-        logger.error(f"Full traceback: {traceback.format_exc()}")
-        return jsonify({'success': False, 'error': error_msg}), 200
+    # Future implementation:
+    # 1. Generate detailed report using ml_analyzer.generate_detailed_ai_report()
+    # 2. Return report content for the frontend to copy to clipboard
 
 # Auto-Restart Mechanism
 restart_attempts = 0  # Global counter for restart attempts
