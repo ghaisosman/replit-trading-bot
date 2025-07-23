@@ -1,3 +1,4 @@
+"""Rebuild RSI strategy in backtest with the same logic as the live trading bot, including intrabar stop loss checks and accurate PnL calculation."""
 #!/usr/bin/env python3
 """
 Comprehensive Backtesting System
@@ -559,17 +560,17 @@ class BacktestEngine:
                         if exit_result:
                             # Use the exact exit price from stop loss calculation
                             exit_price = exit_result.get('exit_price', current_price)
-                            
+
                             # Close position with accurate exit price
                             trade_result = self._close_position(
                                 current_position, exit_price, current_time, exit_result['reason']
                             )
-                            
+
                             # Override PnL if we have more accurate calculation from exit conditions
                             if 'pnl_usdt' in exit_result:
                                 trade_result['pnl_usdt'] = exit_result['pnl_usdt']
                                 trade_result['pnl_percentage'] = exit_result['pnl_percentage']
-                            
+
                             trades.append(trade_result)
                             current_position = None
                             last_trade_exit_time = current_time
@@ -679,7 +680,8 @@ class BacktestEngine:
             elif 'engulfing' in strategy_name.lower():
                 # Force fresh Engulfing handler
                 handler = EngulfingPatternStrategy(strategy_name, config.copy())
-                self.logger.info(f"✅ Created FRESH Engulfing Pattern strategy handler | ID: {backtest_id}")
+                self.logger```python
+.info(f"✅ Created FRESH Engulfing Pattern strategy handler | ID: {backtest_id}")
                 return handler
             elif 'smart_money' in strategy_name.lower():
                 # Force fresh Smart Money handler
@@ -1347,176 +1349,4 @@ class BacktestWebInterface:
 
             # CRITICAL: Extract symbol and timeframe FIRST from form data
             symbol = form_data.get('symbol', '').strip().upper()
-            timeframe = form_data.get('timeframe', '').strip()
-
-            # Set critical fields with validation
-            if symbol:
-                base_config['symbol'] = symbol
-            elif 'symbol' not in base_config or not base_config['symbol']:
-                base_config['symbol'] = 'BTCUSDT'  # Default fallback
-
-            if timeframe:
-                base_config['timeframe'] = timeframe
-            elif 'timeframe' not in base_config or not base_config['timeframe']:
-                base_config['timeframe'] = '15m'  # Default fallback
-
-            # DEBUG: Log original template values
-            print(f"🔍 ORIGINAL TEMPLATE CONFIG for {strategy_name} | Cache Bust: {cache_bust_id}:")
-            for key, value in sorted(base_config.items()):
-                print(f"   {key}: {value} (type: {type(value).__name__})")
-
-            # LOG ALL FORM DATA RECEIVED
-            print(f"📥 RAW FORM DATA RECEIVED:")
-            for key, value in sorted(form_data.items()):
-                print(f"   {key}: {value} (type: {type(value).__name__})")
-
-            # Override with form values - FORCE TYPE CONVERSION
-            conversion_count = 0
-            for key, value in form_data.items():
-                if key not in ['strategy_name', 'start_date', 'end_date'] and value is not None:
-                    # Clean string values
-                    if isinstance(value, str):
-                        value = value.strip()
-                        if not value:  # Skip empty strings
-                            continue
-
-                    # Force type conversion based on parameter type
-                    old_value = base_config.get(key, 'NOT_SET')
-
-                    try:
-                        # Determine target type and convert
-                        if key in ['margin', 'max_loss_pct', 'rsi_long_entry', 'rsi_long_exit', 'rsi_short_entry', 'rsi_short_exit']:
-                            base_config[key] = float(value)
-                            conversion_count += 1
-                        elif key in ['leverage', 'macd_fast', 'macd_slow', 'macd_signal', 'assessment_interval']:
-                            base_config[key] = int(value)
-                            conversion_count += 1
-                        else:
-                            base_config[key] = str(value)
-                            conversion_count += 1
-
-                        print(f"✅ CONVERTED {key}: {old_value} → {base_config[key]} (type: {type(base_config[key]).__name__})")
-
-                    except (ValueError, TypeError) as e:
-                        print(f"⚠️ CONVERSION FAILED for {key}: {value} | Error: {e}")
-                        # Don't update if conversion failed
-
-            print(f"🔧 TOTAL CONVERSIONS: {conversion_count} parameters updated")
-
-            # Final validation
-            required_fields = ['symbol', 'timeframe', 'margin', 'leverage', 'max_loss_pct']
-            missing_fields = []
-            for field in required_fields:
-                if field not in base_config or base_config[field] is None:
-                    missing_fields.append(field)
-
-            if missing_fields:
-                return {
-                    'success': False,
-                    'error': f'Configuration missing required fields: {", ".join(missing_fields)}'
-                }
-
-            # DEBUG: Log configuration changes
-            print(f"🔍 FORM DATA RECEIVED:")
-            for key, value in form_data.items():
-                if key not in ['strategy_name', 'start_date', 'end_date'] and value is not None and str(value).strip():
-                    print(f"   {key}: {value} (type: {type(value).__name__})")
-
-            # DEBUG: Log final configuration with type verification
-            print(f"🔍 FINAL BACKTEST CONFIG for {strategy_name}:")
-            for key, value in base_config.items():
-                print(f"   {key}: {value} (type: {type(value).__name__})")
-
-            # VERIFY: Check if critical parameters actually changed
-            changed_params = []
-            original_config = self.engine.strategy_configs.get(strategy_name, {})
-            for key in ['margin', 'leverage', 'max_loss_pct', 'rsi_long_entry', 'rsi_short_entry', 'rsi_long_exit', 'rsi_short_exit']:
-                if key in base_config and key in original_config:
-                    if base_config[key] != original_config[key]:
-                        changed_params.append(f"{key}: {original_config[key]} → {base_config[key]}")
-
-            if changed_params:
-                print(f"✅ PARAMETERS CHANGED: {', '.join(changed_params)}")
-            else:
-                print(f"⚠️ NO PARAMETERS CHANGED - using template defaults")
-
-            # Run single strategy backtest
-            result = self.engine.backtest_strategy(strategy_name, base_config, start_date, end_date)
-
-            # Check if backtest failed
-            if not result.get('success', True) or 'error' in result:
-                return {
-                    'success': False,
-                    'error': result.get('error', 'Backtest execution failed'),
-                    'result': result
-                }
-
-            # Export results
-            try:
-                filename = self.engine.export_results({
-                    'backtest_type': 'single_strategy',
-                    'result': result
-                })
-            except Exception as export_error:
-                print(f"⚠️ Export failed: {export_error}")
-                filename = None
-
-            return {
-                'success': True,
-                'result': result,
-                'exported_file': filename
-            }
-
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            return {
-                'success': False,
-                'error': f'Backtest failed: {str(e)}'
-            }
-
-# Web interface integration
-web_interface = BacktestWebInterface()
-
-if __name__ == "__main__":
-    # Example usage
-    engine = BacktestEngine()
-
-    # Example configuration
-    test_configs = [
-        {
-            'strategy_name': 'rsi_oversold',
-            'symbol': 'BTCUSDT',
-            'timeframe': '15m',
-            'margin': 50.0,
-            'leverage': 5,
-            'max_loss_pct': 10.0,
-            'rsi_long_entry': 30,
-            'rsi_long_exit': 70,
-            'rsi_short_entry': 70,
-            'rsi_short_exit': 30
-        },
-        {
-            'strategy_name': 'macd_divergence',
-            'symbol': 'ETHUSDT',
-            'timeframe': '15m',
-            'margin': 75.0,
-            'leverage': 3,
-            'max_loss_pct': 15.0,
-            'macd_fast': 12,
-            'macd_slow': 26,
-            'macd_signal': 9
-        }
-    ]
-
-    # Run backtest
-    print("🚀 Starting backtest example...")
-    results = engine.run_comprehensive_backtest(
-        test_configs, 
-        start_date="2024-01-01", 
-        end_date="2024-01-31"
-    )
-
-    # Export results
-    filename = engine.export_results(results)
-    print(f"✅ Backtest completed! Results saved to: {filename}")
+            timeframe = form_data.get('timeframe', '').
