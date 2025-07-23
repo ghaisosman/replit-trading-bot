@@ -255,11 +255,11 @@ def get_bot_status():
         import sys
         main_module = sys.modules.get('__main__')
         bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
-        
+
         is_running = False
         if bot_manager and hasattr(bot_manager, 'is_running'):
             is_running = bot_manager.is_running
-        
+
         # Also check for processes as backup
         if not is_running:
             try:
@@ -299,31 +299,31 @@ def start_bot():
         import sys
         main_module = sys.modules.get('__main__')
         bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
-        
+
         if bot_manager and hasattr(bot_manager, 'is_running') and bot_manager.is_running:
             return jsonify({
                 'success': False, 
                 'message': 'Bot is already running',
                 'timestamp': datetime.now().isoformat()
             })
-        
+
         # Start bot in subprocess
         import subprocess
         import os
-        
+
         # Start the bot process
         subprocess.Popen(['python', 'main.py'], 
                         cwd=os.getcwd(),
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL)
-        
+
         logger.info("🤖 Bot start requested via web dashboard")
         return jsonify({
             'success': True, 
             'message': 'Bot starting...',
             'timestamp': datetime.now().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"Bot start API error: {e}")
         return jsonify({
@@ -340,7 +340,7 @@ def stop_bot():
         import sys
         main_module = sys.modules.get('__main__')
         bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
-        
+
         if bot_manager and hasattr(bot_manager, 'stop'):
             try:
                 import asyncio
@@ -354,7 +354,7 @@ def stop_bot():
                 })
             except Exception as graceful_error:
                 logger.warning(f"Graceful stop failed: {graceful_error}")
-        
+
         # Fallback to process termination
         import psutil
         stopped_processes = 0
@@ -379,7 +379,7 @@ def stop_bot():
                 'message': 'No bot processes found running',
                 'timestamp': datetime.now().isoformat()
             })
-            
+
     except Exception as e:
         logger.error(f"Bot stop API error: {e}")
         return jsonify({
@@ -414,7 +414,12 @@ def get_balance():
             })
     except Exception as e:
         logger.error(f"Balance API error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'balance': 0,
+            'currency': 'USDT'
+        }), 200
 
 @app.route('/api/positions')
 def get_positions():
@@ -425,7 +430,7 @@ def get_positions():
         try:
             from src.execution_engine.trade_database import TradeDatabase
             trade_db = TradeDatabase()
-            
+
             # Get active trades from database
             for trade_id, trade_data in trade_db.trades.items():
                 if trade_data.get('status') == 'OPEN' or trade_data.get('trade_status') == 'OPEN':
@@ -441,7 +446,7 @@ def get_positions():
                     })
         except Exception as db_error:
             logger.warning(f"Could not get positions from database: {db_error}")
-        
+
         # If no database positions, try Binance API
         if not active_positions:
             try:
@@ -475,7 +480,7 @@ def get_positions():
             'count': len(active_positions),
             'timestamp': datetime.now().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"Positions API error: {e}")
         return jsonify({
@@ -497,7 +502,7 @@ def get_console_log():
             import sys
             main_module = sys.modules.get('__main__')
             bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
-            
+
             if bot_manager and hasattr(bot_manager, 'log_handler') and bot_manager.log_handler:
                 logs = bot_manager.log_handler.get_recent_logs(limit=20)
             else:
@@ -512,7 +517,7 @@ def get_console_log():
                 f'[{current_time}] 🌐 Dashboard active',
                 f'[{current_time}] 📊 System ready'
             ]
-            
+
         return jsonify({
             'success': True,
             'logs': logs,
@@ -535,19 +540,19 @@ def get_rsi_data(symbol):
         try:
             from src.binance_client.client import BinanceClientWrapper
             binance_client = BinanceClientWrapper()
-            
+
             # Get recent klines for RSI calculation
             klines = binance_client.client.futures_klines(
                 symbol=symbol,
                 interval='1h',
                 limit=50
             )
-            
+
             if klines and len(klines) >= 14:
                 # Simple RSI calculation
                 closes = [float(kline[4]) for kline in klines]
                 rsi = calculate_simple_rsi(closes)
-                
+
                 return jsonify({
                     'success': True,
                     'symbol': symbol,
@@ -559,7 +564,7 @@ def get_rsi_data(symbol):
                     'success': False,
                     'error': 'Insufficient data for RSI calculation'
                 })
-                
+
         except Exception as e:
             # Return mock RSI data if connection fails
             import random
@@ -571,20 +576,27 @@ def get_rsi_data(symbol):
                 'timestamp': time.time(),
                 'note': 'Mock data - Binance connection unavailable'
             })
-            
+
     except Exception as e:
         logger.error(f"RSI API error for {symbol}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'symbol': symbol,
+            'rsi': 50.0,  # Default neutral RSI
+            'timestamp': time.time(),
+            'note': 'Error occurred - showing default value'
+        }), 200
 
 def calculate_simple_rsi(prices, period=14):
     """Calculate simple RSI"""
     try:
         if len(prices) < period + 1:
             return None
-            
+
         gains = []
         losses = []
-        
+
         for i in range(1, len(prices)):
             change = prices[i] - prices[i-1]
             if change > 0:
@@ -593,21 +605,21 @@ def calculate_simple_rsi(prices, period=14):
             else:
                 gains.append(0)
                 losses.append(abs(change))
-        
+
         if len(gains) < period:
             return None
-            
+
         avg_gain = sum(gains[-period:]) / period
         avg_loss = sum(losses[-period:]) / period
-        
+
         if avg_loss == 0:
             return 100
-            
+
         rs = avg_gain / avg_loss
         rsi = 100 - (100 / (1 + rs))
-        
+
         return round(rsi, 2)
-        
+
     except Exception:
         return None
 

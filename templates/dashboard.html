@@ -1157,7 +1157,12 @@
                     'Content-Type': 'application/json',
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
             .then(data => {
                 if (data.success) {
                     location.reload();
@@ -1166,7 +1171,7 @@
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
+                console.error(`API call failed for ${endpoint}:`, error.message || error);
                 alert('Connection error');
             });
         });
@@ -1357,6 +1362,12 @@
         // Simple bot status update
         function updateBotStatus() {
             apiRequest('/api/bot/status')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data && data.success !== false) {
                         const statusElement = document.getElementById('statusBadge');
@@ -1494,7 +1505,7 @@
             // Check cache first
             const cachedData = getCachedData('balance');
             if (cachedData) {
-                
+
                 return;
             }
 
@@ -1514,11 +1525,11 @@
                 })
                 .then(data => {
                     setCachedData('balance', data);
-                   
+
                 })
                 .catch(error => {
                     console.log('API call failed for', '/api/balance', ':', error.message);
-                    
+
                 })
                 .finally(() => {
                     markRequestEnd('balance');
@@ -1542,7 +1553,7 @@
             markRequestStart('consoleLog');
 
             return safeApiCall('/api/console-log')
-                .then(data => {
+                .then(response => {
                     setCachedData('consoleLog', data);
                     updateConsoleLogUI(data);
                     markRequestEnd('consoleLog', true);
@@ -1934,15 +1945,20 @@
             markRequestStart('positions');
 
             fetch('/api/positions')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     setCachedData('positions', data);
                     updatePositionsUI(data);
                 })
                 .catch(error => {
-                    console.error('Error updating positions:', error);
-                    document.getElementById('positionsTableBody').innerHTML = '<tr><td colspan="9" class="text-warning text-center">Error loading positions</td></tr>';
-                })
+            console.log('Error updating positions:', error.message || error);
+            document.getElementById('positionsTableBody').innerHTML = '<tr><td colspan="9" class="text-warning text-center">Error loading positions</td></tr>';
+        })
                 .finally(() => {
                     markRequestEnd('positions');
                 });
@@ -2029,7 +2045,7 @@
                     }
                 })
                 .catch(error => {
-                    console.debug('RSI fetch error for ' + symbol + ':', error);
+                console.log(`RSI fetch error for ${symbol}:`, error.message || error);
                     const rsiElement = document.getElementById('rsi-' + index);
                     if (rsiElement) {
                         rsiElement.className = 'badge bg-secondary';
@@ -2332,7 +2348,12 @@
         function loadStrategiesWithCacheBust() {
             const timestamp = new Date().getTime();
             fetch('/api/strategies?_t=' + timestamp)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(strategies => {
                     // Update global strategies cache
                     window.strategiesData = strategies;
@@ -2349,7 +2370,12 @@
             // Force fresh data fetch with timestamp to bypass cache
             const timestamp = new Date().getTime();
             fetch('/api/strategies?_t=' + timestamp)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(strategies => {
                     const config = strategies[strategyName];
                     if (config) {
@@ -2386,7 +2412,7 @@
                 // Store original state for rollback
                 const originalHTML = button.innerHTML;
                 const originalClass = button.className;
-                const originalOnclick = button.getAttribute('onclick');
+                constoriginalOnclick = button.getAttribute('onclick');
 
                 // Immediately update button state to show feedback
                 button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Disabling...';
@@ -2399,7 +2425,12 @@
                         'Content-Type': 'application/json'
                     }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(result => {
                     if (result.success) {
                         // Update button to enable state and store the new state
@@ -2463,7 +2494,12 @@ button.className = originalClass;
                         'Content-Type': 'application/json'
                     }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(result => {
                     if (result.success) {
                         // Update button to disable state and store the new state
@@ -2633,7 +2669,12 @@ button.className = originalClass;
             currentStrategyName = strategyName;
 
             fetch('/api/strategies')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     const config = data[strategyName];
                     if (config) {
@@ -2761,7 +2802,7 @@ button.className = originalClass;
                 updates.macd_entry_threshold = parseFloat(document.getElementById('macdEntryThreshold').value);
                 updates.macd_exit_threshold = parseFloat(document.getElementById('macdExitThreshold').value);
                 updates.histogram_divergence_lookback = parseInt(document.getElementById('histogramDivergenceLookback').value);
-                updates.price_divergence_lookback = parseInt(document.getElementById('priceDivergenceLookback').value);
+                updates.priceDivergenceLookback = parseInt(document.getElementById('priceDivergenceLookback').value);
                 updates.confirmation_candles = parseInt(document.getElementById('confirmationCandles').value);
                 updates.divergence_strength_min = parseFloat(document.getElementById('divergenceStrengthMin').value);
             }
@@ -2779,7 +2820,12 @@ button.className = originalClass;
                 },
                 body: JSON.stringify(updates)
             })
-            .then(response => response.json())
+            .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
             .then(data => {
                 if (data.success) {
                     // Always show success message first
@@ -2873,7 +2919,12 @@ button.className = originalClass;
                 },
                 body: JSON.stringify(newStrategy)
             })
-            .then(response => response.json())
+            .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
             .then(data => {
                 if (data.success) {
                     // Close modal
