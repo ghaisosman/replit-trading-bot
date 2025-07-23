@@ -13,6 +13,48 @@ class PriceFetcher:
     def __init__(self, binance_client: BinanceClientWrapper):
         self.binance_client = binance_client
         self.logger = logging.getLogger(__name__)
+
+    def get_market_data_sync(self, symbol: str, interval: str, limit: int = 100):
+        """Synchronous version of get_market_data for web endpoints"""
+        try:
+            if self.binance_client.is_futures:
+                klines = self.binance_client.client.futures_klines(
+                    symbol=symbol, 
+                    interval=interval, 
+                    limit=limit
+                )
+            else:
+                klines = self.binance_client.client.get_klines(
+                    symbol=symbol, 
+                    interval=interval, 
+                    limit=limit
+                )
+
+            if not klines:
+                return None
+
+            # Convert to DataFrame
+            import pandas as pd
+            df = pd.DataFrame(klines, columns=[
+                'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                'close_time', 'quote_volume', 'trades_count',
+                'taker_buy_base', 'taker_buy_quote', 'ignore'
+            ])
+
+            # Convert price columns to float
+            price_columns = ['open', 'high', 'low', 'close', 'volume']
+            for col in price_columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+
+            # Convert timestamp
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
+
+            return df
+
+        except Exception as e:
+            self.logger.error(f"Error fetching sync market data for {symbol}: {e}")
+            return None
         self.price_cache = {}
 
         # Timezone configuration for chart alignment
@@ -76,7 +118,7 @@ class PriceFetcher:
                 price = self.get_current_price(symbol)
                 if price:
                     current_prices.append(price)
-            
+
             if not current_prices:
                 # No current price available, use historical data with calculations
                 return self.calculate_indicators(historical_df).tail(limit)
@@ -86,14 +128,14 @@ class PriceFetcher:
 
             # Update the last (current) candle with real-time price
             last_candle = historical_df.iloc[-1].copy()
-            
+
             # More sophisticated current candle update
             historical_df.iloc[-1, historical_df.columns.get_loc('close')] = current_price
-            
+
             # Update high if current price is higher
             if current_price > last_candle['high']:
                 historical_df.iloc[-1, historical_df.columns.get_loc('high')] = current_price
-            
+
             # Update low if current price is lower  
             if current_price < last_candle['low']:
                 historical_df.iloc[-1, historical_df.columns.get_loc('low')] = current_price
@@ -156,7 +198,7 @@ class PriceFetcher:
 
             # Return only requested amount but keep the extra data for calculations
             result_df = df[['open', 'high', 'low', 'close', 'volume']].tail(limit)
-            
+
             # Log data quality
             self.logger.debug(f"📊 DATA QUALITY | {symbol} | Requested: {limit} | Got: {len(result_df)} | Latest: {result_df.index[-1]}")
 
@@ -176,17 +218,17 @@ class PriceFetcher:
 
             # Calculate RSI using Binance-compatible method (primary)
             df['rsi'] = self._calculate_rsi_manual(df['close'].values, period=14)
-            
+
             # Calculate RSI using ta library for comparison and fallback
             df['rsi_ta'] = ta.momentum.RSIIndicator(df['close'], window=14).rsi()
-            
+
             # Use manual RSI as primary, fallback to ta library if needed
             df['rsi'] = df['rsi'].fillna(df['rsi_ta'])
 
             # Moving Averages - use pandas for precise calculation
             df['sma_20'] = df['close'].rolling(window=20, min_periods=20).mean()
             df['sma_50'] = df['close'].rolling(window=50, min_periods=50).mean()
-            
+
             # EMA calculation using pandas exponential weighted mean (more accurate)
             df['ema_12'] = df['close'].ewm(span=12, adjust=False, min_periods=12).mean()
             df['ema_26'] = df['close'].ewm(span=26, adjust=False, min_periods=26).mean()
@@ -224,7 +266,7 @@ class PriceFetcher:
             current_macd = df['macd'].iloc[-1] if not pd.isna(df['macd'].iloc[-1]) else None
             current_macd_signal = df['macd_signal'].iloc[-1] if not pd.isna(df['macd_signal'].iloc[-1]) else None
             current_histogram = df['macd_histogram'].iloc[-1] if not pd.isna(df['macd_histogram'].iloc[-1]) else None
-            
+
             # Enhanced logging for real-time accuracy
             indicators_log = f"📊 REAL-TIME INDICATORS | Price: ${current_price:.4f}"
             if current_rsi is not None:
@@ -233,7 +275,7 @@ class PriceFetcher:
                 indicators_log += f" | MACD: {current_macd:.6f}/{current_macd_signal:.6f}"
             if current_histogram is not None:
                 indicators_log += f" | Histogram: {current_histogram:.6f}"
-            
+
             self.logger.debug(indicators_log)
 
             return df
@@ -249,7 +291,7 @@ class PriceFetcher:
 
         # Calculate price changes
         deltas = pd.Series(prices).diff()
-        
+
         # Separate gains and losses
         gains = deltas.where(deltas > 0, 0)
         losses = -deltas.where(deltas < 0, 0)
@@ -266,5 +308,5 @@ class PriceFetcher:
         # Calculate RSI
         rs = avg_gains / avg_losses
         rsi = 100 - (100 / (1 + rs))
-        
+
         return rsi
