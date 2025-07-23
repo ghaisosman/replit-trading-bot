@@ -532,47 +532,6 @@ def get_console_log():
             'timestamp': time.time()
         }), 500
 
-@app.route('/api/console-log')
-def get_console_log():
-    """Get recent console logs"""
-    try:
-        # Return recent log entries from the log handler if available
-        logs = []
-        try:
-            # Try to get logs from web log handler if bot is running
-            import sys
-            main_module = sys.modules.get('__main__')
-            bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
-
-            if bot_manager and hasattr(bot_manager, 'log_handler') and bot_manager.log_handler:
-                logs = bot_manager.log_handler.get_recent_logs(limit=20)
-            else:
-                logs = [
-                    '[' + datetime.now().strftime('%H:%M:%S') + '] 🌐 Web dashboard active - Bot can be controlled via interface',
-                    '[' + datetime.now().strftime('%H:%M:%S') + '] 📊 System monitoring active',
-                    '[' + datetime.now().strftime('%H:%M:%S') + '] ✅ Ready for trading operations'
-                ]
-        except Exception as e:
-            current_time = datetime.now().strftime('%H:%M:%S')
-            logs = [
-                f'[{current_time}] 🌐 Dashboard active',
-                f'[{current_time}] 📊 System ready'
-            ]
-
-        return jsonify({
-            'success': True,
-            'logs': logs,
-            'timestamp': time.time()
-        })
-    except Exception as e:
-        logger.error(f"Console log API error: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'logs': ['Error loading console logs'],
-            'timestamp': time.time()
-        }), 500
-
 @app.route('/api/rsi/<symbol>')
 def get_rsi_data(symbol):
     """Get RSI data for a symbol"""
