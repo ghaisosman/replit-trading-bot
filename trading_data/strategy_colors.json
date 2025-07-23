@@ -37,7 +37,9 @@
     "BUY": "\u001b[95m",
     "SIGNAL": "\u001b[95m",
     "RSI": "\u001b[95m",
-    "SL": "\u001b[95m"
+    "SL": "\u001b[95m",
+    "S": "\u001b[95m",
+    "HIT": "\u001b[95m"
   },
   "active_position_colors": {
     "LOADED": "\u001b[1;95m",
@@ -77,6 +79,8 @@
     "BUY": "\u001b[1;95m",
     "SIGNAL": "\u001b[1;95m",
     "RSI": "\u001b[1;95m",
-    "SL": "\u001b[1;95m"
+    "SL": "\u001b[1;95m",
+    "S": "\u001b[1;95m",
+    "HIT": "\u001b[1;95m"
   }
 }
