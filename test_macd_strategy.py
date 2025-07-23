@@ -39,7 +39,8 @@ class TestMACDStrategy(unittest.TestCase):
     def test_evaluate_exit_signal(self):
         # Simulate a position and test exit signal
         position = {'side': 'BUY'}
-        self.df.loc[len(self.df)] = [113, 107, 106, 105, 1.0]
+        # Assuming a simple DataFrame structure, update with correct data
+self.df.loc[len(self.df)] = [113]
         exit_signal = self.strategy.evaluate_exit_signal(self.df, position)
         self.assertEqual(exit_signal, "Take Profit (MACD Peak or Zero Cross)")
 
