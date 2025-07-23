@@ -593,9 +593,7 @@ class TradeLogger:
         log_message = f"❌ SYNC FAILURE: Type={sync_type}, TradeID={trade_id}, Error={error_message}"
         self.logger.error(log_message)
 
-# Global trade logger instance
-trade_logger = TradeLogger()
-    def _sync_to_database(self, trade_id: str, trade_record: TradeRecord):
+def _sync_to_database(self, trade_id: str, trade_record: TradeRecord):
         """Sync trade record to database - simplified approach"""
         try:
             from src.execution_engine.trade_database import TradeDatabase
@@ -617,4 +615,7 @@ trade_logger = TradeLogger()
                 
         except Exception as e:
             self.logger.error(f"❌ Error syncing trade {trade_id} to database: {e}")
+
+# Global trade logger instance
+trade_logger = TradeLogger()
 
