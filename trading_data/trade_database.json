@@ -30,7 +30,7 @@
       "trade_status": "OPEN",
       "sync_status": "STATUS_REPAIRED",
       "last_verified": "2025-07-22T12:48:08.796185",
-      "last_updated": "2025-07-23T10:47:04.207537",
+      "last_updated": "2025-07-23T10:48:27.366506",
       "closed_at": "2025-07-22T12:48:08.831863"
     },
     "rsi_oversold_SOLUSDT_20250717_220231": {
@@ -61,7 +61,7 @@
       "entry_signal_strength": null,
       "market_phase": null,
       "trade_status": "CLOSED",
-      "last_updated": "2025-07-23T10:47:04.207615",
+      "last_updated": "2025-07-23T10:48:27.366558",
       "last_verified": "2025-07-21T14:20:52.694082"
     },
     "RSI_ETH_ETHUSDT_20250718_050515": {
@@ -94,7 +94,7 @@
       "trade_status": "OPEN",
       "sync_status": "STATUS_REPAIRED",
       "last_verified": "2025-07-22T12:48:08.731702",
-      "last_updated": "2025-07-23T10:47:04.207683",
+      "last_updated": "2025-07-23T10:48:27.366597",
       "closed_at": "2025-07-22T12:48:08.831863"
     },
     "rsi_oversold_SOLUSDT_20250718_051022": {
@@ -125,7 +125,7 @@
       "entry_signal_strength": null,
       "market_phase": null,
       "trade_status": "CLOSED",
-      "last_updated": "2025-07-23T10:47:04.207747",
+      "last_updated": "2025-07-23T10:48:27.366633",
       "last_verified": "2025-07-21T14:20:52.834481"
     },
     "rsi_oversold_SOLUSDT_20250720_063750_RECOVERED": {
@@ -153,7 +153,7 @@
       "macd_at_entry": null,
       "sma_20_at_entry": null,
       "sma_50_at_entry": null,
-      "last_updated": "2025-07-23T10:47:04.207823",
+      "last_updated": "2025-07-23T10:48:27.366668",
       "last_verified": "2025-07-22T12:48:08.751583",
       "sync_status": "STATUS_REPAIRED",
       "exit_price": null,
@@ -192,7 +192,7 @@
       "pnl_percentage": null,
       "duration_minutes": null,
       "closed_at": "2025-07-22T12:48:08.831863",
-      "last_updated": "2025-07-23T10:47:04.207890",
+      "last_updated": "2025-07-23T10:48:27.366702",
       "rsi_at_entry": null,
       "macd_at_entry": null,
       "sma_20_at_entry": null,
@@ -231,7 +231,7 @@
       "pnl_percentage": null,
       "duration_minutes": null,
       "closed_at": "2025-07-22T12:48:08.831863",
-      "last_updated": "2025-07-23T10:47:04.207953",
+      "last_updated": "2025-07-23T10:48:27.366742",
       "rsi_at_entry": null,
       "macd_at_entry": null,
       "sma_20_at_entry": null,
@@ -266,7 +266,7 @@
       "macd_at_entry": 4.6614,
       "sma_20_at_entry": 186.76049999999995,
       "sma_50_at_entry": 181.87419999999997,
-      "last_updated": "2025-07-23T10:47:04.210464",
+      "last_updated": "2025-07-23T10:48:27.368218",
       "trade_id": "RECOVERY_SOLUSDT_20250720_130657",
       "margin_used": 0.0,
       "leverage": 1,
@@ -312,7 +312,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "last_updated": "2025-07-23T10:47:04.210522"
+      "last_updated": "2025-07-23T10:48:27.368269"
     },
     "RECOVERY_SOLUSDT_20250720_130658": {
       "strategy_name": "RECOVERY",
@@ -336,7 +336,7 @@
       "macd_at_entry": 4.6637,
       "sma_20_at_entry": 186.76299999999998,
       "sma_50_at_entry": 181.87519999999998,
-      "last_updated": "2025-07-23T10:47:04.209503",
+      "last_updated": "2025-07-23T10:48:27.367756",
       "trade_id": "RECOVERY_SOLUSDT_20250720_130658",
       "margin_used": 0.0,
       "leverage": 1,
@@ -382,7 +382,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "last_updated": "2025-07-23T10:47:04.209816"
+      "last_updated": "2025-07-23T10:48:27.367937"
     },
     "RECOVERY_SOLUSDT_20250720_130802": {
       "strategy_name": "RECOVERY",
@@ -406,7 +406,7 @@
       "macd_at_entry": 4.6637,
       "sma_20_at_entry": 186.76299999999998,
       "sma_50_at_entry": 181.87519999999998,
-      "last_updated": "2025-07-23T10:47:04.210160",
+      "last_updated": "2025-07-23T10:48:27.368036",
       "trade_id": "RECOVERY_SOLUSDT_20250720_130802",
       "margin_used": 0.0,
       "leverage": 1,
@@ -452,7 +452,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "last_updated": "2025-07-23T10:47:04.209438"
+      "last_updated": "2025-07-23T10:48:27.367723"
     },
     "RECOVERY_SOLUSDT_20250720_130820": {
       "strategy_name": "RECOVERY",
@@ -476,7 +476,7 @@
       "macd_at_entry": 4.6637,
       "sma_20_at_entry": 186.76299999999998,
       "sma_50_at_entry": 181.87519999999998,
-      "last_updated": "2025-07-23T10:47:04.210997",
+      "last_updated": "2025-07-23T10:48:27.368523",
       "trade_id": "RECOVERY_SOLUSDT_20250720_130820",
       "margin_used": 0.0,
       "leverage": 1,
@@ -522,7 +522,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "last_updated": "2025-07-23T10:47:04.209743"
+      "last_updated": "2025-07-23T10:48:27.367904"
     },
     "RECOVERY_SOLUSDT_20250720_131216": {
       "strategy_name": "RECOVERY",
@@ -546,7 +546,7 @@
       "macd_at_entry": 4.6637,
       "sma_20_at_entry": 186.76299999999998,
       "sma_50_at_entry": 181.87519999999998,
-      "last_updated": "2025-07-23T10:47:04.210339",
+      "last_updated": "2025-07-23T10:48:27.368138",
       "trade_id": "RECOVERY_SOLUSDT_20250720_131216",
       "margin_used": 0.0,
       "leverage": 1,
@@ -592,7 +592,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "last_updated": "2025-07-23T10:47:04.210034"
+      "last_updated": "2025-07-23T10:48:27.368003"
     },
     "RECOVERY_SOLUSDT_20250720_131248": {
       "strategy_name": "RECOVERY",
@@ -616,7 +616,7 @@
       "macd_at_entry": 4.661,
       "sma_20_at_entry": 186.75999999999993,
       "sma_50_at_entry": 181.87399999999997,
-      "last_updated": "2025-07-23T10:47:04.210221",
+      "last_updated": "2025-07-23T10:48:27.368068",
       "trade_id": "RECOVERY_SOLUSDT_20250720_131248",
       "margin_used": 0.0,
       "leverage": 1,
@@ -662,7 +662,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "last_updated": "2025-07-23T10:47:04.210638"
+      "last_updated": "2025-07-23T10:48:27.368361"
     },
     "RECOVERY_SOLUSDT_20250720_131320": {
       "strategy_name": "RECOVERY",
@@ -686,7 +686,7 @@
       "macd_at_entry": 4.6637,
       "sma_20_at_entry": 186.76299999999998,
       "sma_50_at_entry": 181.87519999999998,
-      "last_updated": "2025-07-23T10:47:04.210698",
+      "last_updated": "2025-07-23T10:48:27.368413",
       "trade_id": "RECOVERY_SOLUSDT_20250720_131320",
       "margin_used": 0.0,
       "leverage": 1,
@@ -732,7 +732,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "last_updated": "2025-07-23T10:47:04.209683"
+      "last_updated": "2025-07-23T10:48:27.367872"
     },
     "RECOVERY_SOLUSDT_20250720_131352": {
       "strategy_name": "RECOVERY",
@@ -756,7 +756,7 @@
       "macd_at_entry": 4.6637,
       "sma_20_at_entry": 186.76299999999998,
       "sma_50_at_entry": 181.87519999999998,
-      "last_updated": "2025-07-23T10:47:04.209559",
+      "last_updated": "2025-07-23T10:48:27.367804",
       "trade_id": "RECOVERY_SOLUSDT_20250720_131352",
       "margin_used": 0.0,
       "leverage": 1,
@@ -802,7 +802,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "last_updated": "2025-07-23T10:47:04.209914"
+      "last_updated": "2025-07-23T10:48:27.367971"
     },
     "RECOVERY_ETHUSDT_20250720_131412": {
       "strategy_name": "RECOVERY",
@@ -837,7 +837,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "last_updated": "2025-07-23T10:47:04.210279"
+      "last_updated": "2025-07-23T10:48:27.368105"
     },
     "RECOVERY_SOLUSDT_20250720_131424": {
       "strategy_name": "RECOVERY",
@@ -861,7 +861,7 @@
       "macd_at_entry": 4.6637,
       "sma_20_at_entry": 186.76299999999998,
       "sma_50_at_entry": 181.87519999999998,
-      "last_updated": "2025-07-23T10:47:04.210755",
+      "last_updated": "2025-07-23T10:48:27.368457",
       "trade_id": "RECOVERY_SOLUSDT_20250720_131424",
       "margin_used": 0.0,
       "leverage": 1,
@@ -907,7 +907,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "last_updated": "2025-07-23T10:47:04.209618"
+      "last_updated": "2025-07-23T10:48:27.367839"
     },
     "rsi_oversold_SOLUSDT_20250720_131441_RECOVERED": {
       "trade_id": "rsi_oversold_SOLUSDT_20250720_131441_RECOVERED",
@@ -940,7 +940,7 @@
       "macd_at_entry": null,
       "sma_20_at_entry": null,
       "sma_50_at_entry": null,
-      "last_updated": "2025-07-23T10:47:04.208019",
+      "last_updated": "2025-07-23T10:48:27.366851",
       "volume_at_entry": null,
       "market_trend": null,
       "volatility_score": null,
@@ -980,7 +980,7 @@
       "macd_at_entry": null,
       "sma_20_at_entry": null,
       "sma_50_at_entry": null,
-      "last_updated": "2025-07-23T10:47:04.208088",
+      "last_updated": "2025-07-23T10:48:27.366890",
       "volume_at_entry": null,
       "market_trend": null,
       "volatility_score": null,
@@ -1019,7 +1019,7 @@
       "macd_at_entry": 4.6637,
       "sma_20_at_entry": 186.76299999999998,
       "sma_50_at_entry": 181.87519999999998,
-      "last_updated": "2025-07-23T10:47:04.210400",
+      "last_updated": "2025-07-23T10:48:27.368171",
       "volume_at_entry": null,
       "market_trend": null,
       "volatility_score": null,
@@ -1055,7 +1055,7 @@
       "macd_at_entry": null,
       "sma_20_at_entry": null,
       "sma_50_at_entry": null,
-      "last_updated": "2025-07-23T10:47:04.208207",
+      "last_updated": "2025-07-23T10:48:27.366965",
       "exit_reason": null,
       "exit_price": null,
       "pnl_usdt": null,
@@ -1087,7 +1087,7 @@
       "timestamp": "2025-07-21T04:03:17.830893",
       "rsi_at_entry": null,
       "macd_at_entry": null,
-      "last_updated": "2025-07-23T10:47:04.208149",
+      "last_updated": "2025-07-23T10:48:27.366924",
       "exit_reason": null,
       "exit_price": null,
       "pnl_usdt": null,
@@ -1135,7 +1135,7 @@
       "risk_reward_ratio": null,
       "max_drawdown": null,
       "entry_signal_strength": null,
-      "last_updated": "2025-07-23T10:47:04.208268"
+      "last_updated": "2025-07-23T10:48:27.367004"
     },
     "rsi_oversold_BTCUSDT_20250721_001_SAMPLE": {
       "trade_id": "rsi_oversold_BTCUSDT_20250721_001_SAMPLE",
@@ -1168,7 +1168,7 @@
       "risk_reward_ratio": null,
       "max_drawdown": null,
       "entry_signal_strength": null,
-      "last_updated": "2025-07-23T10:47:04.208333"
+      "last_updated": "2025-07-23T10:48:27.367038"
     },
     "macd_divergence_SOLUSDT_20250721_002_SAMPLE": {
       "trade_id": "macd_divergence_SOLUSDT_20250721_002_SAMPLE",
@@ -1201,7 +1201,7 @@
       "risk_reward_ratio": null,
       "max_drawdown": null,
       "entry_signal_strength": null,
-      "last_updated": "2025-07-23T10:47:04.208390"
+      "last_updated": "2025-07-23T10:48:27.367085"
     },
     "rsi_oversold_ETHUSDT_20250721_003_SAMPLE": {
       "trade_id": "rsi_oversold_ETHUSDT_20250721_003_SAMPLE",
@@ -1234,7 +1234,7 @@
       "risk_reward_ratio": null,
       "max_drawdown": null,
       "entry_signal_strength": null,
-      "last_updated": "2025-07-23T10:47:04.208449"
+      "last_updated": "2025-07-23T10:48:27.367119"
     },
     "macd_divergence_ETHUSDT_20250721_004_SAMPLE": {
       "trade_id": "macd_divergence_ETHUSDT_20250721_004_SAMPLE",
@@ -1267,7 +1267,7 @@
       "risk_reward_ratio": null,
       "max_drawdown": null,
       "entry_signal_strength": null,
-      "last_updated": "2025-07-23T10:47:04.208508"
+      "last_updated": "2025-07-23T10:48:27.367171"
     },
     "rsi_oversold_ETHUSDT_20250721_005_SAMPLE": {
       "trade_id": "rsi_oversold_ETHUSDT_20250721_005_SAMPLE",
@@ -1300,7 +1300,7 @@
       "risk_reward_ratio": null,
       "max_drawdown": null,
       "entry_signal_strength": null,
-      "last_updated": "2025-07-23T10:47:04.208571"
+      "last_updated": "2025-07-23T10:48:27.367221"
     },
     "rsi_oversold_BTCUSDT_20250721_006_SAMPLE": {
       "trade_id": "rsi_oversold_BTCUSDT_20250721_006_SAMPLE",
@@ -1333,7 +1333,7 @@
       "risk_reward_ratio": null,
       "max_drawdown": null,
       "entry_signal_strength": null,
-      "last_updated": "2025-07-23T10:47:04.208626"
+      "last_updated": "2025-07-23T10:48:27.367265"
     },
     "rsi_oversold_ETHUSDT_20250721_007_SAMPLE": {
       "trade_id": "rsi_oversold_ETHUSDT_20250721_007_SAMPLE",
@@ -1366,7 +1366,7 @@
       "risk_reward_ratio": null,
       "max_drawdown": null,
       "entry_signal_strength": null,
-      "last_updated": "2025-07-23T10:47:04.208684"
+      "last_updated": "2025-07-23T10:48:27.367299"
     },
     "rsi_oversold_SOLUSDT_20250721_150157_RECOVERED": {
       "trade_id": "rsi_oversold_SOLUSDT_20250721_150157_RECOVERED",
@@ -1408,7 +1408,7 @@
       "closed_at": "2025-07-21T15:04:23.534573",
       "risk_reward_ratio": null,
       "max_drawdown": null,
-      "last_updated": "2025-07-23T10:47:04.209277"
+      "last_updated": "2025-07-23T10:48:27.367656"
     },
     "rsi_oversold_SOLUSDT_20250721_151214_RECOVERED": {
       "trade_id": "rsi_oversold_SOLUSDT_20250721_151214_RECOVERED",
@@ -1445,7 +1445,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "last_updated": "2025-07-23T10:47:04.210933"
+      "last_updated": "2025-07-23T10:48:27.368491"
     },
     "RSI_ETH_ETHUSDT_20250721_190111_RECOVERED": {
       "trade_id": "RSI_ETH_ETHUSDT_20250721_190111_RECOVERED",
@@ -1482,7 +1482,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "last_updated": "2025-07-23T10:47:04.209359"
+      "last_updated": "2025-07-23T10:48:27.367690"
     },
     "TEST_MACD_DIVERGENCE_1": {
       "trade_id": "TEST_MACD_DIVERGENCE_1",
@@ -1510,7 +1510,7 @@
       "exit_reason": "Take Profit Hit",
       "pnl_usdt": 6.249999999999969,
       "pnl_percentage": 2.499999999999988,
-      "last_updated": "2025-07-23T10:47:04.208821",
+      "last_updated": "2025-07-23T10:48:27.367394",
       "duration_minutes": 0,
       "closed_at": "2025-07-22T05:45:35.743219",
       "closure_verified": true,
@@ -1552,7 +1552,7 @@
       "exit_reason": "Take Profit Hit",
       "pnl_usdt": 6.249999999999979,
       "pnl_percentage": 2.4999999999999916,
-      "last_updated": "2025-07-23T10:47:04.208887",
+      "last_updated": "2025-07-23T10:48:27.367435",
       "duration_minutes": 0,
       "closed_at": "2025-07-22T05:45:42.343750",
       "closure_verified": true,
@@ -1594,7 +1594,7 @@
       "exit_reason": "Manual Exit",
       "pnl_usdt": 2.9185955884818777,
       "pnl_percentage": 1.1674382353927513,
-      "last_updated": "2025-07-23T10:47:04.208954",
+      "last_updated": "2025-07-23T10:48:27.367468",
       "duration_minutes": 0,
       "closed_at": "2025-07-22T05:45:48.996716",
       "closure_verified": true,
@@ -1636,7 +1636,7 @@
       "exit_reason": "Manual Exit",
       "pnl_usdt": 3.5502086726590205,
       "pnl_percentage": 1.577870521181787,
-      "last_updated": "2025-07-23T10:47:04.209017",
+      "last_updated": "2025-07-23T10:48:27.367526",
       "duration_minutes": 0,
       "closed_at": "2025-07-22T05:45:57.727780",
       "closure_verified": true,
@@ -1678,7 +1678,7 @@
       "exit_reason": "Take Profit Hit",
       "pnl_usdt": 6.750000000000002,
       "pnl_percentage": 3.000000000000001,
-      "last_updated": "2025-07-23T10:47:04.209151",
+      "last_updated": "2025-07-23T10:48:27.367570",
       "duration_minutes": 0,
       "closed_at": "2025-07-22T05:46:04.329632",
       "closure_verified": true,
@@ -1720,7 +1720,7 @@
       "exit_reason": "Manual Exit",
       "pnl_usdt": 2.6244791502765987,
       "pnl_percentage": 1.1664351779007105,
-      "last_updated": "2025-07-23T10:47:04.209216",
+      "last_updated": "2025-07-23T10:48:27.367613",
       "duration_minutes": 0,
       "closed_at": "2025-07-22T05:46:12.349315",
       "closure_verified": true,
@@ -1771,7 +1771,7 @@
       "max_drawdown": null,
       "entry_signal_strength": null,
       "market_phase": null,
-      "last_updated": "2025-07-23T10:47:04.210580"
+      "last_updated": "2025-07-23T10:48:27.368321"
     },
     "rsi_oversold_SOLUSDT_20250721_150156": {
       "trade_id": "rsi_oversold_SOLUSDT_20250721_150156",
@@ -1805,7 +1805,7 @@
       "closed_at": "2025-07-22T12:48:08.831863",
       "risk_reward_ratio": null,
       "max_drawdown": null,
-      "last_updated": "2025-07-23T10:47:04.208742"
+      "last_updated": "2025-07-23T10:48:27.367345"
     },
     "TEST_SYNC_20250723_104530": {
       "trade_id": "TEST_SYNC_20250723_104530",
@@ -1836,7 +1836,7 @@
       "market_phase": "TRENDING",
       "trade_status": "OPEN",
       "created_at": "2025-07-23T10:46:22.858698",
-      "last_updated": "2025-07-23T10:47:04.211057"
+      "last_updated": "2025-07-23T10:48:27.368556"
     },
     "TEST_SYNC_20250723_104622": {
       "trade_id": "TEST_SYNC_20250723_104622",
@@ -1867,8 +1867,39 @@
       "market_phase": "TRENDING",
       "trade_status": "OPEN",
       "created_at": "2025-07-23T10:47:04.211121",
-      "last_updated": "2025-07-23T10:47:04.211124"
+      "last_updated": "2025-07-23T10:48:27.368588"
+    },
+    "TEST_SYNC_20250723_104704": {
+      "trade_id": "TEST_SYNC_20250723_104704",
+      "timestamp": "2025-07-23T10:47:04.219207",
+      "strategy_name": "TEST_STRATEGY",
+      "symbol": "BTCUSDT",
+      "side": "BUY",
+      "entry_price": 50000.0,
+      "exit_price": null,
+      "quantity": 0.001,
+      "margin_used": 25.0,
+      "leverage": 2,
+      "position_value_usdt": 50.0,
+      "rsi_at_entry": 35.5,
+      "macd_at_entry": 125.3,
+      "sma_20_at_entry": 49800.0,
+      "sma_50_at_entry": 49500.0,
+      "volume_at_entry": 1500000,
+      "pnl_usdt": null,
+      "pnl_percentage": null,
+      "exit_reason": null,
+      "duration_minutes": null,
+      "market_trend": "BULLISH",
+      "volatility_score": 0.65,
+      "risk_reward_ratio": null,
+      "max_drawdown": null,
+      "entry_signal_strength": 0.85,
+      "market_phase": "TRENDING",
+      "trade_status": "OPEN",
+      "created_at": "2025-07-23T10:48:27.368642",
+      "last_updated": "2025-07-23T10:48:27.368644"
     }
   },
-  "last_updated": "2025-07-23T10:47:04.211128"
+  "last_updated": "2025-07-23T10:48:27.368647"
 }
