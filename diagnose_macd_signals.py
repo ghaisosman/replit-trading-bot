@@ -1,360 +1,388 @@
 
 #!/usr/bin/env python3
 """
-MACD Strategy Signal Detection Diagnosis Script
-This script will perform intensive testing to identify why MACD signals aren't being detected.
+Comprehensive MACD Signal Diagnosis
+Identifies exact issues preventing MACD strategy from detecting signals
 """
+
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import pandas as pd
 import numpy as np
-import logging
 from datetime import datetime, timedelta
-import sys
-import os
+import json
 
-# Add src to path for imports
-sys.path.append('src')
+# Correct imports based on the actual codebase structure
+from src.config.trading_config import trading_config_manager
+from src.binance_client.client import BinanceClientWrapper
+from src.execution_engine.strategies.macd_divergence_strategy import MACDDivergenceStrategy
 
-from binance_client.client import BinanceClientWrapper
-from execution_engine.strategies.macd_divergence_strategy import MACDDivergenceStrategy
-from strategy_processor.signal_processor import SignalProcessor
-from config.trading_config import TradingConfig
+def calculate_macd_manually(prices, fast=12, slow=26, signal=9):
+    """Manual MACD calculation for verification"""
+    try:
+        df = pd.DataFrame({'close': prices})
+        
+        # Calculate EMAs
+        ema_fast = df['close'].ewm(span=fast).mean()
+        ema_slow = df['close'].ewm(span=slow).mean()
+        
+        # MACD Line
+        macd_line = ema_fast - ema_slow
+        
+        # Signal Line
+        signal_line = macd_line.ewm(span=signal).mean()
+        
+        # Histogram
+        histogram = macd_line - signal_line
+        
+        return macd_line.values, signal_line.values, histogram.values
+        
+    except Exception as e:
+        print(f"❌ Error in manual MACD calculation: {e}")
+        return None, None, None
 
-class MACDSignalDiagnostic:
-    def __init__(self):
-        self.client = BinanceClientWrapper()
-        self.config = TradingConfig()
-        
-        # Set up logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-        self.logger = logging.getLogger(__name__)
-        
-        print("🔍 MACD Signal Detection Diagnostic Tool")
-        print("=" * 60)
-
-    def get_test_symbols(self):
-        """Get symbols to test MACD strategy on"""
-        return ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'XRPUSDT']
-
-    def get_macd_config_variants(self):
-        """Get different MACD configuration variants to test"""
-        return [
-            # Ultra relaxed config
-            {
-                'name': 'macd_ultra_relaxed',
-                'symbol': 'BTCUSDT',
-                'margin': 50.0,
-                'leverage': 5,
-                'max_loss_pct': 10.0,
-                'macd_fast': 8,
-                'macd_slow': 21,
-                'macd_signal': 5,
-                'min_histogram_threshold': 0.00001,
-                'macd_entry_threshold': 0.0001,
-                'macd_exit_threshold': 0.0001,
-                'confirmation_candles': 1
-            },
-            # Standard relaxed config
-            {
-                'name': 'macd_relaxed',
-                'symbol': 'BTCUSDT',
-                'margin': 50.0,
-                'leverage': 5,
-                'max_loss_pct': 10.0,
-                'macd_fast': 12,
-                'macd_slow': 26,
-                'macd_signal': 9,
-                'min_histogram_threshold': 0.0001,
-                'macd_entry_threshold': 0.001,
-                'macd_exit_threshold': 0.001,
-                'confirmation_candles': 1
-            },
-            # Very sensitive config
-            {
-                'name': 'macd_sensitive',
-                'symbol': 'BTCUSDT',
-                'margin': 50.0,
-                'leverage': 5,
-                'max_loss_pct': 10.0,
-                'macd_fast': 5,
-                'macd_slow': 15,
-                'macd_signal': 3,
-                'min_histogram_threshold': 0.000001,
-                'macd_entry_threshold': 0.0001,
-                'macd_exit_threshold': 0.0001,
-                'confirmation_candles': 1
-            }
-        ]
-
-    def fetch_market_data(self, symbol, timeframe='15m', limit=200):
-        """Fetch market data for testing"""
-        try:
-            print(f"📊 Fetching {symbol} {timeframe} data (last {limit} candles)...")
-            
-            klines = self.client.client.futures_klines(
-                symbol=symbol,
-                interval=timeframe,
-                limit=limit
-            )
-            
-            df = pd.DataFrame(klines, columns=[
-                'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                'close_time', 'quote_asset_volume', 'number_of_trades',
-                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
-            ])
-            
-            # Convert to proper data types
-            for col in ['open', 'high', 'low', 'close', 'volume']:
-                df[col] = pd.to_numeric(df[col])
-            
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df = df.set_index('timestamp')
-            
-            print(f"✅ Fetched {len(df)} candles for {symbol}")
-            print(f"   Price range: ${df['close'].min():.2f} - ${df['close'].max():.2f}")
-            print(f"   Time range: {df.index[0]} to {df.index[-1]}")
-            
-            return df
-            
-        except Exception as e:
-            print(f"❌ Error fetching data for {symbol}: {e}")
-            return pd.DataFrame()
-
-    def analyze_macd_indicators(self, df, config):
-        """Analyze MACD indicators in detail"""
-        print(f"\n🔬 ANALYZING MACD INDICATORS")
-        print(f"Config: Fast={config['macd_fast']}, Slow={config['macd_slow']}, Signal={config['macd_signal']}")
-        
-        strategy = MACDDivergenceStrategy('test_macd', config)
-        df_with_indicators = strategy.calculate_indicators(df.copy())
-        
-        if 'macd' not in df_with_indicators.columns:
-            print("❌ MACD indicators not calculated!")
-            return df_with_indicators, []
-        
-        # Check recent MACD values
-        recent_data = df_with_indicators.tail(10)
-        
-        print("\n📈 Recent MACD Values (last 10 candles):")
-        print("Time                 | Price    | MACD      | Signal    | Histogram | Status")
-        print("-" * 85)
-        
-        for i, (timestamp, row) in enumerate(recent_data.iterrows()):
-            macd_val = row.get('macd', 0)
-            signal_val = row.get('macd_signal', 0)
-            hist_val = row.get('macd_histogram', 0)
-            
-            # Determine potential signal status
-            status = "NEUTRAL"
-            if macd_val < signal_val and hist_val > 0:
-                status = "BULL_POTENTIAL"
-            elif macd_val > signal_val and hist_val < 0:
-                status = "BEAR_POTENTIAL"
-            elif abs(macd_val - signal_val) < config['macd_entry_threshold'] * row['close']:
-                status = "TOO_CLOSE"
-            
-            print(f"{timestamp.strftime('%Y-%m-%d %H:%M')} | ${row['close']:8.2f} | {macd_val:9.6f} | {signal_val:9.6f} | {hist_val:9.6f} | {status}")
-        
-        return df_with_indicators, recent_data
-
-    def test_signal_generation(self, df, config):
-        """Test signal generation with detailed logging"""
-        print(f"\n🎯 TESTING SIGNAL GENERATION")
-        
-        strategy = MACDDivergenceStrategy('diagnostic_macd', config)
-        df_with_indicators = strategy.calculate_indicators(df.copy())
-        
-        signals_found = []
-        
-        # Test signal generation on recent data windows
-        for i in range(50, len(df_with_indicators), 5):  # Test every 5th candle
-            test_window = df_with_indicators.iloc[:i+1]
-            
-            try:
-                signal = strategy.evaluate_entry_signal(test_window)
-                if signal:
-                    signals_found.append({
-                        'timestamp': test_window.index[-1],
-                        'signal': signal,
-                        'price': test_window['close'].iloc[-1],
-                        'macd': test_window['macd'].iloc[-1],
-                        'signal_line': test_window['macd_signal'].iloc[-1],
-                        'histogram': test_window['macd_histogram'].iloc[-1]
-                    })
-                    print(f"✅ SIGNAL FOUND at {test_window.index[-1]}: {signal.signal_type.value} - {signal.reason}")
-                    
-            except Exception as e:
-                print(f"❌ Error testing signal at index {i}: {e}")
-        
-        print(f"\n📊 Total signals found: {len(signals_found)}")
-        return signals_found
-
-    def test_entry_conditions_manually(self, df, config):
-        """Manually test entry conditions step by step"""
-        print(f"\n🔧 MANUAL ENTRY CONDITION TESTING")
-        
-        strategy = MACDDivergenceStrategy('manual_test', config)
-        df_with_indicators = strategy.calculate_indicators(df.copy())
-        
-        if len(df_with_indicators) < 50:
-            print("❌ Insufficient data for testing")
-            return
-        
-        current_data = df_with_indicators.iloc[-10:]  # Last 10 candles
-        
-        for i, (timestamp, row) in enumerate(current_data.iterrows()):
-            print(f"\n--- Testing candle {i+1}/10: {timestamp} ---")
-            print(f"Price: ${row['close']:.2f}")
-            
-            if pd.isna(row.get('macd')) or pd.isna(row.get('macd_signal')) or pd.isna(row.get('macd_histogram')):
-                print("❌ Missing MACD data")
-                continue
-            
-            macd_current = row['macd']
-            signal_current = row['macd_signal']
-            histogram_current = row['macd_histogram']
-            
-            print(f"MACD: {macd_current:.6f}")
-            print(f"Signal: {signal_current:.6f}")
-            print(f"Histogram: {histogram_current:.6f}")
-            
-            # Check previous candle for momentum
-            if i > 0:
-                prev_row = current_data.iloc[i-1]
-                histogram_prev = prev_row.get('macd_histogram', 0)
-                histogram_momentum = histogram_current - histogram_prev
-                
-                print(f"Previous Histogram: {histogram_prev:.6f}")
-                print(f"Momentum: {histogram_momentum:.6f}")
-                
-                line_distance = abs(macd_current - signal_current) / row['close']
-                print(f"Line Distance: {line_distance:.6f} (threshold: {config['macd_entry_threshold']:.6f})")
-                
-                # Test bullish conditions
-                print("\n🟢 BULLISH CONDITIONS:")
-                print(f"  MACD < Signal: {macd_current < signal_current}")
-                print(f"  Histogram Rising: {histogram_current > histogram_prev}")
-                print(f"  Histogram Negative: {histogram_current < 0}")
-                print(f"  Momentum >= Threshold: {abs(histogram_momentum) >= config['min_histogram_threshold']}")
-                print(f"  Distance >= Threshold: {line_distance >= config['macd_entry_threshold']}")
-                
-                # Test bearish conditions
-                print("\n🔴 BEARISH CONDITIONS:")
-                print(f"  MACD > Signal: {macd_current > signal_current}")
-                print(f"  Histogram Falling: {histogram_current < histogram_prev}")
-                print(f"  Histogram Positive: {histogram_current > 0}")
-                print(f"  Momentum >= Threshold: {abs(histogram_momentum) >= config['min_histogram_threshold']}")
-                print(f"  Distance >= Threshold: {line_distance >= config['macd_entry_threshold']}")
-
-    def run_comprehensive_test(self):
-        """Run comprehensive MACD signal detection test"""
-        print("🚀 Starting Comprehensive MACD Signal Detection Test\n")
-        
-        symbols = self.get_test_symbols()
-        configs = self.get_macd_config_variants()
-        
-        total_signals = 0
-        
-        for symbol in symbols:
-            print(f"\n{'='*60}")
-            print(f"🎯 TESTING SYMBOL: {symbol}")
-            print(f"{'='*60}")
-            
-            # Fetch data
-            df = self.fetch_market_data(symbol, '15m', 200)
-            if df.empty:
-                continue
-            
-            for config in configs:
-                config['symbol'] = symbol
-                print(f"\n{'*'*40}")
-                print(f"📊 Testing Config: {config['name']}")
-                print(f"{'*'*40}")
-                
-                try:
-                    # Analyze indicators
-                    df_with_indicators, recent_data = self.analyze_macd_indicators(df, config)
-                    
-                    # Test signal generation
-                    signals = self.test_signal_generation(df_with_indicators, config)
-                    total_signals += len(signals)
-                    
-                    # Manual condition testing
-                    self.test_entry_conditions_manually(df_with_indicators, config)
-                    
-                except Exception as e:
-                    print(f"❌ Error testing config {config['name']}: {e}")
-                    import traceback
-                    traceback.print_exc()
-        
-        print(f"\n{'='*60}")
-        print(f"🏁 DIAGNOSTIC COMPLETE")
-        print(f"{'='*60}")
-        print(f"Total signals detected across all tests: {total_signals}")
-        
-        if total_signals == 0:
-            print("\n❌ CRITICAL ISSUE: No signals detected in any configuration!")
-            print("Possible causes:")
-            print("1. MACD calculation errors")
-            print("2. Entry condition logic flaws") 
-            print("3. Threshold values too restrictive")
-            print("4. Data processing issues")
-            print("5. Strategy class implementation bugs")
-        else:
-            print(f"\n✅ Signals were detected, issue may be configuration-specific")
-
-    def test_live_data_stream(self):
-        """Test with live streaming data to see real-time behavior"""
-        print(f"\n🔴 LIVE DATA STREAM TEST")
-        print("Testing MACD detection with live 1m data...")
-        
-        symbol = 'BTCUSDT'
-        config = self.get_macd_config_variants()[0]  # Ultra relaxed
-        config['symbol'] = symbol
-        
-        try:
-            # Get recent 1m data
-            df = self.fetch_market_data(symbol, '1m', 100)
-            if df.empty:
-                print("❌ No live data available")
-                return
-            
-            strategy = MACDDivergenceStrategy('live_test', config)
-            df_with_indicators = strategy.calculate_indicators(df.copy())
-            
-            print(f"📊 Live Data Analysis (last 5 candles):")
-            recent = df_with_indicators.tail(5)
-            
-            for timestamp, row in recent.iterrows():
-                print(f"{timestamp}: Price=${row['close']:.2f}, MACD={row.get('macd', 0):.6f}, Signal={row.get('macd_signal', 0):.6f}, Hist={row.get('macd_histogram', 0):.6f}")
-                
-                # Test signal on this specific candle
-                signal = strategy.evaluate_entry_signal(df_with_indicators.loc[:timestamp])
-                if signal:
-                    print(f"  🎯 LIVE SIGNAL: {signal.signal_type.value} - {signal.reason}")
-                    
-        except Exception as e:
-            print(f"❌ Live test error: {e}")
-
-def main():
-    diagnostic = MACDSignalDiagnostic()
+def diagnose_macd_strategy():
+    """Comprehensive MACD strategy diagnosis"""
+    print("\n🔍 COMPREHENSIVE MACD SIGNAL DIAGNOSIS")
+    print("=" * 60)
     
     try:
-        # Run comprehensive test
-        diagnostic.run_comprehensive_test()
+        # 1. GET MACD STRATEGY CONFIG
+        print("\n📋 STEP 1: LOADING MACD STRATEGY CONFIG")
+        macd_config = trading_config_manager.get_strategy_config('macd_divergence', {})
         
-        # Test with live data
-        diagnostic.test_live_data_stream()
+        print(f"✅ Config loaded successfully:")
+        print(f"   Symbol: {macd_config.get('symbol', 'N/A')}")
+        print(f"   Timeframe: {macd_config.get('timeframe', 'N/A')}")
+        print(f"   MACD Fast: {macd_config.get('macd_fast', 'N/A')}")
+        print(f"   MACD Slow: {macd_config.get('macd_slow', 'N/A')}")
+        print(f"   MACD Signal: {macd_config.get('macd_signal', 'N/A')}")
+        print(f"   Min Histogram Threshold: {macd_config.get('min_histogram_threshold', 'N/A')}")
+        print(f"   Min Distance Threshold: {macd_config.get('min_distance_threshold', 'N/A')}")
+        print(f"   Confirmation Candles: {macd_config.get('confirmation_candles', 'N/A')}")
         
-    except KeyboardInterrupt:
-        print("\n🛑 Diagnostic interrupted by user")
     except Exception as e:
-        print(f"\n❌ Diagnostic failed: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Error loading MACD config: {e}")
+        return False
+    
+    try:
+        # 2. INITIALIZE BINANCE CLIENT
+        print("\n📊 STEP 2: INITIALIZING BINANCE CLIENT")
+        binance_client = BinanceClientWrapper()
+        
+        symbol = macd_config.get('symbol', 'BTCUSDT')
+        timeframe = macd_config.get('timeframe', '15m')
+        
+        print(f"✅ Binance client initialized")
+        print(f"   Target Symbol: {symbol}")
+        print(f"   Target Timeframe: {timeframe}")
+        
+    except Exception as e:
+        print(f"❌ Error initializing Binance client: {e}")
+        return False
+    
+    try:
+        # 3. FETCH MARKET DATA
+        print(f"\n💹 STEP 3: FETCHING MARKET DATA")
+        
+        # Get sufficient data for MACD calculation (need at least slow period + signal period)
+        required_candles = max(macd_config.get('macd_slow', 26), 26) + max(macd_config.get('macd_signal', 9), 9) + 50
+        
+        print(f"   Fetching {required_candles} candles for {symbol} {timeframe}")
+        
+        klines = binance_client.get_klines(symbol=symbol, interval=timeframe, limit=required_candles)
+        
+        if not klines or len(klines) < 50:
+            print(f"❌ Insufficient data: {len(klines) if klines else 0} candles")
+            return False
+            
+        print(f"✅ Fetched {len(klines)} candles")
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(klines, columns=[
+            'timestamp', 'open', 'high', 'low', 'close', 'volume',
+            'close_time', 'quote_asset_volume', 'number_of_trades',
+            'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
+        ])
+        
+        # Convert to proper data types
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        
+        print(f"   Data range: {df['timestamp'].iloc[0]} to {df['timestamp'].iloc[-1]}")
+        print(f"   Price range: ${df['close'].min():.2f} - ${df['close'].max():.2f}")
+        print(f"   Latest close: ${df['close'].iloc[-1]:.2f}")
+        
+    except Exception as e:
+        print(f"❌ Error fetching market data: {e}")
+        return False
+    
+    try:
+        # 4. MANUAL MACD CALCULATION
+        print(f"\n🧮 STEP 4: MANUAL MACD CALCULATION")
+        
+        fast_period = macd_config.get('macd_fast', 12)
+        slow_period = macd_config.get('macd_slow', 26)
+        signal_period = macd_config.get('macd_signal', 9)
+        
+        macd_line, signal_line, histogram = calculate_macd_manually(
+            df['close'].values, fast_period, slow_period, signal_period
+        )
+        
+        if macd_line is None:
+            print(f"❌ Manual MACD calculation failed")
+            return False
+            
+        # Get recent values (last 10 candles)
+        recent_data = []
+        for i in range(-10, 0):
+            if i >= -len(macd_line):
+                recent_data.append({
+                    'time': df['timestamp'].iloc[i].strftime('%Y-%m-%d %H:%M'),
+                    'close': df['close'].iloc[i],
+                    'macd': macd_line[i],
+                    'signal': signal_line[i],
+                    'histogram': histogram[i],
+                    'macd_cross': 'BULLISH' if macd_line[i] > signal_line[i] and macd_line[i-1] <= signal_line[i-1] else 'BEARISH' if macd_line[i] < signal_line[i] and macd_line[i-1] >= signal_line[i-1] else 'NONE'
+                })
+        
+        print(f"✅ MACD calculated successfully")
+        print(f"   Fast EMA: {fast_period}, Slow EMA: {slow_period}, Signal: {signal_period}")
+        print(f"   Current MACD: {macd_line[-1]:.6f}")
+        print(f"   Current Signal: {signal_line[-1]:.6f}")
+        print(f"   Current Histogram: {histogram[-1]:.6f}")
+        
+        print(f"\n📈 RECENT MACD DATA:")
+        print(f"{'Time':<17} {'Close':<10} {'MACD':<12} {'Signal':<12} {'Histogram':<12} {'Cross'}")
+        print("-" * 80)
+        for data in recent_data[-5:]:  # Show last 5 candles
+            print(f"{data['time']:<17} ${data['close']:<9.2f} {data['macd']:<12.6f} {data['signal']:<12.6f} {data['histogram']:<12.6f} {data['macd_cross']}")
+        
+    except Exception as e:
+        print(f"❌ Error in manual MACD calculation: {e}")
+        return False
+    
+    try:
+        # 5. STRATEGY SIGNAL DETECTION ANALYSIS
+        print(f"\n🎯 STEP 5: STRATEGY SIGNAL DETECTION ANALYSIS")
+        
+        min_histogram_threshold = macd_config.get('min_histogram_threshold', 0.0001)
+        min_distance_threshold = macd_config.get('min_distance_threshold', 0.005)
+        confirmation_candles = macd_config.get('confirmation_candles', 2)
+        
+        print(f"   Thresholds:")
+        print(f"   - Min Histogram Threshold: {min_histogram_threshold}")
+        print(f"   - Min Distance Threshold: {min_distance_threshold}")
+        print(f"   - Confirmation Candles: {confirmation_candles}")
+        
+        # Analyze recent signals
+        signals_detected = []
+        
+        for i in range(len(macd_line) - confirmation_candles, len(macd_line)):
+            if i <= confirmation_candles:
+                continue
+                
+            current_macd = macd_line[i]
+            current_signal = signal_line[i]
+            current_histogram = histogram[i]
+            
+            prev_macd = macd_line[i-1]
+            prev_signal = signal_line[i-1]
+            prev_histogram = histogram[i-1]
+            
+            # Check for bullish crossover
+            if (current_macd > current_signal and prev_macd <= prev_signal and 
+                abs(current_histogram) > min_histogram_threshold and
+                abs(current_macd - current_signal) > min_distance_threshold):
+                
+                signals_detected.append({
+                    'time': df['timestamp'].iloc[i].strftime('%Y-%m-%d %H:%M'),
+                    'type': 'BULLISH_CROSS',
+                    'macd': current_macd,
+                    'signal': current_signal,
+                    'histogram': current_histogram,
+                    'distance': abs(current_macd - current_signal),
+                    'meets_histogram_threshold': abs(current_histogram) > min_histogram_threshold,
+                    'meets_distance_threshold': abs(current_macd - current_signal) > min_distance_threshold
+                })
+            
+            # Check for bearish crossover
+            elif (current_macd < current_signal and prev_macd >= prev_signal and 
+                  abs(current_histogram) > min_histogram_threshold and
+                  abs(current_macd - current_signal) > min_distance_threshold):
+                
+                signals_detected.append({
+                    'time': df['timestamp'].iloc[i].strftime('%Y-%m-%d %H:%M'),
+                    'type': 'BEARISH_CROSS',
+                    'macd': current_macd,
+                    'signal': current_signal,
+                    'histogram': current_histogram,
+                    'distance': abs(current_macd - current_signal),
+                    'meets_histogram_threshold': abs(current_histogram) > min_histogram_threshold,
+                    'meets_distance_threshold': abs(current_macd - current_signal) > min_distance_threshold
+                })
+        
+        print(f"\n🔍 SIGNAL DETECTION RESULTS:")
+        if signals_detected:
+            print(f"✅ Found {len(signals_detected)} signals in recent data:")
+            for signal in signals_detected:
+                print(f"   {signal['time']} - {signal['type']}")
+                print(f"      MACD: {signal['macd']:.6f}, Signal: {signal['signal']:.6f}")
+                print(f"      Histogram: {signal['histogram']:.6f} (Threshold: {abs(signal['histogram']) > min_histogram_threshold})")
+                print(f"      Distance: {signal['distance']:.6f} (Threshold: {signal['meets_distance_threshold']})")
+        else:
+            print(f"❌ NO SIGNALS DETECTED in recent data")
+            print(f"   This indicates the issue is in the signal detection logic")
+        
+    except Exception as e:
+        print(f"❌ Error in signal detection analysis: {e}")
+        return False
+    
+    try:
+        # 6. THRESHOLD ANALYSIS
+        print(f"\n🔬 STEP 6: THRESHOLD SENSITIVITY ANALYSIS")
+        
+        print(f"   Analyzing if thresholds are too restrictive...")
+        
+        # Count how many recent crossovers fail each threshold
+        threshold_failures = {
+            'histogram_too_small': 0,
+            'distance_too_small': 0,
+            'both_too_small': 0,
+            'total_crossovers': 0
+        }
+        
+        for i in range(len(macd_line) - 20, len(macd_line)):
+            if i <= 1:
+                continue
+                
+            current_macd = macd_line[i]
+            current_signal = signal_line[i]
+            current_histogram = histogram[i]
+            
+            prev_macd = macd_line[i-1]
+            prev_signal = signal_line[i-1]
+            
+            # Check for any crossover
+            if ((current_macd > current_signal and prev_macd <= prev_signal) or
+                (current_macd < current_signal and prev_macd >= prev_signal)):
+                
+                threshold_failures['total_crossovers'] += 1
+                
+                histogram_meets = abs(current_histogram) > min_histogram_threshold
+                distance_meets = abs(current_macd - current_signal) > min_distance_threshold
+                
+                if not histogram_meets and not distance_meets:
+                    threshold_failures['both_too_small'] += 1
+                elif not histogram_meets:
+                    threshold_failures['histogram_too_small'] += 1
+                elif not distance_meets:
+                    threshold_failures['distance_too_small'] += 1
+        
+        print(f"   Total crossovers found: {threshold_failures['total_crossovers']}")
+        print(f"   Failed histogram threshold: {threshold_failures['histogram_too_small']}")
+        print(f"   Failed distance threshold: {threshold_failures['distance_too_small']}")
+        print(f"   Failed both thresholds: {threshold_failures['both_too_small']}")
+        
+        if threshold_failures['total_crossovers'] == 0:
+            print(f"   ⚠️ NO CROSSOVERS DETECTED - Market may be trending strongly")
+        elif (threshold_failures['histogram_too_small'] + threshold_failures['distance_too_small'] + 
+              threshold_failures['both_too_small']) > 0:
+            print(f"   ⚠️ THRESHOLDS ARE TOO RESTRICTIVE - Blocking valid signals")
+            
+    except Exception as e:
+        print(f"❌ Error in threshold analysis: {e}")
+        return False
+    
+    try:
+        # 7. STRATEGY CLASS TESTING
+        print(f"\n🧪 STEP 7: TESTING ACTUAL STRATEGY CLASS")
+        
+        print(f"   Initializing MACDDivergenceStrategy...")
+        strategy = MACDDivergenceStrategy(macd_config)
+        
+        # Test with current market data
+        test_data = {
+            'open': df['open'].iloc[-1],
+            'high': df['high'].iloc[-1],
+            'low': df['low'].iloc[-1],
+            'close': df['close'].iloc[-1],
+            'volume': df['volume'].iloc[-1]
+        }
+        
+        print(f"   Testing with latest candle data:")
+        print(f"   Close: ${test_data['close']:.2f}")
+        print(f"   Volume: {test_data['volume']:,.0f}")
+        
+        # Test signal detection
+        result = strategy.should_enter_trade(test_data, df.to_dict('records'))
+        
+        print(f"\n   Strategy Result:")
+        print(f"   Should Enter Trade: {result}")
+        
+        if not result:
+            print(f"   ❌ Strategy is not generating entry signals")
+            print(f"   This confirms there's an issue in the strategy logic")
+        else:
+            print(f"   ✅ Strategy would generate an entry signal")
+            
+    except Exception as e:
+        print(f"❌ Error testing strategy class: {e}")
+        print(f"   This indicates an issue with the strategy implementation")
+        return False
+    
+    # 8. SUMMARY AND RECOMMENDATIONS
+    print(f"\n📋 STEP 8: DIAGNOSIS SUMMARY AND RECOMMENDATIONS")
+    print("=" * 60)
+    
+    print(f"\n🎯 FINDINGS:")
+    if signals_detected:
+        print(f"✅ MACD calculation is working correctly")
+        print(f"✅ Signal detection logic can find crossovers")
+        print(f"❓ Issue may be in strategy implementation or configuration")
+    else:
+        print(f"❌ No MACD signals detected in recent data")
+        print(f"❓ Could be due to:")
+        print(f"   - Thresholds too restrictive")
+        print(f"   - Market conditions not suitable for MACD")
+        print(f"   - Strategy implementation issues")
+    
+    print(f"\n💡 RECOMMENDATIONS:")
+    
+    if threshold_failures.get('total_crossovers', 0) > 0:
+        if (threshold_failures.get('histogram_too_small', 0) + 
+            threshold_failures.get('distance_too_small', 0) + 
+            threshold_failures.get('both_too_small', 0)) > threshold_failures.get('total_crossovers', 1) * 0.5:
+            print(f"1. 🔧 REDUCE THRESHOLDS - Current settings are too restrictive")
+            print(f"   - Try min_histogram_threshold: 0.00005 (current: {min_histogram_threshold})")
+            print(f"   - Try min_distance_threshold: 0.001 (current: {min_distance_threshold})")
+    
+    if not signals_detected:
+        print(f"2. 📊 CHANGE TIMEFRAME - Try a different timeframe for more crossovers")
+        print(f"   - Current: {timeframe}, Try: 5m or 1h")
+    
+    print(f"3. 🎛️ ADJUST MACD PARAMETERS - Try more sensitive settings")
+    print(f"   - Current: Fast={fast_period}, Slow={slow_period}, Signal={signal_period}")
+    print(f"   - Try: Fast=8, Slow=21, Signal=5 (more sensitive)")
+    
+    print(f"4. ⏰ CHECK DIFFERENT TIME PERIODS - Current market may not be suitable")
+    
+    print(f"\n✅ DIAGNOSIS COMPLETE")
+    return True
+    
+except Exception as e:
+    print(f"\n❌ CRITICAL ERROR IN DIAGNOSIS: {e}")
+    import traceback
+    traceback.print_exc()
+    return False
 
 if __name__ == "__main__":
-    main()
+    success = diagnose_macd_strategy()
+    if success:
+        print(f"\n🎉 Diagnosis completed successfully!")
+    else:
+        print(f"\n💥 Diagnosis failed - Check the errors above")
