@@ -16,11 +16,11 @@ class TradeRecord:
     symbol: str
     side: str  # BUY/SELL
     entry_price: float
-    exit_price: Optional[float]
     quantity: float
     margin_used: float
     leverage: int
     position_value_usdt: float
+    exit_price: Optional[float] = None
 
     # Technical indicators at entry
     rsi_at_entry: Optional[float] = None
