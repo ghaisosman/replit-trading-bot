@@ -180,14 +180,16 @@ class TradingConfigManager:
             config['validation_message'] = message
             
             if is_complete:
-                self.logger.info(f"🌐 WEB DASHBOARD: Using complete config for {strategy_name}")
+                self.logger.info(f"✅ {strategy_name}: OPERATIONAL - Complete configuration from web dashboard")
             else:
-                self.logger.warning(f"🌐 WEB DASHBOARD: {strategy_name} NOT OPERATIONAL - {message}")
+                self.logger.warning(f"❌ {strategy_name}: NOT OPERATIONAL - {message}")
+                self.logger.info(f"💡 Configure {strategy_name} via web dashboard to make it operational")
         else:
             # Strategy not configured via dashboard - not operational
             config['operational'] = False
             config['validation_message'] = "Strategy not configured via web dashboard"
-            self.logger.warning(f"⚠️ {strategy_name}: NOT OPERATIONAL - No web dashboard configuration")
+            self.logger.warning(f"❌ {strategy_name}: NOT OPERATIONAL - No web dashboard configuration found")
+            self.logger.info(f"💡 Add {strategy_name} configuration via web dashboard to enable trading")
 
         return config
 

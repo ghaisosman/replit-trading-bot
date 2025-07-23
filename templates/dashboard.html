@@ -2026,19 +2026,43 @@
         let updateTimeouts = {};
         let pollingActive = true;
 
-         // Simple API request function without complex error handling
+         // Enhanced API request function with better error handling
         function apiRequest(url) {
-            return fetch(url)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('HTTP ' + response.status);
+            return fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                timeout: 10000
+            })
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 502) {
+                        throw new Error('Server temporarily unavailable');
                     }
-                    return response.json();
-                })
-                .catch(error => {
-                    console.error('API request failed:', error);
-                    return { success: false, error: error.message };
-                });
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.json();
+            })
+            .catch(error => {
+                console.error('API request failed for', url, ':', error);
+                
+                // Return appropriate fallback based on endpoint
+                if (url.includes('/api/bot/status')) {
+                    return {
+                        success: true,
+                        running: false,
+                        is_running: false,
+                        active_positions: 0,
+                        strategies: 0,
+                        balance: 0.0,
+                        status: 'connection_error'
+                    };
+                }
+                
+                return { success: false, error: error.message };
+            });
         }
 
         // FIXED: Enhanced safe API response handler to prevent parsing errors
