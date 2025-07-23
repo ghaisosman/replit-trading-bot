@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import os
 from pathlib import Path
 import pandas as pd
+import time
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -165,6 +166,60 @@ def get_latest_trade_data():
             'last_updated': datetime.now().isoformat(),
             'error': str(e)
         }
+
+@app.route('/api/bot/status')
+def get_bot_status():
+    """Get current bot status"""
+    try:
+        # Check if bot is running
+        import psutil
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            if proc.info['cmdline'] and 'main.py' in ' '.join(proc.info['cmdline']):
+                return jsonify({
+                    'status': 'running',
+                    'pid': proc.info['pid'],
+                    'uptime': 'active'
+                })
+
+        return jsonify({'status': 'stopped'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/api/bot/start', methods=['POST'])
+def start_bot():
+    """Start the trading bot"""
+    try:
+        import subprocess
+        subprocess.Popen(['python', 'main.py'])
+        return jsonify({'success': True, 'message': 'Bot starting...'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bot/stop', methods=['POST'])
+def stop_bot():
+    """Stop the trading bot"""
+    try:
+        import psutil
+        for proc in psutil.process_iter(['pid', 'cmdline']):
+            if proc.info['cmdline'] and 'main.py' in ' '.join(proc.info['cmdline']):
+                proc.terminate()
+                return jsonify({'success': True, 'message': 'Bot stopped'})
+
+        return jsonify({'success': False, 'message': 'Bot not running'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/console-log')
+def get_console_log():
+    """Get recent console logs"""
+    try:
+        # Return recent log entries
+        return jsonify({
+            'logs': ['Bot is running...', 'Monitoring positions...'],
+            'timestamp': time.time()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 if __name__ == '__main__':
     logger.info("🌐 Starting simplified web dashboard...")

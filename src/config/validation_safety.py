@@ -47,6 +47,24 @@ class ValidationSafety:
         # No other validations - let user set any non-zero value
         return True, value, None
 
+    def validate_strategy_config(self, config: Dict[str, Any]) -> bool:
+        """
+        Validate complete strategy configuration - simplified safety checks
+        Returns: True if config is safe, False if critical issues found
+        """
+        if not config:
+            return False
+            
+        # Check critical zero values that would break the bot
+        for param_name in self.critical_zero_checks:
+            if param_name in config:
+                is_valid, _, _ = self.validate_parameter(param_name, config[param_name])
+                if not is_valid:
+                    self.logger.error(f"🚫 CRITICAL: {param_name} validation failed in strategy config")
+                    return False
+        
+        return True
+
     def validate_multiple_parameters(self, updates: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """
         Validate multiple parameters - simplified approach

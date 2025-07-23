@@ -28,12 +28,18 @@ class TradingConfigManager:
         """Initialize simplified trading configuration manager"""
         # WEB DASHBOARD IS THE ONLY SOURCE OF TRUTH
         self.strategy_configs = {}
+        
+        # Add config_data attribute for compatibility
+        self.config_data = {}
 
         # Simple default parameters as absolute fallback only
         self.default_params = TradingParameters()
 
         # Load web dashboard configurations (single source)
         self._load_web_dashboard_configs()
+        
+        # Populate config_data from strategy_configs
+        self.config_data = {'web_dashboard': self.strategy_configs}
 
     def _load_web_dashboard_configs(self):
         """Load configurations from web dashboard storage (single source)"""
