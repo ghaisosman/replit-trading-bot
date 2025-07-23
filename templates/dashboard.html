@@ -1491,17 +1491,37 @@
         }
         // Simple balance update
         function updateBalance() {
-            apiRequest('/api/balance')
-                .then(data => {
-                    if (data && data.success !== false) {
-                        const balance = document.getElementById('balance');
-                        if (balance) {
-                            balance.textContent = (data.total_balance || 0).toFixed(2);
-                        }
+            // Check cache first
+            const cachedData = getCachedData('balance');
+            if (cachedData) {
+                
+                return;
+            }
+
+            // Check if we can make a new request
+            if (!canMakeRequest('balance')) {
+                return; // Skip this update cycle
+            }
+
+            markRequestStart('balance');
+
+            fetch('/api/balance')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
+                    return response.json();
+                })
+                .then(data => {
+                    setCachedData('balance', data);
+                   
                 })
                 .catch(error => {
-                    console.error('Error updating balance:', error);
+                    console.log('API call failed for', '/api/balance', ':', error.message);
+                    
+                })
+                .finally(() => {
+                    markRequestEnd('balance');
                 });
         }
 
@@ -3076,7 +3096,7 @@ button.className = originalClass;
                 formData.macd_entry_threshold = parseFloat(document.getElementById('macdEntryThreshold').value);
                 formData.macd_exit_threshold = parseFloat(document.getElementById('macdExitThreshold').value);
                 formData.histogram_divergence_lookback = parseInt(document.getElementById('histogramDivergenceLookback').value);
-                formData.price_divergence_lookback = parseInt(document.getElementById('priceDivergenceLookback').value);
+                formData.priceDivergenceLookback = parseInt(document.getElementById('priceDivergenceLookback').value);
                 formData.confirmation_candles = parseInt(document.getElementById('confirmationCandles').value);
                 formData.divergence_strength_min = parseFloat(document.getElementById('divergenceStrengthMin').value);
             }

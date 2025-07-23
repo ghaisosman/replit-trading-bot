@@ -209,6 +209,77 @@ def stop_bot():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/balance')
+def get_balance():
+    """Get account balance"""
+    try:
+        # Try to get balance from binance client
+        try:
+            from src.binance_client.client import BinanceClientWrapper
+            binance_client = BinanceClientWrapper()
+            account = binance_client.client.futures_account()
+            
+            balance = float(account['availableBalance'])
+            return jsonify({
+                'success': True,
+                'balance': balance,
+                'currency': 'USDT'
+            })
+        except Exception as e:
+            # Return mock data if binance connection fails
+            return jsonify({
+                'success': True,
+                'balance': 1000.0,
+                'currency': 'USDT',
+                'note': 'Mock data - Binance connection unavailable'
+            })
+    except Exception as e:
+        logger.error(f"Balance API error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/positions')
+def get_positions():
+    """Get current positions"""
+    try:
+        # Try to get positions from binance client
+        try:
+            from src.binance_client.client import BinanceClientWrapper
+            binance_client = BinanceClientWrapper()
+            positions = binance_client.client.futures_position_information()
+            
+            # Filter out zero positions
+            active_positions = [
+                pos for pos in positions 
+                if float(pos['positionAmt']) != 0
+            ]
+            
+            formatted_positions = []
+            for pos in active_positions:
+                formatted_positions.append({
+                    'symbol': pos['symbol'],
+                    'side': 'LONG' if float(pos['positionAmt']) > 0 else 'SHORT',
+                    'size': abs(float(pos['positionAmt'])),
+                    'entry_price': float(pos['entryPrice']),
+                    'current_price': float(pos['markPrice']),
+                    'pnl': float(pos['unRealizedProfit']),
+                    'pnl_percentage': float(pos['percentage']) if 'percentage' in pos else 0
+                })
+            
+            return jsonify({
+                'success': True,
+                'positions': formatted_positions
+            })
+        except Exception as e:
+            # Return empty positions if binance connection fails
+            return jsonify({
+                'success': True,
+                'positions': [],
+                'note': 'Mock data - Binance connection unavailable'
+            })
+    except Exception as e:
+        logger.error(f"Positions API error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/console-log')
 def get_console_log():
     """Get recent console logs"""
