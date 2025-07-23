@@ -1362,13 +1362,8 @@
         // Simple bot status update
         function updateBotStatus() {
             apiRequest('/api/bot/status')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
                 .then(data => {
+                    if (data && data.success !== false) {
                     if (data && data.success !== false) {
                         const statusElement = document.getElementById('statusBadge');
                         const botToggle = document.getElementById('botToggle');
@@ -1424,9 +1419,13 @@
                             balanceElement.textContent = data.balance.toFixed(2);
                         }
                     }
+                } else {
+                        updateBotStatusErrorUI(data);
+                    }
                 })
                 .catch(error => {
-                    console.error('Error updating bot status:', error);
+                    console.log('Bot status update failed:', error.message || 'Connection error');
+                    updateBotStatusErrorUI({ status: 'network_error' });
                 });
         }
 
@@ -2069,7 +2068,7 @@
                     return response.json();
                 })
                 .catch(error => {
-                    console.error('API request failed:', error);
+                    console.log('API request failed for', url, ':', error.message || 'Unknown error');
                     return { success: false, error: error.message };
                 });
         }
