@@ -655,22 +655,22 @@ class OrderManager:
             # Try both rounding up and down, choose the one closest to target margin
             quantity_down = (ideal_quantity // step_size) * step_size
             quantity_up = quantity_down + step_size
-            
+
             # Calculate actual margins for both options
             margin_down = (quantity_down * signal.entry_price) / leverage if quantity_down >= min_qty else float('inf')
             margin_up = (quantity_up * signal.entry_price) / leverage
-            
+
             # Choose the quantity that gets closest to target margin
             margin_diff_down = abs(margin_down - margin) if margin_down != float('inf') else float('inf')
             margin_diff_up = abs(margin_up - margin)
-            
+
             if margin_diff_down <= margin_diff_up and quantity_down >= min_qty:
                 quantity = quantity_down
                 chosen_direction = "DOWN"
             else:
                 quantity = quantity_up
                 chosen_direction = "UP"
-            
+
             # Apply precision rounding
             quantity = round(quantity, precision)
 
@@ -714,7 +714,7 @@ class OrderManager:
         """Get position history"""
         return self.position_history.copy()
 
-    def has_position_on_symbol(self, symbol: str, side: str = None) -> bool:
+def has_position_on_symbol(self, symbol: str, side: str = None) -> bool:
         """Check if there's already a position on this symbol (optionally with specific side)"""
         try:
             for position in self.active_positions.values():
@@ -772,18 +772,18 @@ class OrderManager:
             try:
                 from src.execution_engine.trade_database import TradeDatabase
                 trade_db = TradeDatabase()
-                
+
                 # First try exact strategy match
                 trade_id = trade_db.find_trade_by_position(strategy_name, symbol, side, quantity, entry_price, tolerance=0.05)
-                
+
                 if not trade_id:
                     # If no exact match, try searching all strategies (for recovered positions)
                     self.logger.info(f"🔍 DEBUG: No exact strategy match, searching all strategies for {symbol}")
                     trade_id = trade_db.find_trade_by_position('UNKNOWN', symbol, side, quantity, entry_price, tolerance=0.05)
-                    
+
                     if trade_id:
                         self.logger.info(f"🔍 DEBUG: Found matching trade in different strategy: {trade_id}")
-                
+
             except ImportError as e:
                 self.logger.warning(f"Trade database not available: {e}")
                 return False, None
@@ -1053,10 +1053,10 @@ class OrderManager:
             success = trade_db.add_trade(position.trade_id, complete_data)
             if success:
                 self.logger.info(f"✅ TRADE RECORDED IN DATABASE | {position.trade_id} | Margin: ${actual_margin_used:.2f} USDT")
-                
+
                 # Now sync to trade logger (database is source of truth)
                 self._sync_database_to_logger(position.trade_id, complete_data)
-                
+
             else:
                 self.logger.error(f"❌ FAILED TO RECORD TRADE IN DATABASE | {position.trade_id}")
 
@@ -1215,39 +1215,39 @@ Remaining Position: {position.remaining_quantity} {position.symbol.replace('USDT
         """Sync trade from database to logger (database is source of truth)"""
         try:
             from src.analytics.trade_logger import trade_logger
-            
+
             # Create logger-compatible data
             logger_data = trade_data.copy()
-            
+
             # CRITICAL: Ensure trade_id is explicitly set
             logger_data['trade_id'] = trade_id
-            
+
             # Ensure timestamp is datetime object
             if 'timestamp' not in logger_data:
                 logger_data['timestamp'] = datetime.now()
             elif isinstance(logger_data['timestamp'], str):
                 logger_data['timestamp'] = datetime.fromisoformat(logger_data['timestamp'])
-            
+
             # Map database fields to logger fields
             field_mapping = {
                 'margin_used': 'margin_used',
                 'position_value_usdt': 'position_value_usdt'
             }
-            
+
             for db_field, logger_field in field_mapping.items():
                 if db_field in logger_data and logger_field not in logger_data:
                     logger_data[logger_field] = logger_data[db_field]
-            
+
             # Use logger's log_trade method to add the trade
             success = trade_logger.log_trade(logger_data)
-            
+
             if success:
                 self.logger.info(f"✅ SYNCED TO LOGGER | {trade_id} | Database → Logger sync complete")
                 return True
             else:
                 self.logger.error(f"❌ FAILED TO SYNC TO LOGGER | {trade_id}")
                 return False
-                
+
         except Exception as e:
             self.logger.error(f"❌ Error syncing database to logger: {e}")
             return False

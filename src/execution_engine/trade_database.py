@@ -272,6 +272,126 @@ class TradeDatabase:
             self.logger.error(f"❌ Error getting recovery candidates: {e}")
             return []
 
+    def create_orphan_trade_record(self, binance_position: dict, estimated_strategy: str = "unknown_recovery") -> bool:
+        """Create a database record for an orphaned Binance position"""
+        try:
+            symbol = binance_position.get('symbol')
+            position_amt = float(binance_position.get('positionAmt', 0))
+            entry_price = float(binance_position.get('entryPrice', 0))
+            unrealized_pnl = float(binance_position.get('unRealizedProfit', 0))
+            
+            if abs(position_amt) < 0.001:  # No meaningful position
+                return False
+            
+            # Generate trade ID for orphan recovery
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            trade_id = f"RECOVERY_{estimated_strategy}_{symbol}_{timestamp}"
+            
+            # Determine side and quantity
+            side = 'BUY' if position_amt > 0 else 'SELL'
+            quantity = abs(position_amt)
+            
+            # Create trade record
+            trade_data = {
+                'trade_id': trade_id,
+                'strategy_name': estimated_strategy,
+                'symbol': symbol,
+                'side': side,
+                'quantity': quantity,
+                'entry_price': entry_price,
+                'trade_status': 'OPEN',
+                'position_value_usdt': entry_price * quantity,
+                'leverage': 1,  # Default leverage
+                'margin_used': entry_price * quantity,  # Assume 1x leverage
+                'unrealized_pnl': unrealized_pnl,
+                'created_at': datetime.now().isoformat(),
+                'last_updated': datetime.now().isoformat(),
+                'recovery_trade': True,  # Mark as recovered trade
+                'original_binance_data': binance_position  # Store original data
+            }
+            
+            # Add to database
+            success = self.add_trade(trade_id, trade_data)
+            
+            if success:
+                self.logger.info(f"✅ Created recovery trade record: {trade_id} | {symbol} | {side} | Qty: {quantity}")
+                return True
+            else:
+                self.logger.error(f"❌ Failed to create recovery trade record for {symbol}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error creating orphan trade record: {e}")
+            return False
+
+    def recover_unmatched_positions(self, binance_client) -> int:
+        """Automatically recover unmatched Binance positions by creating database records"""
+        try:
+            if not binance_client.is_futures:
+                self.logger.info("📊 Not using futures - skipping position recovery")
+                return 0
+            
+            # Get all Binance positions
+            account_info = binance_client.client.futures_account()
+            all_positions = account_info.get('positions', [])
+            
+            # Filter active positions
+            active_positions = [pos for pos in all_positions if abs(float(pos.get('positionAmt', 0))) > 0.001]
+            
+            if not active_positions:
+                self.logger.info("📊 No active Binance positions found to recover")
+                return 0
+            
+            self.logger.info(f"🔍 Found {len(active_positions)} active Binance positions")
+            
+            recovered_count = 0
+            
+            for position in active_positions:
+                symbol = position.get('symbol')
+                position_amt = float(position.get('positionAmt', 0))
+                
+                # Check if we already have a database record for this position
+                position_matched = False
+                for trade_id, trade_data in self.trades.items():
+                    if (trade_data.get('symbol') == symbol and 
+                        trade_data.get('trade_status') == 'OPEN'):
+                        
+                        # Check if quantities roughly match
+                        db_quantity = float(trade_data.get('quantity', 0))
+                        db_side = trade_data.get('side')
+                        
+                        expected_amt = db_quantity if db_side == 'BUY' else -db_quantity
+                        
+                        if abs(position_amt - expected_amt) < 0.1:  # Allow small tolerance
+                            position_matched = True
+                            self.logger.debug(f"📊 Position {symbol} already matched in database")
+                            break
+                
+                # If no match found, create recovery record
+                if not position_matched:
+                    # Try to estimate strategy based on symbol patterns
+                    estimated_strategy = "manual_position"
+                    if "BTC" in symbol:
+                        estimated_strategy = "manual_btc"
+                    elif "ETH" in symbol:
+                        estimated_strategy = "manual_eth"
+                    elif "XRP" in symbol:
+                        estimated_strategy = "manual_xrp"
+                    
+                    success = self.create_orphan_trade_record(position, estimated_strategy)
+                    if success:
+                        recovered_count += 1
+            
+            if recovered_count > 0:
+                self.logger.info(f"✅ Successfully recovered {recovered_count} unmatched positions")
+            
+            return recovered_count
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error recovering unmatched positions: {e}")
+            return 0
+
     def cleanup_old_trades(self, days: int = 30):
         """Clean up trades older than specified days"""
         try:
