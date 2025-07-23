@@ -651,13 +651,33 @@ class OrderManager:
             target_position_value = margin * leverage
             ideal_quantity = target_position_value / signal.entry_price
 
-            # Method 2: Round to meet Binance requirements
-            quantity = round(ideal_quantity / step_size) * step_size
+            # Method 2: Smart rounding to minimize margin discrepancy
+            # Try both rounding up and down, choose the one closest to target margin
+            quantity_down = (ideal_quantity // step_size) * step_size
+            quantity_up = quantity_down + step_size
+            
+            # Calculate actual margins for both options
+            margin_down = (quantity_down * signal.entry_price) / leverage if quantity_down >= min_qty else float('inf')
+            margin_up = (quantity_up * signal.entry_price) / leverage
+            
+            # Choose the quantity that gets closest to target margin
+            margin_diff_down = abs(margin_down - margin) if margin_down != float('inf') else float('inf')
+            margin_diff_up = abs(margin_up - margin)
+            
+            if margin_diff_down <= margin_diff_up and quantity_down >= min_qty:
+                quantity = quantity_down
+                chosen_direction = "DOWN"
+            else:
+                quantity = quantity_up
+                chosen_direction = "UP"
+            
+            # Apply precision rounding
             quantity = round(quantity, precision)
 
-            # Ensure minimum quantity
+            # Ensure minimum quantity (final safety check)
             if quantity < min_qty:
                 quantity = min_qty
+                chosen_direction = "MIN_QTY"
                 self.logger.warning(f"⚠️ MARGIN ADJUSTMENT: Quantity increased to minimum {min_qty} - margin will be higher than configured")
 
             # Calculate actual values after rounding
@@ -672,8 +692,9 @@ class OrderManager:
             self.logger.info(f"   🎯 Target Margin: ${margin:.2f} USDT")
             self.logger.info(f"   💰 Actual Margin: ${actual_margin_used:.2f} USDT")
             self.logger.info(f"   📊 Difference: ${margin_difference:+.2f} USDT ({margin_difference_pct:+.1f}%)")
-            self.logger.info(f"   📏 Quantity: {ideal_quantity:.6f} → {quantity} (rounded)")
+            self.logger.info(f"   📏 Quantity: {ideal_quantity:.6f} → {quantity} (rounded {chosen_direction})")
             self.logger.info(f"   💵 Position Value: ${actual_position_value:.2f} USDT")
+            self.logger.info(f"   🔧 Step Size: {step_size}, Min Qty: {min_qty}, Precision: {precision}")
 
             # Store actual margin for later use in position object
             signal.actual_margin_used = actual_margin_used
