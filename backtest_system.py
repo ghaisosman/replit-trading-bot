@@ -1298,6 +1298,7 @@ class BacktestWebInterface:
 
     def __init__(self):
         self.engine = BacktestEngine()
+        self.logger = logging.getLogger(__name__)
 
     def get_strategy_templates(self) -> Dict[str, Any]:
         """Get strategy configuration templates for the web interface"""
