@@ -54,12 +54,12 @@
       "side": "SELL",
       "entry_price": 3.5176,
       "detected_at": "2025-07-22T18:38:38.509159",
-      "status": "active",
+      "status": "cleared",
       "cycles_remaining": 1,
       "notified": true,
-      "cleared_at": null,
+      "cleared_at": "2025-07-23T11:00:42.894885",
       "binance_position_amt": 0.0
     }
   },
-  "last_updated": "2025-07-23T10:57:55.522326"
+  "last_updated": "2025-07-23T11:00:42.895195"
 }
