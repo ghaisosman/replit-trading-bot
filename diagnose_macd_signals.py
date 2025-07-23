@@ -317,8 +317,10 @@ def diagnose_macd_strategy():
         print(f"   Close: ${test_data['close']:.2f}")
         print(f"   Volume: {test_data['volume']:,.0f}")
 
-        # Test signal detection
-        result = strategy.evaluate_entry_signal(test_data, df.to_dict('records'))
+        # Test signal detection - need to add the test data as the last row in df
+        df_with_test = df.copy()
+        df_with_test = strategy.calculate_indicators(df_with_test)
+        result = strategy.evaluate_entry_signal(df_with_test)
 
         print(f"\n   Strategy Result:")
         print(f"   Should Enter Trade: {result}")
