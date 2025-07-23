@@ -218,7 +218,7 @@ def get_balance():
             from src.binance_client.client import BinanceClientWrapper
             binance_client = BinanceClientWrapper()
             account = binance_client.client.futures_account()
-            
+
             balance = float(account['availableBalance'])
             return jsonify({
                 'success': True,
@@ -246,13 +246,13 @@ def get_positions():
             from src.binance_client.client import BinanceClientWrapper
             binance_client = BinanceClientWrapper()
             positions = binance_client.client.futures_position_information()
-            
+
             # Filter out zero positions
             active_positions = [
                 pos for pos in positions 
                 if float(pos['positionAmt']) != 0
             ]
-            
+
             formatted_positions = []
             for pos in active_positions:
                 formatted_positions.append({
@@ -264,7 +264,7 @@ def get_positions():
                     'pnl': float(pos['unRealizedProfit']),
                     'pnl_percentage': float(pos['percentage']) if 'percentage' in pos else 0
                 })
-            
+
             return jsonify({
                 'success': True,
                 'positions': formatted_positions
@@ -295,3 +295,4 @@ def get_console_log():
 if __name__ == '__main__':
     logger.info("🌐 Starting simplified web dashboard...")
     app.run(host='0.0.0.0', port=5000, debug=True)
+```

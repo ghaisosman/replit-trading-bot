@@ -23,6 +23,10 @@ def run_web_dashboard():
     """Run the web dashboard in a separate thread"""
     import socket
     import time
+    import logging
+    
+    # Initialize logger for this thread
+    logger = logging.getLogger(__name__)
 
     def is_port_in_use(port):
         """Check if port is already in use"""
