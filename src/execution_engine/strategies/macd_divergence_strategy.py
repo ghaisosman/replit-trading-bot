@@ -34,7 +34,7 @@ class MACDDivergenceStrategy:
         self.exit_threshold = config.get('macd_exit_threshold', 0.002)
         self.confirmation_candles = config.get('confirmation_candles', 1)
 
-        self.logger.info(f"🆕 MACD DIVERGENCE STRATEGY INITIALIZED: {strategy_name}")
+        self.logger.info(f"🆕 MACD DIVERGENCE STRATEGY INITIALIZED: {self.strategy_name}")
         self.logger.info(f"📊 Config: Fast={self.macd_fast}, Slow={self.macd_slow}, Signal={self.macd_signal}")
         self.logger.info(f"🎯 Thresholds: Entry={self.entry_threshold}, Exit={self.exit_threshold}, Histogram={self.min_histogram_threshold}")
 
