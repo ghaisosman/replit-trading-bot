@@ -97,7 +97,10 @@ class SignalProcessor:
         """RSI strategy evaluation for both long and short signals with ACCURATE stop loss calculation"""
         try:
             # Clear any cached values to ensure fresh evaluation
-            self._config_cache.clear()
+            if hasattr(self, '_config_cache'):
+                self._config_cache.clear()
+            else:
+                self._config_cache = {}
             
             if 'rsi' not in df.columns:
                 self.logger.warning(f"❌ RSI column not found in DataFrame. Available columns: {list(df.columns)}")
