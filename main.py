@@ -20,42 +20,73 @@ def signal_handler(signum, frame):
     shutdown_event.set()
 
 def run_web_dashboard():
-    """Run web dashboard with enhanced stability"""
-    try:
-        # Import here to avoid circular imports
-        from web_dashboard import app
-        
-        # Configure Flask for maximum stability
-        app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max request
-        app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 300  # 5 minutes cache
-        app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 minutes
-        
-        # Get port from environment
-        port = int(os.environ.get('PORT', 5000))
-
-        # Run Flask app with enhanced settings for stability
-        app.run(
-            host='0.0.0.0', 
-            port=port, 
-            debug=False, 
-            use_reloader=False, 
-            threaded=True,
-            processes=1,  # Single process to prevent conflicts
-            request_handler=None  # Use default handler
-        )
-
-    except Exception as e:
-        logger = logging.getLogger(__name__)
-        logger.error(f"Web dashboard error: {e}")
-        
-        # Try to restart after a delay if the web dashboard crashes
-        import time
-        time.sleep(5)
-        logger.info("Attempting to restart web dashboard after crash...")
+    """Run web dashboard with maximum stability and error recovery"""
+    logger = logging.getLogger(__name__)
+    max_restart_attempts = 3
+    restart_count = 0
+    
+    while restart_count < max_restart_attempts:
         try:
-            run_web_dashboard()  # Recursive restart attempt
-        except Exception as restart_error:
-            logger.error(f"Web dashboard restart failed: {restart_error}")
+            # Import here to avoid circular imports
+            from web_dashboard import app
+            
+            # Configure Flask for maximum stability
+            app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max request
+            app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 300  # 5 minutes cache
+            app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 minutes
+            app.config['PROPAGATE_EXCEPTIONS'] = False  # Prevent 500 errors from crashing
+            
+            # Get port from environment
+            port = int(os.environ.get('PORT', 5000))
+            
+            logger.info(f"🌐 Starting web dashboard on port {port} (attempt {restart_count + 1})")
+
+            # Run Flask app with enhanced settings for stability
+            app.run(
+                host='0.0.0.0', 
+                port=port, 
+                debug=False, 
+                use_reloader=False, 
+                threaded=True,
+                processes=1,  # Single process to prevent conflicts
+                request_handler=None  # Use default handler
+            )
+            
+            # If we reach here, app.run() exited normally
+            logger.info("🔴 Web dashboard stopped normally")
+            break
+
+        except OSError as port_error:
+            if "Address already in use" in str(port_error):
+                logger.warning(f"⚠️ Port {port} in use, trying to continue...")
+                # Try a different port
+                port = port + 1
+                if restart_count < max_restart_attempts - 1:
+                    restart_count += 1
+                    continue
+                else:
+                    logger.error("❌ Could not find available port after multiple attempts")
+                    break
+            else:
+                logger.error(f"❌ Network error: {port_error}")
+                break
+                
+        except ImportError as import_error:
+            logger.error(f"❌ Import error in web dashboard: {import_error}")
+            # Don't retry import errors
+            break
+            
+        except Exception as e:
+            restart_count += 1
+            logger.error(f"❌ Web dashboard error (attempt {restart_count}): {e}")
+            
+            if restart_count < max_restart_attempts:
+                logger.info(f"🔄 Restarting web dashboard in 5 seconds... (attempt {restart_count + 1}/{max_restart_attempts})")
+                import time
+                time.sleep(5)
+            else:
+                logger.error(f"🚫 Web dashboard failed {max_restart_attempts} times. Giving up.")
+                break
 
 async def main():
     print(">>> ENTERED main()")
