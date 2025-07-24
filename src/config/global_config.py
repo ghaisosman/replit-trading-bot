@@ -94,11 +94,11 @@ class GlobalConfig:
             except Exception as e:
                 print(f"Warning: Could not load environment config file: {e}")
 
-        # Force mainnet for all environments (no more testnet switching)
-        self.BINANCE_TESTNET = False
+        # Temporarily use testnet while IP ban is active on mainnet
+        self.BINANCE_TESTNET = True  # Change back to False when IP ban lifts
         self.BINANCE_FUTURES = os.getenv('BINANCE_FUTURES', 'true').lower() == 'true'
         
-        print(f"🔧 Environment loaded: MAINNET")
+        print(f"🔧 Environment loaded: TESTNET (temporary - IP ban on mainnet)")
 
 # Global config instance
 global_config = GlobalConfig()

@@ -14,7 +14,10 @@ class BinanceClientWrapper:
         self.client = None
         self.is_futures = global_config.BINANCE_FUTURES
         self._last_request_time = 0
-        self._min_request_interval = 0.1  # Minimum 100ms between requests
+        self._min_request_interval = 1.0  # Minimum 1000ms between requests (aggressive)
+        self._request_count = 0
+        self._request_window_start = time.time()
+        self._max_requests_per_minute = 500  # Conservative limit (Binance allows 1200)
         self._initialize_client()
 
     def _initialize_client(self):
@@ -57,12 +60,30 @@ class BinanceClientWrapper:
             raise
 
     def _rate_limit(self):
-        """Simple rate limiting to prevent API spam"""
+        """Enhanced rate limiting with sliding window to prevent IP bans"""
         current_time = time.time()
+        
+        # Reset request count every minute
+        if current_time - self._request_window_start > 60:
+            self._request_count = 0
+            self._request_window_start = current_time
+        
+        # Check if we're approaching rate limits
+        if self._request_count >= self._max_requests_per_minute:
+            sleep_time = 60 - (current_time - self._request_window_start)
+            if sleep_time > 0:
+                self.logger.warning(f"Rate limit protection: sleeping for {sleep_time:.2f} seconds")
+                time.sleep(sleep_time)
+                self._request_count = 0
+                self._request_window_start = time.time()
+        
+        # Minimum interval between requests
         time_since_last = current_time - self._last_request_time
         if time_since_last < self._min_request_interval:
             time.sleep(self._min_request_interval - time_since_last)
+        
         self._last_request_time = time.time()
+        self._request_count += 1
 
     def test_connection(self) -> bool:
         """Test API connection with improved error handling"""
