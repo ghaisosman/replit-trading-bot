@@ -578,7 +578,7 @@ class OrphanGhostTester:
             if not self.trade_monitor:
                 print(f"Error simulating orphan scenario: trade_monitor not initialized")
                 return False
-                
+
             # Check if trade monitor can detect orphan
             self.trade_monitor.check_for_anomalies(suppress_notifications=True)
 
@@ -595,7 +595,7 @@ class OrphanGhostTester:
             if not self.trade_monitor:
                 print(f"Error simulating ghost scenario: trade_monitor not initialized")
                 return False
-                
+
             # Simulate manual position on Binance
             # This would normally involve mocking Binance API response
             # For testing, we'll manually add to ghost trades
@@ -853,7 +853,7 @@ class OrphanGhostTester:
         if env_setup.get('status') == 'COMPLETED':
             print(f"   🔧 Environment Setup:")
             print(f"     • All components ready: {env_setup.get('all_components_ready', False)}")
-            print(f"     • Strategies registered: {env_setup.get('strategies_registered', 0)}")
+            print(f"     • Strategies registered: {env_setupget('strategies_registered', 0)}")
 
         # Orphan detection results
         if orphan_detection.get('status') == 'COMPLETED':

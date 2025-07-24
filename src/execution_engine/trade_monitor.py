@@ -656,7 +656,7 @@ class TradeMonitor:
             # Cleanup expired bot trade tracking (after delay period + buffer)
             bot_trades_to_remove = []
             cleanup_threshold = self.ghost_detection_delay_seconds + 60  # 30s delay + 60s buffer
-            for symbol, trade_time in self.recent_bot_trades.items():
+            for symbol, trade_time in self.recent_bot_trades.items():```python
                 if (current_time - trade_time).total_seconds() > cleanup_threshold:
                     bot_trades_to_remove.append(symbol)
 
@@ -1005,14 +1005,17 @@ class TradeMonitor:
             # For testing purposes, return False to allow orphan detection
             # In production, you might want to return True to be conservative
             return False
-
-    def register_strategy(self, strategy_name: str):
-        """Register a strategy for anomaly monitoring"""
-        if strategy_name not in self.registered_strategies:
-            self.registered_strategies[strategy_name] = True
-            self.logger.info(f"🔍 STRATEGY REGISTERED: {strategy_name} for anomaly monitoring")
-        else:
-            self.logger.warning(f"🔍 STRATEGY ALREADY REGISTERED: {strategy_name}")
+    strategies: Dict[str, Dict] = {}
+    def register_strategy(self, strategy_name, strategy_config=None):
+        """Register a strategy for monitoring"""
+        if strategy_name not in self.strategies:
+            self.strategies[strategy_name] = {
+                'positions': [],
+                'last_check': datetime.now(),
+                'alerts': [],
+                'config': strategy_config or {}
+            }
+            self.logger.info(f"📊 Strategy {strategy_name} registered for monitoring")
 
     def _check_orphan_trades(self, suppress_notifications: bool = False) -> None:
         """Check for orphan trades (bot opened, manually closed)"""
