@@ -156,6 +156,25 @@ class TradeMonitor:
                 # Get open positions from Binance
                 binance_positions = self._get_binance_positions(symbol)
 
+                # Check for orphan trades (bot has position but Binance doesn't)
+                for strategy_name, bot_position in bot_positions.items():
+                    symbol = bot_position.symbol
+
+                    # Enhanced logging for RSI strategy
+                    if 'rsi' in strategy_name.lower():
+                        self.logger.info(f"🔍 RSI ORPHAN CHECK: {strategy_name} | {symbol} | "
+                                       f"Bot position: {bot_position.quantity}")
+
+                    # Find matching Binance position
+                    binance_position = None
+                    for pos in binance_positions:
+                        if pos['symbol'] == symbol and float(pos['positionAmt']) != 0:
+                            binance_position = pos
+                            break
+
+                # Get open positions from Binance
+                binance_positions = self._get_binance_positions(symbol)
+
                 # Check if bot position exists on Binance
                 position_exists = False
                 for binance_pos in binance_positions:

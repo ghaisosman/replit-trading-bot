@@ -596,3 +596,34 @@ class TradeDatabase:
         except Exception as e:
             self.logger.error(f"Error searching trades: {e}")
             return []
+    def load_existing_trades(self):
+        """Load existing open trades from database"""
+        try:
+            import sqlite3
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+
+                # Get open trades from database
+                cursor.execute("""
+                    SELECT * FROM trades 
+                    WHERE status = 'OPEN'
+                    ORDER BY timestamp DESC
+                """)
+
+                trades = cursor.fetchall()
+                trade_list = []
+
+                for trade in trades:
+                    try:
+                        trade_dict = dict(trade)
+                        trade_list.append(trade_dict)
+                    except Exception as row_error:
+                        self.logger.warning(f"Skipping corrupted trade row: {row_error}")
+                        continue
+
+                return trade_list
+
+        except Exception as e:
+            self.logger.error(f"Error loading existing trades: {e}")
+            return []  # Return empty list instead of raising exception
