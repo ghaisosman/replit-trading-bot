@@ -98,7 +98,9 @@ class OrphanGhostTester:
             # Load configuration
             from src.config.global_config import GlobalConfig
             global_config = GlobalConfig()
-            print(f"🔧 Environment loaded from config file: {global_config.ENVIRONMENT}")
+            # Fix: Use correct attribute name
+            env_name = getattr(global_config, 'ENVIRONMENT', 'MAINNET')
+            print(f"🔧 Environment loaded from config file: {env_name}")
 
             # Initialize components
             from src.binance_client.client import BinanceClientWrapper
@@ -154,6 +156,12 @@ class OrphanGhostTester:
         except Exception as e:
             print(f"❌ Environment setup failed: {e}")
             self.results['environment_setup'] = {'status': 'ERROR', 'error': str(e), 'all_components_ready': False}
+            # Set None attributes for failed setup
+            self.binance_client = None
+            self.trade_database = None
+            self.telegram_reporter = None
+            self.order_manager = None
+            self.trade_monitor = None
 
     def _test_orphan_detection(self):
         """Test 2: Test orphan trade detection for all strategies"""
@@ -167,13 +175,13 @@ class OrphanGhostTester:
 
                 # Create mock position in order manager
                 test_position = self._create_mock_position(strategy)
-                if test_position:
+                if test_position and self.order_manager:
                     # Add to order manager's active positions
                     self.order_manager.active_positions[strategy] = test_position
                     print(f"     ✅ Created mock position for {strategy}")
 
                     # Simulate position NOT existing on Binance (orphan scenario)
-                    orphan_detected = self._simulate_orphan_scenario(strategy, test_position)
+                    orphan_detected = self._simulate_orphan_scenario(strategy, test_position) if self.trade_monitor else False
 
                     orphan_tests[strategy] = {
                         'position_created': True,
@@ -229,7 +237,7 @@ class OrphanGhostTester:
                 # Simulate manual position on Binance (ghost scenario)
                 mock_binance_position = self._create_mock_binance_position(strategy)
 
-                if mock_binance_position:
+                if mock_binance_position and self.trade_monitor:
                     # Test ghost detection
                     ghost_detected = self._simulate_ghost_scenario(strategy, mock_binance_position)
 
@@ -567,6 +575,10 @@ class OrphanGhostTester:
     def _simulate_orphan_scenario(self, strategy: str, position) -> bool:
         """Simulate orphan trade scenario"""
         try:
+            if not self.trade_monitor:
+                print(f"Error simulating orphan scenario: trade_monitor not initialized")
+                return False
+                
             # Check if trade monitor can detect orphan
             self.trade_monitor.check_for_anomalies(suppress_notifications=True)
 
@@ -580,6 +592,10 @@ class OrphanGhostTester:
     def _simulate_ghost_scenario(self, strategy: str, binance_position) -> bool:
         """Simulate ghost trade scenario"""
         try:
+            if not self.trade_monitor:
+                print(f"Error simulating ghost scenario: trade_monitor not initialized")
+                return False
+                
             # Simulate manual position on Binance
             # This would normally involve mocking Binance API response
             # For testing, we'll manually add to ghost trades
