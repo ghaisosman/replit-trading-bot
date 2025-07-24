@@ -2217,7 +2217,7 @@ def test_ml_prediction():
 
 @app.route('/api/export_trade_data', methods=['POST'])
 def export_ml_trade_data():
-    ""Export trade data for ML analysis"""
+    """Export trade data for ML analysis"""
     try:
         if not IMPORTS_AVAILABLE:
             return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
@@ -2513,7 +2513,7 @@ async def auto_restart_bot(delay=3600):
 
 # Web Interface Safe Start
 def start_web_dashboard(debug=False, use_reloader=False):
-    """Start the Flask web dashboard with more reliable settings"""
+    #"""Start the Flask web dashboard with more reliable settings"""
     try:
         logger.info("🌐 WEB INTERFACE: Starting Flask web dashboard...")
 
