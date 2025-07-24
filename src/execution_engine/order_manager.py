@@ -1108,7 +1108,61 @@ class OrderManager:
             self.logger.error(f"❌ Logger record error: {e}")
             return False
 
+    def _database_record_close(self, trade_id: str, close_data: Dict) -> bool:
+        """Record trade closing in database"""
+        try:
+            self.logger.info(f"💾 DATABASE RECORD CLOSE | {trade_id}")
 
+            from src.execution_engine.trade_database import TradeDatabase
+            trade_db = TradeDatabase()
+
+            # Update existing trade with close data
+            if trade_id in trade_db.trades:
+                trade_db.trades[trade_id].update(close_data)
+                save_success = trade_db._save_database()
+
+                if save_success:
+                    self.logger.info(f"✅ DATABASE CLOSE SUCCESS | {trade_id}")
+                    return True
+                else:
+                    self.logger.error(f"❌ DATABASE CLOSE SAVE FAILED | {trade_id}")
+                    return False
+            else:
+                self.logger.warning(f"⚠️ Trade {trade_id} not found in database for close update")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"❌ Database close record error: {e}")
+            return False
+
+    def _logger_record_close(self, trade_id: str, exit_price: float, exit_reason: str, pnl: float, pnl_percentage: float) -> bool:
+        """Record trade closing in logger"""
+        try:
+            self.logger.info(f"📝 LOGGER RECORD CLOSE | {trade_id}")
+
+            from src.analytics.trade_logger import trade_logger
+
+            # Update existing trade in logger
+            for trade in trade_logger.trades:
+                if trade.trade_id == trade_id:
+                    trade.exit_price = exit_price
+                    trade.exit_reason = exit_reason
+                    trade.pnl = pnl
+                    trade.pnl_percentage = pnl_percentage
+                    trade.status = 'CLOSED'
+                    trade.exit_time = datetime.now()
+
+                    # Save the logger data
+                    trade_logger._save_trades()
+                    self.logger.info(f"✅ LOGGER CLOSE SUCCESS | {trade_id}")
+                    return True
+
+            self.logger.warning(f"⚠️ Trade {trade_id} not found in logger for close update")
+            return False
+
+        except Exception as e:
+            self.logger.error(f"❌ Logger close record error: {e}")
+            return False
 
     def check_partial_take_profit(self, strategy_name: str, current_price: float) -> bool:
         """Check and execute partial take profit if conditions are met"""
