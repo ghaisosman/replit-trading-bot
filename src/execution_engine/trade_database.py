@@ -600,9 +600,26 @@ class TradeDatabase:
         """Load existing open trades from database"""
         try:
             import sqlite3
+            
+            # Check if database file exists
+            if not os.path.exists(self.db_path):
+                self.logger.info("Database file doesn't exist yet, returning empty trades")
+                return []
+                
             with sqlite3.connect(self.db_path) as conn:
+                # Set row factory to return Row objects
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
+
+                # Check if trades table exists
+                cursor.execute("""
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='trades'
+                """)
+                
+                if not cursor.fetchone():
+                    self.logger.info("Trades table doesn't exist yet, returning empty trades")
+                    return []
 
                 # Get open trades from database
                 cursor.execute("""
@@ -616,14 +633,25 @@ class TradeDatabase:
 
                 for trade in trades:
                     try:
-                        trade_dict = dict(trade)
-                        trade_list.append(trade_dict)
+                        # Convert Row object to dict safely
+                        if hasattr(trade, 'keys'):
+                            trade_dict = {key: trade[key] for key in trade.keys()}
+                        else:
+                            # Fallback for old format
+                            trade_dict = dict(trade) if trade else {}
+                            
+                        if trade_dict:  # Only add non-empty trades
+                            trade_list.append(trade_dict)
+                            
                     except Exception as row_error:
                         self.logger.warning(f"Skipping corrupted trade row: {row_error}")
                         continue
 
+                self.logger.info(f"📊 Loaded {len(trade_list)} trades from database")
                 return trade_list
 
         except Exception as e:
             self.logger.error(f"Error loading existing trades: {e}")
+            import traceback
+            self.logger.error(f"Database loading traceback: {traceback.format_exc()}")
             return []  # Return empty list instead of raising exception

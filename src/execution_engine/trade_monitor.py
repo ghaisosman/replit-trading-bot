@@ -153,27 +153,67 @@ class TradeMonitor:
             for strategy_name, position in bot_positions.items():
                 symbol = position.symbol
 
+                # Enhanced logging for RSI strategy
+                if 'rsi' in strategy_name.lower():
+                    self.logger.info(f"🔍 RSI ORPHAN CHECK START: {strategy_name} | {symbol} | "
+                                   f"Bot position: {position.quantity}")
+
                 # Get open positions from Binance
                 binance_positions = self._get_binance_positions(symbol)
+                
+                # Enhanced logging for RSI strategy
+                if 'rsi' in strategy_name.lower():
+                    self.logger.info(f"🔍 RSI ORPHAN CHECK: Found {len(binance_positions)} Binance positions for {symbol}")
 
-                # Check for orphan trades (bot has position but Binance doesn't)
-                for strategy_name, bot_position in bot_positions.items():
-                    symbol = bot_position.symbol
+                # Find matching Binance position
+                binance_position = None
+                for pos in binance_positions:
+                    pos_amt = float(pos['positionAmt'])
+                    if pos['symbol'] == symbol and pos_amt != 0:
+                        binance_position = pos
+                        if 'rsi' in strategy_name.lower():
+                            self.logger.info(f"🔍 RSI ORPHAN CHECK: Found matching Binance position: {pos_amt}")
+                        break
 
-                    # Enhanced logging for RSI strategy
+                # Enhanced logging for RSI strategy
+                if 'rsi' in strategy_name.lower():
+                    self.logger.info(f"🔍 RSI ORPHAN CHECK: Binance position found: {binance_position is not None}")
+
+                # Check if orphan (bot has position but Binance doesn't)
+                if binance_position is None:
+                    # This is an orphan trade
+                    orphan_id = f"{strategy_name}_{symbol}"
+                    
                     if 'rsi' in strategy_name.lower():
-                        self.logger.info(f"🔍 RSI ORPHAN CHECK: {strategy_name} | {symbol} | "
-                                       f"Bot position: {bot_position.quantity}")
-
-                    # Find matching Binance position
-                    binance_position = None
-                    for pos in binance_positions:
-                        if pos['symbol'] == symbol and float(pos['positionAmt']) != 0:
-                            binance_position = pos
-                            break
-
-                # Get open positions from Binance
-                binance_positions = self._get_binance_positions(symbol)
+                        self.logger.info(f"🔍 RSI ORPHAN DETECTED: Creating orphan trade {orphan_id}")
+                    
+                    if orphan_id not in self.orphan_trades:
+                        # OrphanTrade is already defined in this file
+                        
+                        orphan_trade = OrphanTrade(
+                            position=position,
+                            detected_at=datetime.now(),
+                            cycles_remaining=2
+                        )
+                        
+                        self.orphan_trades[orphan_id] = orphan_trade
+                        
+                        if 'rsi' in strategy_name.lower():
+                            self.logger.info(f"🔍 RSI ORPHAN SUCCESS: Added {orphan_id} to orphan_trades")
+                        
+                        # Send notification if not suppressed
+                        if not suppress_notifications and self.startup_scan_complete:
+                            self.logger.warning(f"👻 ORPHAN TRADE DETECTED | {strategy_name} | {symbol} | "
+                                              f"Bot position exists but not on Binance")
+                            self.telegram_reporter.report_orphan_trade_detected(
+                                strategy_name=strategy_name,
+                                symbol=symbol,
+                                quantity=position.quantity,
+                                side=position.side
+                            )
+                else:
+                    if 'rsi' in strategy_name.lower():
+                        self.logger.info(f"🔍 RSI ORPHAN CHECK: Position exists on Binance, no orphan")
 
                 # Check if bot position exists on Binance
                 position_exists = False
