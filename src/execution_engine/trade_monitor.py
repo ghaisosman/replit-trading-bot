@@ -656,8 +656,7 @@ class TradeMonitor:
             # Cleanup expired bot trade tracking (after delay period + buffer)
             bot_trades_to_remove = []
             cleanup_threshold = self.ghost_detection_delay_seconds + 60  # 30s delay + 60s buffer
-            for symbol, trade_time in self.recent_bot_trades.items():
-                ```python
+            for symbol, trade_time in self.recent_bot_trades.items():```python
                 if (current_time - trade_time).total_seconds() > cleanup_threshold:
                     bot_trades_to_remove.append(symbol)
 
