@@ -114,8 +114,20 @@ class StrategyLifecycleTest:
         try:
             # Get current price if not provided
             if entry_price is None:
-                ticker = self.binance_client.get_symbol_ticker(symbol)
-                entry_price = float(ticker['price']) if ticker else 100.0
+                try:
+                    ticker = self.binance_client.get_symbol_ticker(symbol)
+                    entry_price = float(ticker['price']) if ticker else 100.0
+                except Exception as e:
+                    print(f"⚠️ Could not fetch price for {symbol}, using default: {e}")
+                    # Use realistic default prices based on symbol
+                    price_defaults = {
+                        'XRPUSDT': 0.50,
+                        'BTCUSDT': 45000.0,
+                        'BCHUSDT': 200.0,
+                        'SOLUSDT': 25.0,
+                        'ETHUSDT': 2500.0
+                    }
+                    entry_price = price_defaults.get(symbol, 100.0)
             
             # Calculate stop loss and take profit
             if side == 'BUY':
@@ -338,8 +350,32 @@ class StrategyLifecycleTest:
             
         return results
 
+    def test_connection(self):
+        """Test API connection before running tests"""
+        print(f"\n🔍 TESTING API CONNECTION")
+        print(f"─" * 30)
+        
+        try:
+            # Test binance connection
+            account_info = self.binance_client.client.futures_account()
+            if account_info:
+                print(f"✅ Binance API connection successful")
+                print(f"   Balance: ${float(account_info.get('totalWalletBalance', 0)):.2f}")
+                return True
+            else:
+                print(f"❌ Binance API connection failed")
+                return False
+        except Exception as e:
+            print(f"❌ Binance API connection error: {e}")
+            return False
+
     def test_all_strategies(self):
         """Test all strategies"""
+        
+        # Test connection first
+        if not self.test_connection():
+            print(f"❌ Cannot proceed without API connection")
+            return
         
         # Strategy configurations
         strategies = [
