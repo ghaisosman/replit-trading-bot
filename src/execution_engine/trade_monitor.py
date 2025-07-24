@@ -141,9 +141,10 @@ class TradeMonitor:
     def _check_orphan_trades(self, suppress_notifications: bool = False) -> None:
         """Check for orphan trades (bot opened, manually closed)"""
         try:
-            # Skip orphan trade detection during startup scan to prevent false positives
-            if not self.startup_scan_complete:
-                self.logger.debug("🔍 ORPHAN CHECK: Skipping during startup scan")
+            # Skip orphan detection only during production startup (when notifications aren't suppressed)
+            # This allows testing during startup when suppress_notifications=True
+            if not self.startup_scan_complete and not suppress_notifications:
+                self.logger.debug("🔍 ORPHAN CHECK: Skipping during startup scan (production mode)")
                 return
 
             # Get bot's active positions
@@ -160,7 +161,7 @@ class TradeMonitor:
 
                 # Get open positions from Binance
                 binance_positions = self._get_binance_positions(symbol)
-                
+
                 # Enhanced logging for RSI strategy  
                 if 'rsi' in strategy_name.lower():
                     self.logger.info(f"🔍 RSI ORPHAN CHECK: Found {len(binance_positions)} Binance positions for {symbol}")
@@ -183,22 +184,22 @@ class TradeMonitor:
                 if binance_position is None:
                     # This is an orphan trade
                     orphan_id = f"{strategy_name}_{symbol}"
-                    
+
                     if 'rsi' in strategy_name.lower():
                         self.logger.info(f"🔍 RSI ORPHAN DETECTED: Creating orphan trade {orphan_id}")
-                    
+
                     if orphan_id not in self.orphan_trades:
                         orphan_trade = OrphanTrade(
                             position=position,
                             detected_at=datetime.now(),
                             cycles_remaining=2
                         )
-                        
+
                         self.orphan_trades[orphan_id] = orphan_trade
-                        
+
                         if 'rsi' in strategy_name.lower():
                             self.logger.info(f"🔍 RSI ORPHAN SUCCESS: Added {orphan_id} to orphan_trades")
-                        
+
                         # Send notification if not suppressed
                         if not suppress_notifications and self.startup_scan_complete:
                             self.logger.warning(f"👻 ORPHAN TRADE DETECTED | {strategy_name} | {symbol} | "
@@ -212,7 +213,7 @@ class TradeMonitor:
                 else:
                     if 'rsi' in strategy_name.lower():
                         self.logger.info(f"🔍 RSI ORPHAN CHECK: Position exists on Binance, no orphan")
-                        
+
                     # Remove any existing orphan trade since position exists
                     orphan_id = f"{strategy_name}_{symbol}"
                     if orphan_id in self.orphan_trades:
