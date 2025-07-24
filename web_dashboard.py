@@ -961,12 +961,16 @@ def create_strategy():
 def disable_strategy(strategy_name):
     """Disable a strategy by setting assessment_interval to 0"""
     try:
+        logger.info(f"🔴 DISABLE REQUEST: Strategy {strategy_name}")
+        
         if not IMPORTS_AVAILABLE:
+            logger.warning("Strategy management not available in demo mode")
             return jsonify({'success': False, 'message': 'Strategy management not available in demo mode'})
 
         # Get current strategy config
         strategies = trading_config_manager.get_all_strategies()
         if strategy_name not in strategies:
+            logger.error(f"Strategy {strategy_name} not found")
             return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" not found'})
 
         # Disable by setting assessment_interval to 0
@@ -981,6 +985,12 @@ def disable_strategy(strategy_name):
         # Force cache invalidation
         if hasattr(trading_config_manager, '_clear_cache'):
             trading_config_manager._clear_cache()
+
+        # Apply live update to running bot if available
+        current_bot = get_shared_bot_manager()
+        if current_bot and hasattr(current_bot, 'strategies') and strategy_name in current_bot.strategies:
+            current_bot.strategies[strategy_name].update(updates)
+            logger.info(f"🔥 LIVE UPDATE: {strategy_name} disabled in running bot")
 
         logger.info(f"🔴 STRATEGY DISABLED: {strategy_name} via web dashboard")
 
@@ -999,12 +1009,16 @@ def disable_strategy(strategy_name):
 def enable_strategy(strategy_name):
     """Enable a strategy by restoring normal assessment_interval"""
     try:
+        logger.info(f"🟢 ENABLE REQUEST: Strategy {strategy_name}")
+        
         if not IMPORTS_AVAILABLE:
+            logger.warning("Strategy management not available in demo mode")
             return jsonify({'success': False, 'message': 'Strategy management not available in demo mode'})
 
         # Get current strategy config
         strategies = trading_config_manager.get_all_strategies()
         if strategy_name not in strategies:
+            logger.error(f"Strategy {strategy_name} not found")
             return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" not found'})
 
         # Enable by setting appropriate assessment_interval
@@ -1020,6 +1034,12 @@ def enable_strategy(strategy_name):
         # Force cache invalidation
         if hasattr(trading_config_manager, '_clear_cache'):
             trading_config_manager._clear_cache()
+
+        # Apply live update to running bot if available
+        current_bot = get_shared_bot_manager()
+        if current_bot and hasattr(current_bot, 'strategies') and strategy_name in current_bot.strategies:
+            current_bot.strategies[strategy_name].update(updates)
+            logger.info(f"🔥 LIVE UPDATE: {strategy_name} enabled in running bot")
 
         logger.info(f"🟢 STRATEGY ENABLED: {strategy_name} via web dashboard")
 
