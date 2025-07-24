@@ -1,1 +1,77 @@
-{"trades": {}, "last_updated": "2025-07-24T15:44:27+00:00"}
+{
+  "trades": {
+    "TEST_ORPHAN_rsi_oversold_1753385561": {
+      "trade_id": "TEST_ORPHAN_rsi_oversold_1753385561",
+      "strategy_name": "rsi_oversold",
+      "symbol": "SOLUSDT",
+      "side": "BUY",
+      "quantity": 0.05,
+      "entry_price": 150.25,
+      "trade_status": "CLOSED",
+      "position_value_usdt": 7.5125,
+      "leverage": 1,
+      "margin_used": 7.5125,
+      "created_at": "2025-07-24T19:32:41.893741",
+      "last_updated": "2025-07-24T19:32:45.064678",
+      "exit_reason": "Orphan trade cleared",
+      "exit_price": 150.25,
+      "pnl_usdt": 0,
+      "pnl_percentage": 0
+    },
+    "TEST_ORPHAN_macd_divergence_1753385561": {
+      "trade_id": "TEST_ORPHAN_macd_divergence_1753385561",
+      "strategy_name": "macd_divergence",
+      "symbol": "BTCUSDT",
+      "side": "SELL",
+      "quantity": 0.002,
+      "entry_price": 67500.5,
+      "trade_status": "CLOSED",
+      "position_value_usdt": 135.001,
+      "leverage": 1,
+      "margin_used": 135.001,
+      "created_at": "2025-07-24T19:32:41.913470",
+      "last_updated": "2025-07-24T19:32:45.666649",
+      "exit_reason": "Orphan trade cleared",
+      "exit_price": 67500.5,
+      "pnl_usdt": 0,
+      "pnl_percentage": 0
+    },
+    "TEST_ORPHAN_engulfing_pattern_1753385561": {
+      "trade_id": "TEST_ORPHAN_engulfing_pattern_1753385561",
+      "strategy_name": "engulfing_pattern",
+      "symbol": "ETHUSDT",
+      "side": "BUY",
+      "quantity": 0.015,
+      "entry_price": 3250.75,
+      "trade_status": "CLOSED",
+      "position_value_usdt": 48.76125,
+      "leverage": 1,
+      "margin_used": 48.76125,
+      "created_at": "2025-07-24T19:32:41.917437",
+      "last_updated": "2025-07-24T19:32:46.699851",
+      "exit_reason": "Orphan trade cleared",
+      "exit_price": 3250.75,
+      "pnl_usdt": 0,
+      "pnl_percentage": 0
+    },
+    "TEST_ORPHAN_smart_money_1753385561": {
+      "trade_id": "TEST_ORPHAN_smart_money_1753385561",
+      "strategy_name": "smart_money",
+      "symbol": "XRPUSDT",
+      "side": "SELL",
+      "quantity": 25.0,
+      "entry_price": 2.15,
+      "trade_status": "CLOSED",
+      "position_value_usdt": 53.75,
+      "leverage": 1,
+      "margin_used": 53.75,
+      "created_at": "2025-07-24T19:32:41.920472",
+      "last_updated": "2025-07-24T19:32:47.297986",
+      "exit_reason": "Orphan trade cleared",
+      "exit_price": 2.15,
+      "pnl_usdt": 0,
+      "pnl_percentage": 0
+    }
+  },
+  "last_updated": "2025-07-24T19:32:47.298010"
+}
