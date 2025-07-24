@@ -151,6 +151,14 @@ class TradeDatabase:
                 self.trades[trade_id].update(updates)
                 self._save_database()
                 self.logger.info(f"✅ Trade updated in database: {trade_id}")
+                
+                # Automatically sync to logger after successful database update
+                sync_success = self.sync_trade_to_logger(trade_id)
+                if sync_success:
+                    self.logger.info(f"Trade {trade_id} automatically synced to logger")
+                else:
+                    self.logger.warning(f"Trade {trade_id} updated in database but sync to logger failed")
+
                 return True
             else:
                 self.logger.warning(f"⚠️ Trade {trade_id} not found for update")
@@ -207,11 +215,11 @@ class TradeDatabase:
 
             # Ensure required fields are present and properly formatted
             required_fields = ['trade_id', 'strategy_name', 'symbol', 'side', 'entry_price', 'quantity', 'margin_used', 'leverage', 'position_value_usdt']
-            
+
             for field in required_fields:
                 if field not in trade_data:
                     self.logger.warning(f"⚠️ Missing field {field} in trade {trade_id}, calculating fallback")
-                    
+
                     if field == 'margin_used' and 'position_value_usdt' in trade_data and 'leverage' in trade_data:
                         trade_data['margin_used'] = trade_data['position_value_usdt'] / trade_data.get('leverage', 1)
                     elif field == 'position_value_usdt' and 'entry_price' in trade_data and 'quantity' in trade_data:
@@ -227,15 +235,15 @@ class TradeDatabase:
                     trade_data['timestamp'] = datetime.now().isoformat()
 
             self.logger.info(f"🔄 CALLING LOGGER.LOG_TRADE | {trade_id}")
-            
+
             # Sync the trade
             success = trade_logger.log_trade(trade_data)
-            
+
             if success:
                 self.logger.info(f"✅ Synced trade {trade_id} from database to logger")
             else:
                 self.logger.error(f"❌ Failed to sync trade {trade_id} to logger")
-                
+
             return success
 
         except Exception as e:
@@ -305,19 +313,19 @@ class TradeDatabase:
             position_amt = float(binance_position.get('positionAmt', 0))
             entry_price = float(binance_position.get('entryPrice', 0))
             unrealized_pnl = float(binance_position.get('unRealizedProfit', 0))
-            
+
             if abs(position_amt) < 0.001:  # No meaningful position
                 return False
-            
+
             # Generate trade ID for orphan recovery
             from datetime import datetime
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             trade_id = f"RECOVERY_{estimated_strategy}_{symbol}_{timestamp}"
-            
+
             # Determine side and quantity
             side = 'BUY' if position_amt > 0 else 'SELL'
             quantity = abs(position_amt)
-            
+
             # Create trade record
             trade_data = {
                 'trade_id': trade_id,
@@ -336,17 +344,17 @@ class TradeDatabase:
                 'recovery_trade': True,  # Mark as recovered trade
                 'original_binance_data': binance_position  # Store original data
             }
-            
+
             # Add to database
             success = self.add_trade(trade_id, trade_data)
-            
+
             if success:
                 self.logger.info(f"✅ Created recovery trade record: {trade_id} | {symbol} | {side} | Qty: {quantity}")
                 return True
             else:
                 self.logger.error(f"❌ Failed to create recovery trade record for {symbol}")
                 return False
-                
+
         except Exception as e:
             self.logger.error(f"❌ Error creating orphan trade record: {e}")
             return False
@@ -357,43 +365,43 @@ class TradeDatabase:
             if not binance_client.is_futures:
                 self.logger.info("📊 Not using futures - skipping position recovery")
                 return 0
-            
+
             # Get all Binance positions
             account_info = binance_client.client.futures_account()
             all_positions = account_info.get('positions', [])
-            
+
             # Filter active positions
             active_positions = [pos for pos in all_positions if abs(float(pos.get('positionAmt', 0))) > 0.001]
-            
+
             if not active_positions:
                 self.logger.info("📊 No active Binance positions found to recover")
                 return 0
-            
+
             self.logger.info(f"🔍 Found {len(active_positions)} active Binance positions")
-            
+
             recovered_count = 0
-            
+
             for position in active_positions:
                 symbol = position.get('symbol')
                 position_amt = float(position.get('positionAmt', 0))
-                
+
                 # Check if we already have a database record for this position
                 position_matched = False
                 for trade_id, trade_data in self.trades.items():
                     if (trade_data.get('symbol') == symbol and 
                         trade_data.get('trade_status') == 'OPEN'):
-                        
+
                         # Check if quantities roughly match
                         db_quantity = float(trade_data.get('quantity', 0))
                         db_side = trade_data.get('side')
-                        
+
                         expected_amt = db_quantity if db_side == 'BUY' else -db_quantity
-                        
+
                         if abs(position_amt - expected_amt) < 0.1:  # Allow small tolerance
                             position_matched = True
                             self.logger.debug(f"📊 Position {symbol} already matched in database")
                             break
-                
+
                 # If no match found, create recovery record
                 if not position_matched:
                     # Try to estimate strategy based on symbol patterns
@@ -404,16 +412,16 @@ class TradeDatabase:
                         estimated_strategy = "manual_eth"
                     elif "XRP" in symbol:
                         estimated_strategy = "manual_xrp"
-                    
+
                     success = self.create_orphan_trade_record(position, estimated_strategy)
                     if success:
                         recovered_count += 1
-            
+
             if recovered_count > 0:
                 self.logger.info(f"✅ Successfully recovered {recovered_count} unmatched positions")
-            
+
             return recovered_count
-            
+
         except Exception as e:
             self.logger.error(f"❌ Error recovering unmatched positions: {e}")
             return 0
