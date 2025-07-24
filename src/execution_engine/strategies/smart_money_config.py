@@ -133,16 +133,13 @@ class SmartMoneyStrategy:
             swing_highs = []
             swing_lows = []
             
-            # Look for swing highs (local maxima)
-            for i in range(2, len(highs) - 2):
-                if (highs[i] > highs[i-1] and highs[i] > highs[i-2] and 
-                    highs[i] > highs[i+1] and highs[i] > highs[i+2]):
+            # More sensitive swing detection - only need 1 candle on each side
+            for i in range(1, len(highs) - 1):
+                if highs[i] > highs[i-1] and highs[i] > highs[i+1]:
                     swing_highs.append({'price': highs[i], 'index': i})
 
-            # Look for swing lows (local minima)
-            for i in range(2, len(lows) - 2):
-                if (lows[i] < lows[i-1] and lows[i] < lows[i-2] and 
-                    lows[i] < lows[i+1] and lows[i] < lows[i+2]):
+            for i in range(1, len(lows) - 1):
+                if lows[i] < lows[i-1] and lows[i] < lows[i+1]:
                     swing_lows.append({'price': lows[i], 'index': i})
 
             # Filter by minimum distance to avoid noise
