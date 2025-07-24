@@ -5,7 +5,7 @@
     "leverage": 3,
     "timeframe": "15m",
     "max_loss_pct": 5.0,
-    "assessment_interval": 60,
+    "assessment_interval": 5,
     "decimals": 2,
     "cooldown_period": 300,
     "rsi_long_entry": 30,
@@ -13,14 +13,15 @@
     "rsi_short_entry": 70,
     "rsi_short_exit": 40,
     "partial_tp_pnl_threshold": 30.0,
-    "partial_tp_position_percentage": 50.0
+    "partial_tp_position_percentage": 50.0,
+    "enabled": true
   },
   "macd_divergence": {
     "symbol": "BTCUSDT",
     "margin": 10.0,
     "leverage": 3,
     "timeframe": "5m",
-    "assessment_interval": 30,
+    "assessment_interval": 5,
     "decimals": 2,
     "cooldown_period": 70,
     "macd_fast": 12,
@@ -37,7 +38,8 @@
     "macd_entry_threshold": 0.0015,
     "macd_exit_threshold": 0.002,
     "partial_tp_pnl_threshold": 20.0,
-    "partial_tp_position_percentage": 50.0
+    "partial_tp_position_percentage": 50.0,
+    "enabled": true
   },
   "RSI_ETH": {
     "symbol": "ETHUSDT",
@@ -45,7 +47,7 @@
     "leverage": 3,
     "timeframe": "15m",
     "max_loss_pct": 5.0,
-    "assessment_interval": 60,
+    "assessment_interval": 5,
     "decimals": 2,
     "cooldown_period": 300,
     "min_volume": 1000000.0,
@@ -55,7 +57,8 @@
     "rsi_short_entry": 70,
     "rsi_short_exit": 40,
     "partial_tp_pnl_threshold": 20.0,
-    "partial_tp_position_percentage": 50.0
+    "partial_tp_position_percentage": 50.0,
+    "enabled": true
   },
   "smart_money_reversal": {
     "symbol": "SOLUSDT",
@@ -63,11 +66,12 @@
     "leverage": 3,
     "timeframe": "15m",
     "max_loss_pct": 10.0,
-    "assessment_interval": 30,
+    "assessment_interval": 5,
     "decimals": 2,
     "cooldown_period": 300,
     "partial_tp_pnl_threshold": 20.0,
-    "partial_tp_position_percentage": 50.0
+    "partial_tp_position_percentage": 50.0,
+    "enabled": true
   },
   "engulfing_pattern_btc": {
     "symbol": "BCHUSDT",
@@ -75,10 +79,11 @@
     "leverage": 3,
     "timeframe": "1h",
     "max_loss_pct": 10.0,
-    "assessment_interval": 30,
+    "assessment_interval": 5,
     "decimals": 3,
     "cooldown_period": 600,
     "partial_tp_pnl_threshold": 20.0,
-    "partial_tp_position_percentage": 50.0
+    "partial_tp_position_percentage": 50.0,
+    "enabled": true
   }
 }
