@@ -1049,85 +1049,20 @@ class OrderManager:
             # Initialize database
             trade_db = TradeDatabase()
 
-            # Ensure directory exists
-            import os
-            db_dir = os.path.dirname(trade_db.db_file)
-            if db_dir and not os.path.exists(db_dir):
-                os.makedirs(db_dir, mode=0o755, exist_ok=True)
-                self.logger.info(f"📁 Created directory: {db_dir}")
+            # Use the proper add_trade method
+            success = trade_db.add_trade(trade_id, trade_data)
 
-            # Check if trade already exists
-            if trade_id in trade_db.trades:
-                self.logger.warning(f"⚠️ Trade {trade_id} already exists in database")
+            if success:
+                self.logger.info(f"✅ DATABASE RECORD SUCCESS | {trade_id}")
                 return True
-
-            # Add trade to database
-            trade_db.trades[trade_id] = trade_data.copy()
-
-            # Save database
-            save_success = trade_db._save_database()
-
-            if save_success:
-                # Verify by reloading
-                verify_db = TradeDatabase()
-                if trade_id in verify_db.trades:
-                    self.logger.info(f"✅ DATABASE RECORD SUCCESS | {trade_id}")
-                    return True
-                else:
-                    self.logger.error(f"❌ DATABASE VERIFICATION FAILED | {trade_id}")
-                    return False
             else:
-                self.logger.error(f"❌ DATABASE SAVE FAILED | {trade_id}")
+                self.logger.error(f"❌ DATABASE RECORD FAILED | {trade_id}")
                 return False
 
         except Exception as e:
             self.logger.error(f"❌ Database record error: {e}")
-            return False
-
-    def _database_record_open(self, trade_data: Dict) -> bool:
-        """Record trade opening in database with robust error handling"""
-        try:
-            trade_id = trade_data['trade_id']
-            self.logger.info(f"💾 DATABASE RECORD OPEN | {trade_id}")
-
-            from src.execution_engine.trade_database import TradeDatabase
-
-            # Initialize database
-            trade_db = TradeDatabase()
-
-            # Ensure directory exists
-            import os
-            db_dir = os.path.dirname(trade_db.db_file)
-            if db_dir and not os.path.exists(db_dir):
-                os.makedirs(db_dir, mode=0o755, exist_ok=True)
-                self.logger.info(f"📁 Created directory: {db_dir}")
-
-            # Check if trade already exists
-            if trade_id in trade_db.trades:
-                self.logger.warning(f"⚠️ Trade {trade_id} already exists in database")
-                return True
-
-            # Add trade to database
-            trade_db.trades[trade_id] = trade_data.copy()
-
-            # Save database
-            save_success = trade_db._save_database()
-
-            if save_success:
-                # Verify by reloading
-                verify_db = TradeDatabase()
-                if trade_id in verify_db.trades:
-                    self.logger.info(f"✅ DATABASE RECORD SUCCESS | {trade_id}")
-                    return True
-                else:
-                    self.logger.error(f"❌ DATABASE VERIFICATION FAILED | {trade_id}")
-                    return False
-            else:
-                self.logger.error(f"❌ DATABASE SAVE FAILED | {trade_id}")
-                return False
-
-        except Exception as e:
-            self.logger.error(f"❌ Database record error: {e}")
+            import traceback
+            self.logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return False
 
     def _logger_record_open(self, trade_data: Dict) -> bool:
@@ -1166,23 +1101,20 @@ class OrderManager:
             from src.execution_engine.trade_database import TradeDatabase
             trade_db = TradeDatabase()
 
-            # Update existing trade with close data
-            if trade_id in trade_db.trades:
-                trade_db.trades[trade_id].update(close_data)
-                save_success = trade_db._save_database()
+            # Use the proper update_trade method
+            success = trade_db.update_trade(trade_id, close_data)
 
-                if save_success:
-                    self.logger.info(f"✅ DATABASE CLOSE SUCCESS | {trade_id}")
-                    return True
-                else:
-                    self.logger.error(f"❌ DATABASE CLOSE SAVE FAILED | {trade_id}")
-                    return False
+            if success:
+                self.logger.info(f"✅ DATABASE CLOSE SUCCESS | {trade_id}")
+                return True
             else:
-                self.logger.warning(f"⚠️ Trade {trade_id} not found in database for close update")
+                self.logger.error(f"❌ DATABASE CLOSE FAILED | {trade_id}")
                 return False
 
         except Exception as e:
             self.logger.error(f"❌ Database close record error: {e}")
+            import traceback
+            self.logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return False
 
     def _logger_record_close(self, trade_id: str, exit_price: float, exit_reason: str, pnl: float, pnl_percentage: float) -> bool:
