@@ -2513,7 +2513,7 @@ async def auto_restart_bot(delay=3600):
 
 # Web Interface Safe Start
 def start_web_dashboard(debug=False, use_reloader=False):
-    #"""Start the Flask web dashboard with more reliable settings"""
+    """Start the Flask web dashboard with more reliable settings"""
     try:
         logger.info("🌐 WEB INTERFACE: Starting Flask web dashboard...")
 
