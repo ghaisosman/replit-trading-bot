@@ -91,7 +91,8 @@ class RSIOrphanGhostTester:
             
             # Initialize configuration
             from src.config.global_config import global_config
-            print(f"   ✅ Global config loaded: {global_config.environment}")
+            mode = "TESTNET" if global_config.BINANCE_TESTNET else "MAINNET"
+            print(f"   ✅ Global config loaded: {mode}")
             
             # Initialize Binance client
             from src.binance_client.client import BinanceClientWrapper
