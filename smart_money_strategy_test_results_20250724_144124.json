@@ -1,0 +1,67 @@
+{
+  "timestamp": "2025-07-24T14:41:22.945031",
+  "strategy": "smart_money_reversal",
+  "tests": {
+    "initialization": {
+      "status": "PASSED",
+      "details": "Smart Money strategy initialization successful with all parameters",
+      "config_validated": true
+    },
+    "liquidity_zones": {
+      "status": "PASSED",
+      "details": "Liquidity zones identified successfully",
+      "swing_highs_found": 5,
+      "swing_lows_found": 2,
+      "current_price": 49406.671860541945
+    },
+    "sweep_detection": {
+      "status": "PASSED",
+      "details": "Liquidity sweep detection working correctly",
+      "sweeps_detected": [],
+      "bullish_sweeps": 0,
+      "bearish_sweeps": 0
+    },
+    "volume_confirmation": {
+      "status": "PASSED",
+      "details": "Volume confirmation working correctly",
+      "high_volume_confirmed": true,
+      "low_volume_rejected": true,
+      "threshold_confirmed": true
+    },
+    "execution": {
+      "status": "PASSED",
+      "details": "Smart Money trade execution simulation successful",
+      "trade_id": "TEST_SMART_MONEY_BTCUSDT_20250724_144122",
+      "database_recording": true,
+      "risk_reward_ratio": 2.0,
+      "margin_used": 50.0
+    },
+    "session_filtering": {
+      "status": "PASSED",
+      "details": "Session filtering and time controls working correctly",
+      "current_session": "LONDON",
+      "session_active": true,
+      "daily_trade_limit": 3,
+      "filter_enabled": true
+    },
+    "database": {
+      "status": "PASSED",
+      "details": "Smart Money database operations completed",
+      "trade_id": "SMART_MONEY_TEST_20250724_144122",
+      "add_success": true,
+      "retrieve_success": true,
+      "update_success": true,
+      "final_success": true,
+      "db_file_exists": true
+    },
+    "live_integration": {
+      "status": "PASSED",
+      "details": "Smart Money live market integration tested",
+      "binance_connection": true,
+      "market_data_retrieved": true,
+      "current_price": 118618.8,
+      "signal_detected": false,
+      "current_session": "LONDON"
+    }
+  }
+}
