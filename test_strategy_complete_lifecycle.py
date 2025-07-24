@@ -229,7 +229,9 @@ class StrategyLifecycleTest:
             # First, manually sync the trade from database to logger
             if trade_id:
                 print(f"🔄 Manually syncing trade {trade_id} to logger...")
-                sync_success = self.trade_db.sync_trade_to_logger(trade_id)
+                # Use fresh database instance for sync
+                sync_db = TradeDatabase()
+                sync_success = sync_db.sync_trade_to_logger(trade_id)
                 print(f"   Sync result: {sync_success}")
                 
                 # Add small delay for sync to complete
@@ -310,7 +312,9 @@ class StrategyLifecycleTest:
             # Manually sync the updated trade to logger
             if trade_id:
                 print(f"🔄 Syncing closed trade {trade_id} to logger...")
-                sync_success = verification_db_close.sync_trade_to_logger(trade_id)
+                # Use fresh database instance for close sync
+                close_sync_db = TradeDatabase()
+                sync_success = close_sync_db.sync_trade_to_logger(trade_id)
                 print(f"   Close sync result: {sync_success}")
                 
                 # Add delay for sync to complete
@@ -343,18 +347,19 @@ class StrategyLifecycleTest:
             
             # Check database consistency
             if results['database_record_open'] and results['database_record_close']:
-                db_trade_final = self.test_trades.get(trade_id, {})
-                db_trade_updated = self.trade_db.get_trade(trade_id)
+                # Use fresh database instance for verification
+                verification_db = TradeDatabase()
+                db_trade_updated = verification_db.get_trade(trade_id)
                 
                 if db_trade_updated:
                     # Check essential fields
                     essential_fields = ['strategy_name', 'symbol', 'side', 'quantity', 'entry_price', 'trade_status']
                     for field in essential_fields:
-                        if field in db_trade_updated and db_trade_updated[field]:
+                        if field in db_trade_updated and db_trade_updated[field] is not None and str(db_trade_updated[field]).strip():
                             integrity_score += 1
                             print(f"✅ {field}: {db_trade_updated[field]}")
                         else:
-                            print(f"❌ Missing {field}")
+                            print(f"❌ Missing or empty {field}")
                             
             integrity_percentage = (integrity_score / total_checks) * 100
             print(f"\n📊 Data Integrity: {integrity_score}/{total_checks} ({integrity_percentage:.1f}%)")
