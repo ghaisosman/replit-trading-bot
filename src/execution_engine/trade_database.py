@@ -28,10 +28,24 @@ class TradeDatabase:
                     # Handle different data formats
                     if isinstance(data, dict):
                         if 'trades' in data:
-                            self.trades = data['trades']
+                            trades_data = data['trades']
+                            # Ensure trades_data is a dict
+                            if isinstance(trades_data, dict):
+                                self.trades = trades_data
+                            elif isinstance(trades_data, list):
+                                # Convert list to dict if needed
+                                self.trades = {}
+                                self.logger.warning("📊 Converting trades list to dict format")
+                            else:
+                                self.logger.warning("📊 Invalid trades format, starting with empty database")
+                                self.trades = {}
                         else:
-                            # If data is directly the trades dict
-                            self.trades = data
+                            # If data is directly the trades dict, validate it
+                            if all(isinstance(key, str) for key in data.keys()):
+                                self.trades = data
+                            else:
+                                self.logger.warning("📊 Invalid trade keys format, starting with empty database")
+                                self.trades = {}
                     elif isinstance(data, list):
                         # Convert list to dict if needed
                         self.trades = {}
