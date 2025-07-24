@@ -25,13 +25,21 @@ class TradeDatabase:
                 with open(self.db_file, 'r') as f:
                     data = json.load(f)
                     
-                    # Handle different data formats
+                    # Handle different data formats with robust error handling
                     if isinstance(data, dict):
                         if 'trades' in data:
                             trades_data = data['trades']
-                            # Ensure trades_data is a dict
+                            # Ensure trades_data is a dict with proper validation
                             if isinstance(trades_data, dict):
-                                self.trades = trades_data
+                                # Validate that all keys are strings and values are dicts
+                                valid_trades = {}
+                                for key, value in trades_data.items():
+                                    if isinstance(key, str) and isinstance(value, dict):
+                                        valid_trades[key] = value
+                                    else:
+                                        self.logger.warning(f"📊 Skipping invalid trade entry: key={type(key)}, value={type(value)}")
+                                self.trades = valid_trades
+                                self.logger.info(f"📊 Loaded {len(valid_trades)} valid trades from {len(trades_data)} entries")
                             elif isinstance(trades_data, list):
                                 # Convert list to dict if needed
                                 self.trades = {}
@@ -40,11 +48,13 @@ class TradeDatabase:
                                 self.logger.warning("📊 Invalid trades format, starting with empty database")
                                 self.trades = {}
                         else:
-                            # If data is directly the trades dict, validate it
-                            if all(isinstance(key, str) for key in data.keys()):
+                            # If data is directly the trades dict, validate it thoroughly
+                            if (isinstance(data, dict) and 
+                                all(isinstance(key, str) for key in data.keys()) and
+                                all(isinstance(value, dict) for value in data.values())):
                                 self.trades = data
                             else:
-                                self.logger.warning("📊 Invalid trade keys format, starting with empty database")
+                                self.logger.warning("📊 Invalid trade data structure, starting with empty database")
                                 self.trades = {}
                     elif isinstance(data, list):
                         # Convert list to dict if needed
