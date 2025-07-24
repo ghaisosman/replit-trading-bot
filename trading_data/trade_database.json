@@ -539,7 +539,25 @@
       "pnl_percentage": 0.05,
       "duration_minutes": 30.000076583333335,
       "exit_time": "2025-07-24T11:50:57.221626"
+    },
+    "DEBUG_TEST_20250724_140415": {
+      "strategy_name": "debug_test",
+      "symbol": "BTCUSDT",
+      "side": "BUY",
+      "quantity": 0.001,
+      "entry_price": 50000.0,
+      "trade_status": "OPEN",
+      "position_value_usdt": 50.0,
+      "leverage": 1,
+      "margin_used": 50.0,
+      "created_at": "2025-07-24T14:04:15.899892",
+      "last_updated": "2025-07-24T14:04:15.899899"
     }
   },
-  "last_updated": "2025-07-24T13:53:11.102833"
+  "last_updated": "2025-07-24T14:04:15.900031",
+  "debug_info": {
+    "save_timestamp": "2025-07-24T14:04:15.900037",
+    "total_trades": 23,
+    "test_trade_included": true
+  }
 }
