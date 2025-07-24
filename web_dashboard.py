@@ -777,7 +777,8 @@ def get_strategies():
                     config.setdefault('session_filter_enabled', True)
                     config.setdefault('allowed_sessions', ['LONDON', 'NEW_YORK'])
                     config.setdefault('trend_filter_enabled', True)
-                    config.setdefault('min_volume', 100000)
+                    config.setdefault<previous_generation>```
+('min_volume', 100000)
                     config.setdefault('decimals', 2)
                     config.setdefault('cooldown_period', 300)
 
@@ -962,7 +963,7 @@ def disable_strategy(strategy_name):
     """Disable a strategy by setting assessment_interval to 0"""
     try:
         logger.info(f"🔴 DISABLE REQUEST: Strategy {strategy_name}")
-        
+
         if not IMPORTS_AVAILABLE:
             logger.warning("Strategy management not available in demo mode")
             return jsonify({'success': False, 'message': 'Strategy management not available in demo mode'})
@@ -973,14 +974,18 @@ def disable_strategy(strategy_name):
             logger.error(f"Strategy {strategy_name} not found")
             return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" not found'})
 
-        # Disable by setting assessment_interval to 0
+        # Disable by setting assessment_interval to 0 and enabled flag to False
+        current_config = strategies[strategy_name]
         updates = {
             'assessment_interval': 0,
             'enabled': False
         }
 
-        # Update the strategy configuration
-        trading_config_manager.update_strategy_params(strategy_name, updates)
+        success = trading_config_manager.update_strategy_config(strategy_name, updates)
+
+        if not success:
+            logger.error(f"Failed to disable strategy {strategy_name}")
+            return jsonify({'success': False, 'message': f'Failed to disable strategy "{strategy_name}"'})
 
         # Force cache invalidation
         if hasattr(trading_config_manager, '_clear_cache'):
@@ -1010,7 +1015,7 @@ def enable_strategy(strategy_name):
     """Enable a strategy by restoring normal assessment_interval"""
     try:
         logger.info(f"🟢 ENABLE REQUEST: Strategy {strategy_name}")
-        
+
         if not IMPORTS_AVAILABLE:
             logger.warning("Strategy management not available in demo mode")
             return jsonify({'success': False, 'message': 'Strategy management not available in demo mode'})
@@ -1021,15 +1026,21 @@ def enable_strategy(strategy_name):
             logger.error(f"Strategy {strategy_name} not found")
             return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" not found'})
 
-        # Enable by setting appropriate assessment_interval
-        default_interval = 60 if 'rsi' in strategy_name.lower() else 30
+        # Enable by setting appropriate assessment_interval and enabled flag
+        current_config = strategies[strategy_name]
+
+        # Restore to default assessment_interval (usually 5 or 10)
+        default_interval = current_config.get('default_assessment_interval', 5)
         updates = {
             'assessment_interval': default_interval,
             'enabled': True
         }
 
-        # Update the strategy configuration
-        trading_config_manager.update_strategy_params(strategy_name, updates)
+        success = trading_config_manager.update_strategy_config(strategy_name, updates)
+
+        if not success:
+            logger.error(f"Failed to enable strategy {strategy_name}")
+            return jsonify({'success': False, 'message': f'Failed to enable strategy "{strategy_name}"'})
 
         # Force cache invalidation
         if hasattr(trading_config_manager, '_clear_cache'):
@@ -2215,7 +2226,8 @@ def export_ml_trade_data():
                 import pandas as pd
                 try:
                     df = pd.read_csv(filename)
-                    records = len(df)
+                    records = len(```python
+df)
                 except:
                     pass
 
