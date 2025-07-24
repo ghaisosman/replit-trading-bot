@@ -126,7 +126,7 @@ class RateLimitWebSocketTester:
         try:
             self.logger.info(f"🔌 Starting WebSocket connection to {self.ws_url}")
 
-            websocket.enableTrace(False)
+            # Remove enableTrace call - not available in all versions
             self.ws = websocket.WebSocketApp(
                 self.ws_url,
                 on_open=self.on_websocket_open,
@@ -349,7 +349,8 @@ class RateLimitWebSocketTester:
         report['results']['data_quality'] = quality_results
 
         # Calculate efficiency improvements
-        if 'api_only' in report['results'] and 'hybrid' in report['results']:
+        if ('api_only' in report['results'] and 'hybrid' in report['results'] and
+            'api_calls' in api_only_results and 'api_calls' in hybrid_results):
             api_calls_reduction = (
                 (api_only_results['api_calls'] - hybrid_results['api_calls']) /
                 max(api_only_results['api_calls'], 1)
@@ -359,6 +360,13 @@ class RateLimitWebSocketTester:
                 'api_calls_reduction_percentage': api_calls_reduction,
                 'rate_limit_usage_reduction': api_calls_reduction,
                 'recommended_approach': 'HYBRID' if api_calls_reduction > 50 else 'API_ONLY'
+            }
+        else:
+            report['efficiency_analysis'] = {
+                'api_calls_reduction_percentage': 0,
+                'rate_limit_usage_reduction': 0,
+                'recommended_approach': 'API_ONLY',
+                'note': 'Incomplete test data - WebSocket test failed'
             }
 
         return report
