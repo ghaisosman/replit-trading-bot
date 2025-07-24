@@ -263,29 +263,26 @@ class TradeDatabase:
         """Get all trades"""
         return self.trades.copy()
 
-    def find_trade_by_position(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float, tolerance: float = 0.01) -> Optional[str]:
-        """Find trade by position details with tolerance"""
+    def find_trade_by_position(self, strategy_name: str, symbol: str, side: str, 
+                              quantity: float, entry_price: float, tolerance: float = 0.01) -> Optional[str]:
+        """Find trade by position details with tolerance - prioritize recent trades"""
         try:
-            # First try exact match for test scenarios
-            for trade_id, trade_data in self.trades.items():
-                if (trade_data.get('strategy_name') == strategy_name and
-                    trade_data.get('symbol') == symbol and
-                    trade_data.get('side') == side and
-                    trade_data.get('quantity') == quantity and
-                    trade_data.get('entry_price') == entry_price):
-                    return trade_id
-
-            # Then try tolerance-based match
+            # Get all matching trades
+            matching_trades = []
             for trade_id, trade_data in self.trades.items():
                 if (trade_data.get('strategy_name') == strategy_name and
                     trade_data.get('symbol') == symbol and
                     trade_data.get('side') == side and
                     abs(trade_data.get('quantity', 0) - quantity) <= tolerance and
-                    abs(trade_data.get('entry_price', 0) - entry_price) <= abs(entry_price * tolerance)):
-                    return trade_id
+                    abs(trade_data.get('entry_price', 0) - entry_price) <= entry_price * tolerance):
+                    matching_trades.append(trade_id)
+
+            # Return the most recent trade (highest timestamp in trade_id)
+            if matching_trades:
+                return max(matching_trades)
             return None
         except Exception as e:
-            logging.getLogger(__name__).error(f"Error finding trade by position: {e}")
+            self.logger.error(f"Error finding trade by position: {e}")
             return None
 
     def sync_trade_to_logger(self, trade_id: str):

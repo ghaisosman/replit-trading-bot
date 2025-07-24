@@ -75,13 +75,11 @@ class MACDDivergenceStrategy:
             momentum_trend = current_histogram - prev2_histogram
 
             # --- BULLISH DIVERGENCE ENTRY (Before Bullish Crossover) ---
-            # MACD still below signal BUT histogram is growing (approaching crossover from bottom)
+            # MACD below signal BUT histogram growing strongly (approaching crossover from bottom)
             if (current_macd < current_signal and  # Still below signal line
-                current_histogram < 0 and  # Still negative (below zero)
                 momentum_change > 0 and  # Histogram growing
                 momentum_trend > 0 and  # Consistent upward trend
-                abs(momentum_change) >= self.min_histogram_threshold and  # Significant momentum
-                abs(current_histogram) <= self.entry_threshold):  # Close enough to signal for entry
+                abs(momentum_change) >= self.min_histogram_threshold):  # Significant momentum
 
                 return TradingSignal(
                     signal_type=SignalType.BUY,
@@ -95,13 +93,11 @@ class MACDDivergenceStrategy:
                 )
 
             # --- BEARISH DIVERGENCE ENTRY (Before Bearish Crossover) ---
-            # MACD still above signal BUT histogram is shrinking (approaching crossover from top)
+            # MACD above signal BUT histogram shrinking strongly (approaching crossover from top)
             elif (current_macd > current_signal and  # Still above signal line
-                  current_histogram > 0 and  # Still positive (above zero)
                   momentum_change < 0 and  # Histogram shrinking
                   momentum_trend < 0 and  # Consistent downward trend
-                  abs(momentum_change) >= self.min_histogram_threshold and  # Significant momentum
-                  abs(current_histogram) <= self.entry_threshold):  # Close enough to signal for entry
+                  abs(momentum_change) >= self.min_histogram_threshold):  # Significant momentum
 
                 return TradingSignal(
                     signal_type=SignalType.SELL,

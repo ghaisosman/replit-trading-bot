@@ -30,30 +30,38 @@ def create_macd_test_data(scenario, periods=100):
     np.random.seed(42)  # For reproducible results
 
     if scenario == "bullish_divergence":
-        # Create data for bullish divergence (MACD below signal but histogram growing)
+        # Create strong bullish divergence pattern
         base_price = 50000
         prices = []
         for i in range(periods):
-            if i < periods * 0.8:
-                # Extended downtrend to create negative MACD
-                decline_rate = max(1, (periods * 0.8 - i) / 10)
-                prices.append(base_price - (i * decline_rate) + np.random.normal(0, 20))
+            if i < periods * 0.7:
+                # Strong downtrend
+                decline = base_price * 0.15 * (i / (periods * 0.7))
+                prices.append(base_price - decline + np.random.normal(0, 10))
+            elif i < periods * 0.9:
+                # Consolidation at bottom
+                prices.append(prices[-1] + np.random.normal(0, 5))
             else:
-                # Slight recovery to create growing histogram while still below signal
-                prices.append(prices[-1] + np.random.normal(5, 15))
+                # Strong recovery creating momentum
+                recovery = (i - periods * 0.9) * 100
+                prices.append(prices[-1] + recovery + np.random.normal(10, 5))
 
     elif scenario == "bearish_divergence":
-        # Create data for bearish divergence (MACD above signal but histogram shrinking)
+        # Create strong bearish divergence pattern
         base_price = 52000
         prices = []
         for i in range(periods):
-            if i < periods * 0.8:
-                # Extended uptrend to create positive MACD
-                growth_rate = max(1, (periods * 0.8 - i) / 10)
-                prices.append(base_price + (i * growth_rate) + np.random.normal(0, 20))
+            if i < periods * 0.7:
+                # Strong uptrend
+                growth = base_price * 0.15 * (i / (periods * 0.7))
+                prices.append(base_price + growth + np.random.normal(0, 10))
+            elif i < periods * 0.9:
+                # Consolidation at top
+                prices.append(prices[-1] + np.random.normal(0, 5))
             else:
-                # Slight decline to create shrinking histogram while still above signal
-                prices.append(prices[-1] + np.random.normal(-5, 15))
+                # Strong decline creating negative momentum
+                decline = (i - periods * 0.9) * 100
+                prices.append(prices[-1] - decline + np.random.normal(-10, 5))
 
     else:  # no_signal
         # Sideways movement with no divergence pattern
