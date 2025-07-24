@@ -1214,33 +1214,19 @@ Remaining Position: {position.remaining_quantity} {position.symbol.replace('USDT
     def _sync_database_to_logger(self, trade_id: str, trade_data: Dict) -> bool:
         """Sync trade from database to logger (database is source of truth)"""
         try:
-            from src.analytics.trade_logger import trade_logger
+            from src.execution_engine.trade_database import TradeDatabase
+            
+            # Get the trade from database as source of truth
+            trade_db = TradeDatabase()
+            db_trade = trade_db.get_trade(trade_id)
+            
+            if not db_trade:
+                self.logger.error(f"❌ Trade {trade_id} not found in database for sync")
+                return False
 
-            # Create logger-compatible data
-            logger_data = trade_data.copy()
-
-            # CRITICAL: Ensure trade_id is explicitly set
-            logger_data['trade_id'] = trade_id
-
-            # Ensure timestamp is datetime object
-            if 'timestamp' not in logger_data:
-                logger_data['timestamp'] = datetime.now()
-            elif isinstance(logger_data['timestamp'], str):
-                logger_data['timestamp'] = datetime.fromisoformat(logger_data['timestamp'])
-
-            # Map database fields to logger fields
-            field_mapping = {
-                'margin_used': 'margin_used',
-                'position_value_usdt': 'position_value_usdt'
-            }
-
-            for db_field, logger_field in field_mapping.items():
-                if db_field in logger_data and logger_field not in logger_data:
-                    logger_data[logger_field] = logger_data[db_field]
-
-            # Use logger's log_trade method to add the trade
-            success = trade_logger.log_trade(logger_data)
-
+            # Use database sync method to sync to logger
+            success = trade_db.sync_trade_to_logger(trade_id)
+            
             if success:
                 self.logger.info(f"✅ SYNCED TO LOGGER | {trade_id} | Database → Logger sync complete")
                 return True

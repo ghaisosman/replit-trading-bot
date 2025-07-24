@@ -199,11 +199,35 @@ class TradeDatabase:
                 self.logger.warning(f"Trade {trade_id} not found in database for sync")
                 return False
 
-            trade_data = self.trades[trade_id]
+            trade_data = self.trades[trade_id].copy()
+            self.logger.info(f"🔄 SYNCING TRADE TO LOGGER | {trade_id} | Data keys: {list(trade_data.keys())}")
 
             # Import logger
             from src.analytics.trade_logger import trade_logger
 
+            # Ensure required fields are present and properly formatted
+            required_fields = ['trade_id', 'strategy_name', 'symbol', 'side', 'entry_price', 'quantity', 'margin_used', 'leverage', 'position_value_usdt']
+            
+            for field in required_fields:
+                if field not in trade_data:
+                    self.logger.warning(f"⚠️ Missing field {field} in trade {trade_id}, calculating fallback")
+                    
+                    if field == 'margin_used' and 'position_value_usdt' in trade_data and 'leverage' in trade_data:
+                        trade_data['margin_used'] = trade_data['position_value_usdt'] / trade_data.get('leverage', 1)
+                    elif field == 'position_value_usdt' and 'entry_price' in trade_data and 'quantity' in trade_data:
+                        trade_data['position_value_usdt'] = trade_data['entry_price'] * trade_data['quantity']
+                    elif field == 'leverage':
+                        trade_data['leverage'] = 1  # Default
+
+            # Ensure timestamp is properly formatted
+            if 'timestamp' not in trade_data:
+                if 'created_at' in trade_data:
+                    trade_data['timestamp'] = trade_data['created_at']
+                else:
+                    trade_data['timestamp'] = datetime.now().isoformat()
+
+            self.logger.info(f"🔄 CALLING LOGGER.LOG_TRADE | {trade_id}")
+            
             # Sync the trade
             success = trade_logger.log_trade(trade_data)
             
@@ -216,6 +240,8 @@ class TradeDatabase:
 
         except Exception as e:
             self.logger.error(f"❌ Error syncing trade {trade_id} to logger: {e}")
+            import traceback
+            self.logger.error(f"🔍 Sync error traceback: {traceback.format_exc()}")
             return False
 
     def sync_from_logger(self):
