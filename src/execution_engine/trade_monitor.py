@@ -161,7 +161,7 @@ class TradeMonitor:
                 # Get open positions from Binance
                 binance_positions = self._get_binance_positions(symbol)
                 
-                # Enhanced logging for RSI strategy
+                # Enhanced logging for RSI strategy  
                 if 'rsi' in strategy_name.lower():
                     self.logger.info(f"🔍 RSI ORPHAN CHECK: Found {len(binance_positions)} Binance positions for {symbol}")
 
@@ -169,7 +169,7 @@ class TradeMonitor:
                 binance_position = None
                 for pos in binance_positions:
                     pos_amt = float(pos['positionAmt'])
-                    if pos['symbol'] == symbol and pos_amt != 0:
+                    if pos['symbol'] == symbol and abs(pos_amt) > 0.001:  # Use absolute value and tolerance
                         binance_position = pos
                         if 'rsi' in strategy_name.lower():
                             self.logger.info(f"🔍 RSI ORPHAN CHECK: Found matching Binance position: {pos_amt}")
@@ -188,8 +188,6 @@ class TradeMonitor:
                         self.logger.info(f"🔍 RSI ORPHAN DETECTED: Creating orphan trade {orphan_id}")
                     
                     if orphan_id not in self.orphan_trades:
-                        # OrphanTrade is already defined in this file
-                        
                         orphan_trade = OrphanTrade(
                             position=position,
                             detected_at=datetime.now(),

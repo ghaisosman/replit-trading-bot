@@ -24,13 +24,35 @@ class TradeDatabase:
             if os.path.exists(self.db_file):
                 with open(self.db_file, 'r') as f:
                     data = json.load(f)
-                    self.trades = data.get('trades', {})
+                    
+                    # Handle different data formats
+                    if isinstance(data, dict):
+                        if 'trades' in data:
+                            self.trades = data['trades']
+                        else:
+                            # If data is directly the trades dict
+                            self.trades = data
+                    elif isinstance(data, list):
+                        # Convert list to dict if needed
+                        self.trades = {}
+                        self.logger.warning("📊 Converting list format to dict format")
+                    else:
+                        self.logger.warning("📊 Unknown data format, starting with empty database")
+                        self.trades = {}
+                    
+                    # Ensure trades is a dict
+                    if not isinstance(self.trades, dict):
+                        self.logger.warning("📊 Invalid trades format, resetting to empty dict")
+                        self.trades = {}
+                    
                     self.logger.info(f"📊 Loaded {len(self.trades)} trades from database")
             else:
                 self.logger.info("📊 Trade database file not found, starting with empty database")
                 self.trades = {}
         except Exception as e:
             self.logger.error(f"❌ Error loading trade database: {e}")
+            import traceback
+            self.logger.error(f"❌ Database loading traceback: {traceback.format_exc()}")
             self.trades = {}
 
     def _save_database(self):
