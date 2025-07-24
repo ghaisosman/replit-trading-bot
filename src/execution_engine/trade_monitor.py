@@ -160,7 +160,7 @@ class TradeMonitor:
 
                 # Get open positions from Binance
                 binance_positions = self._get_binance_positions(symbol)
-
+                
                 # Enhanced logging for RSI strategy  
                 if 'rsi' in strategy_name.lower():
                     self.logger.info(f"🔍 RSI ORPHAN CHECK: Found {len(binance_positions)} Binance positions for {symbol}")
@@ -183,22 +183,22 @@ class TradeMonitor:
                 if binance_position is None:
                     # This is an orphan trade
                     orphan_id = f"{strategy_name}_{symbol}"
-
+                    
                     if 'rsi' in strategy_name.lower():
                         self.logger.info(f"🔍 RSI ORPHAN DETECTED: Creating orphan trade {orphan_id}")
-
+                    
                     if orphan_id not in self.orphan_trades:
                         orphan_trade = OrphanTrade(
                             position=position,
                             detected_at=datetime.now(),
                             cycles_remaining=2
                         )
-
+                        
                         self.orphan_trades[orphan_id] = orphan_trade
-
+                        
                         if 'rsi' in strategy_name.lower():
                             self.logger.info(f"🔍 RSI ORPHAN SUCCESS: Added {orphan_id} to orphan_trades")
-
+                        
                         # Send notification if not suppressed
                         if not suppress_notifications and self.startup_scan_complete:
                             self.logger.warning(f"👻 ORPHAN TRADE DETECTED | {strategy_name} | {symbol} | "
@@ -212,7 +212,7 @@ class TradeMonitor:
                 else:
                     if 'rsi' in strategy_name.lower():
                         self.logger.info(f"🔍 RSI ORPHAN CHECK: Position exists on Binance, no orphan")
-
+                        
                     # Remove any existing orphan trade since position exists
                     orphan_id = f"{strategy_name}_{symbol}"
                     if orphan_id in self.orphan_trades:
@@ -979,88 +979,3 @@ class TradeMonitor:
             return True
 
         return False
-
-    def _check_position_exists_on_binance(self, symbol: str, side: str, quantity: float) -> bool:
-        """Check if a position exists on Binance"""
-        try:
-            if self.binance_client.is_futures:
-                account_info = self.binance_client.client.futures_account()
-                positions = account_info.get('positions', [])
-
-                for pos in positions:
-                    if (pos['symbol'] == symbol and 
-                        float(pos['positionAmt']) != 0):
-                        # Check if quantities match (within tolerance)
-                        pos_amount = abs(float(pos['positionAmt']))
-                        expected_amount = abs(quantity)
-                        tolerance = 0.001  # Small tolerance for float precision
-
-                        if abs(pos_amount - expected_amount) <= tolerance:
-                            return True
-
-            return False
-
-        except Exception as e:
-            self.logger.error(f"Error checking position on Binance: {e}")
-            # For testing purposes, return False to allow orphan detection
-            # In production, you might want to return True to be conservative
-            return False
-    strategies: Dict[str, Dict] = {}
-    def register_strategy(self, strategy_name, strategy_config=None):
-        """Register a strategy for monitoring"""
-        if strategy_name not in self.strategies:
-            self.strategies[strategy_name] = {
-                'positions': [],
-                'last_check': datetime.now(),
-                'alerts': [],
-                'config': strategy_config or {}
-            }
-            self.logger.info(f"📊 Strategy {strategy_name} registered for monitoring")
-
-    def _check_orphan_trades(self, suppress_notifications: bool = False) -> None:
-        """Check for orphan trades (bot opened, manually closed)"""
-        try:
-            if not hasattr(self, 'registered_strategies'):
-                self.registered_strategies: Dict[str, bool] = {}
-            if not hasattr(self, 'orphan_countdown_cycles'):
-                 self.orphan_countdown_cycles: int = 2
-
-            # Check each registered strategy for orphan trades
-            for strategy_name in self.registered_strategies.keys():
-                if strategy_name in self.order_manager.active_positions:
-                    position = self.order_manager.active_positions[strategy_name]
-                    symbol = position.symbol
-
-                    # Check if this position exists on Binance
-                    position_exists = self._check_position_exists_on_binance(symbol, position.side, position.quantity)
-
-                    if not position_exists and strategy_name not in self.orphan_trades:
-                        # Create orphan trade entry
-                        orphan_trade = OrphanTrade(
-                            position=position,
-                            detected_at=datetime.now(),
-                            cycles_remaining=self.orphan_countdown_cycles
-                        )
-
-                        # Use consistent strategy identification for RSI
-                        orphan_id = strategy_name
-                        if strategy_name == 'rsi_oversold':
-                            # Support both formats for RSI strategy
-                            orphan_id = f"rsi_oversold_{symbol}" if f"rsi_oversold_{symbol}" not in self.orphan_trades else strategy_name
-
-                        self.orphan_trades[orphan_id] = orphan_trade
-
-                        # Log and notify only if not suppressed
-                        if not suppress_notifications:
-                            self.logger.warning(f"🔍 ORPHAN TRADE DETECTED | {strategy_name} | {symbol} | Position closed manually")
-                            self.telegram_reporter.report_orphan_trade_detected(
-                                strategy_name=strategy_name,
-                                symbol=symbol,
-                                side=position.side,
-                                entry_price=position.entry_price
-                            )
-                        else:
-                            self.logger.info(f"🔍 ORPHAN POSITION NOTED (STARTUP) | {strategy_name} | {symbol} | Position tracking")
-
-        except Exception as e:
-            self.logger.error(f"Error checking orphan trades: {e}")
