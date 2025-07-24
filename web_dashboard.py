@@ -777,8 +777,15 @@ def get_strategies():
                     config.setdefault('session_filter_enabled', True)
                     config.setdefault('allowed_sessions', ['LONDON', 'NEW_YORK'])
                     config.setdefault('trend_filter_enabled', True)
-                    config.setdefault<previous_generation>```
-('min_volume', 100000)
+                    config.setdefault('trend_filter_direction', 'UP')
+                    config.setdefault('trend_lookback_period', 20)
+                    config.setdefault('confirmation_candles', 2)
+                    config.setdefault('stable_candle_ratio', 0.7)
+                    config.setdefault('atr_multiplier', 1.5)
+                    config.setdefault('atr_lookback', 14)
+                    config.setdefault('volume_threshold_pct', 10)
+                    config.setdefault('volume_confirmation_candles', 2)
+                    config.setdefault('min_volume', 100000)
                     config.setdefault('decimals', 2)
                     config.setdefault('cooldown_period', 300)
 
@@ -2210,7 +2217,7 @@ def test_ml_prediction():
 
 @app.route('/api/export_trade_data', methods=['POST'])
 def export_ml_trade_data():
-    """Export trade data for ML analysis"""
+    ""Export trade data for ML analysis"""
     try:
         if not IMPORTS_AVAILABLE:
             return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
@@ -2226,8 +2233,7 @@ def export_ml_trade_data():
                 import pandas as pd
                 try:
                     df = pd.read_csv(filename)
-                    records = len(```python
-df)
+                    records = len(df)
                 except:
                     pass
 
