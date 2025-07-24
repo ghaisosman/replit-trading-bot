@@ -849,7 +849,7 @@ class OrphanGhostTester:
         if ghost_detection.get('status') == 'COMPLETED':
             print(f"   🔍 Ghost Detection:")
             print(f"     • Strategies tested: {ghost_detection.get('total_strategies_tested', 0)}")
-            print(f     • Successful detections: {ghost_detection.get('successful_detections', 0)}")
+            print(f"     • Successful detections: {ghost_detection.get('successful_detections', 0)}")
 
         # Clearing mechanisms results
         if clearing.get('status') == 'COMPLETED':
