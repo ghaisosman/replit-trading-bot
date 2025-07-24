@@ -1,0 +1,60 @@
+{
+  "test_metadata": {
+    "test_type": "strategy_configuration_lifecycle",
+    "timestamp": "2025-07-24T15:32:38.993504",
+    "base_url": "http://localhost:5000",
+    "total_strategies": 4,
+    "passed_strategies": 0,
+    "failed_strategies": 4
+  },
+  "results": {
+    "rsi_oversold": {
+      "strategy": "rsi_oversold",
+      "test_start": "2025-07-24T15:31:53.978312",
+      "phases": {
+        "original_config_set": {
+          "success": false,
+          "error": "Failed to set original configuration"
+        }
+      },
+      "overall_success": false,
+      "summary": {}
+    },
+    "macd_divergence": {
+      "strategy": "macd_divergence",
+      "test_start": "2025-07-24T15:32:08.981858",
+      "phases": {
+        "original_config_set": {
+          "success": false,
+          "error": "Failed to set original configuration"
+        }
+      },
+      "overall_success": false,
+      "summary": {}
+    },
+    "engulfing_pattern": {
+      "strategy": "engulfing_pattern",
+      "test_start": "2025-07-24T15:32:23.985428",
+      "phases": {
+        "original_config_set": {
+          "success": false,
+          "error": "Failed to set original configuration"
+        }
+      },
+      "overall_success": false,
+      "summary": {}
+    },
+    "smart_money": {
+      "strategy": "smart_money",
+      "test_start": "2025-07-24T15:32:38.988925",
+      "phases": {
+        "original_config_set": {
+          "success": false,
+          "error": "Failed to set original configuration"
+        }
+      },
+      "overall_success": false,
+      "summary": {}
+    }
+  }
+}
