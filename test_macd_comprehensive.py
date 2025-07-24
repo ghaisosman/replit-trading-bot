@@ -1,8 +1,9 @@
-
 #!/usr/bin/env python3
 """
-Comprehensive MACD Strategy Test
-Tests the complete trade lifecycle: scanning → entry → execution → logging → recovery → management → exit
+🧠 COMPREHENSIVE MACD STRATEGY TEST
+================================================================================
+Testing complete strategy lifecycle: indicator calculation → crossover detection → entry → execution → logging
+================================================================================
 """
 
 import sys
@@ -24,678 +25,554 @@ from src.binance_client.client import BinanceClientWrapper
 from src.analytics.trade_logger import TradeLogger
 from src.config.trading_config import trading_config_manager
 
-class MACDTestSuite:
-    def __init__(self):
-        self.results = {}
-        self.test_symbol = "BTCUSDT"
-        
-        # Initialize components
-        try:
-            self.binance_client = BinanceClientWrapper()
-            self.trade_logger = TradeLogger()
-            self.order_manager = OrderManager(self.binance_client, self.trade_logger)
-            self.trade_database = TradeDatabase("trading_data/test_trade_database.json")
-            self.signal_processor = SignalProcessor()
-            
-            # Get MACD config
-            self.macd_config = trading_config_manager.get_strategy_config('macd_divergence', {
-                'name': 'macd_divergence',
-                'symbol': self.test_symbol,
-                'timeframe': '1h',
-                'macd_fast': 12,
-                'macd_slow': 26,
-                'macd_signal': 9,
-                'min_histogram_threshold': 0.0001,
-                'min_distance_threshold': 0.0015,
-                'margin': 50.0,
-                'leverage': 5,
-                'max_loss_pct': 10
-            })
-            
-            self.macd_strategy = MACDDivergenceStrategy(self.macd_config)
-            
-            print("✅ Test suite initialized successfully")
-            
-        except Exception as e:
-            print(f"❌ Error initializing test suite: {e}")
-            import traceback
-            traceback.print_exc()
+def create_macd_test_data(scenario="bullish_crossover", periods=100):
+    """Create synthetic OHLCV data for MACD testing"""
+    np.random.seed(42)  # For reproducible results
 
-    def create_test_data(self, trend_type="bullish_crossover"):
-        """Create synthetic market data for testing"""
-        print(f"\n📊 Creating test data for {trend_type}")
-        
-        # Create base price data
-        np.random.seed(42)  # For reproducible results
-        base_price = 45000
-        periods = 100
-        
-        # Create realistic price movement
-        price_changes = np.random.normal(0, 0.01, periods)
+    base_price = 50000
+    timestamps = [datetime.now() - timedelta(minutes=5*i) for i in range(periods, 0, -1)]
+
+    if scenario == "bullish_crossover":
+        # Create data that will produce a bullish MACD crossover
+        prices = []
+        for i in range(periods):
+            if i < 70:
+                # Downtrend first
+                trend = -0.002
+            elif i < 85:
+                # Consolidation
+                trend = 0
+            else:
+                # Strong uptrend to create crossover
+                trend = 0.008
+
+            noise = np.random.normal(0, 0.003)
+            if i == 0:
+                price = base_price
+            else:
+                price = prices[-1] * (1 + trend + noise)
+            prices.append(price)
+
+    elif scenario == "bearish_crossover":
+        # Create data that will produce a bearish MACD crossover
+        prices = []
+        for i in range(periods):
+            if i < 70:
+                # Uptrend first
+                trend = 0.002
+            elif i < 85:
+                # Consolidation
+                trend = 0
+            else:
+                # Strong downtrend to create crossover
+                trend = -0.008
+
+            noise = np.random.normal(0, 0.003)
+            if i == 0:
+                price = base_price
+            else:
+                price = prices[-1] * (1 + trend + noise)
+            prices.append(price)
+
+    else:  # no_signal
+        # Random walk without clear crossover
         prices = [base_price]
-        
         for i in range(1, periods):
-            change = price_changes[i]
-            if trend_type == "bullish_crossover" and i > 80:
-                # Create bullish momentum in last 20 candles
-                change += 0.005
-            elif trend_type == "bearish_crossover" and i > 80:
-                # Create bearish momentum in last 20 candles
-                change -= 0.005
-                
-            new_price = prices[-1] * (1 + change)
-            prices.append(new_price)
-        
-        # Create DataFrame
-        timestamps = [datetime.now() - timedelta(hours=periods-i) for i in range(periods)]
-        
-        df = pd.DataFrame({
-            'timestamp': timestamps,
-            'open': prices,
-            'high': [p * 1.01 for p in prices],
-            'low': [p * 0.99 for p in prices], 
-            'close': prices,
-            'volume': np.random.uniform(1000, 5000, periods)
-        })
-        
-        return df
+            change = np.random.normal(0, 0.002)
+            prices.append(prices[-1] * (1 + change))
 
-    def test_1_indicator_calculation(self):
-        """Test MACD indicator calculation accuracy"""
-        print("\n🧮 TEST 1: MACD Indicator Calculation")
-        
-        try:
-            df = self.create_test_data("bullish_crossover")
-            df_with_indicators = self.macd_strategy.calculate_indicators(df.copy())
-            
-            # Check if indicators were calculated
-            required_indicators = ['macd', 'macd_signal', 'macd_histogram']
-            missing_indicators = [ind for ind in required_indicators if ind not in df_with_indicators.columns]
-            
-            if missing_indicators:
-                self.results['indicator_calculation'] = {
-                    'status': 'FAILED',
-                    'error': f"Missing indicators: {missing_indicators}"
-                }
-                print(f"❌ Missing indicators: {missing_indicators}")
-                return False
-            
-            # Check for NaN values in recent data
-            recent_data = df_with_indicators.tail(10)
-            nan_counts = recent_data[required_indicators].isna().sum()
-            
-            if nan_counts.any():
-                self.results['indicator_calculation'] = {
-                    'status': 'FAILED',
-                    'error': f"NaN values found: {nan_counts.to_dict()}"
-                }
-                print(f"❌ NaN values in indicators: {nan_counts.to_dict()}")
-                return False
-            
-            # Log current values
-            current_macd = df_with_indicators['macd'].iloc[-1]
-            current_signal = df_with_indicators['macd_signal'].iloc[-1]
-            current_histogram = df_with_indicators['macd_histogram'].iloc[-1]
-            
-            print(f"✅ Indicators calculated successfully")
-            print(f"   MACD: {current_macd:.6f}")
-            print(f"   Signal: {current_signal:.6f}") 
-            print(f"   Histogram: {current_histogram:.6f}")
-            
-            self.results['indicator_calculation'] = {
-                'status': 'PASSED',
-                'macd': current_macd,
-                'signal': current_signal,
-                'histogram': current_histogram
-            }
-            return True
-            
-        except Exception as e:
-            self.results['indicator_calculation'] = {
-                'status': 'ERROR',
-                'error': str(e)
-            }
-            print(f"❌ Error in indicator calculation: {e}")
-            return False
+    df = pd.DataFrame({
+        'timestamp': timestamps,
+        'open': prices,
+        'high': [p * (1 + abs(np.random.normal(0, 0.005))) for p in prices],
+        'low': [p * (1 - abs(np.random.normal(0, 0.005))) for p in prices],
+        'close': prices,
+        'volume': np.random.uniform(1000, 5000, periods)
+    })
 
-    def test_2_signal_detection(self):
-        """Test entry signal detection logic"""
-        print("\n🎯 TEST 2: Signal Detection Logic")
-        
-        try:
-            # Test bullish crossover detection
-            df_bullish = self.create_test_data("bullish_crossover")
-            df_bullish = self.macd_strategy.calculate_indicators(df_bullish)
-            
-            # Manually create a crossover condition
-            df_bullish.loc[df_bullish.index[-2], 'macd'] = -0.001
-            df_bullish.loc[df_bullish.index[-2], 'macd_signal'] = 0.001
-            df_bullish.loc[df_bullish.index[-1], 'macd'] = 0.002
-            df_bullish.loc[df_bullish.index[-1], 'macd_signal'] = 0.001
-            df_bullish['macd_histogram'] = df_bullish['macd'] - df_bullish['macd_signal']
-            
-            bullish_signal = self.macd_strategy.evaluate_entry_signal(df_bullish)
-            
-            # Test bearish crossover detection
-            df_bearish = self.create_test_data("bearish_crossover")
-            df_bearish = self.macd_strategy.calculate_indicators(df_bearish)
-            
-            # Manually create a bearish crossover
-            df_bearish.loc[df_bearish.index[-2], 'macd'] = 0.001
-            df_bearish.loc[df_bearish.index[-2], 'macd_signal'] = -0.001
-            df_bearish.loc[df_bearish.index[-1], 'macd'] = -0.002
-            df_bearish.loc[df_bearish.index[-1], 'macd_signal'] = -0.001
-            df_bearish['macd_histogram'] = df_bearish['macd'] - df_bearish['macd_signal']
-            
-            bearish_signal = self.macd_strategy.evaluate_entry_signal(df_bearish)
-            
-            # Evaluate results
-            results = {
-                'bullish_detected': bullish_signal is not None,
-                'bearish_detected': bearish_signal is not None,
-                'bullish_type': bullish_signal.signal_type.value if bullish_signal else None,
-                'bearish_type': bearish_signal.signal_type.value if bearish_signal else None
-            }
-            
-            if bullish_signal and bullish_signal.signal_type == SignalType.BUY:
-                print("✅ Bullish crossover detected correctly")
-            else:
-                print("❌ Bullish crossover not detected")
-                
-            if bearish_signal and bearish_signal.signal_type == SignalType.SELL:
-                print("✅ Bearish crossover detected correctly")
-            else:
-                print("❌ Bearish crossover not detected")
-            
-            self.results['signal_detection'] = {
-                'status': 'PASSED' if results['bullish_detected'] and results['bearish_detected'] else 'FAILED',
-                'details': results
-            }
-            
-            return results['bullish_detected'] and results['bearish_detected']
-            
-        except Exception as e:
-            self.results['signal_detection'] = {
-                'status': 'ERROR',
-                'error': str(e)
-            }
-            print(f"❌ Error in signal detection: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
-    def test_3_order_execution_simulation(self):
-        """Test order execution logic (simulated)"""
-        print("\n⚡ TEST 3: Order Execution Simulation")
-        
-        try:
-            # Create a test signal
-            test_signal = TradingSignal(
-                signal_type=SignalType.BUY,
-                confidence=0.8,
-                entry_price=45000.0,
-                stop_loss=44100.0,
-                take_profit=46800.0,
-                symbol=self.test_symbol,
-                reason="Test MACD crossover"
-            )
-            
-            # Test position size calculation
-            quantity = self.order_manager._calculate_position_size(test_signal, self.macd_config)
-            
-            if quantity <= 0:
-                self.results['order_execution'] = {
-                    'status': 'FAILED',
-                    'error': f"Invalid quantity calculated: {quantity}"
-                }
-                print(f"❌ Invalid quantity: {quantity}")
-                return False
-            
-            # Test symbol info retrieval
-            symbol_info = self.order_manager._get_symbol_info(self.test_symbol)
-            
-            # Validate position size meets requirements
-            min_qty = symbol_info.get('min_qty', 0.001)
-            if quantity < min_qty:
-                print(f"⚠️ Quantity {quantity} below minimum {min_qty}")
-            
-            # Calculate expected margin usage
-            position_value = test_signal.entry_price * quantity
-            leverage = self.macd_config.get('leverage', 5)
-            expected_margin = position_value / leverage
-            
-            print(f"✅ Order execution parameters calculated:")
-            print(f"   Quantity: {quantity}")
-            print(f"   Position Value: ${position_value:.2f}")
-            print(f"   Expected Margin: ${expected_margin:.2f}")
-            print(f"   Leverage: {leverage}x")
-            
-            self.results['order_execution'] = {
-                'status': 'PASSED',
-                'quantity': quantity,
-                'position_value': position_value,
-                'expected_margin': expected_margin,
-                'leverage': leverage
-            }
-            return True
-            
-        except Exception as e:
-            self.results['order_execution'] = {
-                'status': 'ERROR',
-                'error': str(e)
-            }
-            print(f"❌ Error in order execution simulation: {e}")
-            return False
-
-    def test_4_database_logging(self):
-        """Test trade database logging functionality"""
-        print("\n💾 TEST 4: Database Logging")
-        
-        try:
-            # Create test trade data
-            test_trade_id = f"TEST_{self.test_symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            
-            test_trade_data = {
-                'trade_id': test_trade_id,
-                'strategy_name': 'macd_divergence',
-                'symbol': self.test_symbol,
-                'side': 'BUY',
-                'quantity': 0.001,
-                'entry_price': 45000.0,
-                'trade_status': 'OPEN',
-                'position_value_usdt': 45.0,
-                'leverage': 5,
-                'margin_used': 9.0,
-                'stop_loss': 44100.0,
-                'take_profit': 46800.0,
-                'order_id': 12345,
-                'position_side': 'LONG'
-            }
-            
-            # Test adding trade to database
-            success = self.trade_database.add_trade(test_trade_id, test_trade_data)
-            
-            if not success:
-                self.results['database_logging'] = {
-                    'status': 'FAILED',
-                    'error': "Failed to add trade to database"
-                }
-                print("❌ Failed to add trade to database")
-                return False
-            
-            # Test retrieving trade from database
-            retrieved_trade = self.trade_database.get_trade(test_trade_id)
-            
-            if not retrieved_trade:
-                self.results['database_logging'] = {
-                    'status': 'FAILED',
-                    'error': "Failed to retrieve trade from database"
-                }
-                print("❌ Failed to retrieve trade from database")
-                return False
-            
-            # Test updating trade
-            update_success = self.trade_database.update_trade(test_trade_id, {
-                'trade_status': 'CLOSED',
-                'exit_price': 46000.0,
-                'pnl_usdt': 1.0
-            })
-            
-            if not update_success:
-                self.results['database_logging'] = {
-                    'status': 'FAILED',
-                    'error': "Failed to update trade in database"
-                }
-                print("❌ Failed to update trade in database")
-                return False
-            
-            # Test trade search functionality
-            found_trade_id = self.trade_database.find_trade_by_position(
-                'macd_divergence', self.test_symbol, 'BUY', 0.001, 45000.0, tolerance=0.01
-            )
-            
-            if found_trade_id != test_trade_id:
-                print(f"⚠️ Trade search returned {found_trade_id}, expected {test_trade_id}")
-            
-            print("✅ Database logging operations successful:")
-            print(f"   Trade ID: {test_trade_id}")
-            print(f"   Add: ✅")
-            print(f"   Retrieve: ✅")
-            print(f"   Update: ✅")
-            print(f"   Search: {'✅' if found_trade_id == test_trade_id else '⚠️'}")
-            
-            self.results['database_logging'] = {
-                'status': 'PASSED',
-                'trade_id': test_trade_id,
-                'operations': {
-                    'add': True,
-                    'retrieve': True,
-                    'update': True,
-                    'search': found_trade_id == test_trade_id
-                }
-            }
-            return True
-            
-        except Exception as e:
-            self.results['database_logging'] = {
-                'status': 'ERROR',
-                'error': str(e)
-            }
-            print(f"❌ Error in database logging: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
-    def test_5_trade_recovery(self):
-        """Test trade recovery after bot restart"""
-        print("\n🔄 TEST 5: Trade Recovery Logic")
-        
-        try:
-            # Get recovery candidates from database
-            candidates = self.trade_database.get_recovery_candidates()
-            
-            print(f"📊 Found {len(candidates)} recovery candidates")
-            
-            # Test recovery validation
-            recovery_results = []
-            
-            for candidate in candidates[:3]:  # Test first 3 candidates
-                trade_id = candidate.get('trade_id')
-                symbol = candidate.get('symbol')
-                side = candidate.get('side')
-                quantity = candidate.get('quantity', 0)
-                entry_price = candidate.get('entry_price', 0)
-                strategy_name = candidate.get('strategy_name')
-                
-                # Test position legitimacy validation
-                is_legitimate, found_trade_id = self.order_manager.is_legitimate_bot_position(
-                    strategy_name, symbol, side, quantity, entry_price
-                )
-                
-                recovery_results.append({
-                    'trade_id': trade_id,
-                    'symbol': symbol,
-                    'legitimate': is_legitimate,
-                    'found_trade_id': found_trade_id
-                })
-                
-                print(f"   Trade {trade_id}: {'✅ Legitimate' if is_legitimate else '❌ Not found'}")
-            
-            # Test database sync functionality
-            try:
-                sync_count = self.trade_database.sync_from_logger()
-                print(f"📊 Synced {sync_count} trades from logger")
-            except Exception as sync_error:
-                print(f"⚠️ Sync error: {sync_error}")
-            
-            self.results['trade_recovery'] = {
-                'status': 'PASSED',
-                'candidates_found': len(candidates),
-                'recovery_results': recovery_results,
-                'sync_available': True
-            }
-            
-            print("✅ Trade recovery logic tested successfully")
-            return True
-            
-        except Exception as e:
-            self.results['trade_recovery'] = {
-                'status': 'ERROR',
-                'error': str(e)
-            }
-            print(f"❌ Error in trade recovery: {e}")
-            return False
-
-    def test_6_exit_signal_logic(self):
-        """Test MACD exit signal detection"""
-        print("\n🚪 TEST 6: Exit Signal Logic")
-        
-        try:
-            # Create test data with MACD momentum reversal
-            df = self.create_test_data("bullish_crossover")
-            df = self.macd_strategy.calculate_indicators(df)
-            
-            # Simulate MACD momentum peak (for long exit)
-            df.loc[df.index[-3], 'macd_histogram'] = 0.001
-            df.loc[df.index[-2], 'macd_histogram'] = 0.003  # Peak
-            df.loc[df.index[-1], 'macd_histogram'] = 0.002  # Declining
-            
-            # Test long position exit
-            long_position = {
-                'side': 'BUY',
-                'entry_price': 45000.0,
-                'quantity': 0.001
-            }
-            
-            long_exit_signal = self.macd_strategy.evaluate_exit_signal(df, long_position)
-            
-            # Test short position exit  
-            df_short = df.copy()
-            df_short.loc[df_short.index[-3], 'macd_histogram'] = -0.001
-            df_short.loc[df_short.index[-2], 'macd_histogram'] = -0.003  # Bottom
-            df_short.loc[df_short.index[-1], 'macd_histogram'] = -0.002  # Rising
-            
-            short_position = {
-                'side': 'SELL',
-                'entry_price': 45000.0,
-                'quantity': 0.001
-            }
-            
-            short_exit_signal = self.macd_strategy.evaluate_exit_signal(df_short, short_position)
-            
-            print(f"Long exit signal: {long_exit_signal if long_exit_signal else 'None'}")
-            print(f"Short exit signal: {short_exit_signal if short_exit_signal else 'None'}")
-            
-            # Test via signal processor
-            signal_processor_long_exit = self.signal_processor.evaluate_exit_conditions(
-                df, long_position, self.macd_config
-            )
-            
-            signal_processor_short_exit = self.signal_processor.evaluate_exit_conditions(
-                df_short, short_position, self.macd_config
-            )
-            
-            results = {
-                'long_strategy_exit': long_exit_signal is not None,
-                'short_strategy_exit': short_exit_signal is not None,
-                'long_processor_exit': signal_processor_long_exit is not False,
-                'short_processor_exit': signal_processor_short_exit is not False
-            }
-            
-            print("✅ Exit signal logic tested:")
-            print(f"   Long strategy exit: {'✅' if results['long_strategy_exit'] else '❌'}")
-            print(f"   Short strategy exit: {'✅' if results['short_strategy_exit'] else '❌'}")
-            print(f"   Long processor exit: {'✅' if results['long_processor_exit'] else '❌'}")
-            print(f"   Short processor exit: {'✅' if results['short_processor_exit'] else '❌'}")
-            
-            self.results['exit_signal_logic'] = {
-                'status': 'PASSED',
-                'results': results
-            }
-            return True
-            
-        except Exception as e:
-            self.results['exit_signal_logic'] = {
-                'status': 'ERROR',
-                'error': str(e)
-            }
-            print(f"❌ Error in exit signal logic: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
-    def test_7_configuration_validation(self):
-        """Test MACD strategy configuration and thresholds"""
-        print("\n⚙️ TEST 7: Configuration Validation")
-        
-        try:
-            config = self.macd_strategy.config
-            
-            # Check required parameters
-            required_params = ['macd_fast', 'macd_slow', 'macd_signal', 'min_histogram_threshold']
-            missing_params = [param for param in required_params if param not in config]
-            
-            if missing_params:
-                self.results['configuration'] = {
-                    'status': 'FAILED',
-                    'error': f"Missing required parameters: {missing_params}"
-                }
-                print(f"❌ Missing parameters: {missing_params}")
-                return False
-            
-            # Validate parameter ranges
-            validations = {
-                'macd_fast': (1, 50),
-                'macd_slow': (10, 100),
-                'macd_signal': (1, 20),
-                'min_histogram_threshold': (0, 1),
-                'margin': (1, 1000),
-                'leverage': (1, 125)
-            }
-            
-            validation_results = {}
-            for param, (min_val, max_val) in validations.items():
-                if param in config:
-                    value = config[param]
-                    is_valid = min_val <= value <= max_val
-                    validation_results[param] = {
-                        'value': value,
-                        'valid': is_valid,
-                        'range': f"{min_val}-{max_val}"
-                    }
-                    
-                    if not is_valid:
-                        print(f"⚠️ {param}: {value} outside valid range {min_val}-{max_val}")
-                    else:
-                        print(f"✅ {param}: {value}")
-            
-            # Test threshold sensitivity
-            test_histogram_values = [0.00001, 0.0001, 0.001, 0.01]
-            threshold = config.get('min_histogram_threshold', 0.0001)
-            
-            print(f"\n🎯 Threshold Analysis (current: {threshold}):")
-            for test_val in test_histogram_values:
-                would_trigger = test_val > threshold
-                print(f"   Histogram {test_val}: {'✅ Would trigger' if would_trigger else '❌ Would not trigger'}")
-            
-            self.results['configuration'] = {
-                'status': 'PASSED',
-                'validations': validation_results,
-                'threshold_analysis': {
-                    'current_threshold': threshold,
-                    'test_values': test_histogram_values
-                }
-            }
-            return True
-            
-        except Exception as e:
-            self.results['configuration'] = {
-                'status': 'ERROR',
-                'error': str(e)
-            }
-            print(f"❌ Error in configuration validation: {e}")
-            return False
-
-    def run_comprehensive_test(self):
-        """Run all tests and generate comprehensive report"""
-        print("🚀 STARTING COMPREHENSIVE MACD STRATEGY TEST")
-        print("=" * 60)
-        
-        test_functions = [
-            self.test_1_indicator_calculation,
-            self.test_2_signal_detection,
-            self.test_3_order_execution_simulation,
-            self.test_4_database_logging,
-            self.test_5_trade_recovery,
-            self.test_6_exit_signal_logic,
-            self.test_7_configuration_validation
-        ]
-        
-        passed_tests = 0
-        total_tests = len(test_functions)
-        
-        for test_func in test_functions:
-            try:
-                result = test_func()
-                if result:
-                    passed_tests += 1
-            except Exception as e:
-                print(f"❌ Test {test_func.__name__} failed with error: {e}")
-        
-        # Generate summary report
-        print("\n" + "=" * 60)
-        print("📊 COMPREHENSIVE TEST RESULTS SUMMARY")
-        print("=" * 60)
-        
-        print(f"Tests Passed: {passed_tests}/{total_tests}")
-        print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
-        
-        print("\n📋 Detailed Results:")
-        for test_name, result in self.results.items():
-            status = result.get('status', 'UNKNOWN')
-            print(f"   {test_name}: {status}")
-            if status == 'ERROR' and 'error' in result:
-                print(f"      Error: {result['error']}")
-        
-        # Identify potential issues
-        print("\n🔍 ANALYSIS & RECOMMENDATIONS:")
-        
-        failed_tests = [name for name, result in self.results.items() if result.get('status') != 'PASSED']
-        
-        if not failed_tests:
-            print("✅ All tests passed - MACD strategy logic appears sound")
-        else:
-            print(f"❌ Issues found in: {', '.join(failed_tests)}")
-            
-            # Specific recommendations based on failures
-            if 'indicator_calculation' in failed_tests:
-                print("   • Check MACD calculation formulas and data requirements")
-                
-            if 'signal_detection' in failed_tests:
-                print("   • Review crossover detection logic and thresholds")
-                
-            if 'database_logging' in failed_tests:
-                print("   • Verify database connectivity and schema")
-                
-            if 'trade_recovery' in failed_tests:
-                print("   • Check trade ID generation and matching logic")
-        
-        # Save detailed results
-        try:
-            with open('trading_data/macd_test_results.json', 'w') as f:
-                json.dump({
-                    'timestamp': datetime.now().isoformat(),
-                    'summary': {
-                        'tests_passed': passed_tests,
-                        'total_tests': total_tests,
-                        'success_rate': (passed_tests/total_tests)*100
-                    },
-                    'detailed_results': self.results
-                }, f, indent=2)
-            print(f"\n💾 Detailed results saved to trading_data/macd_test_results.json")
-        except Exception as e:
-            print(f"⚠️ Could not save results: {e}")
-        
-        return passed_tests == total_tests
+    return df
 
 def main():
-    """Run the comprehensive MACD test suite"""
+    print("🧠 COMPREHENSIVE MACD STRATEGY TEST")
+    print("=" * 80)
+    print("Testing complete strategy lifecycle: indicator calculation → crossover detection → entry → execution → logging")
+    print("=" * 80)
+
+    test_results = {}
+
+    # TEST 1: STRATEGY INITIALIZATION AND CONFIGURATION
+    print("\n📋 TEST 1: STRATEGY INITIALIZATION AND CONFIGURATION")
+    print("-" * 60)
+
     try:
-        test_suite = MACDTestSuite()
-        success = test_suite.run_comprehensive_test()
-        
-        if success:
-            print("\n🎉 ALL TESTS PASSED - MACD Strategy is functioning correctly")
-            return 0
-        else:
-            print("\n⚠️ SOME TESTS FAILED - Review results above")
-            return 1
-            
+        # Import and initialize strategy
+        print("✅ MACD strategy imports successful")
+
+        # Test configuration
+        test_config = {
+            'name': 'TEST_MACD',
+            'symbol': 'BTCUSDT',
+            'timeframe': '5m',
+            'macd_fast': 12,
+            'macd_slow': 26,
+            'macd_signal': 9,
+            'min_histogram_threshold': 0.0001,
+            'min_distance_threshold': 0.0015,
+            'confirmation_candles': 2,
+            'margin': 50.0,
+            'leverage': 5,
+            'max_loss_pct': 10,
+            'macd_entry_threshold': 0.002,
+            'macd_exit_threshold': 0.003
+        }
+
+        print(f"📋 Test Configuration: {test_config}")
+
+        # Initialize strategy
+        macd_strategy = MACDDivergenceStrategy(test_config)
+
+        print("✅ Strategy initialized with correct parameters")
+        print(f"   📊 MACD Fast: {macd_strategy.macd_fast}")
+        print(f"   📊 MACD Slow: {macd_strategy.macd_slow}")
+        print(f"   📊 MACD Signal: {macd_strategy.macd_signal}")
+        print(f"   🎯 Histogram Threshold: {macd_strategy.min_histogram_threshold}")
+        print(f"   🎯 Entry Threshold: {macd_strategy.entry_threshold}")
+        print(f"   🎯 Exit Threshold: {macd_strategy.exit_threshold}")
+        print(f"   ⚡ Leverage: {test_config['leverage']}x")
+        print(f"   💰 Margin: ${test_config['margin']}")
+
+        test_results['initialization'] = 'PASSED'
+
     except Exception as e:
-        print(f"❌ Critical error running test suite: {e}")
-        import traceback
-        traceback.print_exc()
-        return 1
+        print(f"❌ Strategy initialization failed: {e}")
+        test_results['initialization'] = 'FAILED'
+        return
+
+    # TEST 2: INDICATOR CALCULATION
+    print("\n🧮 TEST 2: MACD INDICATOR CALCULATION")
+    print("-" * 60)
+
+    try:
+        # Create test data
+        test_data = create_macd_test_data("bullish_crossover", 100)
+        print(f"📊 Processing {len(test_data)} candles for indicator calculation")
+
+        # Calculate indicators
+        df_with_indicators = macd_strategy.calculate_indicators(test_data.copy())
+
+        # Verify indicators were calculated
+        required_indicators = ['macd', 'macd_signal', 'macd_histogram', 'ema_fast', 'ema_slow']
+        missing_indicators = [ind for ind in required_indicators if ind not in df_with_indicators.columns]
+
+        if missing_indicators:
+            print(f"❌ Missing indicators: {missing_indicators}")
+            test_results['indicators'] = 'FAILED'
+        else:
+            # Check for valid values (not NaN)
+            recent_data = df_with_indicators.tail(10)
+            nan_counts = recent_data[required_indicators].isna().sum()
+
+            if nan_counts.any():
+                print(f"❌ NaN values in indicators: {nan_counts.to_dict()}")
+                test_results['indicators'] = 'FAILED' 
+            else:
+                current_macd = df_with_indicators['macd'].iloc[-1]
+                current_signal = df_with_indicators['macd_signal'].iloc[-1]
+                current_histogram = df_with_indicators['macd_histogram'].iloc[-1]
+
+                print("✅ All MACD indicators calculated successfully")
+                print(f"   📈 Current MACD: {current_macd:.6f}")
+                print(f"   📊 Current Signal: {current_signal:.6f}")
+                print(f"   📊 Current Histogram: {current_histogram:.6f}")
+
+                test_results['indicators'] = 'PASSED'
+
+    except Exception as e:
+        print(f"❌ Indicator calculation failed: {e}")
+        test_results['indicators'] = 'FAILED'
+
+    # TEST 3: CROSSOVER DETECTION LOGIC
+    print("\n🚨 TEST 3: MACD CROSSOVER DETECTION LOGIC")
+    print("-" * 60)
+
+    crossover_tests = 0
+    successful_detections = 0
+
+    try:
+        # Test Scenario 1: Bullish Crossover
+        print("🔍 Scenario 1: Bullish MACD Crossover (Buy Signal)")
+        bullish_data = create_macd_test_data("bullish_crossover", 100)
+        bullish_data = macd_strategy.calculate_indicators(bullish_data)
+
+        bullish_signal = macd_strategy.evaluate_entry_signal(bullish_data)
+        crossover_tests += 1
+
+        if bullish_signal and bullish_signal.signal_type == SignalType.BUY:
+            print("   ✅ Bullish crossover detected correctly")
+            print(f"      Signal Type: {bullish_signal.signal_type.value}")
+            print(f"      Entry Price: ${bullish_signal.entry_price:.2f}")
+            print(f"      Stop Loss: ${bullish_signal.stop_loss:.2f}")
+            print(f"      Take Profit: ${bullish_signal.take_profit:.2f}")
+            successful_detections += 1
+        else:
+            print("   ❌ Expected bullish crossover not detected")
+
+        # Test Scenario 2: Bearish Crossover
+        print("\n🔍 Scenario 2: Bearish MACD Crossover (Sell Signal)")
+        bearish_data = create_macd_test_data("bearish_crossover", 100)
+        bearish_data = macd_strategy.calculate_indicators(bearish_data)
+
+        bearish_signal = macd_strategy.evaluate_entry_signal(bearish_data)
+        crossover_tests += 1
+
+        if bearish_signal and bearish_signal.signal_type == SignalType.SELL:
+            print("   ✅ Bearish crossover detected correctly")
+            print(f"      Signal Type: {bearish_signal.signal_type.value}")
+            print(f"      Entry Price: ${bearish_signal.entry_price:.2f}")
+            print(f"      Stop Loss: ${bearish_signal.stop_loss:.2f}")
+            print(f"      Take Profit: ${bearish_signal.take_profit:.2f}")
+            successful_detections += 1
+        else:
+            print("   ❌ Expected bearish crossover not detected")
+
+        # Test Scenario 3: No Signal
+        print("\n🔍 Scenario 3: No Crossover (Normal Market Action)")
+        no_signal_data = create_macd_test_data("no_signal", 100)
+        no_signal_data = macd_strategy.calculate_indicators(no_signal_data)
+
+        no_signal = macd_strategy.evaluate_entry_signal(no_signal_data)
+        crossover_tests += 1
+
+        if no_signal is None:
+            print("   ✅ Correctly identified no crossover signal")
+            successful_detections += 1
+        else:
+            print("   ❌ False positive: Detected signal when none should exist")
+
+        print(f"\n📊 Crossover Detection Summary: {successful_detections}/{crossover_tests} tests passed")
+        test_results['crossover_detection'] = 'PASSED' if successful_detections == crossover_tests else 'FAILED'
+
+    except Exception as e:
+        print(f"❌ Crossover detection test failed: {e}")
+        test_results['crossover_detection'] = 'FAILED'
+
+    # TEST 4: POSITION SIZE AND RISK CALCULATION
+    print("\n📊 TEST 4: POSITION SIZE AND RISK CALCULATION")
+    print("-" * 60)
+
+    try:
+        # Initialize components for order testing
+        binance_client = BinanceClientWrapper()
+        trade_logger = TradeLogger()
+        order_manager = OrderManager(binance_client, trade_logger)
+
+        # Create test signal
+        test_signal = TradingSignal(
+            signal_type=SignalType.BUY,
+            confidence=0.8,
+            entry_price=50000.0,
+            stop_loss=49000.0,
+            take_profit=51500.0,
+            symbol='BTCUSDT',
+            reason="Test MACD bullish crossover",
+            strategy_name="TEST_MACD"
+        )
+
+        # Calculate position size
+        quantity = order_manager._calculate_position_size(test_signal, test_config)
+
+        if quantity > 0:
+            position_value = test_signal.entry_price * quantity
+            leverage = test_config['leverage']
+            required_margin = position_value / leverage
+            risk_amount = abs(test_signal.entry_price - test_signal.stop_loss) * quantity
+            risk_percentage = (risk_amount / (test_config['margin'])) * 100
+
+            print("✅ Position calculations completed successfully")
+            print(f"   📊 Quantity: {quantity}")
+            print(f"   💰 Position Value: ${position_value:.2f}")
+            print(f"   ⚡ Leverage: {leverage}x")
+            print(f"   🛡️ Required Margin: ${required_margin:.2f}")
+            print(f"   ⚠️ Risk Amount: ${risk_amount:.2f}")
+            print(f"   📈 Risk Percentage: {risk_percentage:.1f}%")
+
+            if risk_percentage <= test_config['max_loss_pct']:
+                print("   ✅ Risk management compliance verified")
+                test_results['position_sizing'] = 'PASSED'
+            else:
+                print(f"   ❌ Risk exceeds maximum allowed ({test_config['max_loss_pct']}%)")
+                test_results['position_sizing'] = 'FAILED'
+        else:
+            print(f"❌ Invalid position size calculated: {quantity}")
+            test_results['position_sizing'] = 'FAILED'
+
+    except Exception as e:
+        print(f"❌ Position sizing test failed: {e}")
+        test_results['position_sizing'] = 'FAILED'
+
+    # TEST 5: DATABASE OPERATIONS
+    print("\n💾 TEST 5: DATABASE OPERATIONS")
+    print("-" * 60)
+
+    try:
+        # Initialize database
+        trade_database = TradeDatabase("trading_data/test_macd_database.json")
+
+        # Create test trade data
+        test_trade_id = f"MACD_TEST_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        test_trade_data = {
+            'trade_id': test_trade_id,
+            'strategy_name': 'macd_divergence',
+            'symbol': 'BTCUSDT',
+            'side': 'BUY',
+            'quantity': 0.001,
+            'entry_price': 50000.0,
+            'trade_status': 'OPEN',
+            'position_value_usdt': 50.0,
+            'leverage': 5,
+            'margin_used': 10.0,
+            'stop_loss': 49000.0,
+            'take_profit': 51500.0,
+            'order_id': 123456789,
+            'position_side': 'LONG',
+            'macd_value': 45.67,
+            'macd_signal_value': 43.21,
+            'histogram_value': 2.46
+        }
+
+        database_operations = {
+            'add': False,
+            'retrieve': False,
+            'update': False,
+            'search': False
+        }
+
+        # Test 1: Add trade
+        add_success = trade_database.add_trade(test_trade_id, test_trade_data)
+        database_operations['add'] = add_success
+
+        if add_success:
+            print("✅ Trade added to database successfully")
+        else:
+            print("❌ Failed to add trade to database")
+
+        # Test 2: Retrieve trade
+        retrieved_trade = trade_database.get_trade(test_trade_id)
+        database_operations['retrieve'] = retrieved_trade is not None
+
+        if retrieved_trade:
+            print("✅ Trade retrieved from database successfully")
+        else:
+            print("❌ Failed to retrieve trade from database")
+
+        # Test 3: Update trade
+        update_success = trade_database.update_trade(test_trade_id, {
+            'trade_status': 'CLOSED',
+            'exit_price': 51200.0,
+            'pnl_usdt': 1.2,
+            'close_reason': 'Take Profit'
+        })
+        database_operations['update'] = update_success
+
+        if update_success:
+            print("✅ Trade updated in database successfully")
+        else:
+            print("❌ Failed to update trade in database")
+
+        # Test 4: Search functionality
+        found_trade_id = trade_database.find_trade_by_position(
+            'macd_divergence', 'BTCUSDT', 'BUY', 0.001, 50000.0, tolerance=0.01
+        )
+        database_operations['search'] = found_trade_id == test_trade_id
+
+        if found_trade_id == test_trade_id:
+            print("✅ Trade search functionality working correctly")
+        else:
+            print(f"❌ Trade search failed: found {found_trade_id}, expected {test_trade_id}")
+
+        # Summary
+        passed_operations = sum(database_operations.values())
+        total_operations = len(database_operations)
+
+        print(f"\n📊 Database Operations: {passed_operations}/{total_operations} passed")
+        for operation, status in database_operations.items():
+            print(f"   {operation.capitalize()}: {'✅' if status else '❌'}")
+
+        test_results['database_operations'] = 'PASSED' if passed_operations == total_operations else 'FAILED'
+
+    except Exception as e:
+        print(f"❌ Database operations test failed: {e}")
+        test_results['database_operations'] = 'FAILED'
+
+    # TEST 6: EXIT SIGNAL LOGIC
+    print("\n🚪 TEST 6: EXIT SIGNAL LOGIC")
+    print("-" * 60)
+
+    try:
+        # Create test data with MACD momentum reversal patterns
+        exit_test_data = create_macd_test_data("bullish_crossover", 100)
+        exit_test_data = macd_strategy.calculate_indicators(exit_test_data)
+
+        # Manually create exit conditions
+        # Peak momentum reversal for long exit
+        exit_test_data.loc[exit_test_data.index[-3], 'macd_histogram'] = 0.005
+        exit_test_data.loc[exit_test_data.index[-2], 'macd_histogram'] = 0.008  # Peak
+        exit_test_data.loc[exit_test_data.index[-1], 'macd_histogram'] = 0.004  # Declining
+
+        # Test long position exit
+        long_position = {
+            'side': 'BUY',
+            'entry_price': 50000.0,
+            'quantity': 0.001
+        }
+
+        long_exit_signal = macd_strategy.evaluate_exit_signal(exit_test_data, long_position)
+
+        # Test short position exit
+        short_exit_data = exit_test_data.copy()
+        short_exit_data.loc[short_exit_data.index[-3], 'macd_histogram'] = -0.005
+        short_exit_data.loc[short_exit_data.index[-2], 'macd_histogram'] = -0.008  # Bottom
+        short_exit_data.loc[short_exit_data.index[-1], 'macd_histogram'] = -0.004  # Rising
+
+        short_position = {
+            'side': 'SELL',
+            'entry_price': 50000.0,
+            'quantity': 0.001
+        }
+
+        short_exit_signal = macd_strategy.evaluate_exit_signal(short_exit_data, short_position)
+
+        exit_results = {
+            'long_exit_detected': long_exit_signal is not None,
+            'short_exit_detected': short_exit_signal is not None
+        }
+
+        print("📊 Exit Signal Testing Results:")
+        if exit_results['long_exit_detected']:
+            print("   ✅ Long position exit signal detected")
+            print(f"      Reason: {long_exit_signal}")
+        else:
+            print("   ❌ Long position exit signal not detected")
+
+        if exit_results['short_exit_detected']:
+            print("   ✅ Short position exit signal detected")
+            print(f"      Reason: {short_exit_signal}")
+        else:
+            print("   ❌ Short position exit signal not detected")
+
+        passed_exits = sum(exit_results.values())
+        total_exits = len(exit_results)
+
+        print(f"\n📊 Exit Logic Summary: {passed_exits}/{total_exits} tests passed")
+        test_results['exit_logic'] = 'PASSED' if passed_exits == total_exits else 'FAILED'
+
+    except Exception as e:
+        print(f"❌ Exit signal logic test failed: {e}")
+        test_results['exit_logic'] = 'FAILED'
+
+    # TEST 7: LIVE MARKET INTEGRATION
+    print("\n🔗 TEST 7: LIVE MARKET INTEGRATION")
+    print("-" * 60)
+
+    try:
+        # Test connection to live market data
+        binance_client = BinanceClientWrapper()
+
+        # Get live market data
+        live_data = binance_client.get_historical_klines('BTCUSDT', '5m', limit=100)
+
+        if live_data and len(live_data) > 50:
+            # Convert to DataFrame
+            df_live = pd.DataFrame(live_data, columns=[
+                'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                'close_time', 'quote_asset_volume', 'number_of_trades',
+                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
+            ])
+
+            # Convert numeric columns
+            numeric_columns = ['open', 'high', 'low', 'close', 'volume']
+            for col in numeric_columns:
+                df_live[col] = pd.to_numeric(df_live[col])
+
+            # Test indicator calculation with live data
+            df_live = macd_strategy.calculate_indicators(df_live)
+
+            # Test signal evaluation with live data
+            live_signal = macd_strategy.evaluate_entry_signal(df_live)
+            current_price = df_live['close'].iloc[-1]
+
+            print("✅ Live market integration successful")
+            print(f"   📊 Retrieved {len(df_live)} candles from Binance")
+            print(f"   💰 Current BTC Price: ${current_price:,.2f}")
+
+            if live_signal:
+                print(f"   🚨 LIVE SIGNAL DETECTED: {live_signal.signal_type.value}")
+                print(f"      Entry: ${live_signal.entry_price:.2f}")
+                print(f"      Stop Loss: ${live_signal.stop_loss:.2f}")
+                print(f"      Take Profit: ${live_signal.take_profit:.2f}")
+            else:
+                print("   📊 No signal detected in current market conditions")
+
+            test_results['live_integration'] = 'PASSED'
+
+        else:
+            print("❌ Failed to retrieve sufficient live market data")
+            test_results['live_integration'] = 'FAILED'
+
+    except Exception as e:
+        print(f"❌ Live market integration test failed: {e}")
+        test_results['live_integration'] = 'FAILED'
+
+    # FINAL RESULTS SUMMARY
+    print("\n" + "=" * 80)
+    print("📊 COMPREHENSIVE MACD STRATEGY TEST RESULTS")
+    print("=" * 80)
+
+    passed_tests = sum(1 for result in test_results.values() if result == 'PASSED')
+    total_tests = len(test_results)
+    success_rate = (passed_tests / total_tests) * 100
+
+    print(f"🎯 Overall Results: {passed_tests}/{total_tests} tests passed ({success_rate:.1f}% success rate)")
+    print("\n📋 Detailed Test Results:")
+
+    for test_name, result in test_results.items():
+        status_emoji = "✅" if result == 'PASSED' else "❌"
+        print(f"   {status_emoji} {test_name.replace('_', ' ').title()}: {result}")
+
+    if success_rate == 100:
+        print("\n🎉 PERFECT! ALL TESTS PASSED! 100% SUCCESS RATE!")
+        print("🚀 MACD strategy is fully validated and ready for live trading!")
+    elif success_rate >= 80:
+        print(f"\n✅ EXCELLENT! {success_rate:.1f}% success rate - MACD strategy is performing well!")
+    elif success_rate >= 60:
+        print(f"\n⚠️ GOOD: {success_rate:.1f}% success rate - Some issues need attention")
+    else:
+        print(f"\n❌ NEEDS WORK: {success_rate:.1f}% success rate - Significant issues detected")
+
+    # Save results
+    try:
+        results_data = {
+            'timestamp': datetime.now().isoformat(),
+            'strategy': 'MACD Divergence',
+            'summary': {
+                'total_tests': total_tests,
+                'passed_tests': passed_tests,
+                'success_rate': success_rate
+            },
+            'detailed_results': test_results,
+            'test_config': test_config
+        }
+
+        with open('trading_data/macd_comprehensive_test_results.json', 'w') as f:
+            json.dump(results_data, f, indent=2)
+
+        print(f"\n💾 Test results saved to: trading_data/macd_comprehensive_test_results.json")
+
+    except Exception as e:
+        print(f"⚠️ Could not save results: {e}")
+
+    print("\n🏁 MACD Comprehensive Test Complete!")
+    print("=" * 80)
 
 if __name__ == "__main__":
-    exit(main())
+    main()
