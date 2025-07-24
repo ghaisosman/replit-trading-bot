@@ -436,10 +436,11 @@ class OrderManager:
             try:
                 from src.execution_engine.trade_database import TradeDatabase
                 trade_db = TradeDatabase()
+                self.logger.info(f"🔧 DATABASE CLOSE UPDATE | {position.trade_id} | Updating trade status to CLOSED")
 
                 # Ensure we have a trade ID to update
                 if position.trade_id:
-                    trade_db.update_trade(position.trade_id, {
+                    update_success = trade_db.update_trade(position.trade_id, {
                         'trade_status': 'CLOSED',
                         'exit_price': current_price,
                         'exit_reason': reason,
@@ -447,7 +448,7 @@ class OrderManager:
                         'pnl_percentage': pnl_percentage,
                         'duration_minutes': duration_minutes
                     })
-                    self.logger.debug(f"✅ Trade database updated for {position.trade_id}")
+                    self.logger.info(f"🔧 DATABASE UPDATE RESULT | {position.trade_id} | Success: {update_success}")
                 else:
                     # Fallback: Try to find and close any open trade for this position
                     matching_trade_id = trade_db.find_trade_by_position(
@@ -1056,9 +1057,15 @@ class OrderManager:
 
             # Record in database (single source of truth)
             self.logger.info(f"📝 RECORDING TRADE IN DATABASE | {position.trade_id} | Database is source of truth")
-            from src.execution_engine.trade_database import TradeDatabase
-            trade_db = TradeDatabase()
-            db_success = trade_db.add_trade(position.trade_id, complete_data)
+            try:
+                from src.execution_engine.trade_database import TradeDatabase
+                trade_db = TradeDatabase()
+                self.logger.info(f"🔧 DATABASE INSTANCE CREATED | {position.trade_id}")
+                db_success = trade_db.add_trade(position.trade_id, complete_data)
+                self.logger.info(f"🔧 DATABASE ADD_TRADE CALLED | {position.trade_id} | Success: {db_success}")
+            except Exception as db_import_error:
+                self.logger.error(f"❌ DATABASE IMPORT/CREATION ERROR | {position.trade_id} | {db_import_error}")
+                db_success = False
 
             if db_success:
                 self.logger.info(f"✅ DATABASE RECORDING SUCCESS | {position.trade_id}")
