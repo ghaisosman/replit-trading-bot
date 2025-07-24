@@ -151,7 +151,7 @@ class TradeDatabase:
                 self.trades[trade_id].update(updates)
                 self._save_database()
                 self.logger.info(f"✅ Trade updated in database: {trade_id}")
-                
+
                 # Automatically sync to logger after successful database update
                 sync_success = self.sync_trade_to_logger(trade_id)
                 if sync_success:
@@ -233,6 +233,26 @@ class TradeDatabase:
                     trade_data['timestamp'] = trade_data['created_at']
                 else:
                     trade_data['timestamp'] = datetime.now().isoformat()
+
+            self.logger.info(f"🔄 CALLING LOGGER.LOG_TRADE | {trade_id}")
+
+            # Check if trade already exists in logger to prevent duplicates
+            existing_trade = None
+            for existing in trade_logger.trades:
+                if existing.trade_id == trade_id:
+                    existing_trade = existing
+                    break
+
+            if existing_trade:
+                self.logger.info(f"✅ Trade {trade_id} already exists in logger - updating from database (database is source of truth)")
+                # Even if exists, update with latest database data since database is source of truth
+                try:
+                    # Remove existing and add updated version
+                    trade_logger.trades = [t for t in trade_logger.trades if t.trade_id != trade_id]
+                    self.logger.info(f"🔄 Removed existing trade from logger for update")
+                except Exception as e:
+                    self.logger.warning(f"Could not remove existing trade: {e}")
+                # Continue to add updated version below
 
             self.logger.info(f"🔄 CALLING LOGGER.LOG_TRADE | {trade_id}")
 

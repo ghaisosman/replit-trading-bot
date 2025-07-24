@@ -714,7 +714,8 @@ class OrderManager:
         """Get position history"""
         return self.position_history.copy()
 
-    def has_position_on_symbol(self, symbol: str, side: str = None) -> bool:
+    def has_position_on_symbol(```python
+self, symbol: str, side: str = None) -> bool:
         """Check if there's already a position on this symbol (optionally with specific side)"""
         try:
             for position in self.active_positions.values():
@@ -1050,25 +1051,29 @@ class OrderManager:
             except Exception as e:
                 self.logger.warning(f"⚠️ Could not analyze market conditions: {e}")
 
-            # OPTION 1: Record ONLY in database first (single source of truth)
-            from src.execution_engine.trade_database import TradeDatabase
-            trade_db = TradeDatabase()
-
-            self.logger.info(f"📝 RECORDING CONFIRMED TRADE | {position.trade_id} | After Binance confirmation")
-
-            # Record in database
+            # Record in database (single source of truth)
+            self.logger.info(f"📝 RECORDING TRADE IN DATABASE | {position.trade_id} | Database is source of truth")
             db_success = trade_db.add_trade(position.trade_id, complete_data)
-            
+
             if db_success:
                 self.logger.info(f"✅ DATABASE RECORDING SUCCESS | {position.trade_id}")
-                
-                # Sync to trade logger
-                sync_success = trade_db.sync_trade_to_logger(position.trade_id)
-                
-                if sync_success:
-                    self.logger.info(f"✅ TRADE SYNC SUCCESS | {position.trade_id} | Database → Logger")
+
+                # Verify the trade was actually stored
+                stored_trade = trade_db.get_trade(position.trade_id)
+                if stored_trade:
+                    self.logger.info(f"✅ DATABASE VERIFICATION SUCCESS | {position.trade_id} | Trade confirmed in database")
+
+                    # Sync from database to trade logger (database → logger)
+                    sync_success = trade_db.sync_trade_to_logger(position.trade_id)
+
+                    if sync_success:
+                        self.logger.info(f"✅ SYNC SUCCESS | {position.trade_id} | Database → Logger sync complete")
+                    else:
+                        self.logger.warning(f"⚠️ SYNC FAILED | {position.trade_id} | Database recorded but logger sync failed")
                 else:
-                    self.logger.warning(f"⚠️ TRADE SYNC FAILED | {position.trade_id} | Database recorded but logger sync failed")
+                    self.logger.error(f"❌ DATABASE VERIFICATION FAILED | {position.trade_id} | Trade not found after recording")
+                    db_success = False  # Mark as failed since verification failed
+
             else:
                 self.logger.error(f"❌ DATABASE RECORDING FAILED | {position.trade_id}")
                 # Fallback: Try direct logger recording
@@ -1237,18 +1242,18 @@ Remaining Position: {position.remaining_quantity} {position.symbol.replace('USDT
         """Sync trade from database to logger (database is source of truth)"""
         try:
             from src.execution_engine.trade_database import TradeDatabase
-            
+
             # Get the trade from database as source of truth
             trade_db = TradeDatabase()
             db_trade = trade_db.get_trade(trade_id)
-            
+
             if not db_trade:
                 self.logger.error(f"❌ Trade {trade_id} not found in database for sync")
                 return False
 
             # Use database sync method to sync to logger
             success = trade_db.sync_trade_to_logger(trade_id)
-            
+
             if success:
                 self.logger.info(f"✅ SYNCED TO LOGGER | {trade_id} | Database → Logger sync complete")
                 return True
