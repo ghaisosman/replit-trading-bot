@@ -1061,10 +1061,45 @@ class OrderManager:
                 from src.execution_engine.trade_database import TradeDatabase
                 trade_db = TradeDatabase()
                 self.logger.info(f"🔧 DATABASE INSTANCE CREATED | {position.trade_id}")
-                db_success = trade_db.add_trade(position.trade_id, complete_data)
-                self.logger.info(f"🔧 DATABASE ADD_TRADE CALLED | {position.trade_id} | Success: {db_success}")
+                
+                # Validate complete_data before recording
+                self.logger.info(f"🔍 VALIDATING DATA | {position.trade_id} | Keys: {list(complete_data.keys())}")
+                
+                # Ensure all required fields are present
+                required_fields = ['trade_id', 'strategy_name', 'symbol', 'side', 'quantity', 'entry_price', 'trade_status']
+                missing_fields = [field for field in required_fields if field not in complete_data or complete_data[field] is None]
+                
+                if missing_fields:
+                    self.logger.error(f"❌ MISSING REQUIRED FIELDS | {position.trade_id} | Missing: {missing_fields}")
+                    db_success = False
+                else:
+                    self.logger.info(f"✅ DATA VALIDATION PASSED | {position.trade_id}")
+                    
+                    # Force database directory creation
+                    import os
+                    db_dir = os.path.dirname(trade_db.db_file)
+                    if not os.path.exists(db_dir):
+                        os.makedirs(db_dir, exist_ok=True)
+                        self.logger.info(f"🔧 CREATED DATABASE DIRECTORY | {db_dir}")
+                    
+                    # Call add_trade with comprehensive logging
+                    self.logger.info(f"🔧 CALLING ADD_TRADE | {position.trade_id} | Data size: {len(str(complete_data))} chars")
+                    db_success = trade_db.add_trade(position.trade_id, complete_data)
+                    self.logger.info(f"🔧 ADD_TRADE RETURNED | {position.trade_id} | Success: {db_success}")
+                    
+                    # Immediate verification
+                    if db_success:
+                        stored_trade = trade_db.get_trade(position.trade_id)
+                        if stored_trade:
+                            self.logger.info(f"✅ IMMEDIATE VERIFICATION SUCCESS | {position.trade_id}")
+                        else:
+                            self.logger.error(f"❌ IMMEDIATE VERIFICATION FAILED | {position.trade_id} | Trade not found after add")
+                            db_success = False
+                            
             except Exception as db_import_error:
                 self.logger.error(f"❌ DATABASE IMPORT/CREATION ERROR | {position.trade_id} | {db_import_error}")
+                import traceback
+                self.logger.error(f"🔍 DATABASE ERROR TRACEBACK: {traceback.format_exc()}")
                 db_success = False
 
             if db_success:

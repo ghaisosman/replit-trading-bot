@@ -34,7 +34,7 @@ class TradeDatabase:
             self.trades = {}
 
     def _save_database(self):
-        """Save trades to database file"""
+        """Save trades to database file with comprehensive error handling"""
         try:
             self.logger.info(f"🔍 DEBUG: Starting database save to {self.db_file}")
             self.logger.info(f"🔍 DEBUG: Saving {len(self.trades)} trades")
@@ -44,35 +44,68 @@ class TradeDatabase:
                 'last_updated': datetime.now().isoformat()
             }
 
-            # Check if directory exists
+            # Ensure directory exists with proper permissions
             import os
             db_dir = os.path.dirname(self.db_file)
             if not os.path.exists(db_dir):
                 self.logger.info(f"🔍 DEBUG: Creating directory {db_dir}")
                 os.makedirs(db_dir, exist_ok=True)
 
-            self.logger.info(f"🔍 DEBUG: Writing data to file")
-            with open(self.db_file, 'w') as f:
-                json.dump(data, f, indent=2)
+            # Check directory permissions
+            if not os.access(db_dir, os.W_OK):
+                self.logger.error(f"❌ No write permission to directory: {db_dir}")
+                raise PermissionError(f"Cannot write to directory: {db_dir}")
 
-            # Verify file was written
+            # Write data with error handling
+            self.logger.info(f"🔍 DEBUG: Writing data to file {self.db_file}")
+            try:
+                with open(self.db_file, 'w') as f:
+                    json.dump(data, f, indent=2, default=str)
+                    f.flush()  # Force write to disk
+                    os.fsync(f.fileno())  # Force OS to write to disk
+
+                self.logger.info(f"🔍 DEBUG: File write completed")
+
+            except (IOError, OSError, PermissionError) as write_error:
+                self.logger.error(f"❌ File write error: {write_error}")
+                raise
+
+            # Comprehensive verification
             if os.path.exists(self.db_file):
                 file_size = os.path.getsize(self.db_file)
                 self.logger.info(f"🔍 DEBUG: File written successfully, size: {file_size} bytes")
 
-                # Try to read back the data to verify
-                with open(self.db_file, 'r') as f:
-                    saved_data = json.load(f)
-                    saved_trades_count = len(saved_data.get('trades', {}))
-                    self.logger.info(f"🔍 DEBUG: Verification read - {saved_trades_count} trades in file")
-            else:
-                self.logger.error(f"🔍 DEBUG: File was not created: {self.db_file}")
+                if file_size == 0:
+                    self.logger.error(f"❌ File is empty after write")
+                    raise IOError("Database file is empty after write")
 
-            self.logger.debug(f"💾 Saved {len(self.trades)} trades to database")
+                # Try to read back the data to verify
+                try:
+                    with open(self.db_file, 'r') as f:
+                        saved_data = json.load(f)
+                        saved_trades_count = len(saved_data.get('trades', {}))
+                        self.logger.info(f"🔍 DEBUG: Verification read - {saved_trades_count} trades in file")
+
+                        if saved_trades_count != len(self.trades):
+                            self.logger.error(f"❌ Trade count mismatch: expected {len(self.trades)}, got {saved_trades_count}")
+                            raise ValueError("Trade count mismatch after save")
+
+                except json.JSONDecodeError as json_error:
+                    self.logger.error(f"❌ JSON decode error during verification: {json_error}")
+                    raise
+
+            else:
+                self.logger.error(f"❌ File was not created: {self.db_file}")
+                raise IOError(f"Database file was not created: {self.db_file}")
+
+            self.logger.info(f"✅ Database save completed successfully")
+            return True
+
         except Exception as e:
             self.logger.error(f"❌ Error saving trade database: {e}")
             import traceback
             self.logger.error(f"🔍 DEBUG: Save traceback: {traceback.format_exc()}")
+            return False
 
     def add_trade(self, trade_id: str, trade_data: Dict[str, Any]) -> bool:
         """Add a trade to the database - simplified version"""
