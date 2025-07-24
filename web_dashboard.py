@@ -644,11 +644,30 @@ def get_bot_status():
             })
             logger.debug(f"🔍 DEBUG [{request_id}]: Bot running status: {is_running}")
 
-            # Get active positions count
-            if hasattr(current_bot_manager, 'order_manager') and current_bot_manager.order_manager:
-                active_count = len(getattr(current_bot_manager.order_manager, 'active_positions', {}))
-                default_response['active_positions'] = active_count
-                logger.debug(f"🔍 DEBUG [{request_id}]: Active positions: {active_count}")
+            # Get active positions count from database (primary source)
+            try:
+                if IMPORTS_AVAILABLE:
+                    from src.execution_engine.trade_database import TradeDatabase
+                    trade_db = TradeDatabase()
+                    
+                    # Count open trades in database
+                    open_count = 0
+                    for trade_id, trade_data in trade_db.trades.items():
+                        if trade_data.get('trade_status') == 'OPEN':
+                            open_count += 1
+                    
+                    default_response['active_positions'] = open_count
+                    logger.debug(f"🔍 DEBUG [{request_id}]: Active positions from database: {open_count}")
+                else:
+                    # Fallback to order manager if database not available
+                    if hasattr(current_bot_manager, 'order_manager') and current_bot_manager.order_manager:
+                        active_count = len(getattr(current_bot_manager.order_manager, 'active_positions', {}))
+                        default_response['active_positions'] = active_count
+                        logger.debug(f"🔍 DEBUG [{request_id}]: Active positions from order manager: {active_count}")
+            except Exception as pos_count_error:
+                logger.debug(f"🔍 DEBUG [{request_id}]: Error counting positions: {pos_count_error}")
+                # Set to 0 if we can't determine count
+                default_response['active_positions'] = 0
 
             # Get strategies count
             if hasattr(current_bot_manager, 'strategies'):
@@ -1492,7 +1511,7 @@ def get_balance():
 @app.route('/api/positions')
 @rate_limit('positions', max_requests=15, window_seconds=60)
 def get_positions():
-    """Get active positions with bulletproof error handling"""
+    """Get active positions - reads from database as primary source"""
     current_time = datetime.now().strftime('%H:%M:%S')
 
     # FIXED: Always return complete JSON structure
@@ -1505,104 +1524,132 @@ def get_positions():
     }
 
     try:
-        current_bot = get_bot_manager()
-
-        if not current_bot:
-            default_response['status'] = 'no_bot'
-            return jsonify(default_response)
-
-        # Check if bot is running
-        is_running = getattr(current_bot, 'is_running', False)
-        if not is_running:
-            default_response['status'] = 'bot_stopped'
-            return jsonify(default_response)
-
-        # Check for order manager and positions
-        if not hasattr(current_bot, 'order_manager') or not current_bot.order_manager:
-            default_response['status'] = 'initializing'
-            return jsonify(default_response)
-
-        # Get active positions
-        active_positions = getattr(current_bot.order_manager, 'active_positions', {})
         positions = []
 
-        for strategy_name, position in active_positions.items():
+        # PRIMARY SOURCE: Read from trade database
+        if IMPORTS_AVAILABLE:
             try:
-                if not position or not hasattr(position, 'symbol'):
-                    continue
+                from src.execution_engine.trade_database import TradeDatabase
+                trade_db = TradeDatabase()
+                
+                # Get all open trades from database
+                open_trades = []
+                for trade_id, trade_data in trade_db.trades.items():
+                    if trade_data.get('trade_status') == 'OPEN':
+                        open_trades.append((trade_id, trade_data))
+                
+                logger.info(f"🔍 DEBUG: Found {len(open_trades)} open trades in database")
+                
+                # Convert database trades to position format
+                for trade_id, trade_data in open_trades:
+                    try:
+                        symbol = trade_data.get('symbol')
+                        if not symbol:
+                            continue
+                            
+                        # Get current price for PnL calculation
+                        current_price = None
+                        try:
+                            if price_fetcher:
+                                current_price = price_fetcher.get_current_price(symbol)
+                        except Exception as price_error:
+                            logger.debug(f"Could not get current price for {symbol}: {price_error}")
+                            current_price = trade_data.get('entry_price', 0)
 
-                # Get current price
-                current_price = None
-                try:
-                    if IMPORTS_AVAILABLE and price_fetcher:
-                        current_price = price_fetcher.get_current_price(position.symbol)
-                except:
-                    pass
+                        # Calculate PnL
+                        pnl = 0.0
+                        pnl_percent = 0.0
+                        
+                        if current_price and trade_data.get('entry_price') and trade_data.get('quantity'):
+                            entry_price = float(trade_data['entry_price'])
+                            quantity = float(trade_data['quantity'])
+                            side = trade_data.get('side', 'BUY')
 
-                # Calculate PnL
-                pnl = 0.0
-                pnl_percent = 0.0
+                            if side == 'BUY':
+                                pnl = (current_price - entry_price) * quantity
+                            else:
+                                pnl = (entry_price - current_price) * quantity
 
-                if current_price and hasattr(position, 'entry_price') and hasattr(position, 'quantity'):
-                    entry_price = float(position.entry_price)
-                    quantity = float(position.quantity)
-                    side = getattr(position, 'side', 'BUY')
+                            # Calculate PnL percentage against margin invested
+                            margin_invested = trade_data.get('margin_used', 0)
+                            if margin_invested > 0:
+                                pnl_percent = (pnl / margin_invested) * 100
 
-                    if side == 'BUY':
-                        pnl = (current_price - entry_price) * quantity
-                    else:
-                        pnl = (entry_price - current_price) * quantity
+                        position_data = {
+                            'strategy': trade_data.get('strategy_name', 'unknown'),
+                            'symbol': symbol,
+                            'side': trade_data.get('side', 'BUY'),
+                            'entry_price': trade_data.get('entry_price', 0),
+                            'quantity': trade_data.get('quantity', 0),
+                            'position_value_usdt': trade_data.get('position_value_usdt', 0),
+                            'margin_invested': trade_data.get('margin_used', 0),
+                            'current_price': current_price or 0,
+                            'pnl': pnl,
+                            'pnl_percent': pnl_percent,
+                            'trade_id': trade_id
+                        }
 
-                    # Get actual margin used for this specific position, fallback to strategy config
-                    margin_invested = getattr(position, 'actual_margin_used', None)
-                    if margin_invested is None:
-                        # Fallback: calculate from position data if actual_margin_used not available
-                        strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
-                        leverage = strategy_config.get('leverage', 5)
-                        position_value = position.entry_price * position.quantity
-                        margin_invested = position_value / leverage
+                        positions.append(position_data)
+                        logger.debug(f"✅ Added position: {symbol} | {trade_data.get('strategy_name')} | PnL: ${pnl:.2f}")
 
-                    # Ensure margin_invested is valid
-                    if margin_invested <= 0:
-                        strategy_config = current_bot.strategies.get(strategy_name, {}) if hasattr(current_bot, 'strategies') else {}
-                        margin_invested = strategy_config.get('margin', 50.0)  # Last resort fallback
+                    except Exception as pos_error:
+                        logger.error(f"Error processing database trade {trade_id}: {pos_error}")
+                        continue
 
-                    if margin_invested > 0:
-                        pnl_percent = (pnl / margin_invested) * 100
+            except Exception as db_error:
+                logger.error(f"Database read error: {db_error}")
+                # Fallback to bot manager positions if database fails
+                current_bot = get_bot_manager()
+                if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
+                    active_positions = getattr(current_bot.order_manager, 'active_positions', {})
+                    for strategy_name, position in active_positions.items():
+                        try:
+                            if not position or not hasattr(position, 'symbol'):
+                                continue
 
-                # Ensure position_value_usdt is calculated and handled correctly
-                position_value_usdt = float(position.entry_price) * float(position.quantity) if hasattr(position, 'entry_price') and hasattr(position, 'quantity') else 0.0
+                            # Get current price
+                            current_price = None
+                            try:
+                                if IMPORTS_AVAILABLE and price_fetcher:
+                                    current_price = price_fetcher.get_current_price(position.symbol)
+                            except:
+                                pass
 
-                position_data = {
-                    'strategy': strategy_name,
-                    'symbol': position.symbol,
-                    'side': position.side,
-                    'entry_price': position.entry_price,
-                    'quantity': position.quantity,
-                    'position_value_usdt': position_value_usdt,
-                    'margin_invested': margin_invested,
-                    'current_price': current_price or 0,
-                    'pnl': pnl,
-                    'pnl_percent': pnl_percent
-                }
+                            position_data = {
+                                'strategy': strategy_name,
+                                'symbol': position.symbol,
+                                'side': position.side,
+                                'entry_price': position.entry_price,
+                                'quantity': position.quantity,
+                                'position_value_usdt': float(position.entry_price) * float(position.quantity),
+                                'margin_invested': getattr(position, 'actual_margin_used', 50.0),
+                                'current_price': current_price or 0,
+                                'pnl': 0,
+                                'pnl_percent': 0
+                            }
+                            positions.append(position_data)
+                        except Exception as pos_error:
+                            logger.error(f"Error processing bot position {strategy_name}: {pos_error}")
+                            continue
 
-                positions.append(position_data)
-
-            except Exception as pos_error:
-                logger.error(f"Error processing position {strategy_name}: {pos_error}")
-                continue
-
-        # Return positions
+        # Return positions with proper status
+        status = 'active' if positions else 'no_positions'
+        logger.info(f"🔍 DEBUG: Returning {len(positions)} positions with status: {status}")
+        
         return jsonify({
             'success': True,
             'positions': positions,
-            'status': 'active' if positions else 'no_positions',
+            'status': status,
             'count': len(positions),
-            'timestamp': current_time
+            'timestamp': current_time,
+            'source': 'database'
         })
 
     except Exception as e:
         logger.error(f"Positions API error: {e}")
+        import traceback
+        logger.error(f"Positions API traceback: {traceback.format_exc()}")
+        
         default_response.update({
             'success': False,
             'status': 'api_error',
