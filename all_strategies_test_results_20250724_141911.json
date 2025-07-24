@@ -1,0 +1,227 @@
+{
+  "timestamp": "2025-07-24T14:19:11.548467",
+  "test_type": "all_strategies_open_positions",
+  "summary": {
+    "total_strategies": 5,
+    "successful_tests": 5,
+    "fully_synced": 0,
+    "success_rate": 0.0,
+    "sync_status": "PARTIAL"
+  },
+  "strategy_results": {
+    "rsi_oversold": {
+      "database_success": true,
+      "logger_sync": true,
+      "trade_id": "rsi_oversold_XRPUSDT_20250724_141908",
+      "trade_data": {
+        "trade_id": "rsi_oversold_XRPUSDT_20250724_141908",
+        "strategy_name": "rsi_oversold",
+        "symbol": "XRPUSDT",
+        "side": "BUY",
+        "quantity": 0.5,
+        "entry_price": 180.5,
+        "trade_status": "OPEN",
+        "position_value_usdt": 90.25,
+        "leverage": 3,
+        "margin_used": 30.083333333333332,
+        "actual_margin_used": 30.083333333333332,
+        "timestamp": "2025-07-24T14:19:08.548448",
+        "entry_reason": "Test signal - rsi_oversold",
+        "signal_strength": 0.85,
+        "stop_loss": 171.475,
+        "take_profit": 189.525,
+        "rsi_at_entry": 25.5,
+        "created_at": "2025-07-24T14:19:08.548557",
+        "last_updated": "2025-07-24T14:19:08.548561"
+      }
+    },
+    "macd_divergence": {
+      "database_success": true,
+      "logger_sync": true,
+      "trade_id": "macd_divergence_BTCUSDT_20250724_141909",
+      "trade_data": {
+        "trade_id": "macd_divergence_BTCUSDT_20250724_141909",
+        "strategy_name": "macd_divergence",
+        "symbol": "BTCUSDT",
+        "side": "BUY",
+        "quantity": 0.002,
+        "entry_price": 45000.0,
+        "trade_status": "OPEN",
+        "position_value_usdt": 90.0,
+        "leverage": 3,
+        "margin_used": 30.0,
+        "actual_margin_used": 30.0,
+        "timestamp": "2025-07-24T14:19:09.063260",
+        "entry_reason": "Test signal - macd_divergence",
+        "signal_strength": 0.78,
+        "stop_loss": 42750.0,
+        "take_profit": 47250.0,
+        "macd_at_entry": 0.025,
+        "created_at": "2025-07-24T14:19:09.063380",
+        "last_updated": "2025-07-24T14:19:09.063386"
+      }
+    },
+    "RSI_ETH": {
+      "database_success": true,
+      "logger_sync": true,
+      "trade_id": "RSI_ETH_ETHUSDT_20250724_141909",
+      "trade_data": {
+        "trade_id": "RSI_ETH_ETHUSDT_20250724_141909",
+        "strategy_name": "RSI_ETH",
+        "symbol": "ETHUSDT",
+        "side": "BUY",
+        "quantity": 0.5,
+        "entry_price": 180.5,
+        "trade_status": "OPEN",
+        "position_value_usdt": 90.25,
+        "leverage": 3,
+        "margin_used": 30.083333333333332,
+        "actual_margin_used": 30.083333333333332,
+        "timestamp": "2025-07-24T14:19:09.578010",
+        "entry_reason": "Test signal - RSI_ETH",
+        "signal_strength": 0.85,
+        "stop_loss": 171.475,
+        "take_profit": 189.525,
+        "rsi_at_entry": 25.5,
+        "created_at": "2025-07-24T14:19:09.578095",
+        "last_updated": "2025-07-24T14:19:09.578098"
+      }
+    },
+    "smart_money_reversal": {
+      "database_success": true,
+      "logger_sync": true,
+      "trade_id": "smart_money_reversal_SOLUSDT_20250724_141910",
+      "trade_data": {
+        "trade_id": "smart_money_reversal_SOLUSDT_20250724_141910",
+        "strategy_name": "smart_money_reversal",
+        "symbol": "SOLUSDT",
+        "side": "BUY",
+        "quantity": 0.03,
+        "entry_price": 3200.0,
+        "trade_status": "OPEN",
+        "position_value_usdt": 96.0,
+        "leverage": 3,
+        "margin_used": 32.0,
+        "actual_margin_used": 32.0,
+        "timestamp": "2025-07-24T14:19:10.091393",
+        "entry_reason": "Test signal - smart_money_reversal",
+        "signal_strength": 0.9,
+        "stop_loss": 3040.0,
+        "take_profit": 3360.0,
+        "volume_spike": 2.5,
+        "created_at": "2025-07-24T14:19:10.091465",
+        "last_updated": "2025-07-24T14:19:10.091468"
+      }
+    },
+    "engulfing_pattern_btc": {
+      "database_success": true,
+      "logger_sync": true,
+      "trade_id": "engulfing_pattern_btc_BCHUSDT_20250724_141911",
+      "trade_data": {
+        "trade_id": "engulfing_pattern_btc_BCHUSDT_20250724_141911",
+        "strategy_name": "engulfing_pattern_btc",
+        "symbol": "BCHUSDT",
+        "side": "SELL",
+        "quantity": 0.12,
+        "entry_price": 420.0,
+        "trade_status": "OPEN",
+        "position_value_usdt": 50.4,
+        "leverage": 3,
+        "margin_used": 16.8,
+        "actual_margin_used": 16.8,
+        "timestamp": "2025-07-24T14:19:11.020231",
+        "entry_reason": "Test signal - engulfing_pattern_btc",
+        "signal_strength": 0.82,
+        "stop_loss": 441.0,
+        "take_profit": 399.0,
+        "created_at": "2025-07-24T14:19:11.020294",
+        "last_updated": "2025-07-24T14:19:11.020297"
+      }
+    }
+  },
+  "strategy_verification": {
+    "rsi_oversold": {
+      "test_executed": true,
+      "in_database": true,
+      "in_dashboard": false,
+      "fully_synced": false
+    },
+    "macd_divergence": {
+      "test_executed": true,
+      "in_database": true,
+      "in_dashboard": false,
+      "fully_synced": false
+    },
+    "RSI_ETH": {
+      "test_executed": true,
+      "in_database": true,
+      "in_dashboard": false,
+      "fully_synced": false
+    },
+    "smart_money_reversal": {
+      "test_executed": true,
+      "in_database": true,
+      "in_dashboard": false,
+      "fully_synced": false
+    },
+    "engulfing_pattern_btc": {
+      "test_executed": true,
+      "in_database": true,
+      "in_dashboard": false,
+      "fully_synced": false
+    }
+  },
+  "dashboard_tests": {
+    "bot_status": {
+      "success": true,
+      "active_positions": 0,
+      "running": false
+    },
+    "positions": {
+      "success": true,
+      "count": 0,
+      "positions": []
+    }
+  },
+  "database_state": {
+    "total_trades": 29,
+    "open_trades": 5,
+    "open_trade_details": [
+      {
+        "trade_id": "rsi_oversold_XRPUSDT_20250724_141908",
+        "strategy": "rsi_oversold",
+        "symbol": "XRPUSDT",
+        "side": "BUY",
+        "margin_used": 30.083333333333332
+      },
+      {
+        "trade_id": "macd_divergence_BTCUSDT_20250724_141909",
+        "strategy": "macd_divergence",
+        "symbol": "BTCUSDT",
+        "side": "BUY",
+        "margin_used": 30.0
+      },
+      {
+        "trade_id": "RSI_ETH_ETHUSDT_20250724_141909",
+        "strategy": "RSI_ETH",
+        "symbol": "ETHUSDT",
+        "side": "BUY",
+        "margin_used": 30.083333333333332
+      },
+      {
+        "trade_id": "smart_money_reversal_SOLUSDT_20250724_141910",
+        "strategy": "smart_money_reversal",
+        "symbol": "SOLUSDT",
+        "side": "BUY",
+        "margin_used": 32.0
+      },
+      {
+        "trade_id": "engulfing_pattern_btc_BCHUSDT_20250724_141911",
+        "strategy": "engulfing_pattern_btc",
+        "symbol": "BCHUSDT",
+        "side": "SELL",
+        "margin_used": 16.8
+      }
+    ]
+  }
+}
