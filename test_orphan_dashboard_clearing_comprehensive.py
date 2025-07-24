@@ -54,7 +54,7 @@ class OrphanDashboardClearingTest:
         self.trade_monitor = TradeMonitor(self.binance_client, self.order_manager, self.telegram_reporter)
         
         # Dashboard API endpoint (assuming standard Flask development server)
-        self.dashboard_base_url = "http://localhost:5000"
+        self.dashboard_base_url = "http://0.0.0.0:5000"
         
         print("🧪 COMPREHENSIVE ORPHAN DASHBOARD CLEARING TEST")
         print("=" * 70)
@@ -180,8 +180,7 @@ class OrphanDashboardClearingTest:
                     symbol=config['symbol'],
                     side=config['side'],
                     quantity=config['quantity'],
-                    entry_price=config['entry_price'],
-                    timestamp=datetime.now()
+                    entry_price=config['entry_price']
                 )
                 
                 # Add to order manager's active positions
