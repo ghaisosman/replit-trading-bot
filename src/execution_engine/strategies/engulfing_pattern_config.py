@@ -3,6 +3,21 @@ Engulfing Pattern Strategy - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH
 All configuration is now managed through the web dashboard interface.
 """
 
+class EngulfingPatternConfig:
+    """Configuration class for Engulfing Pattern Strategy - kept for compatibility"""
+    
+    @staticmethod
+    def get_config():
+        """Get default configuration - web dashboard is source of truth"""
+        return DEFAULT_PARAMETERS
+    
+    @staticmethod
+    def update_config(updates):
+        """Deprecated - use web dashboard"""
+        import logging
+        logging.getLogger(__name__).warning("Use web dashboard for configuration updates")
+        return False
+
 # Strategy description for dashboard display only
 STRATEGY_DESCRIPTION = """
 **Engulfing Pattern Strategy**
