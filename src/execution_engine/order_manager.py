@@ -714,8 +714,7 @@ class OrderManager:
         """Get position history"""
         return self.position_history.copy()
 
-    def has_position_on_symbol(```python
-self, symbol: str, side: str = None) -> bool:
+    def has_position_on_symbol(self, symbol: str, side: str = None) -> bool:
         """Check if there's already a position on this symbol (optionally with specific side)"""
         try:
             for position in self.active_positions.values():
