@@ -297,7 +297,7 @@ class OrderManager:
 
             # Calculate profit/loss for remaining position
             remaining_pnl, remaining_pnl_percentage = self._calculate_profit_loss(position, current_price)
-            
+
             # Initialize pnl variables for consistent use throughout method
             pnl = remaining_pnl
             pnl_percentage = remaining_pnl_percentage
@@ -442,10 +442,10 @@ class OrderManager:
                 'duration_minutes': duration_minutes,
                 'last_updated': datetime.now().isoformat()
             }
-            
+
             database_success = self._database_record_close(position.trade_id, close_data)
             logger_success = self._logger_record_close(position.trade_id, current_price, reason, pnl, pnl_percentage)
-            
+
             if database_success and logger_success:
                 self.logger.info(f"✅ CLOSE RECORDED SUCCESSFULLY | {position.trade_id}")
             elif database_success:
@@ -984,15 +984,15 @@ class OrderManager:
         """Record confirmed trade with simplified, robust approach"""
         try:
             self.logger.info(f"📝 RECORDING TRADE | {position.trade_id}")
-            
+
             # Calculate basic trade data
             position_value_usdt = position.entry_price * position.quantity
             leverage = strategy_config.get('leverage', 1)
             actual_margin_used = position_value_usdt / leverage
-            
+
             # Store margin in position
             position.actual_margin_used = actual_margin_used
-            
+
             # Create trade data
             trade_data = {
                 'trade_id': position.trade_id,
@@ -1013,13 +1013,13 @@ class OrderManager:
                 'created_at': datetime.now().isoformat(),
                 'last_updated': datetime.now().isoformat()
             }
-            
+
             # Record in database first
             database_success = self._database_record_open(trade_data)
-            
+
             # Record in logger
             logger_success = self._logger_record_open(trade_data)
-            
+
             if database_success and logger_success:
                 self.logger.info(f"✅ TRADE RECORDED SUCCESSFULLY | {position.trade_id}")
             elif database_success:
@@ -1028,7 +1028,7 @@ class OrderManager:
                 self.logger.warning(f"⚠️ LOGGER ONLY | {position.trade_id} | Database failed")
             else:
                 self.logger.error(f"❌ RECORDING FAILED | {position.trade_id} | Both systems failed")
-                
+
         except Exception as e:
             self.logger.error(f"❌ Error recording trade: {e}")
             import traceback
@@ -1039,30 +1039,30 @@ class OrderManager:
         try:
             trade_id = trade_data['trade_id']
             self.logger.info(f"💾 DATABASE RECORD OPEN | {trade_id}")
-            
+
             from src.execution_engine.trade_database import TradeDatabase
-            
+
             # Initialize database
             trade_db = TradeDatabase()
-            
+
             # Ensure directory exists
             import os
             db_dir = os.path.dirname(trade_db.db_file)
             if db_dir and not os.path.exists(db_dir):
                 os.makedirs(db_dir, mode=0o755, exist_ok=True)
                 self.logger.info(f"📁 Created directory: {db_dir}")
-            
+
             # Check if trade already exists
             if trade_id in trade_db.trades:
                 self.logger.warning(f"⚠️ Trade {trade_id} already exists in database")
                 return True
-            
+
             # Add trade to database
             trade_db.trades[trade_id] = trade_data.copy()
-            
+
             # Save database
             save_success = trade_db._save_database()
-            
+
             if save_success:
                 # Verify by reloading
                 verify_db = TradeDatabase()
@@ -1075,7 +1075,7 @@ class OrderManager:
             else:
                 self.logger.error(f"❌ DATABASE SAVE FAILED | {trade_id}")
                 return False
-                
+
         except Exception as e:
             self.logger.error(f"❌ Database record error: {e}")
             return False
@@ -1085,25 +1085,25 @@ class OrderManager:
         try:
             trade_id = trade_data['trade_id']
             self.logger.info(f"📝 LOGGER RECORD OPEN | {trade_id}")
-            
+
             from src.analytics.trade_logger import trade_logger
-            
+
             # Check for duplicates
             for existing_trade in trade_logger.trades:
                 if existing_trade.trade_id == trade_id:
                     self.logger.warning(f"⚠️ Trade {trade_id} already exists in logger")
                     return True
-            
+
             # Log trade
             success = trade_logger.log_trade(trade_data)
-            
+
             if success:
                 self.logger.info(f"✅ LOGGER RECORD SUCCESS | {trade_id}")
                 return True
             else:
                 self.logger.error(f"❌ LOGGER RECORD FAILED | {trade_id}")
                 return False
-                
+
         except Exception as e:
             self.logger.error(f"❌ Logger record error: {e}")
             return False
@@ -1197,83 +1197,6 @@ class OrderManager:
         try:
             # Create closing order (opposite side)
             close_side = 'SELL' if position.side == 'BUY' else 'BUY'
-
-
-    def _database_record_close(self, trade_id: str, close_data: Dict) -> bool:
-        """Record trade closure in database"""
-        try:
-            self.logger.info(f"💾 DATABASE RECORD CLOSE | {trade_id}")
-            
-            from src.execution_engine.trade_database import TradeDatabase
-            
-            trade_db = TradeDatabase()
-            
-            # Check if trade exists
-            if trade_id not in trade_db.trades:
-                self.logger.error(f"❌ Trade {trade_id} not found in database for closure")
-                return False
-            
-            # Update trade data
-            trade_db.trades[trade_id].update(close_data)
-            
-            # Save database
-            save_success = trade_db._save_database()
-            
-            if save_success:
-                # Verify update
-                verify_db = TradeDatabase()
-                updated_trade = verify_db.get_trade(trade_id)
-                if updated_trade and updated_trade.get('trade_status') == 'CLOSED':
-                    self.logger.info(f"✅ DATABASE CLOSE SUCCESS | {trade_id}")
-                    return True
-                else:
-                    self.logger.error(f"❌ DATABASE CLOSE VERIFICATION FAILED | {trade_id}")
-                    return False
-            else:
-                self.logger.error(f"❌ DATABASE CLOSE SAVE FAILED | {trade_id}")
-                return False
-                
-        except Exception as e:
-            self.logger.error(f"❌ Database close error: {e}")
-            return False
-
-    def _logger_record_close(self, trade_id: str, exit_price: float, exit_reason: str, pnl_usdt: float, pnl_percentage: float) -> bool:
-        """Record trade closure in logger"""
-        try:
-            self.logger.info(f"📝 LOGGER RECORD CLOSE | {trade_id}")
-            
-            from src.analytics.trade_logger import trade_logger
-            
-            # Find and update trade in logger
-            trade_found = False
-            for trade in trade_logger.trades:
-                if trade.trade_id == trade_id:
-                    trade.exit_price = exit_price
-                    trade.exit_reason = exit_reason
-                    trade.pnl_usdt = pnl_usdt
-                    trade.pnl_percentage = pnl_percentage
-                    trade.trade_status = "CLOSED"
-                    
-                    # Calculate duration
-                    duration = datetime.now() - trade.timestamp
-                    trade.duration_minutes = int(duration.total_seconds() / 60)
-                    
-                    trade_found = True
-                    break
-            
-            if trade_found:
-                # Save trades
-                trade_logger._save_trades()
-                self.logger.info(f"✅ LOGGER CLOSE SUCCESS | {trade_id}")
-                return True
-            else:
-                self.logger.error(f"❌ Trade {trade_id} not found in logger for closure")
-                return False
-                
-        except Exception as e:
-            self.logger.error(f"❌ Logger close error: {e}")
-            return False
-
 
             order_params = {
                 'symbol': position.symbol,
