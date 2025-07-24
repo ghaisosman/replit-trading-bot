@@ -33,7 +33,8 @@
     "POSITION": "\u001b[95m",
     "T": "\u001b[95m",
     "CONFLICT": "\u001b[95m",
-    "TRADE": "\u001b[95m"
+    "TRADE": "\u001b[95m",
+    "ENGULFING_PATTERN_BTC": "\u001b[95m"
   },
   "active_position_colors": {
     "LOADED": "\u001b[1;95m",
@@ -69,6 +70,7 @@
     "POSITION": "\u001b[1;95m",
     "T": "\u001b[1;95m",
     "CONFLICT": "\u001b[1;95m",
-    "TRADE": "\u001b[1;95m"
+    "TRADE": "\u001b[1;95m",
+    "ENGULFING_PATTERN_BTC": "\u001b[1;95m"
   }
 }
