@@ -212,6 +212,12 @@ class TradeMonitor:
                 else:
                     if 'rsi' in strategy_name.lower():
                         self.logger.info(f"🔍 RSI ORPHAN CHECK: Position exists on Binance, no orphan")
+                        
+                    # Remove any existing orphan trade since position exists
+                    orphan_id = f"{strategy_name}_{symbol}"
+                    if orphan_id in self.orphan_trades:
+                        del self.orphan_trades[orphan_id]
+                        self.logger.debug(f"🔍 Removed orphan trade {orphan_id} - position exists on Binance")
 
                 # Check if bot position exists on Binance
                 position_exists = False
