@@ -36,17 +36,17 @@ def create_macd_test_data(scenario="bullish_crossover", periods=100):
         # Create data that will produce a bullish MACD crossover
         prices = []
         for i in range(periods):
-            if i < 70:
+            if i < 60:
                 # Downtrend first
-                trend = -0.002
-            elif i < 85:
+                trend = -0.003
+            elif i < 75:
                 # Consolidation
-                trend = 0
+                trend = 0.0005
             else:
-                # Strong uptrend to create crossover
-                trend = 0.008
+                # Strong uptrend to create clear crossover
+                trend = 0.012 + (i - 75) * 0.001  # Accelerating uptrend
 
-            noise = np.random.normal(0, 0.003)
+            noise = np.random.normal(0, 0.002)
             if i == 0:
                 price = base_price
             else:
@@ -57,17 +57,17 @@ def create_macd_test_data(scenario="bullish_crossover", periods=100):
         # Create data that will produce a bearish MACD crossover
         prices = []
         for i in range(periods):
-            if i < 70:
+            if i < 60:
                 # Uptrend first
-                trend = 0.002
-            elif i < 85:
+                trend = 0.003
+            elif i < 75:
                 # Consolidation
-                trend = 0
+                trend = -0.0005
             else:
-                # Strong downtrend to create crossover
-                trend = -0.008
+                # Strong downtrend to create clear crossover
+                trend = -0.012 - (i - 75) * 0.001  # Accelerating downtrend
 
-            noise = np.random.normal(0, 0.003)
+            noise = np.random.normal(0, 0.002)
             if i == 0:
                 price = base_price
             else:

@@ -105,13 +105,16 @@ class MACDDivergenceStrategy:
             # --- BULLISH CROSSOVER: MACD crosses above Signal ---
             bullish_cross = (macd_prev <= signal_prev and macd_current > signal_current)
             crossover_distance = abs(macd_current - signal_current)
-            distance_meets_threshold = crossover_distance > self.min_histogram_threshold
+            distance_meets_threshold = crossover_distance >= self.min_histogram_threshold
+            
+            # Additional momentum confirmation for better signal quality
+            momentum_building = histogram_current > histogram_prev if not pd.isna(histogram_prev) else True
             
             self.logger.info(f"   Bullish Cross Check: {bullish_cross} (prev: {macd_prev:.6f} <= {signal_prev:.6f}, curr: {macd_current:.6f} > {signal_current:.6f})")
             self.logger.info(f"   Crossover Distance: {crossover_distance:.6f}")
             self.logger.info(f"   Distance Threshold Check: {distance_meets_threshold} ({crossover_distance:.6f} > {self.min_histogram_threshold})")
             
-            if bullish_cross and distance_meets_threshold:
+            if bullish_cross and distance_meets_threshold and momentum_building:
                 stop_loss = current_price * (1 - stop_loss_pct / 100)
                 take_profit = current_price * 1.05
                 
@@ -127,19 +130,23 @@ class MACDDivergenceStrategy:
                     stop_loss=stop_loss,
                     take_profit=take_profit,
                     symbol=self.config.get('symbol', ''),
-                    reason=f"MACD BULLISH CROSSOVER: MACD {macd_current:.6f} > Signal {signal_current:.6f}"
+                    reason=f"MACD BULLISH CROSSOVER: MACD {macd_current:.6f} > Signal {signal_current:.6f}",
+                    strategy_name=self.strategy_name
                 )
 
             # --- BEARISH CROSSOVER: MACD crosses below Signal ---
             bearish_cross = (macd_prev >= signal_prev and macd_current < signal_current)
             crossover_distance_bear = abs(macd_current - signal_current)
-            distance_meets_threshold_bear = crossover_distance_bear > self.min_histogram_threshold
+            distance_meets_threshold_bear = crossover_distance_bear >= self.min_histogram_threshold
+            
+            # Additional momentum confirmation for better signal quality
+            momentum_declining = histogram_current < histogram_prev if not pd.isna(histogram_prev) else True
             
             self.logger.info(f"   Bearish Cross Check: {bearish_cross} (prev: {macd_prev:.6f} >= {signal_prev:.6f}, curr: {macd_current:.6f} < {signal_current:.6f})")
             self.logger.info(f"   Bearish Crossover Distance: {crossover_distance_bear:.6f}")
             self.logger.info(f"   Bearish Distance Threshold Check: {distance_meets_threshold_bear} ({crossover_distance_bear:.6f} > {self.min_histogram_threshold})")
             
-            if bearish_cross and distance_meets_threshold_bear:
+            if bearish_cross and distance_meets_threshold_bear and momentum_declining:
                 stop_loss = current_price * (1 + stop_loss_pct / 100)
                 take_profit = current_price * 0.95
                 
@@ -155,7 +162,8 @@ class MACDDivergenceStrategy:
                     stop_loss=stop_loss,
                     take_profit=take_profit,
                     symbol=self.config.get('symbol', ''),
-                    reason=f"MACD BEARISH CROSSOVER: MACD {macd_current:.6f} < Signal {signal_current:.6f}"
+                    reason=f"MACD BEARISH CROSSOVER: MACD {macd_current:.6f} < Signal {signal_current:.6f}",
+                    strategy_name=self.strategy_name
                 )
 
             self.logger.info(f"   No crossover detected (Bullish: {bullish_cross}, Bearish: {bearish_cross})")

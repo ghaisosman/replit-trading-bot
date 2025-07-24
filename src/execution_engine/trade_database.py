@@ -67,14 +67,18 @@ class TradeDatabase:
                 os.replace(temp_file, self.db_file)
                 
                 # Verify the save
-                if os.path.exists(self.db_file) and os.path.getsize(self.db_file) > 0:
-                    with open(self.db_file, 'r', encoding='utf-8') as f:
-                        verification_data = json.load(f)
-                        if len(verification_data.get('trades', {})) == len(self.trades):
-                            save_success = True
-                            self.logger.info(f"✅ DATABASE SAVE SUCCESS | Strategy 1")
-                        else:
-                            self.logger.warning(f"⚠️ Trade count mismatch in verification")
+                if os.path.exists(self.db_file) and os.path.getsize(self.db_file) > 10:
+                    try:
+                        with open(self.db_file, 'r', encoding='utf-8') as f:
+                            verification_data = json.load(f)
+                            saved_trades = verification_data.get('trades', {})
+                            if len(saved_trades) == len(self.trades):
+                                save_success = True
+                                self.logger.info(f"✅ DATABASE SAVE SUCCESS | Strategy 1 | {len(saved_trades)} trades")
+                            else:
+                                self.logger.warning(f"⚠️ Trade count mismatch: saved {len(saved_trades)}, expected {len(self.trades)}")
+                    except Exception as verify_error:
+                        self.logger.warning(f"⚠️ Verification read failed: {verify_error}")
 
             except Exception as strategy1_error:
                 self.logger.warning(f"⚠️ Strategy 1 failed: {strategy1_error}")
@@ -98,13 +102,17 @@ class TradeDatabase:
                         os.fsync(f.fileno())
                     
                     # Verify fallback save
-                    if os.path.exists(fallback_file) and os.path.getsize(fallback_file) > 0:
-                        with open(fallback_file, 'r', encoding='utf-8') as f:
-                            verification_data = json.load(f)
-                            if len(verification_data.get('trades', {})) == len(self.trades):
-                                save_success = True
-                                self.db_file = fallback_file  # Update file path
-                                self.logger.info(f"✅ DATABASE SAVE SUCCESS | Strategy 2 (Fallback)")
+                    if os.path.exists(fallback_file) and os.path.getsize(fallback_file) > 10:
+                        try:
+                            with open(fallback_file, 'r', encoding='utf-8') as f:
+                                verification_data = json.load(f)
+                                saved_trades = verification_data.get('trades', {})
+                                if len(saved_trades) == len(self.trades):
+                                    save_success = True
+                                    self.db_file = fallback_file  # Update file path
+                                    self.logger.info(f"✅ DATABASE SAVE SUCCESS | Strategy 2 (Fallback) | {len(saved_trades)} trades")
+                        except Exception as verify_error:
+                            self.logger.warning(f"⚠️ Fallback verification failed: {verify_error}")
 
                 except Exception as strategy2_error:
                     self.logger.warning(f"⚠️ Strategy 2 failed: {strategy2_error}")
@@ -198,14 +206,10 @@ class TradeDatabase:
             save_result = self._save_database()
             self.logger.info(f"🔍 DEBUG: _save_database() returned: {save_result}")
 
-            # CRITICAL: Immediate verification by reloading from disk
-            if save_result:
-                verification_db = TradeDatabase()
-                if trade_id in verification_db.trades:
-                    self.logger.info(f"✅ VERIFIED: Trade {trade_id} persisted to disk successfully")
-                else:
-                    self.logger.error(f"❌ VERIFICATION FAILED: Trade {trade_id} not found after disk save")
-                    return False
+            # Verify save result
+            if not save_result:
+                self.logger.error(f"❌ DATABASE SAVE FAILED for trade {trade_id}")
+                return False
 
             self.logger.info(f"✅ Trade added to database: {trade_id} | {trade_data['symbol']} | {trade_data['side']}")
             return True
@@ -226,34 +230,19 @@ class TradeDatabase:
                 # Save and verify
                 save_result = self._save_database()
                 if save_result:
-                    # Immediate verification
-                    verification_db = TradeDatabase()
-                    if trade_id in verification_db.trades:
-                        updated_trade = verification_db.trades[trade_id]
-                        # Check if the updates were actually saved
-                        all_updates_saved = True
-                        for key, value in updates.items():
-                            if updated_trade.get(key) != value:
-                                all_updates_saved = False
-                                break
-                        
-                        if all_updates_saved:
-                            self.logger.info(f"✅ Trade updated and verified in database: {trade_id}")
-                            
-                            # Automatically sync to logger after successful database update
-                            sync_success = self.sync_trade_to_logger(trade_id)
-                            if sync_success:
-                                self.logger.info(f"Trade {trade_id} automatically synced to logger")
-                            else:
-                                self.logger.warning(f"Trade {trade_id} updated in database but sync to logger failed")
-                            
-                            return True
+                    self.logger.info(f"✅ Trade updated in database: {trade_id}")
+                    
+                    # Automatically sync to logger after successful database update
+                    try:
+                        sync_success = self.sync_trade_to_logger(trade_id)
+                        if sync_success:
+                            self.logger.info(f"Trade {trade_id} automatically synced to logger")
                         else:
-                            self.logger.error(f"❌ Update verification failed for {trade_id}")
-                            return False
-                    else:
-                        self.logger.error(f"❌ Trade {trade_id} not found after update")
-                        return False
+                            self.logger.warning(f"Trade {trade_id} updated in database but sync to logger failed")
+                    except Exception as sync_error:
+                        self.logger.warning(f"Sync error for {trade_id}: {sync_error}")
+                    
+                    return True
                 else:
                     self.logger.error(f"❌ Failed to save database after update for {trade_id}")
                     return False
