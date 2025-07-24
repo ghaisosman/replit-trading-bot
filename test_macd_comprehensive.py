@@ -266,7 +266,7 @@ def main():
         trade_logger = TradeLogger()
         order_manager = OrderManager(binance_client, trade_logger)
 
-        # Create test signal
+        # Create test signal with proper constructor
         test_signal = TradingSignal(
             signal_type=SignalType.BUY,
             confidence=0.8,

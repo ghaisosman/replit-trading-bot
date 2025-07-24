@@ -56,123 +56,82 @@ class MACDDivergenceStrategy:
             self.logger.error(f"Error calculating MACD indicators for {self.strategy_name}: {e}")
             return df
 
-    def evaluate_entry_signal(self, df: pd.DataFrame) -> Optional[TradingSignal]:
-        """Evaluate entry conditions for MACD Divergence strategy - Fixed crossover detection"""
+    def evaluate_entry_signal(self, df):
+        """Evaluate if current conditions meet entry criteria with enhanced crossover detection"""
         try:
-            if df.empty or len(df) < 50:
+            if len(df) < max(self.macd_slow, self.confirmation_candles + 5):
                 return None
 
-            # Calculate indicators if not present
-            if 'macd' not in df.columns:
-                df = self.calculate_indicators(df)
-                
-            if 'macd' not in df.columns or 'macd_signal' not in df.columns or 'macd_histogram' not in df.columns:
-                return None
+            # Get recent MACD values (check last 3 candles for crossover)
+            current_macd = df['macd'].iloc[-1]
+            current_signal = df['macd_signal'].iloc[-1]
+            current_histogram = df['macd_histogram'].iloc[-1]
+
+            prev_macd = df['macd'].iloc[-2]
+            prev_signal = df['macd_signal'].iloc[-2]
+            prev_histogram = df['macd_histogram'].iloc[-2]
+
+            # Look back one more candle for stronger confirmation
+            prev2_macd = df['macd'].iloc[-3] if len(df) >= 3 else prev_macd
+            prev2_signal = df['macd_signal'].iloc[-3] if len(df) >= 3 else prev_signal
 
             current_price = df['close'].iloc[-1]
-            margin = self.config.get('margin', 50.0)
-            leverage = self.config.get('leverage', 5)
-            max_loss_pct = self.config.get('max_loss_pct', 10)
-            max_loss_amount = margin * (max_loss_pct / 100)
-            notional_value = margin * leverage
-            stop_loss_pct = (max_loss_amount / notional_value) * 100
-            stop_loss_pct = max(1.0, min(stop_loss_pct, 15.0))
 
-            # Get recent data (need at least 2 candles for crossover detection)
-            if len(df) < 2:
-                return None
+            # Enhanced Bullish Crossover Detection
+            bullish_crossover = False
+            if current_macd > current_signal:  # Currently above signal
+                # Check if we just crossed over (within last 2 candles)
+                if (prev_macd <= prev_signal or prev2_macd <= prev2_signal):
+                    bullish_crossover = True
 
-            # Current values
-            macd_current = df['macd'].iloc[-1]
-            signal_current = df['macd_signal'].iloc[-1]
-            histogram_current = df['macd_histogram'].iloc[-1]
-            
-            # Previous values
-            macd_prev = df['macd'].iloc[-2]
-            signal_prev = df['macd_signal'].iloc[-2]
-            histogram_prev = df['macd_histogram'].iloc[-2]
+            # Enhanced Bearish Crossover Detection  
+            bearish_crossover = False
+            if current_macd < current_signal:  # Currently below signal
+                # Check if we just crossed under (within last 2 candles)
+                if (prev_macd >= prev_signal or prev2_macd >= prev2_signal):
+                    bearish_crossover = True
 
-            # Check for NaN values
-            if pd.isna(macd_current) or pd.isna(signal_current) or pd.isna(macd_prev) or pd.isna(signal_prev):
-                return None
+            # Check histogram threshold and momentum
+            histogram_significant = abs(current_histogram) >= self.min_histogram_threshold
 
-            self.logger.info(f"🔍 MACD Crossover Check:")
-            self.logger.info(f"   Current: MACD={macd_current:.6f}, Signal={signal_current:.6f}, Histogram={histogram_current:.6f}")
-            self.logger.info(f"   Previous: MACD={macd_prev:.6f}, Signal={signal_prev:.6f}, Histogram={histogram_prev:.6f}")
-            self.logger.info(f"   Data Length: {len(df)}, Close Price: ${current_price:.2f}")
-            self.logger.info(f"   Config Thresholds: Histogram={self.min_histogram_threshold}, Entry={self.entry_threshold}")
+            # BULLISH SIGNAL
+            if bullish_crossover and histogram_significant:
+                # Ensure we have upward momentum
+                momentum_building = current_histogram > prev_histogram
 
-            # --- BULLISH CROSSOVER: MACD crosses above Signal ---
-            bullish_cross = (macd_prev <= signal_prev and macd_current > signal_current)
-            crossover_distance = abs(macd_current - signal_current)
-            distance_meets_threshold = crossover_distance >= self.min_histogram_threshold
-            
-            # Additional momentum confirmation for better signal quality
-            momentum_building = histogram_current > histogram_prev if not pd.isna(histogram_prev) else True
-            
-            self.logger.info(f"   Bullish Cross Check: {bullish_cross} (prev: {macd_prev:.6f} <= {signal_prev:.6f}, curr: {macd_current:.6f} > {signal_current:.6f})")
-            self.logger.info(f"   Crossover Distance: {crossover_distance:.6f}")
-            self.logger.info(f"   Distance Threshold Check: {distance_meets_threshold} ({crossover_distance:.6f} > {self.min_histogram_threshold})")
-            
-            if bullish_cross and distance_meets_threshold and momentum_building:
-                stop_loss = current_price * (1 - stop_loss_pct / 100)
-                take_profit = current_price * 1.05
-                
-                self.logger.info(f"🟢 MACD BULLISH CROSSOVER DETECTED!")
-                self.logger.info(f"   MACD crossed from {macd_prev:.6f} to {macd_current:.6f}")
-                self.logger.info(f"   Signal: {signal_prev:.6f} to {signal_current:.6f}")
-                self.logger.info(f"   Histogram: {histogram_current:.6f} (threshold: {self.min_histogram_threshold})")
-                
-                return TradingSignal(
-                    signal_type=SignalType.BUY,
-                    confidence=0.8,
-                    entry_price=current_price,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    symbol=self.config.get('symbol', ''),
-                    reason=f"MACD BULLISH CROSSOVER: MACD {macd_current:.6f} > Signal {signal_current:.6f}",
-                    strategy_name=self.strategy_name
-                )
+                if momentum_building or abs(current_histogram) >= self.entry_threshold:
+                    return TradingSignal(
+                        signal_type=SignalType.BUY,
+                        confidence=0.85,
+                        entry_price=current_price,
+                        stop_loss=current_price * 0.98,  # 2% stop loss
+                        take_profit=current_price * 1.04,  # 4% take profit (2:1 R/R)
+                        symbol=self.config.get('symbol', 'BTCUSDT'),
+                        reason=f"MACD Bullish Crossover: MACD({current_macd:.6f}) > Signal({current_signal:.6f}), Histogram: {current_histogram:.6f}",
+                        strategy_name=self.config.get('name', 'macd_divergence')
+                    )
 
-            # --- BEARISH CROSSOVER: MACD crosses below Signal ---
-            bearish_cross = (macd_prev >= signal_prev and macd_current < signal_current)
-            crossover_distance_bear = abs(macd_current - signal_current)
-            distance_meets_threshold_bear = crossover_distance_bear >= self.min_histogram_threshold
-            
-            # Additional momentum confirmation for better signal quality
-            momentum_declining = histogram_current < histogram_prev if not pd.isna(histogram_prev) else True
-            
-            self.logger.info(f"   Bearish Cross Check: {bearish_cross} (prev: {macd_prev:.6f} >= {signal_prev:.6f}, curr: {macd_current:.6f} < {signal_current:.6f})")
-            self.logger.info(f"   Bearish Crossover Distance: {crossover_distance_bear:.6f}")
-            self.logger.info(f"   Bearish Distance Threshold Check: {distance_meets_threshold_bear} ({crossover_distance_bear:.6f} > {self.min_histogram_threshold})")
-            
-            if bearish_cross and distance_meets_threshold_bear and momentum_declining:
-                stop_loss = current_price * (1 + stop_loss_pct / 100)
-                take_profit = current_price * 0.95
-                
-                self.logger.info(f"🔴 MACD BEARISH CROSSOVER DETECTED!")
-                self.logger.info(f"   MACD crossed from {macd_prev:.6f} to {macd_current:.6f}")
-                self.logger.info(f"   Signal: {signal_prev:.6f} to {signal_current:.6f}")
-                self.logger.info(f"   Histogram: {histogram_current:.6f} (threshold: {self.min_histogram_threshold})")
-                
-                return TradingSignal(
-                    signal_type=SignalType.SELL,
-                    confidence=0.8,
-                    entry_price=current_price,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    symbol=self.config.get('symbol', ''),
-                    reason=f"MACD BEARISH CROSSOVER: MACD {macd_current:.6f} < Signal {signal_current:.6f}",
-                    strategy_name=self.strategy_name
-                )
+            # BEARISH SIGNAL
+            elif bearish_crossover and histogram_significant:
+                # Ensure we have downward momentum
+                momentum_building = current_histogram < prev_histogram
 
-            self.logger.info(f"   No crossover detected (Bullish: {bullish_cross}, Bearish: {bearish_cross})")
+                if momentum_building or abs(current_histogram) >= self.entry_threshold:
+                    return TradingSignal(
+                        signal_type=SignalType.SELL,
+                        confidence=0.85,
+                        entry_price=current_price,
+                        stop_loss=current_price * 1.02,  # 2% stop loss
+                        take_profit=current_price * 0.96,  # 4% take profit (2:1 R/R)
+                        symbol=self.config.get('symbol', 'BTCUSDT'),
+                        reason=f"MACD Bearish Crossover: MACD({current_macd:.6f}) < Signal({current_signal:.6f}), Histogram: {current_histogram:.6f}",
+                        strategy_name=self.config.get('name', 'macd_divergence')
+                    )
+
             return None
 
         except Exception as e:
-            self.logger.error(f"Error evaluating entry signal for {self.strategy_name}: {e}")
-            import traceback
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            print(f"❌ Error in MACD entry signal evaluation: {e}")
             return None
 
     def evaluate_exit_signal(self, df: pd.DataFrame, position: Dict) -> Optional[str]:
