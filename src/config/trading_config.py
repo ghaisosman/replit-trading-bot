@@ -254,5 +254,43 @@ class TradingConfigManager:
             if hasattr(self.default_params, key):
                 setattr(self.default_params, key, value)
 
+    def update_strategy_config(self, strategy_name, updates):
+        """Update strategy configuration with new values"""
+        import logging
+        try:
+            if strategy_name not in self.strategy_configs:
+                logging.getLogger(__name__).error(f"Strategy '{strategy_name}' not found in configuration")
+                return False
+
+            # Update the strategy configuration
+            if self.strategy_configs[strategy_name] is None:
+                 self.strategy_configs[strategy_name] = {}
+            for key, value in updates.items():
+                self.strategy_configs[strategy_name][key] = value
+
+            # Save the updated configuration
+            self._save_web_dashboard_configs()
+            logging.getLogger(__name__).info(f"Updated strategy '{strategy_name}' configuration: {updates}")
+            return True
+
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Failed to update strategy configuration for '{strategy_name}': {e}")
+            return False
+
+    def enable_strategy(self, strategy_name):
+        """Enable a specific strategy"""
+        return self.update_strategy_config(strategy_name, {'enabled': True})
+
+    def disable_strategy(self, strategy_name):
+        """Disable a specific strategy"""
+        return self.update_strategy_config(strategy_name, {'enabled': False})
+
+    def is_strategy_enabled(self, strategy_name):
+        """Check if a strategy is enabled"""
+        try:
+            return self.strategy_configs.get(strategy_name, {}).get('enabled', False)
+        except Exception:
+            return False
+
 # Global config manager instance
 trading_config_manager = TradingConfigManager()
