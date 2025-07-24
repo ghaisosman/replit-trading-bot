@@ -957,6 +957,83 @@ def create_strategy():
         logger.error(f"Error creating strategy: {e}")
         return jsonify({'success': False, 'message': f'Failed to create strategy: {str(e)}'})
 
+@app.route('/api/strategies/<strategy_name>/disable', methods=['POST'])
+def disable_strategy(strategy_name):
+    """Disable a strategy by setting assessment_interval to 0"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'message': 'Strategy management not available in demo mode'})
+
+        # Get current strategy config
+        strategies = trading_config_manager.get_all_strategies()
+        if strategy_name not in strategies:
+            return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" not found'})
+
+        # Disable by setting assessment_interval to 0
+        updates = {
+            'assessment_interval': 0,
+            'enabled': False
+        }
+
+        # Update the strategy configuration
+        trading_config_manager.update_strategy_params(strategy_name, updates)
+
+        # Force cache invalidation
+        if hasattr(trading_config_manager, '_clear_cache'):
+            trading_config_manager._clear_cache()
+
+        logger.info(f"🔴 STRATEGY DISABLED: {strategy_name} via web dashboard")
+
+        return jsonify({
+            'success': True,
+            'message': f'Strategy "{strategy_name}" disabled successfully',
+            'strategy_name': strategy_name,
+            'action': 'disabled'
+        })
+
+    except Exception as e:
+        logger.error(f"Error disabling strategy {strategy_name}: {e}")
+        return jsonify({'success': False, 'message': f'Failed to disable strategy: {e}'})
+
+@app.route('/api/strategies/<strategy_name>/enable', methods=['POST'])
+def enable_strategy(strategy_name):
+    """Enable a strategy by restoring normal assessment_interval"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'message': 'Strategy management not available in demo mode'})
+
+        # Get current strategy config
+        strategies = trading_config_manager.get_all_strategies()
+        if strategy_name not in strategies:
+            return jsonify({'success': False, 'message': f'Strategy "{strategy_name}" not found'})
+
+        # Enable by setting appropriate assessment_interval
+        default_interval = 60 if 'rsi' in strategy_name.lower() else 30
+        updates = {
+            'assessment_interval': default_interval,
+            'enabled': True
+        }
+
+        # Update the strategy configuration
+        trading_config_manager.update_strategy_params(strategy_name, updates)
+
+        # Force cache invalidation
+        if hasattr(trading_config_manager, '_clear_cache'):
+            trading_config_manager._clear_cache()
+
+        logger.info(f"🟢 STRATEGY ENABLED: {strategy_name} via web dashboard")
+
+        return jsonify({
+            'success': True,
+            'message': f'Strategy "{strategy_name}" enabled successfully',
+            'strategy_name': strategy_name,
+            'action': 'enabled'
+        })
+
+    except Exception as e:
+        logger.error(f"Error enabling strategy {strategy_name}: {e}")
+        return jsonify({'success': False, 'message': f'Failed to enable strategy: {e}'})
+
 @app.route('/api/strategies/<strategy_name>', methods=['POST'])
 def update_strategy(strategy_name):
     """Update strategy configuration - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH"""
