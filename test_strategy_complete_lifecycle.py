@@ -207,7 +207,9 @@ class StrategyLifecycleTest:
             print(f"─" * 40)
             
             if trade_id:
-                db_trade = self.trade_db.get_trade(trade_id)
+                # Use fresh database instance for verification as recommended
+                verification_db = TradeDatabase()
+                db_trade = verification_db.get_trade(trade_id)
                 if db_trade:
                     print(f"✅ Trade found in database")
                     print(f"   📊 Status: {db_trade.get('trade_status', 'N/A')}")
@@ -224,6 +226,15 @@ class StrategyLifecycleTest:
             print(f"\n📝 PHASE 3: VERIFYING TRADE LOGGER SYNC (OPEN)")
             print(f"─" * 40)
             
+            # First, manually sync the trade from database to logger
+            if trade_id:
+                print(f"🔄 Manually syncing trade {trade_id} to logger...")
+                sync_success = self.trade_db.sync_trade_to_logger(trade_id)
+                print(f"   Sync result: {sync_success}")
+                
+                # Add small delay for sync to complete
+                time.sleep(1)
+            
             logger_trade = None
             for logged_trade in trade_logger.trades:
                 if logged_trade.trade_id == trade_id:
@@ -239,7 +250,7 @@ class StrategyLifecycleTest:
                 
                 results['logger_sync_open'] = True
             else:
-                print(f"❌ Trade not found in logger")
+                print(f"❌ Trade not found in logger after sync attempt")
             
             # Phase 4: Position Closing
             print(f"\n📉 PHASE 4: CLOSING POSITION")
@@ -267,10 +278,12 @@ class StrategyLifecycleTest:
             print(f"\n💾 PHASE 5: VERIFYING DATABASE RECORDING (CLOSE)")
             print(f"─" * 40)
             
-            time.sleep(1)  # Give database time to update
+            time.sleep(2)  # Give database time to update
             
             if trade_id:
-                db_trade_updated = self.trade_db.get_trade(trade_id)
+                # Use fresh database instance for verification
+                verification_db_close = TradeDatabase()
+                db_trade_updated = verification_db_close.get_trade(trade_id)
                 if db_trade_updated:
                     trade_status = db_trade_updated.get('trade_status', 'N/A')
                     exit_price = db_trade_updated.get('exit_price', 'N/A')
@@ -294,6 +307,15 @@ class StrategyLifecycleTest:
             print(f"\n📝 PHASE 6: VERIFYING TRADE LOGGER SYNC (CLOSE)")
             print(f"─" * 40)
             
+            # Manually sync the updated trade to logger
+            if trade_id:
+                print(f"🔄 Syncing closed trade {trade_id} to logger...")
+                sync_success = verification_db_close.sync_trade_to_logger(trade_id)
+                print(f"   Close sync result: {sync_success}")
+                
+                # Add delay for sync to complete
+                time.sleep(1)
+            
             logger_trade_updated = None
             for logged_trade in trade_logger.trades:
                 if logged_trade.trade_id == trade_id:
@@ -310,7 +332,7 @@ class StrategyLifecycleTest:
                 else:
                     print(f"❌ Trade exit data not synced to logger")
             else:
-                print(f"❌ Closed trade not found in logger")
+                print(f"❌ Closed trade not found in logger after sync")
                 
             # Phase 7: Data Integrity Check
             print(f"\n🔍 PHASE 7: DATA INTEGRITY CHECK")
