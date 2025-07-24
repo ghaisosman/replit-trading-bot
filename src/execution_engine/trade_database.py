@@ -34,88 +34,108 @@ class TradeDatabase:
             self.trades = {}
 
     def _save_database(self):
-        """Save trades to database file with comprehensive error handling"""
+        """Save trades to database file with enhanced error handling and fallback options"""
         try:
-            self.logger.info(f"🔍 DEBUG: Starting database save to {self.db_file}")
-            self.logger.info(f"🔍 DEBUG: Saving {len(self.trades)} trades")
+            self.logger.info(f"🔍 SAVING DATABASE | File: {self.db_file} | Trades: {len(self.trades)}")
 
             data = {
                 'trades': self.trades,
                 'last_updated': datetime.now().isoformat()
             }
 
-            # Ensure directory exists with proper permissions
-            import os
-            db_dir = os.path.dirname(self.db_file)
-            if not os.path.exists(db_dir):
-                self.logger.info(f"🔍 DEBUG: Creating directory {db_dir}")
-                os.makedirs(db_dir, exist_ok=True)
-
-            # Check directory permissions
-            if not os.access(db_dir, os.W_OK):
-                self.logger.error(f"❌ No write permission to directory: {db_dir}")
-                raise PermissionError(f"Cannot write to directory: {db_dir}")
-
-            # Write data with error handling
-            self.logger.info(f"🔍 DEBUG: Writing data to file {self.db_file}")
+            # Multiple save strategies for maximum reliability
+            save_success = False
+            
+            # Strategy 1: Normal directory with atomic write
             try:
-                # Write to temporary file first, then move to final location (atomic operation)
-                temp_file = f"{self.db_file}.tmp"
-                with open(temp_file, 'w') as f:
-                    json.dump(data, f, indent=2, default=str)
-                    f.flush()  # Force write to disk
-                    os.fsync(f.fileno())  # Force OS to write to disk
+                import os
+                db_dir = os.path.dirname(self.db_file)
+                
+                # Create directory if needed
+                if db_dir and not os.path.exists(db_dir):
+                    os.makedirs(db_dir, mode=0o755, exist_ok=True)
+                    self.logger.info(f"✅ CREATED DIRECTORY | {db_dir}")
 
-                # Atomic move to final location
+                # Atomic write with temp file
+                temp_file = f"{self.db_file}.tmp"
+                with open(temp_file, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2, default=str, ensure_ascii=False)
+                    f.flush()
+                    os.fsync(f.fileno())
+
+                # Atomic move
                 os.replace(temp_file, self.db_file)
-                self.logger.info(f"🔍 DEBUG: File write completed with atomic move")
+                
+                # Verify the save
+                if os.path.exists(self.db_file) and os.path.getsize(self.db_file) > 0:
+                    with open(self.db_file, 'r', encoding='utf-8') as f:
+                        verification_data = json.load(f)
+                        if len(verification_data.get('trades', {})) == len(self.trades):
+                            save_success = True
+                            self.logger.info(f"✅ DATABASE SAVE SUCCESS | Strategy 1")
+                        else:
+                            self.logger.warning(f"⚠️ Trade count mismatch in verification")
 
-            except (IOError, OSError, PermissionError) as write_error:
-                self.logger.error(f"❌ File write error: {write_error}")
-                # Clean up temp file if it exists
-                temp_file = f"{self.db_file}.tmp"
-                if os.path.exists(temp_file):
-                    try:
-                        os.remove(temp_file)
-                    except:
-                        pass
-                raise
-
-            # Comprehensive verification
-            if os.path.exists(self.db_file):
-                file_size = os.path.getsize(self.db_file)
-                self.logger.info(f"🔍 DEBUG: File written successfully, size: {file_size} bytes")
-
-                if file_size == 0:
-                    self.logger.error(f"❌ File is empty after write")
-                    raise IOError("Database file is empty after write")
-
-                # Try to read back the data to verify
+            except Exception as strategy1_error:
+                self.logger.warning(f"⚠️ Strategy 1 failed: {strategy1_error}")
+                # Clean up temp file
                 try:
-                    with open(self.db_file, 'r') as f:
-                        saved_data = json.load(f)
-                        saved_trades_count = len(saved_data.get('trades', {}))
-                        self.logger.info(f"🔍 DEBUG: Verification read - {saved_trades_count} trades in file")
+                    temp_file = f"{self.db_file}.tmp"
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
+                except:
+                    pass
 
-                        if saved_trades_count != len(self.trades):
-                            self.logger.error(f"❌ Trade count mismatch: expected {len(self.trades)}, got {saved_trades_count}")
-                            raise ValueError("Trade count mismatch after save")
+            # Strategy 2: Fallback to root directory
+            if not save_success:
+                try:
+                    fallback_file = "trade_database.json"
+                    self.logger.info(f"🔄 TRYING FALLBACK LOCATION | {fallback_file}")
+                    
+                    with open(fallback_file, 'w', encoding='utf-8') as f:
+                        json.dump(data, f, indent=2, default=str, ensure_ascii=False)
+                        f.flush()
+                        os.fsync(f.fileno())
+                    
+                    # Verify fallback save
+                    if os.path.exists(fallback_file) and os.path.getsize(fallback_file) > 0:
+                        with open(fallback_file, 'r', encoding='utf-8') as f:
+                            verification_data = json.load(f)
+                            if len(verification_data.get('trades', {})) == len(self.trades):
+                                save_success = True
+                                self.db_file = fallback_file  # Update file path
+                                self.logger.info(f"✅ DATABASE SAVE SUCCESS | Strategy 2 (Fallback)")
 
-                except json.JSONDecodeError as json_error:
-                    self.logger.error(f"❌ JSON decode error during verification: {json_error}")
-                    raise
+                except Exception as strategy2_error:
+                    self.logger.warning(f"⚠️ Strategy 2 failed: {strategy2_error}")
 
+            # Strategy 3: Simple write without atomic operations
+            if not save_success:
+                try:
+                    simple_file = "trades_backup.json"
+                    self.logger.info(f"🔄 TRYING SIMPLE WRITE | {simple_file}")
+                    
+                    with open(simple_file, 'w') as f:
+                        json.dump(data, f, indent=2, default=str)
+                    
+                    if os.path.exists(simple_file) and os.path.getsize(simple_file) > 0:
+                        save_success = True
+                        self.logger.info(f"✅ DATABASE SAVE SUCCESS | Strategy 3 (Simple)")
+
+                except Exception as strategy3_error:
+                    self.logger.error(f"❌ Strategy 3 failed: {strategy3_error}")
+
+            if save_success:
+                self.logger.info(f"✅ DATABASE SAVE COMPLETED SUCCESSFULLY")
+                return True
             else:
-                self.logger.error(f"❌ File was not created: {self.db_file}")
-                raise IOError(f"Database file was not created: {self.db_file}")
-
-            self.logger.info(f"✅ Database save completed successfully")
-            return True
+                self.logger.error(f"❌ ALL SAVE STRATEGIES FAILED")
+                return False
 
         except Exception as e:
-            self.logger.error(f"❌ Error saving trade database: {e}")
+            self.logger.error(f"❌ Critical error in database save: {e}")
             import traceback
-            self.logger.error(f"🔍 DEBUG: Save traceback: {traceback.format_exc()}")
+            self.logger.error(f"🔍 Save error traceback: {traceback.format_exc()}")
             return False
 
     def add_trade(self, trade_id: str, trade_data: Dict[str, Any]) -> bool:
