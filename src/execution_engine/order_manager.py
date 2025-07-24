@@ -297,6 +297,10 @@ class OrderManager:
 
             # Calculate profit/loss for remaining position
             remaining_pnl, remaining_pnl_percentage = self._calculate_profit_loss(position, current_price)
+            
+            # Initialize pnl variables for consistent use throughout method
+            pnl = remaining_pnl
+            pnl_percentage = remaining_pnl_percentage
 
             # Calculate total combined PnL (partial + remaining)
             total_pnl = remaining_pnl + position.partial_tp_amount
@@ -1052,6 +1056,8 @@ class OrderManager:
 
             # Record in database (single source of truth)
             self.logger.info(f"📝 RECORDING TRADE IN DATABASE | {position.trade_id} | Database is source of truth")
+            from src.execution_engine.trade_database import TradeDatabase
+            trade_db = TradeDatabase()
             db_success = trade_db.add_trade(position.trade_id, complete_data)
 
             if db_success:
