@@ -59,15 +59,26 @@ class TradeDatabase:
             # Write data with error handling
             self.logger.info(f"🔍 DEBUG: Writing data to file {self.db_file}")
             try:
-                with open(self.db_file, 'w') as f:
+                # Write to temporary file first, then move to final location (atomic operation)
+                temp_file = f"{self.db_file}.tmp"
+                with open(temp_file, 'w') as f:
                     json.dump(data, f, indent=2, default=str)
                     f.flush()  # Force write to disk
                     os.fsync(f.fileno())  # Force OS to write to disk
 
-                self.logger.info(f"🔍 DEBUG: File write completed")
+                # Atomic move to final location
+                os.replace(temp_file, self.db_file)
+                self.logger.info(f"🔍 DEBUG: File write completed with atomic move")
 
             except (IOError, OSError, PermissionError) as write_error:
                 self.logger.error(f"❌ File write error: {write_error}")
+                # Clean up temp file if it exists
+                temp_file = f"{self.db_file}.tmp"
+                if os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                    except:
+                        pass
                 raise
 
             # Comprehensive verification

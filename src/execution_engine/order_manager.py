@@ -438,43 +438,59 @@ class OrderManager:
                 trade_db = TradeDatabase()
                 self.logger.info(f"🔧 DATABASE CLOSE UPDATE | {position.trade_id} | Updating trade status to CLOSED")
 
+                update_data = {
+                    'trade_status': 'CLOSED',
+                    'exit_price': current_price,
+                    'exit_reason': reason,
+                    'pnl_usdt': pnl,
+                    'pnl_percentage': pnl_percentage,
+                    'duration_minutes': duration_minutes,
+                    'last_updated': datetime.now().isoformat()
+                }
+
                 # Ensure we have a trade ID to update
                 if position.trade_id:
-                    update_success = trade_db.update_trade(position.trade_id, {
-                        'trade_status': 'CLOSED',
-                        'exit_price': current_price,
-                        'exit_reason': reason,
-                        'pnl_usdt': pnl,
-                        'pnl_percentage': pnl_percentage,
-                        'duration_minutes': duration_minutes
-                    })
+                    update_success = trade_db.update_trade(position.trade_id, update_data)
                     self.logger.info(f"🔧 DATABASE UPDATE RESULT | {position.trade_id} | Success: {update_success}")
+                    
+                    if not update_success:
+                        self.logger.warning(f"⚠️ Direct update failed, searching for matching trade | {position.trade_id}")
+                        # Fallback: Try to find matching trade
+                        matching_trade_id = trade_db.find_trade_by_position(
+                            position.strategy_name, 
+                            position.symbol, 
+                            position.side, 
+                            position.quantity, 
+                            position.entry_price,
+                            tolerance=0.05
+                        )
+                        
+                        if matching_trade_id:
+                            update_success = trade_db.update_trade(matching_trade_id, update_data)
+                            self.logger.info(f"✅ Found and updated matching trade: {matching_trade_id} | Success: {update_success}")
+                        else:
+                            self.logger.error(f"❌ No matching trade found in database for {position.symbol}")
                 else:
-                    # Fallback: Try to find and close any open trade for this position
+                    self.logger.warning(f"⚠️ No trade ID available, searching by position details")
                     matching_trade_id = trade_db.find_trade_by_position(
                         position.strategy_name, 
                         position.symbol, 
                         position.side, 
                         position.quantity, 
                         position.entry_price,
-                        tolerance=0.05  # 5% tolerance
+                        tolerance=0.05
                     )
-
+                    
                     if matching_trade_id:
-                        trade_db.update_trade(matching_trade_id, {
-                            'trade_status': 'CLOSED',
-                            'exit_price': current_price,
-                            'exit_reason': reason,
-                            'pnl_usdt': pnl,
-                            'pnl_percentage': pnl_percentage,
-                            'duration_minutes': duration_minutes
-                        })
-                        self.logger.info(f"✅ Found and closed matching trade in database: {matching_trade_id}")
+                        update_success = trade_db.update_trade(matching_trade_id, update_data)
+                        self.logger.info(f"✅ Found and updated matching trade: {matching_trade_id} | Success: {update_success}")
                     else:
-                        self.logger.warning(f"⚠️ No matching trade ID found in database for closed position {position.symbol}")
+                        self.logger.error(f"❌ No matching trade found in database for {position.symbol}")
 
             except Exception as db_error:
                 self.logger.error(f"❌ Error updating trade database: {db_error}")
+                import traceback
+                self.logger.error(f"🔍 Database update error traceback: {traceback.format_exc()}")
 
             # Update position status
             position.status = "CLOSED"
@@ -1066,104 +1082,54 @@ class OrderManager:
                 try:
                     trade_db = TradeDatabase()
                     self.logger.info(f"🔧 DATABASE INSTANCE CREATED | {position.trade_id}")
-                except Exception as db_init_error:
-                    self.logger.error(f"❌ DATABASE INITIALIZATION FAILED | {position.trade_id} | {db_init_error}")
-                    raise db_init_error
-                
-                # Validate complete_data before recording
-                self.logger.info(f"🔍 VALIDATING DATA | {position.trade_id} | Keys: {list(complete_data.keys())}")
-                
-                # Ensure all required fields are present and not None
-                required_fields = ['trade_id', 'strategy_name', 'symbol', 'side', 'quantity', 'entry_price', 'trade_status']
-                missing_fields = []
-                
-                for field in required_fields:
-                    if field not in complete_data:
-                        missing_fields.append(f"{field} (missing)")
-                    elif complete_data[field] is None:
-                        missing_fields.append(f"{field} (None)")
-                    elif complete_data[field] == "":
-                        missing_fields.append(f"{field} (empty)")
-                
-                if missing_fields:
-                    self.logger.error(f"❌ INVALID REQUIRED FIELDS | {position.trade_id} | Issues: {missing_fields}")
-                    # Try to fix missing fields
-                    if 'trade_id' not in complete_data or not complete_data['trade_id']:
-                        complete_data['trade_id'] = position.trade_id
-                    if 'strategy_name' not in complete_data or not complete_data['strategy_name']:
-                        complete_data['strategy_name'] = position.strategy_name
-                    if 'symbol' not in complete_data or not complete_data['symbol']:
-                        complete_data['symbol'] = position.symbol
-                    if 'side' not in complete_data or not complete_data['side']:
-                        complete_data['side'] = position.side
-                    if 'quantity' not in complete_data or not complete_data['quantity']:
-                        complete_data['quantity'] = position.quantity
-                    if 'entry_price' not in complete_data or not complete_data['entry_price']:
-                        complete_data['entry_price'] = position.entry_price
-                    if 'trade_status' not in complete_data or not complete_data['trade_status']:
-                        complete_data['trade_status'] = 'OPEN'
                     
-                    self.logger.info(f"🔧 FIXED MISSING FIELDS | {position.trade_id}")
-                
-                # Force database directory creation with proper permissions
-                import os
-                db_dir = os.path.dirname(trade_db.db_file)
-                try:
+                    # Force directory creation and permissions
+                    import os
+                    db_dir = os.path.dirname(trade_db.db_file)
                     if not os.path.exists(db_dir):
                         os.makedirs(db_dir, mode=0o755, exist_ok=True)
                         self.logger.info(f"🔧 CREATED DATABASE DIRECTORY | {db_dir}")
                     
-                    # Test write permissions
-                    test_file = os.path.join(db_dir, f"test_write_{position.trade_id}.tmp")
-                    with open(test_file, 'w') as f:
-                        f.write("test")
-                    os.remove(test_file)
-                    self.logger.info(f"✅ WRITE PERMISSIONS VERIFIED | {db_dir}")
-                    
-                except (OSError, PermissionError) as perm_error:
-                    self.logger.error(f"❌ PERMISSION ERROR | {db_dir} | {perm_error}")
-                    raise perm_error
+                except Exception as db_init_error:
+                    self.logger.error(f"❌ DATABASE INITIALIZATION FAILED | {position.trade_id} | {db_init_error}")
+                    raise db_init_error
                 
-                # Pre-validate data types
-                try:
-                    complete_data['quantity'] = float(complete_data['quantity'])
-                    complete_data['entry_price'] = float(complete_data['entry_price'])
-                    complete_data['margin_used'] = float(complete_data['margin_used'])
-                    complete_data['leverage'] = int(complete_data['leverage'])
-                    complete_data['position_value_usdt'] = float(complete_data['position_value_usdt'])
-                    self.logger.info(f"✅ DATA TYPES VALIDATED | {position.trade_id}")
-                except (ValueError, TypeError) as type_error:
-                    self.logger.error(f"❌ DATA TYPE VALIDATION FAILED | {position.trade_id} | {type_error}")
-                    raise type_error
+                # Validate and ensure required data
+                self.logger.info(f"🔍 VALIDATING DATA | {position.trade_id} | Keys: {list(complete_data.keys())}")
                 
-                # Call add_trade with comprehensive logging and timeout
-                self.logger.info(f"🔧 CALLING ADD_TRADE | {position.trade_id} | Data size: {len(str(complete_data))} chars")
+                # Ensure required fields with fallbacks
+                complete_data['trade_id'] = complete_data.get('trade_id') or position.trade_id
+                complete_data['strategy_name'] = complete_data.get('strategy_name') or position.strategy_name
+                complete_data['symbol'] = complete_data.get('symbol') or position.symbol
+                complete_data['side'] = complete_data.get('side') or position.side
+                complete_data['quantity'] = float(complete_data.get('quantity') or position.quantity)
+                complete_data['entry_price'] = float(complete_data.get('entry_price') or position.entry_price)
+                complete_data['trade_status'] = complete_data.get('trade_status') or 'OPEN'
+                complete_data['margin_used'] = float(complete_data.get('margin_used') or actual_margin_used)
+                complete_data['leverage'] = int(complete_data.get('leverage') or leverage)
+                complete_data['position_value_usdt'] = float(complete_data.get('position_value_usdt') or position_value_usdt)
                 
-                # Create a simplified version for debugging
-                debug_data = {k: str(v)[:50] if isinstance(v, str) else v for k, v in complete_data.items()}
-                self.logger.info(f"🔍 CALLING ADD_TRADE WITH DATA: {debug_data}")
+                self.logger.info(f"✅ DATA VALIDATED | {position.trade_id}")
+                
+                # Call add_trade with proper error handling
+                self.logger.info(f"🔧 CALLING ADD_TRADE | {position.trade_id}")
                 
                 try:
                     db_success = trade_db.add_trade(position.trade_id, complete_data)
                     self.logger.info(f"🔧 ADD_TRADE RETURNED | {position.trade_id} | Success: {db_success}")
-                except Exception as add_error:
-                    self.logger.error(f"❌ ADD_TRADE EXCEPTION | {position.trade_id} | {add_error}")
-                    import traceback
-                    self.logger.error(f"🔍 ADD_TRADE TRACEBACK: {traceback.format_exc()}")
-                    db_success = False
-                
-                # Immediate verification if add was successful
-                if db_success:
-                    try:
+                    
+                    # Immediate verification
+                    if db_success:
                         stored_trade = trade_db.get_trade(position.trade_id)
                         if stored_trade and stored_trade.get('trade_id') == position.trade_id:
-                            self.logger.info(f"✅ IMMEDIATE VERIFICATION SUCCESS | {position.trade_id}")
+                            self.logger.info(f"✅ DATABASE VERIFICATION SUCCESS | {position.trade_id}")
                         else:
-                            self.logger.error(f"❌ IMMEDIATE VERIFICATION FAILED | {position.trade_id} | Trade not found or corrupted after add")
+                            self.logger.error(f"❌ DATABASE VERIFICATION FAILED | {position.trade_id}")
                             db_success = False
-                    except Exception as verify_error:
-                        self.logger.error(f"❌ VERIFICATION ERROR | {position.trade_id} | {verify_error}")
-                        db_success = False
+                    
+                except Exception as add_error:
+                    self.logger.error(f"❌ ADD_TRADE EXCEPTION | {position.trade_id} | {add_error}")
+                    db_success = False
                         
             except ImportError as import_error:
                 self.logger.error(f"❌ DATABASE IMPORT ERROR | {position.trade_id} | {import_error}")
