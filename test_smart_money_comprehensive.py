@@ -798,37 +798,46 @@ def create_swing_data_with_liquidity_zones():
     n_candles = 50
     base_price = 50000.0
     
-    # Create price action with deliberate swing patterns
-    prices = [base_price]
-    
-    # Create uptrend with swing lows
-    for i in range(1, 15):
-        prices.append(prices[-1] * (1 + np.random.normal(0.002, 0.001)))
-    
-    # Create swing high
-    for i in range(15, 20):
-        prices.append(prices[-1] * (1 + np.random.normal(-0.001, 0.0005)))
-    
-    # Create downtrend with swing highs
-    for i in range(20, 35):
-        prices.append(prices[-1] * (1 + np.random.normal(-0.002, 0.001)))
-    
-    # Create swing low
-    for i in range(35, 40):
-        prices.append(prices[-1] * (1 + np.random.normal(0.001, 0.0005)))
-    
-    # Recent price action
-    for i in range(40, n_candles):
-        prices.append(prices[-1] * (1 + np.random.normal(0, 0.001)))
-    
-    # Create OHLC data
+    # Create very clear swing patterns with significant price differences
     data = []
+    
+    # Create a pattern with guaranteed swings: Low → High → Low → High
+    price_pattern = [
+        48000,  # Start low
+        48200, 48500, 48800, 49200, 49800,  # Rising to swing high
+        50500,  # CLEAR SWING HIGH (index 6)
+        50200, 49800, 49400, 49000,  # Falling 
+        48500,  # Intermediate low
+        48800, 49200, 49600, 50000,  # Rising again
+        50800,  # ANOTHER SWING HIGH (index 16) 
+        50400, 50000, 49600, 49200,  # Falling to swing low
+        48800,  # CLEAR SWING LOW (index 21)
+        49100, 49400, 49700, 50000,  # Recovery
+        50300, 50100, 49900, 49700,  # Recent action
+    ]
+    
+    # Extend pattern to 50 candles
+    while len(price_pattern) < n_candles:
+        last_price = price_pattern[-1]
+        next_price = last_price + np.random.normal(0, 100)  # Small random movement
+        price_pattern.append(max(45000, min(55000, next_price)))  # Keep in range
+    
+    # Create OHLC data with guaranteed swing patterns
     for i in range(n_candles):
-        open_price = prices[i]
-        close_price = prices[i + 1] if i < n_candles - 1 else open_price
+        close_price = price_pattern[i]
         
-        high = max(open_price, close_price) * (1 + abs(np.random.normal(0, 0.002)))
-        low = min(open_price, close_price) * (1 - abs(np.random.normal(0, 0.002)))
+        # Create realistic OHLC around the close price
+        open_price = close_price + np.random.normal(0, 50)
+        high = max(open_price, close_price) + abs(np.random.normal(50, 30))
+        low = min(open_price, close_price) - abs(np.random.normal(50, 30))
+        
+        # Ensure swing highs are really high and swing lows are really low
+        if i == 6:  # First swing high
+            high = close_price + 300
+        elif i == 16:  # Second swing high  
+            high = close_price + 250
+        elif i == 21:  # Swing low
+            low = close_price - 200
         
         data.append({
             'timestamp': datetime.now() - timedelta(minutes=(n_candles-i)*5),

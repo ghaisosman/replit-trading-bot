@@ -19,6 +19,7 @@ class TradingSignal:
     symbol: str = ""  # Add symbol attribute
     confidence: float = 0.0
     reason: str = ""
+    strategy_name: str = ""  # Add strategy_name parameter
     timestamp: datetime = None
 
     def __post_init__(self):
