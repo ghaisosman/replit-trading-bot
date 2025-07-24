@@ -180,7 +180,10 @@ class OrphanDashboardClearingTest:
                     symbol=config['symbol'],
                     side=config['side'],
                     quantity=config['quantity'],
-                    entry_price=config['entry_price']
+                    entry_price=config['entry_price'],
+                    strategy_name=strategy,
+                    stop_loss=config['entry_price'] * 0.95 if config['side'] == 'BUY' else config['entry_price'] * 1.05,
+                    take_profit=config['entry_price'] * 1.10 if config['side'] == 'BUY' else config['entry_price'] * 0.90
                 )
                 
                 # Add to order manager's active positions
