@@ -45,12 +45,12 @@ class TradeDatabase:
 
             # Multiple save strategies for maximum reliability
             save_success = False
-            
+
             # Strategy 1: Normal directory with atomic write
             try:
                 import os
                 db_dir = os.path.dirname(self.db_file)
-                
+
                 # Create directory if needed
                 if db_dir and not os.path.exists(db_dir):
                     os.makedirs(db_dir, mode=0o755, exist_ok=True)
@@ -65,7 +65,7 @@ class TradeDatabase:
 
                 # Atomic move
                 os.replace(temp_file, self.db_file)
-                
+
                 # Verify the save
                 if os.path.exists(self.db_file) and os.path.getsize(self.db_file) > 10:
                     try:
@@ -95,12 +95,12 @@ class TradeDatabase:
                 try:
                     fallback_file = "trade_database.json"
                     self.logger.info(f"🔄 TRYING FALLBACK LOCATION | {fallback_file}")
-                    
+
                     with open(fallback_file, 'w', encoding='utf-8') as f:
                         json.dump(data, f, indent=2, default=str, ensure_ascii=False)
                         f.flush()
                         os.fsync(f.fileno())
-                    
+
                     # Verify fallback save
                     if os.path.exists(fallback_file) and os.path.getsize(fallback_file) > 10:
                         try:
@@ -122,10 +122,10 @@ class TradeDatabase:
                 try:
                     simple_file = "trades_backup.json"
                     self.logger.info(f"🔄 TRYING SIMPLE WRITE | {simple_file}")
-                    
+
                     with open(simple_file, 'w') as f:
                         json.dump(data, f, indent=2, default=str)
-                    
+
                     if os.path.exists(simple_file) and os.path.getsize(simple_file) > 0:
                         save_success = True
                         self.logger.info(f"✅ DATABASE SAVE SUCCESS | Strategy 3 (Simple)")
@@ -226,12 +226,12 @@ class TradeDatabase:
             if trade_id in self.trades:
                 updates['last_updated'] = datetime.now().isoformat()
                 self.trades[trade_id].update(updates)
-                
+
                 # Save and verify
                 save_result = self._save_database()
                 if save_result:
                     self.logger.info(f"✅ Trade updated in database: {trade_id}")
-                    
+
                     # Automatically sync to logger after successful database update
                     try:
                         sync_success = self.sync_trade_to_logger(trade_id)
@@ -241,7 +241,7 @@ class TradeDatabase:
                             self.logger.warning(f"Trade {trade_id} updated in database but sync to logger failed")
                     except Exception as sync_error:
                         self.logger.warning(f"Sync error for {trade_id}: {sync_error}")
-                    
+
                     return True
                 else:
                     self.logger.error(f"❌ Failed to save database after update for {trade_id}")
@@ -559,3 +559,43 @@ class TradeDatabase:
 
         except Exception as e:
             self.logger.error(f"❌ Error cleaning up old trades: {e}")
+
+    def search_trades(self, **criteria):
+        """Search trades by multiple criteria"""
+        try:
+            query = "SELECT * FROM trades WHERE 1=1"
+            params = []
+
+            for key, value in criteria.items():
+                if key == 'strategy_name':
+                    # More flexible search - check if strategy name contains the search term
+                    query += " AND (strategy_name LIKE ? OR strategy_name = ?)"
+                    params.extend([f"%{value}%", value])
+                elif key == 'symbol':
+                    query += " AND symbol = ?"
+                    params.append(value)
+                elif key == 'side':
+                    query += " AND side = ?"
+                    params.append(value)
+                elif key == 'status':
+                    query += " AND status = ?"
+                    params.append(value)
+                elif key == 'partial_strategy_name':
+                    # Allow partial matching for strategy names
+                    query += " AND strategy_name LIKE ?"
+                    params.append(f"%{value}%")
+
+            query += " ORDER BY timestamp DESC"
+
+            cursor = self.conn.execute(query, params)
+            results = cursor.fetchall()
+
+            trades = []
+            for row in results:
+                trades.append(dict(row))
+
+            return trades
+
+        except Exception as e:
+            self.logger.error(f"Error searching trades: {e}")
+            return []

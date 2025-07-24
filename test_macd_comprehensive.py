@@ -25,69 +25,47 @@ from src.binance_client.client import BinanceClientWrapper
 from src.analytics.trade_logger import TradeLogger
 from src.config.trading_config import trading_config_manager
 
-def create_macd_test_data(scenario="bullish_crossover", periods=100):
-    """Create synthetic OHLCV data for MACD testing"""
+def create_macd_test_data(scenario, periods=100):
+    """Create test data for specific MACD divergence scenarios"""
     np.random.seed(42)  # For reproducible results
 
-    base_price = 50000
-    timestamps = [datetime.now() - timedelta(minutes=5*i) for i in range(periods, 0, -1)]
-
-    if scenario == "bullish_crossover":
-        # Create data that will produce a bullish MACD crossover
+    if scenario == "bullish_divergence":
+        # Create data for bullish divergence (MACD below signal but histogram growing)
+        base_price = 50000
         prices = []
         for i in range(periods):
-            if i < 60:
-                # Downtrend first
-                trend = -0.003
-            elif i < 75:
-                # Consolidation
-                trend = 0.0005
+            if i < periods * 0.8:
+                # Extended downtrend to create negative MACD
+                decline_rate = max(1, (periods * 0.8 - i) / 10)
+                prices.append(base_price - (i * decline_rate) + np.random.normal(0, 20))
             else:
-                # Strong uptrend to create clear crossover
-                trend = 0.012 + (i - 75) * 0.001  # Accelerating uptrend
+                # Slight recovery to create growing histogram while still below signal
+                prices.append(prices[-1] + np.random.normal(5, 15))
 
-            noise = np.random.normal(0, 0.002)
-            if i == 0:
-                price = base_price
-            else:
-                price = prices[-1] * (1 + trend + noise)
-            prices.append(price)
-
-    elif scenario == "bearish_crossover":
-        # Create data that will produce a bearish MACD crossover
+    elif scenario == "bearish_divergence":
+        # Create data for bearish divergence (MACD above signal but histogram shrinking)
+        base_price = 52000
         prices = []
         for i in range(periods):
-            if i < 60:
-                # Uptrend first
-                trend = 0.003
-            elif i < 75:
-                # Consolidation
-                trend = -0.0005
+            if i < periods * 0.8:
+                # Extended uptrend to create positive MACD
+                growth_rate = max(1, (periods * 0.8 - i) / 10)
+                prices.append(base_price + (i * growth_rate) + np.random.normal(0, 20))
             else:
-                # Strong downtrend to create clear crossover
-                trend = -0.012 - (i - 75) * 0.001  # Accelerating downtrend
-
-            noise = np.random.normal(0, 0.002)
-            if i == 0:
-                price = base_price
-            else:
-                price = prices[-1] * (1 + trend + noise)
-            prices.append(price)
+                # Slight decline to create shrinking histogram while still above signal
+                prices.append(prices[-1] + np.random.normal(-5, 15))
 
     else:  # no_signal
-        # Random walk without clear crossover
-        prices = [base_price]
-        for i in range(1, periods):
-            change = np.random.normal(0, 0.002)
-            prices.append(prices[-1] * (1 + change))
+        # Sideways movement with no divergence pattern
+        base_price = 51000
+        prices = [base_price + np.random.normal(0, 50) for _ in range(periods)]
 
     df = pd.DataFrame({
-        'timestamp': timestamps,
-        'open': prices,
-        'high': [p * (1 + abs(np.random.normal(0, 0.005))) for p in prices],
-        'low': [p * (1 - abs(np.random.normal(0, 0.005))) for p in prices],
+        'open': [p * 0.999 for p in prices],
+        'high': [p * 1.002 for p in prices],
+        'low': [p * 0.998 for p in prices],
         'close': prices,
-        'volume': np.random.uniform(1000, 5000, periods)
+        'volume': [1000000 + np.random.normal(0, 100000) for _ in range(periods)]
     })
 
     return df
@@ -154,7 +132,7 @@ def main():
 
     try:
         # Create test data
-        test_data = create_macd_test_data("bullish_crossover", 100)
+        test_data = create_macd_test_data("bullish_divergence", 100)
         print(f"📊 Processing {len(test_data)} candles for indicator calculation")
 
         # Calculate indicators
@@ -201,7 +179,7 @@ def main():
     try:
         # Test Scenario 1: Bullish Crossover
         print("🔍 Scenario 1: Bullish MACD Crossover (Buy Signal)")
-        bullish_data = create_macd_test_data("bullish_crossover", 100)
+        bullish_data = create_macd_test_data("bullish_divergence", 100)
         bullish_data = macd_strategy.calculate_indicators(bullish_data)
 
         bullish_signal = macd_strategy.evaluate_entry_signal(bullish_data)
@@ -219,7 +197,7 @@ def main():
 
         # Test Scenario 2: Bearish Crossover
         print("\n🔍 Scenario 2: Bearish MACD Crossover (Sell Signal)")
-        bearish_data = create_macd_test_data("bearish_crossover", 100)
+        bearish_data = create_macd_test_data("bearish_divergence", 100)
         bearish_data = macd_strategy.calculate_indicators(bearish_data)
 
         bearish_signal = macd_strategy.evaluate_entry_signal(bearish_data)
@@ -410,7 +388,7 @@ def main():
 
     try:
         # Create test data with MACD momentum reversal patterns
-        exit_test_data = create_macd_test_data("bullish_crossover", 100)
+        exit_test_data = create_macd_test_data("bullish_divergence", 100)
         exit_test_data = macd_strategy.calculate_indicators(exit_test_data)
 
         # Manually create exit conditions
