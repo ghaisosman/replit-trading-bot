@@ -196,7 +196,16 @@ class TradeDatabase:
             # Save to file
             self.logger.info(f"🔍 DEBUG: Calling _save_database()")
             save_result = self._save_database()
-            self.logger.info(f"🔍 DEBUG: _save_database() completed")
+            self.logger.info(f"🔍 DEBUG: _save_database() returned: {save_result}")
+
+            # CRITICAL: Immediate verification by reloading from disk
+            if save_result:
+                verification_db = TradeDatabase()
+                if trade_id in verification_db.trades:
+                    self.logger.info(f"✅ VERIFIED: Trade {trade_id} persisted to disk successfully")
+                else:
+                    self.logger.error(f"❌ VERIFICATION FAILED: Trade {trade_id} not found after disk save")
+                    return False
 
             self.logger.info(f"✅ Trade added to database: {trade_id} | {trade_data['symbol']} | {trade_data['side']}")
             return True
@@ -213,22 +222,48 @@ class TradeDatabase:
             if trade_id in self.trades:
                 updates['last_updated'] = datetime.now().isoformat()
                 self.trades[trade_id].update(updates)
-                self._save_database()
-                self.logger.info(f"✅ Trade updated in database: {trade_id}")
-
-                # Automatically sync to logger after successful database update
-                sync_success = self.sync_trade_to_logger(trade_id)
-                if sync_success:
-                    self.logger.info(f"Trade {trade_id} automatically synced to logger")
+                
+                # Save and verify
+                save_result = self._save_database()
+                if save_result:
+                    # Immediate verification
+                    verification_db = TradeDatabase()
+                    if trade_id in verification_db.trades:
+                        updated_trade = verification_db.trades[trade_id]
+                        # Check if the updates were actually saved
+                        all_updates_saved = True
+                        for key, value in updates.items():
+                            if updated_trade.get(key) != value:
+                                all_updates_saved = False
+                                break
+                        
+                        if all_updates_saved:
+                            self.logger.info(f"✅ Trade updated and verified in database: {trade_id}")
+                            
+                            # Automatically sync to logger after successful database update
+                            sync_success = self.sync_trade_to_logger(trade_id)
+                            if sync_success:
+                                self.logger.info(f"Trade {trade_id} automatically synced to logger")
+                            else:
+                                self.logger.warning(f"Trade {trade_id} updated in database but sync to logger failed")
+                            
+                            return True
+                        else:
+                            self.logger.error(f"❌ Update verification failed for {trade_id}")
+                            return False
+                    else:
+                        self.logger.error(f"❌ Trade {trade_id} not found after update")
+                        return False
                 else:
-                    self.logger.warning(f"Trade {trade_id} updated in database but sync to logger failed")
-
-                return True
+                    self.logger.error(f"❌ Failed to save database after update for {trade_id}")
+                    return False
             else:
                 self.logger.warning(f"⚠️ Trade {trade_id} not found for update")
                 return False
         except Exception as e:
             self.logger.error(f"❌ Error updating trade: {e}")
+            import traceback
+            self.logger.error(f"❌ Update traceback: {traceback.format_exc()}")
             return False
 
     def get_trade(self, trade_id: str) -> Optional[Dict[str, Any]]:
