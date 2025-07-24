@@ -1017,8 +1017,8 @@ class OrderManager:
                 actual_margin_used = strategy_config.get('margin', 50.0)  # Fallback
                 self.logger.warning(f"🔄 Using fallback margin: ${actual_margin_used}")
 
-            # Create complete trade data with actual order confirmation
-            trade_data = {
+            # Create complete trade data with actual order confirmation data
+            complete_data = {
                 'trade_id': position.trade_id,
                 'strategy_name': position.strategy_name,
                 'symbol': position.symbol,
@@ -1032,33 +1032,55 @@ class OrderManager:
                 'stop_loss': position.stop_loss,
                 'take_profit': position.take_profit,
                 'order_id': order_result.get('orderId'),
-                'position_side': position.position_side
+                'position_side': position.position_side,
+                'timestamp': position.entry_time.isoformat() if position.entry_time else None
             }
 
-            # Calculate technical indicators at entry
-            technical_indicators = self._calculate_entry_indicators(position.symbol)
+            # Calculate technical indicators at entry (non-blocking)
+            try:
+                technical_indicators = self._calculate_entry_indicators(position.symbol)
+                complete_data.update(technical_indicators)
+            except Exception as e:
+                self.logger.warning(f"⚠️ Could not calculate indicators: {e}")
 
-            # Analyze market conditions
-            market_conditions = self._analyze_market_conditions(position.symbol)
-
-            # Merge all data for single database recording
-            complete_data = {**trade_data, **technical_indicators, **market_conditions}
+            # Analyze market conditions (non-blocking)
+            try:
+                market_conditions = self._analyze_market_conditions(position.symbol)
+                complete_data.update(market_conditions)
+            except Exception as e:
+                self.logger.warning(f"⚠️ Could not analyze market conditions: {e}")
 
             # OPTION 1: Record ONLY in database first (single source of truth)
             from src.execution_engine.trade_database import TradeDatabase
             trade_db = TradeDatabase()
 
-            self.logger.info(f"📝 RECORDING TRADE (DATABASE ONLY) | {position.trade_id} | Margin: ${complete_data['margin_used']:.2f}")
+            self.logger.info(f"📝 RECORDING CONFIRMED TRADE | {position.trade_id} | After Binance confirmation")
 
-            success = trade_db.add_trade(position.trade_id, complete_data)
-            if success:
-                self.logger.info(f"✅ TRADE RECORDED IN DATABASE | {position.trade_id} | Margin: ${actual_margin_used:.2f} USDT")
-
-                # Now sync to trade logger (database is source of truth)
-                self._sync_database_to_logger(position.trade_id, complete_data)
-
+            # Record in database
+            db_success = trade_db.add_trade(position.trade_id, complete_data)
+            
+            if db_success:
+                self.logger.info(f"✅ DATABASE RECORDING SUCCESS | {position.trade_id}")
+                
+                # Sync to trade logger
+                sync_success = trade_db.sync_trade_to_logger(position.trade_id)
+                
+                if sync_success:
+                    self.logger.info(f"✅ TRADE SYNC SUCCESS | {position.trade_id} | Database → Logger")
+                else:
+                    self.logger.warning(f"⚠️ TRADE SYNC FAILED | {position.trade_id} | Database recorded but logger sync failed")
             else:
-                self.logger.error(f"❌ FAILED TO RECORD TRADE IN DATABASE | {position.trade_id}")
+                self.logger.error(f"❌ DATABASE RECORDING FAILED | {position.trade_id}")
+                # Fallback: Try direct logger recording
+                try:
+                    from src.analytics.trade_logger import trade_logger
+                    fallback_success = trade_logger.log_trade(complete_data)
+                    if fallback_success:
+                        self.logger.warning(f"⚠️ FALLBACK SUCCESS | {position.trade_id} | Recorded directly in logger")
+                    else:
+                        self.logger.error(f"❌ FALLBACK FAILED | {position.trade_id} | Both database and logger failed")
+                except Exception as fallback_error:
+                    self.logger.error(f"❌ FALLBACK ERROR | {position.trade_id} | {fallback_error}")
 
         except Exception as e:
             self.logger.error(f"❌ Error recording confirmed trade: {e}")
