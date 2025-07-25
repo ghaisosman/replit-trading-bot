@@ -4,7 +4,7 @@ import json
 import logging
 import threading
 import time
-import websocket
+from websocket import WebSocketApp
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Callable
@@ -169,7 +169,7 @@ class WebSocketKlineManager:
             self.logger.info(f"🔗 Connecting to WebSocket: {url}")
             
             # Create WebSocket connection with improved settings
-            self.ws = websocket.WebSocketApp(
+            self.ws = WebSocketApp(
                 url,
                 on_open=self._on_open,
                 on_message=self._on_message,
