@@ -179,22 +179,32 @@ class WebSocketKlineManager:
                 on_close=self._on_close,
                 header={
                     "User-Agent": "python-binance-websocket/1.0",
-                    "Origin": "https://www.binance.com"
+                    "Origin": "https://www.binance.com",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache"
                 }
             )
 
-            # Production-optimized WebSocket settings with improved error handling
+            # Enhanced deployment-ready WebSocket settings
             self.ws.run_forever(
                 sslopt={
                     "cert_reqs": ssl.CERT_NONE,
                     "check_hostname": False,
-                    "ssl_version": ssl.PROTOCOL_TLS
+                    "ssl_version": ssl.PROTOCOL_TLS,
+                    "ciphers": "HIGH:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!SRP:!CAMELLIA"
                 },
                 ping_interval=None,  # Disable automatic ping to prevent socket errors
                 ping_timeout=None,   # Disable ping timeout 
                 suppress_origin=False,
                 origin="https://www.binance.com",
-                skip_utf8_validation=True  # Skip validation for better performance
+                skip_utf8_validation=True,  # Skip validation for better performance
+                sockopt=[(
+                    __import__('socket').SOL_SOCKET,
+                    __import__('socket').SO_KEEPALIVE,
+                    1
+                )]  # Enable socket keepalive for deployment
             )
 
         except Exception as e:

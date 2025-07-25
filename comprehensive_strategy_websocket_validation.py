@@ -44,7 +44,7 @@ class ComprehensiveValidator:
         try:
             from src.binance_client.client import BinanceClientWrapper
             from src.data_fetcher.price_fetcher import PriceFetcher
-            from src.data_fetcher.websocket_manager import websocket_manager
+            from src.data_fetcher.websocket_manager import WebSocketKlineManager
             from src.strategy_processor.signal_processor import SignalProcessor
             from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
             from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
@@ -54,6 +54,9 @@ class ComprehensiveValidator:
             self.binance_client = BinanceClientWrapper()
             self.price_fetcher = PriceFetcher(self.binance_client)
             self.signal_processor = SignalProcessor()
+            
+            # Initialize WebSocket manager instance
+            self.websocket_manager = WebSocketKlineManager()
             
             print("✅ All components imported successfully")
             
@@ -81,8 +84,8 @@ class ComprehensiveValidator:
             # Check WebSocket manager status
             print("📡 Checking WebSocket Manager Status...")
             
-            is_running = websocket_manager.is_running
-            is_connected = websocket_manager.is_connected
+            is_running = self.websocket_manager.is_running
+            is_connected = self.websocket_manager.is_connected
             
             print(f"   Running: {is_running}")
             print(f"   Connected: {is_connected}")
@@ -94,21 +97,21 @@ class ComprehensiveValidator:
                 # Add test symbols
                 test_symbols = ['BTCUSDT', 'ETHUSDT', 'XRPUSDT', 'SOLUSDT']
                 for symbol in test_symbols:
-                    websocket_manager.add_symbol_interval(symbol, '1m')
-                    websocket_manager.add_symbol_interval(symbol, '5m')
+                    self.websocket_manager.add_symbol_interval(symbol, '1m')
+                    self.websocket_manager.add_symbol_interval(symbol, '5m')
                 
-                websocket_manager.start()
+                self.websocket_manager.start()
                 
                 # Wait for connection
                 wait_time = 0
                 max_wait = 30
-                while wait_time < max_wait and not websocket_manager.is_connected:
+                while wait_time < max_wait and not self.websocket_manager.is_connected:
                     await asyncio.sleep(1)
                     wait_time += 1
                     if wait_time % 5 == 0:
                         print(f"   ⏳ Waiting for connection... {wait_time}/{max_wait}s")
                 
-                is_connected = websocket_manager.is_connected
+                is_connected = self.websocket_manager.is_connected
                 ws_results['connection_status'] = 'CONNECTED' if is_connected else 'FAILED_TO_CONNECT'
             
             if is_connected:
@@ -118,7 +121,7 @@ class ComprehensiveValidator:
                 print("\n📊 Checking Data Reception...")
                 
                 # Get statistics
-                stats = websocket_manager.get_statistics()
+                stats = self.websocket_manager.get_statistics()
                 ws_results['statistics'] = stats
                 
                 print(f"   Messages Received: {stats.get('messages_received', 0)}")
@@ -127,9 +130,9 @@ class ComprehensiveValidator:
                 print(f"   Uptime: {stats.get('uptime_seconds', 0):.1f}s")
                 
                 # Check cache status
-                cache_status = websocket_manager.get_cache_status()
+                cache_status = self.websocket_manager.get_cache_status()
                 ws_results['symbols_tracked'] = list(cache_status.keys())
-                ws_results['stream_count'] = len(websocket_manager.subscribed_streams)
+                ws_results['stream_count'] = len(self.websocket_manager.subscribed_streams)
                 
                 print(f"\n📈 Symbols Being Tracked: {len(cache_status)}")
                 for symbol, intervals in cache_status.items():
@@ -156,7 +159,7 @@ class ComprehensiveValidator:
                 price_results = {}
                 
                 for symbol in test_symbols:
-                    current_price = websocket_manager.get_current_price(symbol)
+                    current_price = self.websocket_manager.get_current_price(symbol)
                     if current_price:
                         print(f"   {symbol}: ${current_price:.4f}")
                         price_results[symbol] = current_price
@@ -234,7 +237,7 @@ class ComprehensiveValidator:
                     symbol_results['available_indicators'] = available_indicators
                     
                     # Check data source (WebSocket vs REST)
-                    current_price_ws = websocket_manager.get_current_price(symbol)
+                    current_price_ws = self.websocket_manager.get_current_price(symbol)
                     current_price_df = df['close'].iloc[-1]
                     
                     if current_price_ws:
