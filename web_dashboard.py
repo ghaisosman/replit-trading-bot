@@ -1255,7 +1255,7 @@ def update_strategy(strategy_name):
         except ValueError as ve:
             return jsonify({'success': False, 'message': f'Invalid parameter value: {ve}'})
 
-        #Add safety mechanism to prevent zero entries
+        # Add safety mechanism to prevent zero entries
         safety_errors = []
         if 'margin' in data and float(data['margin']) == 0:
             data['margin'] = 50.0
