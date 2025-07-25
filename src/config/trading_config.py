@@ -369,57 +369,58 @@ class TradingConfigManager:
             return {}
 
     def remove_duplicate_strategies(self):
-        """Remove duplicate strategy configurations"""
+        """Remove duplicate strategy configurations - keep only single engulfing strategy"""
         import os
         import json
         import logging
         try:
-            logging.getLogger(__name__).info("🧹 Removing duplicate strategy configurations")
+            logging.getLogger(__name__).info("🧹 Cleaning engulfing strategies to single instance")
 
-            # Check for duplicate engulfing pattern strategies
             config_file = "trading_data/web_dashboard_configs.json"
 
             if os.path.exists(config_file):
                 with open(config_file, 'r') as f:
                     dashboard_config = json.load(f)
 
-                # Count strategy occurrences
-                strategy_counts = {}
-                strategies_to_remove = []
+                # Find all engulfing strategies
+                engulfing_strategies = [key for key in dashboard_config.keys() if 'engulfing' in key.lower()]
+                
+                if len(engulfing_strategies) > 1:
+                    logging.getLogger(__name__).info(f"Found {len(engulfing_strategies)} engulfing strategies, keeping only 'engulfing_pattern'")
+                    
+                    # Keep only the main engulfing_pattern, remove all others
+                    removed_count = 0
+                    for strategy_name in engulfing_strategies:
+                        if strategy_name != 'engulfing_pattern':
+                            del dashboard_config[strategy_name]
+                            removed_count += 1
+                            logging.getLogger(__name__).info(f"🗑️ Removed: {strategy_name}")
+                    
+                    # Ensure we have the main engulfing_pattern strategy
+                    if 'engulfing_pattern' not in dashboard_config:
+                        dashboard_config['engulfing_pattern'] = {
+                            'symbol': 'BTCUSDT',
+                            'margin': 10.0,
+                            'leverage': 3,
+                            'timeframe': '1h',
+                            'enabled': True
+                        }
+                        logging.getLogger(__name__).info("✅ Added main engulfing_pattern strategy")
 
-                for key in list(dashboard_config.keys()):
-                    if 'engulfing' in key.lower():
-                        base_name = 'engulfing_pattern'
-                        if base_name not in strategy_counts:
-                            strategy_counts[base_name] = []
-                        strategy_counts[base_name].append(key)
-
-                # Remove duplicates (keep the first occurrence)
-                removed_count = 0
-                for base_name, occurrences in strategy_counts.items():
-                    if len(occurrences) > 1:
-                        # Keep the first, remove the rest
-                        for duplicate in occurrences[1:]:
-                            if duplicate in dashboard_config:
-                                del dashboard_config[duplicate]
-                                removed_count += 1
-                                logging.getLogger(__name__).info(f"🗑️ Removed duplicate strategy: {duplicate}")
-
-                # Save updated config
-                if removed_count > 0:
+                    # Save updated config
                     with open(config_file, 'w') as f:
                         json.dump(dashboard_config, f, indent=2)
 
-                    logging.getLogger(__name__).info(f"✅ Removed {removed_count} duplicate strategies")
+                    logging.getLogger(__name__).info(f"✅ Cleaned to single engulfing strategy, removed {removed_count} duplicates")
                     return removed_count
                 else:
-                    logging.getLogger(__name__).info("✅ No duplicate strategies found")
+                    logging.getLogger(__name__).info("✅ Already have single engulfing strategy")
                     return 0
 
             return 0
 
         except Exception as e:
-            logging.getLogger(__name__).error(f"❌ Error removing duplicate strategies: {e}")
+            logging.getLogger(__name__).error(f"❌ Error cleaning engulfing strategies: {e}")
             return 0
 
 # Global config manager instance
