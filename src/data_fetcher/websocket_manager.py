@@ -155,17 +155,17 @@ class WebSocketKlineManager:
     def _connect_websocket(self):
         """Establish WebSocket connection with deployment-optimized settings"""
         try:
-            # Use proper combined streams URL for Binance
+            # Use proper Binance Futures WebSocket URL format
             if len(self.subscribed_streams) == 1:
                 # Single stream - direct connection
                 stream = list(self.subscribed_streams)[0]
                 url = f"wss://fstream.binance.com/ws/{stream}"
             else:
-                # Multiple streams - use combined stream endpoint
+                # Multiple streams - use proper Binance Futures combined stream format
                 streams_list = list(sorted(self.subscribed_streams))
-                # Fix URL format for combined streams
+                # Binance Futures uses different combined stream format
                 combined_params = "/".join(streams_list)
-                url = f"wss://fstream.binance.com/stream?streams={combined_params}"
+                url = f"wss://fstream.binance.com/ws/{combined_params}"
 
             self.logger.info(f"🔗 Connecting to WebSocket: {url}")
             self.logger.info(f"📡 Streams: {list(self.subscribed_streams)}")
