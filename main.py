@@ -20,16 +20,34 @@ def signal_handler(signum, frame):
     shutdown_event.set()
 
 def run_web_dashboard():
-    """Run web dashboard in separate thread"""
+    """Run web dashboard in separate thread with port conflict resolution"""
     try:
         # Import here to avoid circular imports
         from web_dashboard import app
 
-        # Get port from environment
-        port = int(os.environ.get('PORT', 5000))
+        # Get port from environment, with fallback ports
+        primary_port = int(os.environ.get('PORT', 5000))
+        fallback_ports = [5000, 5001, 5002, 5003, 8000, 8080, 3000]
+        
+        # Ensure primary port is in fallback list
+        if primary_port not in fallback_ports:
+            fallback_ports.insert(0, primary_port)
 
-        # Run Flask app
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
+        logger = logging.getLogger(__name__)
+        
+        for port in fallback_ports:
+            try:
+                logger.info(f"🌐 Attempting to start web dashboard on port {port}")
+                app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
+                break
+            except OSError as e:
+                if "Address already in use" in str(e):
+                    logger.warning(f"⚠️ Port {port} is already in use, trying next port...")
+                    continue
+                else:
+                    raise e
+        else:
+            logger.error("❌ Could not start web dashboard on any available port")
 
     except Exception as e:
         logger = logging.getLogger(__name__)
