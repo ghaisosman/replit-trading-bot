@@ -3,6 +3,53 @@ Engulfing Pattern Strategy - WEB DASHBOARD IS SINGLE SOURCE OF TRUTH
 All configuration is now managed through the web dashboard interface.
 """
 
+def get_engulfing_pattern_config():
+    """Get engulfing pattern configuration for all symbols"""
+    return {
+        'ENGULFING_PATTERN_BTCUSDT': {
+            'name': 'ENGULFING_PATTERN_BTCUSDT',
+            'symbol': 'BTCUSDT',
+            'timeframe': '1h',
+            'margin_usdt': 10.0,
+            'leverage': 3,
+            'rsi_period': 14,
+            'rsi_threshold': 50,
+            'rsi_long_exit': 70,
+            'rsi_short_exit': 30,
+            'stable_candle_ratio': 0.3,  # Relaxed from 0.5
+            'price_lookback_bars': 5,
+            'max_loss_pct': 10
+        },
+        'ENGULFING_PATTERN_ETHUSDT': {
+            'name': 'ENGULFING_PATTERN_ETHUSDT',
+            'symbol': 'ETHUSDT',
+            'timeframe': '1h',
+            'margin_usdt': 10.0,
+            'leverage': 3,
+            'rsi_period': 14,
+            'rsi_threshold': 50,
+            'rsi_long_exit': 70,
+            'rsi_short_exit': 30,
+            'stable_candle_ratio': 0.3,  # Relaxed from 0.5
+            'price_lookback_bars': 5,
+            'max_loss_pct': 10
+        },
+        'ENGULFING_PATTERN_ADAUSDT': {
+            'name': 'ENGULFING_PATTERN_ADAUSDT',
+            'symbol': 'ADAUSDT',
+            'timeframe': '1h',
+            'margin_usdt': 10.0,
+            'leverage': 3,
+            'rsi_period': 14,
+            'rsi_threshold': 50,
+            'rsi_long_exit': 70,
+            'rsi_short_exit': 30,
+            'stable_candle_ratio': 0.3,  # Relaxed from 0.5
+            'price_lookback_bars': 5,
+            'max_loss_pct': 10
+        }
+    }
+
 class EngulfingPatternConfig:
     """Configuration class for Engulfing Pattern Strategy - kept for compatibility"""
     
