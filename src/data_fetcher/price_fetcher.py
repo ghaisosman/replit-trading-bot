@@ -6,6 +6,7 @@ import logging
 from src.binance_client.client import BinanceClientWrapper
 from datetime import datetime, timezone, timedelta
 from src.config.global_config import global_config
+from src.data_fetcher.websocket_manager import websocket_manager
 
 class PriceFetcher:
     """Fetches and processes price data"""
@@ -53,32 +54,73 @@ class PriceFetcher:
             return timestamp_ms  # Fallback to original - safe
 
     def get_current_price(self, symbol: str) -> Optional[float]:
-        """Get current price for symbol"""
-        ticker = self.binance_client.get_symbol_ticker(symbol)
-        if ticker:
-            price = float(ticker['price'])
-            self.price_cache[symbol] = price
-            return price
-        return None
+        """Get current price for symbol from WebSocket cache or REST fallback"""
+        try:
+            # First try WebSocket cache
+            ws_price = websocket_manager.get_current_price(symbol)
+            if ws_price and websocket_manager.is_data_fresh(symbol, '1m', max_age_seconds=30):
+                self.price_cache[symbol] = ws_price
+                return ws_price
+            
+            # Fallback to REST API if WebSocket data is unavailable
+            self.logger.debug(f"Using REST API fallback for {symbol} current price")
+            ticker = self.binance_client.get_symbol_ticker(symbol)
+            if ticker:
+                price = float(ticker['price'])
+                self.price_cache[symbol] = price
+                return price
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error getting current price for {symbol}: {e}")
+            return None
 
     async def get_market_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:
-        """Get historical market data with WebSocket enhancement"""
+        """Get market data from WebSocket cache with REST API fallback"""
         try:
             self.logger.debug(f"Fetching market data for {symbol} | {interval} | limit: {limit}")
 
-            # Use existing rate limiting from binance_client
-            klines = self.binance_client.get_historical_klines(symbol, interval, limit)
+            # First, try to get data from WebSocket cache
+            cached_klines = websocket_manager.get_cached_klines(symbol, interval, limit)
+            
+            if cached_klines and websocket_manager.is_data_fresh(symbol, interval, max_age_seconds=60):
+                self.logger.debug(f"✅ Using WebSocket cached data for {symbol} {interval} ({len(cached_klines)} klines)")
+                
+                # Convert WebSocket data to DataFrame
+                df_data = []
+                for kline in cached_klines:
+                    df_data.append([
+                        kline['timestamp'], kline['open'], kline['high'], kline['low'], 
+                        kline['close'], kline['volume'], kline['close_time'],
+                        0, 0, 0, 0, 0  # Placeholder values for additional columns
+                    ])
+                
+                df = pd.DataFrame(df_data, columns=[
+                    'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                    'close_time', 'quote_asset_volume', 'number_of_trades',
+                    'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
+                ])
+                
+            else:
+                # Fallback to REST API if WebSocket data is not available or stale
+                self.logger.warning(f"⚠️ WebSocket data unavailable/stale for {symbol} {interval}, using REST API fallback")
+                
+                # Make sure symbol/interval is added to WebSocket manager for future
+                websocket_manager.add_symbol_interval(symbol, interval)
+                
+                # Use REST API as fallback (rate limited)
+                klines = self.binance_client.get_historical_klines(symbol, interval, limit)
+                
+                if not klines:
+                    self.logger.warning(f"No kline data received for {symbol}")
+                    return None
 
-            if not klines:
-                self.logger.warning(f"No kline data received for {symbol}")
-                return None
-
-            # Convert to DataFrame
-            df = pd.DataFrame(klines, columns=[
-                'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                'close_time', 'quote_asset_volume', 'number_of_trades',
-                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
-            ])
+                # Convert to DataFrame
+                df = pd.DataFrame(klines, columns=[
+                    'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                    'close_time', 'quote_asset_volume', 'number_of_trades',
+                    'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
+                ])
 
             # Apply timezone adjustment if configured (preserves all existing logic)
             if self.use_local_timezone or self.timezone_offset_hours != 0:
@@ -92,57 +134,44 @@ class PriceFetcher:
             for col in numeric_columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
 
-            # Try to enhance with real-time WebSocket data
-            try:
-                from src.bot_manager import BotManager
-                import sys
+            # Try to enhance with real-time WebSocket data if we're using cached data
+            if cached_klines:
+                try:
+                    latest_ws_kline = websocket_manager.get_latest_kline(symbol, interval)
+                    if latest_ws_kline:
+                        # Convert ws_data timestamp to datetime object
+                        latest_timestamp = pd.to_datetime(int(latest_ws_kline['timestamp']), unit='ms')
 
-                # Get bot manager instance if available
-                main_module = sys.modules.get('__main__')
-                bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
+                        # If the latest WebSocket data is newer than our last cached data
+                        if latest_timestamp > df['timestamp'].iloc[-1]:
+                            # Add new row with WebSocket data
+                            new_row = pd.DataFrame({
+                                'timestamp': [latest_timestamp],
+                                'open': [latest_ws_kline['open']],
+                                'high': [latest_ws_kline['high']],
+                                'low': [latest_ws_kline['low']],
+                                'close': [latest_ws_kline['close']],
+                                'volume': [latest_ws_kline['volume']],
+                                'close_time': [latest_ws_kline['close_time']],
+                                'quote_asset_volume': [0],
+                                'number_of_trades': [0],
+                                'taker_buy_base_asset_volume': [0],
+                                'taker_buy_quote_asset_volume': [0],
+                                'ignore': [0]
+                            })
+                            df = pd.concat([df, new_row], ignore_index=True)
+                            self.logger.debug(f"Enhanced {symbol} data with latest WebSocket kline")
+                        else:
+                            # Update the last row with current WebSocket data
+                            df.iloc[-1, df.columns.get_loc('close')] = latest_ws_kline['close']
+                            df.iloc[-1, df.columns.get_loc('high')] = max(df.iloc[-1]['high'], latest_ws_kline['high'])
+                            df.iloc[-1, df.columns.get_loc('low')] = min(df.iloc[-1]['low'], latest_ws_kline['low'])
+                            df.iloc[-1, df.columns.get_loc('volume')] = latest_ws_kline['volume']
+                            self.logger.debug(f"Updated {symbol} latest candle with WebSocket data")
 
-                if (bot_manager and hasattr(bot_manager, 'websocket_data') and 
-                    symbol in bot_manager.websocket_data and 
-                    bot_manager.websocket_data[symbol]['connected']):
-
-                    ws_data = bot_manager.websocket_data[symbol]['latest_kline']
-                    if ws_data and bot_manager.websocket_data[symbol]['last_update']:
-                        # Check if WebSocket data is recent (less than 30 seconds old)
-                        data_age = (datetime.now() - bot_manager.websocket_data[symbol]['last_update']).total_seconds()
-                        if data_age < 30:
-                            # Convert ws_data timestamp to datetime object
-                            latest_timestamp = pd.to_datetime(int(ws_data['timestamp']), unit='ms')
-
-                            # If the latest WebSocket data is newer than our last API data
-                            if latest_timestamp > df['timestamp'].iloc[-1]:
-                                # Add new row with WebSocket data
-                                new_row = pd.DataFrame({
-                                    'timestamp': [latest_timestamp],
-                                    'open': [ws_data['open']],
-                                    'high': [ws_data['high']],
-                                    'low': [ws_data['low']],
-                                    'close': [ws_data['close']],
-                                    'volume': [ws_data['volume']],
-                                    'close_time': [ws_data['timestamp']],
-                                    'quote_asset_volume': [0],
-                                    'number_of_trades': [0],
-                                    'taker_buy_base_asset_volume': [0],
-                                    'taker_buy_quote_asset_volume': [0],
-                                    'ignore': [0]
-                                })
-                                df = pd.concat([df, new_row], ignore_index=True)
-                                self.logger.debug(f"Enhanced {symbol} data with WebSocket (age: {data_age:.1f}s)")
-                            else:
-                                # Update the last row with current WebSocket data
-                                df.iloc[-1, df.columns.get_loc('close')] = ws_data['close']
-                                df.iloc[-1, df.columns.get_loc('high')] = max(df.iloc[-1]['high'], ws_data['high'])
-                                df.iloc[-1, df.columns.get_loc('low')] = min(df.iloc[-1]['low'], ws_data['low'])
-                                df.iloc[-1, df.columns.get_loc('volume')] = ws_data['volume']
-                                self.logger.debug(f"Updated {symbol} latest candle with WebSocket data")
-
-            except Exception as ws_error:
-                self.logger.debug(f"WebSocket enhancement failed for {symbol}: {ws_error}")
-                # Continue with API-only data
+                except Exception as ws_error:
+                    self.logger.debug(f"WebSocket enhancement failed for {symbol}: {ws_error}")
+                    # Continue with cached data
 
             # Sort by timestamp to ensure proper order
             df = df.sort_values(by='timestamp')

@@ -15,6 +15,7 @@ from src.reporting.telegram_reporter import TelegramReporter
 from src.config.trading_config import trading_config_manager
 from src.execution_engine.trade_monitor import TradeMonitor
 from src.execution_engine.anomaly_detector import AnomalyDetector
+from src.data_fetcher.websocket_manager import websocket_manager
 import schedule
 import threading
 from collections import deque
@@ -256,6 +257,9 @@ class BotManager:
             # Start daily reporter scheduler
             self.daily_reporter.start_scheduler()
 
+            # Initialize WebSocket connections for all strategy symbols
+            self._initialize_websocket_streams()
+
             # Clear any ghost anomalies for symbols where we have legitimate positions
             self._cleanup_misidentified_positions()
 
@@ -306,6 +310,13 @@ class BotManager:
                 self.logger.info("📱 Telegram shutdown notification sent")
             except Exception as e:
                 self.logger.warning(f"Could not send Telegram notification: {e}")
+
+            # Stop WebSocket manager
+            try:
+                websocket_manager.stop()
+                self.logger.info("📡 WebSocket manager stopped")
+            except Exception as e:
+                self.logger.warning(f"Could not stop WebSocket manager: {e}")
 
             # Close database connections safely
             if hasattr(self, 'anomaly_detector') and hasattr(self.anomaly_detector, 'db'):
@@ -998,6 +1009,48 @@ class BotManager:
             self.logger.debug(f"Error getting current price for {symbol}: {e}")
             return None
 
+    def _initialize_websocket_streams(self):
+        """Initialize WebSocket streams for all configured strategies"""
+        try:
+            self.logger.info("📡 INITIALIZING WEBSOCKET STREAMS...")
+            
+            # Add all strategy symbols and intervals to WebSocket manager
+            for strategy_name, strategy_config in self.strategies.items():
+                symbol = strategy_config.get('symbol')
+                interval = strategy_config.get('timeframe', '15m')
+                
+                if symbol:
+                    websocket_manager.add_symbol_interval(symbol, interval)
+                    self.logger.info(f"   📡 Added WebSocket stream: {symbol} @ {interval}")
+            
+            # Also add 1m streams for current price updates
+            for strategy_name, strategy_config in self.strategies.items():
+                symbol = strategy_config.get('symbol')
+                if symbol:
+                    websocket_manager.add_symbol_interval(symbol, '1m')
+            
+            # Start WebSocket manager
+            if websocket_manager.subscribed_streams:
+                websocket_manager.start()
+                self.logger.info(f"🚀 WEBSOCKET MANAGER STARTED with {len(websocket_manager.subscribed_streams)} streams")
+                
+                # Wait a moment for initial connection
+                import time
+                time.sleep(2)
+                
+                # Log connection status
+                stats = websocket_manager.get_statistics()
+                if stats['is_connected']:
+                    self.logger.info("✅ WEBSOCKET CONNECTION ESTABLISHED")
+                else:
+                    self.logger.warning("⚠️ WEBSOCKET CONNECTION PENDING...")
+            else:
+                self.logger.warning("⚠️ No WebSocket streams to initialize")
+                
+        except Exception as e:
+            self.logger.error(f"❌ WEBSOCKET INITIALIZATION ERROR: {e}")
+            self.logger.warning("🔄 Continuing with REST API fallback...")
+
     def _cleanup_misidentified_positions(self):
         """Clean up any misidentified ghost positions where we have legitimate trades"""
         try:
@@ -1061,13 +1114,28 @@ class BotManager:
 
     def _log_websocket_status(self):
         """Logs the current status of the WebSocket connection."""
-        # Placeholder for WebSocket status logging.  Implement your WebSocket
-        # connection and status tracking, then log the relevant information here.
-        # Example:
-        # if self.binance_client.websocket_connected:
-        #     self.logger.info("✅ WebSocket: Connected")
-        # else:
-        #     self.logger.warning("⚠️ WebSocket: Disconnected")
-
-        # For now, just log a placeholder message.
-        self.logger.info("🔍 WebSocket Status: (Implementation Pending)")
+        try:
+            stats = websocket_manager.get_statistics()
+            
+            if stats['is_connected']:
+                uptime_minutes = stats['uptime_seconds'] / 60
+                self.logger.info(f"✅ WebSocket: Connected | Uptime: {uptime_minutes:.1f}m | Messages: {stats['messages_received']} | Klines: {stats['klines_processed']}")
+            else:
+                self.logger.warning("⚠️ WebSocket: Disconnected - Using REST API fallback")
+                
+            # Log cache status for key symbols
+            cache_status = websocket_manager.get_cache_status()
+            fresh_count = 0
+            total_count = 0
+            
+            for symbol in cache_status:
+                for interval in cache_status[symbol]:
+                    total_count += 1
+                    if cache_status[symbol][interval]['is_fresh']:
+                        fresh_count += 1
+            
+            if total_count > 0:
+                self.logger.info(f"📊 WebSocket Cache: {fresh_count}/{total_count} streams fresh")
+                
+        except Exception as e:
+            self.logger.error(f"Error logging WebSocket status: {e}")
