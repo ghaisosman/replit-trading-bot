@@ -76,19 +76,35 @@ class ComprehensiveTelegramTest:
     def capture_message_content(self, original_method):
         """Decorator to capture message content before sending"""
         def wrapper(*args, **kwargs):
-            # Extract message content
+            # Extract message content - args[0] is self, args[1] should be message
+            message_content = "No message content found"
+            
+            # Debug print all arguments
+            print(f"🔍 DEBUG - Method: {original_method.__name__}")
+            print(f"🔍 DEBUG - Args count: {len(args)}")
+            print(f"🔍 DEBUG - Kwargs: {list(kwargs.keys())}")
+            
+            # Try different ways to extract message
             if len(args) > 1:
-                message_content = args[1]  # Second argument is usually the message
+                message_content = str(args[1])
+                print(f"🔍 DEBUG - Found message in args[1]: {message_content[:100]}...")
             elif 'message' in kwargs:
-                message_content = kwargs['message']
+                message_content = str(kwargs['message'])
+                print(f"🔍 DEBUG - Found message in kwargs: {message_content[:100]}...")
+            elif 'text' in kwargs:
+                message_content = str(kwargs['text'])
+                print(f"🔍 DEBUG - Found message in 'text': {message_content[:100]}...")
             else:
-                message_content = "No message content captured"
+                # If still no message found, try to call the original method to see what it generates
+                print(f"🔍 DEBUG - No message found in args/kwargs, trying to inspect method...")
             
             # Store the message content
             self.test_messages.append({
                 'timestamp': datetime.now().isoformat(),
                 'content': message_content,
-                'method': original_method.__name__
+                'method': original_method.__name__,
+                'args_count': len(args),
+                'kwargs_keys': list(kwargs.keys())
             })
             
             # Print message content for visibility
@@ -123,16 +139,41 @@ class ComprehensiveTelegramTest:
             balance = 1000.0
             open_trades = 0
             
-            # Patch send_message to capture content
-            with patch.object(self.telegram_reporter, 'send_message', 
-                            side_effect=self.capture_message_content(self.telegram_reporter.send_message)):
-                
+            # First, let's capture what the reporter generates
+            print("🔍 DEBUG: Calling report_bot_startup directly...")
+            
+            # Try to capture by intercepting the message creation
+            original_send = self.telegram_reporter.send_message
+            captured_message = None
+            
+            def capture_and_send(message):
+                nonlocal captured_message
+                captured_message = message
+                print(f"🎯 INTERCEPTED MESSAGE: {message}")
+                return original_send(message)
+            
+            self.telegram_reporter.send_message = capture_and_send
+            
+            try:
                 success = self.telegram_reporter.report_bot_startup(
                     pairs=pairs,
                     strategies=strategies,
                     balance=balance,
                     open_trades=open_trades
                 )
+                
+                # Store the captured message
+                if captured_message:
+                    self.test_messages.append({
+                        'timestamp': datetime.now().isoformat(),
+                        'content': captured_message,
+                        'method': 'report_bot_startup'
+                    })
+                    test_result.message_content = captured_message
+                    
+            finally:
+                # Restore original method
+                self.telegram_reporter.send_message = original_send
                 
                 test_result.success = success
                 test_result.message_content = self.test_messages[-1]['content'] if self.test_messages else "No message captured"
