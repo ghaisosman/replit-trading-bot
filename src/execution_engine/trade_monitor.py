@@ -516,8 +516,55 @@ class TradeMonitor:
                     )
                     orphan_trade.clearing_notified = True
 
-        # Remove cleared orphan trades
+        # Remove cleared orphan trades and update database
         for strategy_name in orphans_to_remove:
+            orphan_trade = self.orphan_trades[strategy_name]
+            
+            # Update database to mark trade as manually closed
+            try:
+                from src.execution_engine.trade_database import TradeDatabase
+                trade_db = TradeDatabase()
+                
+                # Find the trade in database by position details
+                symbol = orphan_trade.position.symbol
+                side = orphan_trade.position.side
+                quantity = orphan_trade.position.quantity
+                entry_price = orphan_trade.position.entry_price
+                
+                trade_id = trade_db.find_trade_by_position(strategy_name, symbol, side, quantity, entry_price)
+                
+                if trade_id:
+                    # Get current price for exit price
+                    try:
+                        ticker = self.binance_client.get_symbol_ticker(symbol)
+                        current_price = float(ticker['price']) if ticker else entry_price
+                    except:
+                        current_price = entry_price
+                    
+                    # Calculate duration
+                    duration_minutes = (datetime.now() - orphan_trade.detected_at).total_seconds() / 60
+                    
+                    # Update database with manual closure
+                    update_data = {
+                        'trade_status': 'CLOSED',
+                        'exit_price': current_price,
+                        'exit_reason': 'Manual Closure (Orphan Cleared)',
+                        'pnl_usdt': 0.0,  # Unknown PnL since manually closed
+                        'pnl_percentage': 0.0,
+                        'duration_minutes': duration_minutes,
+                        'manually_closed': True,
+                        'orphan_cleared': True
+                    }
+                    
+                    success = trade_db.update_trade(trade_id, update_data)
+                    if success:
+                        self.logger.info(f"✅ Database updated for orphan clear: {trade_id}")
+                    else:
+                        self.logger.error(f"❌ Failed to update database for orphan clear: {trade_id}")
+                        
+            except Exception as db_error:
+                self.logger.error(f"❌ Database update error during orphan clear: {db_error}")
+            
             del self.orphan_trades[strategy_name]
 
         # Process ghost trades - NEVER close them on Binance, only clear from internal tracking
