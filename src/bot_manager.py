@@ -525,24 +525,70 @@ class BotManager:
                                 # Calculate indicators
                                 df = self.price_fetcher.calculate_indicators(df)
 
-                                # Display strategy-specific indicators
-                                if 'rsi' in strategy_name.lower():
+                                # Display strategy-specific indicators with enhanced error handling
+                                indicator_text = "Indicators loading..."
+                                
+                                if 'rsi' in strategy_name.lower() and 'engulfing' not in strategy_name.lower():
                                     # RSI Strategy - show current RSI
-                                    if 'rsi' in df.columns:
+                                    if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
                                         current_rsi = df['rsi'].iloc[-1]
                                         if not pd.isna(current_rsi):
                                             indicator_text = f"RSI: {current_rsi:.1f}"
+                                        else:
+                                            indicator_text = "RSI: Calculating..."
+                                    else:
+                                        indicator_text = "RSI: Waiting for data..."
+                                        
                                 elif 'macd' in strategy_name.lower():
                                     # MACD Strategy - show MACD line and signal
-                                    if 'macd' in df.columns and 'macd_signal' in df.columns:
+                                    if ('macd' in df.columns and 'macd_signal' in df.columns and 
+                                        len(df['macd'].dropna()) > 0 and len(df['macd_signal'].dropna()) > 0):
                                         macd_line = df['macd'].iloc[-1]
                                         macd_signal = df['macd_signal'].iloc[-1]
                                         if not pd.isna(macd_line) and not pd.isna(macd_signal):
-                                            indicator_text = f"MACD: {macd_line:.2f}/{macd_signal:.2f}"
+                                            indicator_text = f"MACD: {macd_line:.4f}/{macd_signal:.4f}"
+                                        else:
+                                            indicator_text = "MACD: Calculating..."
+                                    else:
+                                        indicator_text = "MACD: Waiting for data..."
+                                        
+                                elif 'engulfing' in strategy_name.lower():
+                                    # Engulfing Pattern - show RSI + pattern status
+                                    pattern_status = "No Pattern"
+                                    rsi_value = "N/A"
+                                    
+                                    if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
+                                        current_rsi = df['rsi'].iloc[-1]
+                                        if not pd.isna(current_rsi):
+                                            rsi_value = f"{current_rsi:.1f}"
+                                    
+                                    # Check for patterns
+                                    if len(df) >= 2:
+                                        if 'bullish_engulfing' in df.columns and df['bullish_engulfing'].iloc[-1]:
+                                            pattern_status = "Bullish Engulfing"
+                                        elif 'bearish_engulfing' in df.columns and df['bearish_engulfing'].iloc[-1]:
+                                            pattern_status = "Bearish Engulfing"
+                                    
+                                    indicator_text = f"RSI: {rsi_value} | Pattern: {pattern_status}"
+                                    
+                                elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
+                                    # Smart Money - show custom analysis
+                                    indicator_text = "Smart Money Analysis"
+                                    if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
+                                        current_rsi = df['rsi'].iloc[-1]
+                                        if not pd.isna(current_rsi):
+                                            indicator_text += f" | RSI: {current_rsi:.1f}"
+                                            
                                 else:
                                     # Other strategies - try to show RSI as fallback
-                                    if 'rsi' in df.columns:
+                                    if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
                                         current_rsi = df['rsi'].iloc[-1]
+                                        if not pd.isna(current_rsi):
+                                            indicator_text = f"RSI: {current_rsi:.1f}"
+                                        else:
+                                            indicator_text = "RSI: Calculating..."
+                                    else:
+                                        indicator_text = "Indicators: Waiting for data..."loc[-1]
                                         if not pd.isna(current_rsi):
                                             indicator_text = f"RSI: {current_rsi:.1f}"
                         except Exception as e:
