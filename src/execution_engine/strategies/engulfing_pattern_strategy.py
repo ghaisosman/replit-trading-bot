@@ -26,7 +26,7 @@ class EngulfingPatternStrategy:
         # Extract strategy-specific parameters
         self.rsi_period = config.get('rsi_period', 14)
         self.rsi_threshold = config.get('rsi_threshold', 50)
-        self.stable_candle_ratio = config.get('stable_candle_ratio', 0.5)
+        self.stable_candle_ratio = config.get('stable_candle_ratio', 0.2)  # Use relaxed default
         self.price_lookback_bars = config.get('price_lookback_bars', 5)
         self.rsi_long_exit = config.get('rsi_long_exit', 70)
         self.rsi_short_exit = config.get('rsi_short_exit', 30)
