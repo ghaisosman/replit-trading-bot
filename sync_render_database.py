@@ -55,6 +55,7 @@ class RenderDatabaseSync:
             
             # Initialize order manager
             from src.analytics.trade_logger import trade_logger
+            from src.execution_engine.order_manager import OrderManager
             self.order_manager = OrderManager(self.binance_client, trade_logger)
             print("✅ Order manager initialized")
             
@@ -304,9 +305,6 @@ class RenderDatabaseSync:
 def main():
     """Main execution function"""
     try:
-        # Import required modules
-        from src.execution_engine.order_manager import OrderManager
-        
         # Run sync
         sync_manager = RenderDatabaseSync()
         success = sync_manager.run_full_sync()
