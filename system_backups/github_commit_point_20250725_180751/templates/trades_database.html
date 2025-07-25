@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trades Database - Trading Bot</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+        }
+        .navbar {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .trade-row {
+            transition: all 0.3s ease;
+        }
+        .trade-row:hover {
+            background-color: #f8f9fa;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .status-open {
+            background-color: #28a745;
+            color: white;
+        }
+        .status-closed {
+            background-color: #6c757d;
+            color: white;
+        }
+        .pnl-positive {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .pnl-negative {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .pnl-neutral {
+            color: #6c757d;
+        }
+        .side-buy {
+            background-color: #28a745;
+            color: white;
+        }
+        .side-sell {
+            background-color: #dc3545;
+            color: white;
+        }
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+        .sortable:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+        .sortable i {
+            margin-left: 5px;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="fas fa-database"></i> Trades Database
+            </span>
+            <div class="d-flex">
+                <button class="btn btn-outline-light btn-sm me-2" onclick="refreshPage()">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+                <button class="btn btn-outline-light btn-sm" onclick="window.close()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        {% if error %}
+        <div class="error-message">
+            <i class="fas fa-exclamation-triangle"></i> Error: {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Trading Summary Statistics -->
+        <div class="stats-card mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3><i class="fas fa-chart-bar"></i> Trading Summary</h3>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-light btn-sm" onclick="updateSummaryWithButton(event, 1)">1D</button>
+                    <button type="button" class="btn btn-outline-light btn-sm" onclick="updateSummaryWithButton(event, 7)">7D</button>
+                    <button type="button" class="btn btn-light btn-sm active" onclick="updateSummaryWithButton(event, 30)">30D</button>
+                    <button type="button" class="btn btn-outline-light btn-sm" onclick="updateSummaryWithButton(event, 90)">90D</button>
+                    <button type="button" class="btn btn-outline-light btn-sm" onclick="showCustomDurationModal()">Custom</button>
+                </div>
+            </div>
+            <div class="row" id="summaryStats">
+                <div class="col-md-2">
+                    <h6><i class="fas fa-calculator"></i> Total Trades</h6>
+                    <h4 id="totalTrades">{{ total_trades or 0 }}</h4>
+                </div>
+                <div class="col-md-2">
+                    <h6><i class="fas fa-trophy text-success"></i> Take Profit</h6>
+                    <h4 id="takeProfitTrades" class="text-success">0</h4>
+                </div>
+                <div class="col-md-2">
+                    <h6><i class="fas fa-shield-alt text-danger"></i> Stop Loss</h6>
+                    <h4 id="stopLossTrades" class="text-danger">0</h4>
+                </div>
+                <div class="col-md-2">
+                    <h6><i class="fas fa-arrow-up text-success"></i> Total Profit</h6>
+                    <h4 id="totalProfit" class="text-success">0.00%</h4>
+                </div>
+                <div class="col-md-2">
+                    <h6><i class="fas fa-arrow-down text-danger"></i> Total Loss</h6>
+                    <h4 id="totalLoss" class="text-danger">0.00%</h4>
+                </div>
+                <div class="col-md-2">
+                    <h6><i class="fas fa-percentage"></i> Net P&L</h6>
+                    <h4 id="netPnl">0.00%</h4>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter and Export Controls -->
+        <div class="bg-white rounded shadow-sm p-3 mb-3">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <select class="form-select form-select-sm" id="strategyFilter">
+                                <option value="">All Strategies</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select form-select-sm" id="symbolFilter">
+                                <option value="">All Symbols</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select form-select-sm" id="statusFilter">
+                                <option value="">All Status</option>
+                                <option value="OPEN">Open</option>
+                                <option value="CLOSED">Closed</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex justify-content-end gap-2">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
+                            <i class="fas fa-filter-circle-xmark"></i> Clear Filters
+                        </button>
+                        <button class="btn btn-success btn-sm" onclick="exportToExcel()">
+                            <i class="fas fa-file-excel"></i> Export Excel
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="exportToPDF()">
+                            <i class="fas fa-file-pdf"></i> Export PDF
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-card">
+            <div class="row">
+                <div class="col-md-4">
+                    <h3><i class="fas fa-chart-line"></i> Database Overview</h3>
+                    <p><strong>Total Trades:</strong> {{ total_trades or 0 }}</p>
+                </div>
+                <div class="col-md-4">
+                    <h5><i class="fas fa-clock"></i> Last Updated</h5>
+                    <p>{{ moment().format('YYYY-MM-DD HH:mm:ss') if moment else 'Just now' }}</p>
+                </div>
+                <div class="col-md-4">
+                    <h5><i class="fas fa-info-circle"></i> Status</h5>
+                    <p>Live Database Connection</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th class="sortable" onclick="sortTable(0)">Trade ID <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(1)">Strategy <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(2)">Symbol <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(3)">Side <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(4)">Entry Price <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(5)">Exit Price <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(6)">Quantity <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(7)">Leverage <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(8)">Margin (USDT) <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(9)">Status <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(10)">PnL (USDT) <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(11)">PnL (%) <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(12)">Duration (min) <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(13)">Exit Reason <i class="fas fa-sort"></i></th>
+                            <th class="sortable" onclick="sortTable(14)">Timestamp <i class="fas fa-sort"></i></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if trades %}
+                            {% for trade in trades %}
+                            <tr class="trade-row">
+                                <td>
+                                    <small class="text-muted">{{ trade.trade_id }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ trade.strategy_name }}</span>
+                                </td>
+                                <td>
+                                    <strong>{{ trade.symbol }}</strong>
+                                </td>
+                                <td>
+                                    <span class="badge {% if trade.side == 'BUY' %}side-buy{% else %}side-sell{% endif %}">
+                                        {{ trade.side }}
+                                    </span>
+                                </td>
+                                <td>
+                                    ${{ "%.4f"|format(trade.entry_price) }}
+                                </td>
+                                <td>
+                                    {% if trade.exit_price > 0 %}
+                                        ${{ "%.4f"|format(trade.exit_price) }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ "%.6f"|format(trade.quantity) }}
+                                </td>
+                                <td>
+                                    {{ trade.leverage }}x
+                                </td>
+                                <td>
+                                    ${{ "%.2f"|format(trade.margin_used) }}
+                                </td>
+                                <td>
+                                    <span class="badge {% if trade.trade_status == 'OPEN' %}status-open{% else %}status-closed{% endif %}">
+                                        {{ trade.trade_status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if trade.pnl_usdt > 0 %}
+                                        <span class="pnl-positive">+${{ "%.2f"|format(trade.pnl_usdt) }}</span>
+                                    {% elif trade.pnl_usdt < 0 %}
+                                        <span class="pnl-negative">-${{ "%.2f"|format(trade.abs_pnl_usdt) }}</span>
+                                    {% else %}
+                                        <span class="pnl-neutral">$0.00</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if trade.pnl_percentage > 0 %}
+                                        <span class="pnl-positive">+{{ "%.2f"|format(trade.pnl_percentage) }}%</span>
+                                    {% elif trade.pnl_percentage < 0 %}
+                                        <span class="pnl-negative">{{ "%.2f"|format(trade.pnl_percentage) }}%</span>
+                                    {% else %}
+                                        <span class="pnl-neutral">0.00%</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if trade.duration_minutes > 0 %}
+                                        {{ "%.2f"|format(trade.duration_minutes) }} min
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ trade.exit_reason }}</small>
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ trade.timestamp }}</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="15" class="text-center text-muted py-4">
+                                    <i class="fas fa-database"></i> No trades found in database
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Duration Modal -->
+    <div class="modal fade" id="customDurationModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Custom Duration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="customDays" class="form-label">Number of Days:</label>
+                        <input type="number" class="form-control" id="customDays" min="1" max="365" value="30">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="applyCustomDuration()">Apply</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let originalTableData = [];
+        let currentSortColumn = -1;
+        let currentSortDirection = 'asc';
+        let currentDuration = 30;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            storeOriginalData();
+            populateFilterOptions();
+            updateSummary(30);
+            setupEventListeners();
+        });
+
+        function storeOriginalData() {
+            const table = document.querySelector('tbody');
+            const rows = table.querySelectorAll('tr');
+            originalTableData = [];
+
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length > 0) {
+                    originalTableData.push({
+                        row: row.cloneNode(true),
+                        data: Array.from(cells).map(cell => cell.textContent.trim())
+                    });
+                }
+            });
+        }
+
+        function populateFilterOptions() {
+            const strategies = new Set();
+            const symbols = new Set();
+
+            originalTableData.forEach(item => {
+                if (item.data.length > 2) {
+                    strategies.add(item.data[1]); // Strategy column
+                    symbols.add(item.data[2]); // Symbol column
+                }
+            });
+
+            // Populate strategy filter
+            const strategyFilter = document.getElementById('strategyFilter');
+            strategies.forEach(strategy => {
+                const option = document.createElement('option');
+                option.value = strategy;
+                option.textContent = strategy;
+                strategyFilter.appendChild(option);
+            });
+
+            // Populate symbol filter
+            const symbolFilter = document.getElementById('symbolFilter');
+            symbols.forEach(symbol => {
+                const option = document.createElement('option');
+                option.value = symbol;
+                option.textContent = symbol;
+                symbolFilter.appendChild(option);
+            });
+        }
+
+        function setupEventListeners() {
+            document.getElementById('strategyFilter').addEventListener('change', applyFilters);
+            document.getElementById('symbolFilter').addEventListener('change', applyFilters);
+            document.getElementById('statusFilter').addEventListener('change', applyFilters);
+        }
+
+        function applyFilters() {
+            const strategyFilter = document.getElementById('strategyFilter').value;
+            const symbolFilter = document.getElementById('symbolFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+
+            let filteredData = originalTableData.filter(item => {
+                const strategy = item.data[1];
+                const symbol = item.data[2];
+                const status = item.data[9];
+
+                return (!strategyFilter || strategy.includes(strategyFilter)) &&
+                       (!symbolFilter || symbol.includes(symbolFilter)) &&
+                       (!statusFilter || status.includes(statusFilter));
+            });
+
+            updateTable(filteredData);
+        }
+
+        function clearFilters() {
+            document.getElementById('strategyFilter').value = '';
+            document.getElementById('symbolFilter').value = '';
+            document.getElementById('statusFilter').value = '';
+            updateTable(originalTableData);
+        }
+
+        function updateTable(data) {
+            const tbody = document.querySelector('tbody');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="15" class="text-center text-muted py-4">
+                            <i class="fas fa-filter"></i> No trades match the current filters
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            data.forEach(item => {
+                tbody.appendChild(item.row);
+            });
+        }
+
+        function sortTable(columnIndex) {
+            if (currentSortColumn === columnIndex) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortColumn = columnIndex;
+                currentSortDirection = 'asc';
+            }
+
+            const sortedData = [...originalTableData].sort((a, b) => {
+                let aVal = a.data[columnIndex];
+                let bVal = b.data[columnIndex];
+
+                // Handle numeric columns
+                if (columnIndex === 4 || columnIndex === 5 || columnIndex === 6 || 
+                    columnIndex === 7 || columnIndex === 8 || columnIndex === 10 || 
+                    columnIndex === 11 || columnIndex === 12) {
+                    aVal = parseFloat(aVal.replace(/[^0-9.-]/g, '')) || 0;
+                    bVal = parseFloat(bVal.replace(/[^0-9.-]/g, '')) || 0;
+                }
+
+                if (currentSortDirection === 'asc') {
+                    return aVal > bVal ? 1 : -1;
+                } else {
+                    return aVal < bVal ? 1 : -1;
+                }
+            });
+
+            updateTable(sortedData);
+            updateSortIcons(columnIndex);
+        }
+
+        function updateSortIcons(activeColumn) {
+            document.querySelectorAll('.sortable i').forEach((icon, index) => {
+                if (index === activeColumn) {
+                    icon.className = currentSortDirection === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+                } else {
+                    icon.className = 'fas fa-sort';
+                }
+            });
+        }
+
+        function updateSummary(days) {
+            currentDuration = days;
+
+            // Update active button - fix button targeting
+            if (event && event.target) {
+                document.querySelectorAll('.btn-group .btn').forEach(btn => {
+                    btn.classList.remove('btn-light', 'active');
+                    btn.classList.add('btn-outline-light');
+                });
+                event.target.classList.remove('btn-outline-light');
+                event.target.classList.add('btn-light', 'active');
+            }
+
+            // Calculate summary statistics with improved date parsing and filtering
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - days);
+
+            let totalTrades = 0;
+            let takeProfitTrades = 0;
+            let stopLossTrades = 0;
+            let totalProfitPercent = 0;
+            let totalLossPercent = 0;
+
+            console.log(`📊 Calculating summary for last ${days} days (cutoff: ${cutoffDate.toISOString().split('T')[0]})`);
+
+            originalTableData.forEach(item => {
+                if (!item.data || item.data.length < 15) return;
+
+                const timestampStr = item.data[14]; // Timestamp column
+                const pnlPercentStr = item.data[11]; // PnL % column  
+                const exitReason = item.data[13]; // Exit reason column
+                const tradeStatus = item.data[9]; // Status column
+
+                try {
+                    // Parse timestamp - handle various formats
+                    let tradeDate;
+                    if (timestampStr && timestampStr !== 'N/A' && timestampStr.trim() !== '') {
+                        // Extract just the date part for comparison
+                        let dateOnly = timestampStr;
+                        if (timestampStr.includes('T')) {
+                            dateOnly = timestampStr.split('T')[0];
+                        } else if (timestampStr.includes(' ')) {
+                            dateOnly = timestampStr.split(' ')[0];
+                        }
+
+                        tradeDate = new Date(dateOnly + 'T00:00:00');
+
+                        // Validate date
+                        if (isNaN(tradeDate.getTime())) {
+                            console.warn(`Invalid date format: ${timestampStr}`);
+                            return;
+                        }
+
+                        // Check if within date range (include trades on cutoff date)
+                        if (tradeDate >= cutoffDate) {
+                            // Only count CLOSED trades in summary
+                            const statusLower = (tradeStatus || '').toLowerCase();
+                            if (statusLower !== 'closed') {
+                                console.log(`📝 Skipping OPEN trade: ${item.data[0]} - Status: ${tradeStatus}`);
+                                return;
+                            }
+
+                            totalTrades++;
+
+                            // Extract PnL percentage more accurately
+                            let pnlPercent = 0;
+                            if (pnlPercentStr && pnlPercentStr !== 'N/A' && pnlPercentStr.trim() !== '') {
+                                // Handle both positive and negative percentages
+                                let cleanPnl = pnlPercentStr.replace(/[^\d.-]/g, '');
+                                // Handle case where negative sign might be at the end or middle
+                                if (pnlPercentStr.includes('-') && !cleanPnl.startsWith('-')) {
+                                    cleanPnl = '-' + cleanPnl.replace('-', '');
+                                }
+                                pnlPercent = parseFloat(cleanPnl) || 0;
+                            }
+
+                            // Enhanced exit reason and PnL-based classification
+                            const exitReasonLower = (exitReason || '').toLowerCase();
+
+                            // Classify trades by PnL first, then by exit reason
+                            if (pnlPercent > 0) {
+                                takeProfitTrades++;
+                                totalProfitPercent += pnlPercent;
+                            } else if (pnlPercent < 0) {
+                                stopLossTrades++;
+                                totalLossPercent += Math.abs(pnlPercent);
+                            }
+                            // Handle zero PnL trades based on exit reason
+                            else {
+                                if (exitReasonLower.includes('take profit') || 
+                                    exitReasonLower.includes('profit') ||
+                                    exitReasonLower.includes('tp hit')) {
+                                    takeProfitTrades++;
+                                } else if (exitReasonLower.includes('stop loss') || 
+                                           exitReasonLower.includes('stop-loss') ||
+                                           exitReasonLower.includes('sl hit')) {
+                                    stopLossTrades++;
+                                }
+                            }
+
+                            console.log(`📝 Trade processed: Date=${tradeDate.toISOString().split('T')[0]}, PnL=${pnlPercent}%, Exit=${exitReason}, Status=${tradeStatus}`);
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`Error processing trade: ${e.message}`, timestampStr);
+                }
+            });
+
+            const netPnl = totalProfitPercent - totalLossPercent;
+
+            console.log(`📊 Final Summary Results: Total=${totalTrades}, TP=${takeProfitTrades}, SL=${stopLossTrades}, Profit=${totalProfitPercent.toFixed(2)}%, Loss=${totalLossPercent.toFixed(2)}%`);
+
+            // Update display
+            document.getElementById('totalTrades').textContent = totalTrades;
+            document.getElementById('takeProfitTrades').textContent = takeProfitTrades;
+            document.getElementById('stopLossTrades').textContent = stopLossTrades;
+            document.getElementById('totalProfit').textContent = totalProfitPercent.toFixed(2) + '%';
+            document.getElementById('totalLoss').textContent = totalLossPercent.toFixed(2) + '%';
+
+            const netPnlElement = document.getElementById('netPnl');
+            netPnlElement.textContent = netPnl.toFixed(2) + '%';
+            netPnlElement.className = netPnl >= 0 ? 'text-success' : 'text-danger';
+        }
+
+        function showCustomDurationModal() {
+            const modal = new bootstrap.Modal(document.getElementById('customDurationModal'));
+            modal.show();
+        }
+
+        function updateSummaryWithButton(buttonEvent, days) {
+            // Set global event for updateSummary function
+            window.event = buttonEvent;
+            updateSummary(days);
+        }
+
+        function applyCustomDuration() {
+            const days = parseInt(document.getElementById('customDays').value);
+            if (days && days > 0) {
+                // Create fake event for custom duration
+                const fakeEvent = { target: document.querySelector('.btn-group .btn.active') };
+                window.event = fakeEvent;
+                updateSummary(days);
+                bootstrap.Modal.getInstance(document.getElementById('customDurationModal')).hide();
+            }
+        }
+
+        function exportToExcel() {
+            const wb = XLSX.utils.book_new();
+
+            // Prepare data for export
+            const exportData = [
+                ['Trade ID', 'Strategy', 'Symbol', 'Side', 'Entry Price', 'Exit Price', 
+                 'Quantity', 'Leverage', 'Margin (USDT)', 'Status', 'PnL (USDT)', 
+                 'PnL (%)', 'Duration (min)', 'Exit Reason', 'Timestamp']
+            ];
+
+            originalTableData.forEach(item => {
+                exportData.push(item.data);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(exportData);
+            XLSX.utils.book_append_sheet(wb, ws, "Trades Database");
+
+            const filename = `trades_database_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(wb, filename);
+        }
+
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
+
+            doc.setFontSize(16);
+            doc.text('Trading Bot - Trades Database', 14, 22);
+
+            doc.setFontSize(10);
+            doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+
+            // Prepare table data
+            const tableData = originalTableData.map(item => item.data);
+
+            doc.autoTable({
+                head: [['Trade ID', 'Strategy', 'Symbol', 'Side', 'Entry Price', 'Exit Price', 
+                       'Quantity', 'Leverage', 'Margin', 'Status', 'PnL (USDT)', 
+                       'PnL (%)', 'Duration', 'Exit Reason', 'Timestamp']],
+                body: tableData,
+                startY: 35,
+                styles: { fontSize: 8 },
+                headStyles: { fillColor: [52, 58, 64] },
+                columnStyles: {
+                    0: { cellWidth: 20 },
+                    1: { cellWidth: 18 },
+                    2: { cellWidth: 15 },
+                    3: { cellWidth: 12 },
+                    4: { cellWidth: 15 },
+                    5: { cellWidth: 15 },
+                    6: { cellWidth: 15 },
+                    7: { cellWidth: 12 },
+                    8: { cellWidth: 15 },
+                    9: { cellWidth: 12 },
+                    10: { cellWidth: 15 },
+                    11: { cellWidth: 12 },
+                    12: { cellWidth: 15 },
+                    13: { cellWidth: 20 },
+                    14: { cellWidth: 25 }
+                }
+            });
+
+            const filename = `trades_database_${new Date().toISOString().split('T')[0]}.pdf`;
+            doc.save(filename);
+        }
+
+        function refreshPage() {
+            location.reload();
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(function() {
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>
