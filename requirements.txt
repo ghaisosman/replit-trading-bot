@@ -23,7 +23,4 @@ python-telegram-bot>=22.2
 
 
 pyperclip==1.8.2
-websocket
-websocket-client
-websocket-client
-websocket-client
+websocket-client==1.8.0
