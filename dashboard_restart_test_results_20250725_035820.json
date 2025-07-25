@@ -1,0 +1,121 @@
+{
+  "phase1_setup": {
+    "status": "SUCCESS",
+    "positions_created": 3,
+    "expected_positions": 3,
+    "positions": [
+      {
+        "trade_id": "TEST_RESTART_RSI_OVERSOLD_SOLUSDT_20250725_035811_1",
+        "config": {
+          "strategy_name": "RSI_OVERSOLD_SOLUSDT",
+          "symbol": "SOLUSDT",
+          "side": "BUY",
+          "entry_price": 150.25,
+          "quantity": 0.67,
+          "margin": 50.0,
+          "leverage": 5
+        },
+        "trade_data": {
+          "trade_id": "TEST_RESTART_RSI_OVERSOLD_SOLUSDT_20250725_035811_1",
+          "strategy_name": "RSI_OVERSOLD_SOLUSDT",
+          "symbol": "SOLUSDT",
+          "side": "BUY",
+          "quantity": 0.67,
+          "entry_price": 150.25,
+          "position_value_usdt": 100.6675,
+          "margin_used": 20.1335,
+          "leverage": 5,
+          "trade_status": "OPEN",
+          "stop_loss": 142.73749999999998,
+          "take_profit": 165.275,
+          "created_at": "2025-07-25T03:58:11.089118",
+          "last_updated": "2025-07-25T03:58:11.089121"
+        }
+      },
+      {
+        "trade_id": "TEST_RESTART_MACD_DIVERGENCE_BTCUSDT_20250725_035811_2",
+        "config": {
+          "strategy_name": "MACD_DIVERGENCE_BTCUSDT",
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entry_price": 67500.0,
+          "quantity": 0.0015,
+          "margin": 100.0,
+          "leverage": 3
+        },
+        "trade_data": {
+          "trade_id": "TEST_RESTART_MACD_DIVERGENCE_BTCUSDT_20250725_035811_2",
+          "strategy_name": "MACD_DIVERGENCE_BTCUSDT",
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "quantity": 0.0015,
+          "entry_price": 67500.0,
+          "position_value_usdt": 101.25,
+          "margin_used": 33.75,
+          "leverage": 3,
+          "trade_status": "OPEN",
+          "stop_loss": 70875.0,
+          "take_profit": 60750.0,
+          "created_at": "2025-07-25T03:58:11.121116",
+          "last_updated": "2025-07-25T03:58:11.121120"
+        }
+      },
+      {
+        "trade_id": "TEST_RESTART_SMART_MONEY_ETHUSDT_20250725_035811_3",
+        "config": {
+          "strategy_name": "SMART_MONEY_ETHUSDT",
+          "symbol": "ETHUSDT",
+          "side": "BUY",
+          "entry_price": 3456.78,
+          "quantity": 0.029,
+          "margin": 75.0,
+          "leverage": 4
+        },
+        "trade_data": {
+          "trade_id": "TEST_RESTART_SMART_MONEY_ETHUSDT_20250725_035811_3",
+          "strategy_name": "SMART_MONEY_ETHUSDT",
+          "symbol": "ETHUSDT",
+          "side": "BUY",
+          "quantity": 0.029,
+          "entry_price": 3456.78,
+          "position_value_usdt": 100.24662000000001,
+          "margin_used": 25.061655000000002,
+          "leverage": 4,
+          "trade_status": "OPEN",
+          "stop_loss": 3283.9410000000003,
+          "take_profit": 3802.4580000000005,
+          "created_at": "2025-07-25T03:58:11.132200",
+          "last_updated": "2025-07-25T03:58:11.132204"
+        }
+      }
+    ]
+  },
+  "phase2_before_restart": {
+    "status": "SUCCESS",
+    "database_open_trades": 3,
+    "test_positions_in_db": 3,
+    "expected_test_positions": 3,
+    "dashboard_status": "SUCCESS",
+    "test_positions_on_dashboard": 3
+  },
+  "phase3_restart": {
+    "status": "SUCCESS",
+    "was_running_before": false,
+    "restart_completed": true,
+    "total_restart_time": 15
+  },
+  "phase4_dashboard_verification": {
+    "status": "FAILED",
+    "error": "Dashboard API not accessible"
+  },
+  "phase5_data_accuracy": {
+    "status": "FAILED",
+    "error": "No dashboard positions available"
+  },
+  "test_metadata": {
+    "test_name": "Dashboard Open Positions After Restart Test",
+    "test_duration_seconds": 9.0567,
+    "overall_status": "FAILED",
+    "timestamp": "2025-07-25T03:58:20.144815"
+  }
+}
