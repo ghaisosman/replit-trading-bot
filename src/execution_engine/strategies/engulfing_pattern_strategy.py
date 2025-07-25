@@ -191,13 +191,19 @@ class EngulfingPatternStrategy:
             body_ratio = candle_body / true_range_safe
             
             # Stable candle: body is significant portion of total range
+            # Use the configured ratio from strategy config
             stable = body_ratio > self.stable_candle_ratio
             
             # Additional validation: ensure candle has meaningful size
-            min_body_size = df['close'] * 0.001  # Minimum 0.1% of price
+            min_body_size = df['close'] * 0.0005  # Minimum 0.05% of price (relaxed)
             meaningful_size = candle_body > min_body_size
             
             stable = stable & meaningful_size
+            
+            # Debug logging to track ratio performance
+            if len(df) > 0:
+                current_ratio = body_ratio.iloc[-1] if not pd.isna(body_ratio.iloc[-1]) else 0
+                self.logger.debug(f"Stable candle check: ratio={current_ratio:.3f}, threshold={self.stable_candle_ratio}, stable={stable.iloc[-1] if len(stable) > 0 else False}")
             
             return stable
 
