@@ -32,7 +32,7 @@ async def test_live_strategy_signals():
         # Initialize components
         binance_client = BinanceClientWrapper()
         price_fetcher = PriceFetcher(binance_client)
-        signal_processor = SignalProcessor(binance_client)
+        signal_processor = SignalProcessor()
         
         # Test symbols that recently had trades
         test_symbols = ['ETHUSDT', 'XRPUSDT', 'BTCUSDT']
