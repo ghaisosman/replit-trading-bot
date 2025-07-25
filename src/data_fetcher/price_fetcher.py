@@ -8,6 +8,7 @@ from datetime import datetime, timezone, timedelta
 from src.config.global_config import global_config
 from src.data_fetcher.websocket_manager import websocket_manager
 import time
+import asyncio
 
 class PriceFetcher:
     """Fetches and processes price data"""
@@ -77,9 +78,25 @@ class PriceFetcher:
             return None
 
     async def get_market_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:
-        """Get market data from WebSocket cache with REST API fallback"""
+        """
+        Get market data with WebSocket-first approach and REST fallback
+        """
         try:
-            self.logger.debug(f"Fetching market data for {symbol} | {interval} | limit: {limit}")
+            # First try WebSocket data with connection check
+            if hasattr(self, 'websocket_manager') and self.websocket_manager:
+                # Check if WebSocket is connected, if not try to reconnect
+                if not websocket_manager.is_connected and websocket_manager.is_running:
+                    self.logger.warning(f"⚠️ WebSocket not connected for {symbol} {interval}, checking connection...")
+                    # Give it a moment to reconnect
+                    await asyncio.sleep(2)
+
+                cached_klines = websocket_manager.get_cached_klines(symbol, interval, limit)
+
+                if cached_klines and len(cached_klines) > 0:
+                    self.logger.debug(f"✅ Using WebSocket cached data for {symbol} {interval} ({len(cached_klines)} klines)")
+                    return self._convert_websocket_to_dataframe(cached_klines)
+                else:
+                    self.logger.warning(f"⚠️ Insufficient WebSocket data for {symbol} {interval} (have: {len(cached_klines) if cached_klines else 0}, need: {min(10, limit)})")
 
             # Ensure WebSocket is tracking this symbol first
             websocket_manager.add_symbol_interval(symbol, interval)
@@ -88,40 +105,32 @@ class PriceFetcher:
             if not websocket_manager.is_running:
                 self.logger.info(f"🚀 Starting WebSocket for {symbol} {interval}")
                 websocket_manager.start()
-                
+
                 # Wait for connection
                 connection_wait = 0
                 while not websocket_manager.is_connected and connection_wait < 15:
                     time.sleep(1)
                     connection_wait += 1
 
-            # Try to get cached data with relaxed freshness requirements
-            cached_klines = websocket_manager.get_cached_klines(symbol, interval, limit)
-            
-            # Check if we have any cached data at all (be more flexible for strategy validation)
-            if cached_klines and len(cached_klines) > 0:
-                self.logger.debug(f"✅ Using WebSocket cached data for {symbol} {interval} ({len(cached_klines)} klines)")
-                return self._convert_websocket_to_dataframe(cached_klines)
-            
             # If no cached data, wait for WebSocket data
             if websocket_manager.is_connected:
                 self.logger.info(f"⏳ Waiting for WebSocket data for {symbol} {interval}")
-                
+
                 wait_time = 0
                 max_wait = 45  # Increased wait time for strategy validation
-                
+
                 while wait_time < max_wait:
                     time.sleep(2)
                     wait_time += 2
-                    
+
                     cached_klines = websocket_manager.get_cached_klines(symbol, interval, limit)
                     if cached_klines and len(cached_klines) > 0:
                         self.logger.info(f"📡 Got WebSocket data after waiting {wait_time}s")
                         return self._convert_websocket_to_dataframe(cached_klines)
-                    
+
                     if wait_time % 10 == 0:  # Log every 10 seconds
                         self.logger.info(f"   ⏳ Still waiting... {wait_time}/{max_wait}s")
-                
+
                 self.logger.error(f"❌ Could not get WebSocket data for {symbol} {interval} within {max_wait}s")
                 return None
             else:
@@ -345,19 +354,19 @@ class PriceFetcher:
 
         # Sort by timestamp to ensure proper order
         df = df.sort_values(by='timestamp')
-        
+
         # Remove any duplicate timestamps
         df = df.drop_duplicates(subset=['timestamp'], keep='last')
-        
+
         # Remove any rows with NaN values
         df = df.dropna()
-        
+
         if df.empty:
             self.logger.warning(f"DataFrame is empty after processing")
             return None
-            
+
         df.set_index('timestamp', inplace=True)
-        
+
         # Return only requested amount if limit specified
         if limit:
             return df.tail(limit)

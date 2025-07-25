@@ -316,7 +316,7 @@ class WebSocketKlineManager:
         self.is_connected = False
 
     def _on_close(self, ws, close_status_code, close_msg):
-        """WebSocket connection closed with auto-reconnect"""
+        """WebSocket connection closed with immediate auto-reconnect"""
         self.is_connected = False
 
         # Handle normal closure vs error closure
@@ -325,15 +325,35 @@ class WebSocketKlineManager:
         else:
             self.logger.warning(f"WebSocket closed: {close_status_code} - {close_msg}")
 
-        # Auto-reconnect if we're supposed to be running
+        # Immediate reconnect if we're supposed to be running
         if self.is_running and self.connection_recovery_mode:
-            self.logger.info("🔄 Auto-reconnecting WebSocket...")
-            # Brief delay before reconnect
+            self.logger.info("🔄 Immediate WebSocket reconnection...")
+            # Start reconnection immediately in a separate thread
             import threading
-            threading.Timer(2.0, self._attempt_reconnect).start()
+            threading.Thread(target=self._immediate_reconnect, daemon=True).start()
+
+    def _immediate_reconnect(self):
+        """Immediate reconnection without delay"""
+        max_immediate_attempts = 3
+        for attempt in range(max_immediate_attempts):
+            if not self.is_running:
+                break
+                
+            try:
+                self.logger.info(f"🔄 Immediate reconnect attempt {attempt + 1}/{max_immediate_attempts}")
+                self._connect_websocket()
+                if self.is_connected:
+                    self.logger.info("✅ Immediate reconnection successful!")
+                    return
+            except Exception as e:
+                self.logger.error(f"Immediate reconnect attempt {attempt + 1} failed: {e}")
+                time.sleep(1)  # Brief 1-second delay between immediate attempts
+        
+        # If immediate reconnection fails, fall back to regular reconnection
+        self._attempt_reconnect()
 
     def _attempt_reconnect(self):
-        """Attempt to reconnect WebSocket"""
+        """Attempt to reconnect WebSocket with backoff"""
         if self.is_running and not self.is_connected:
             try:
                 self.logger.info("🔄 Attempting WebSocket reconnection...")
@@ -442,7 +462,12 @@ class WebSocketKlineManager:
         return None
 
     def get_current_price(self, symbol: str) -> Optional[float]:
-        """Get current price from latest kline data"""
+        """Get current price from latest kline data with connection check"""
+        # Ensure connection is active
+        if not self.is_connected and self.is_running:
+            self.logger.warning("⚠️ WebSocket not connected, attempting reconnection...")
+            self._immediate_reconnect()
+            
         # Try to get from any available interval, preferring shorter timeframes
         symbol = symbol.upper()
 
