@@ -588,9 +588,7 @@ class BotManager:
                                         else:
                                             indicator_text = "RSI: Calculating..."
                                     else:
-                                        indicator_text = "Indicators: Waiting for data..."loc[-1]
-                                        if not pd.isna(current_rsi):
-                                            indicator_text = f"RSI: {current_rsi:.1f}"
+                                        indicator_text = "Indicators: Waiting for data..."
                         except Exception as e:
                             self.logger.debug(f"Could not fetch indicators for {symbol}: {e}")
 
