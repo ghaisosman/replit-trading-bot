@@ -1,0 +1,116 @@
+{
+  "timestamp": "2025-07-25T18:48:52.460514",
+  "test_type": "engulfing_pattern_render_deployment",
+  "results": {
+    "imports": {
+      "success": true
+    },
+    "strategy_config": {
+      "success": true,
+      "strategies_found": 4,
+      "strategies": [
+        "engulfing_pattern_btc",
+        "ENGULFING_PATTERN_BTCUSDT",
+        "ENGULFING_PATTERN_ETHUSDT",
+        "ENGULFING_PATTERN_ADAUSDT"
+      ]
+    },
+    "price_fetching": {
+      "success": true,
+      "symbols_tested": 3,
+      "successful_fetches": 3,
+      "results": {
+        "BTCUSDT": {
+          "success": true,
+          "price": 116472.2
+        },
+        "ETHUSDT": {
+          "success": true,
+          "price": 3654.19
+        },
+        "ADAUSDT": {
+          "success": true,
+          "price": 0.7916
+        }
+      }
+    },
+    "strategy_initialization": {
+      "success": true,
+      "strategies_tested": 4,
+      "successful_inits": 4,
+      "results": {
+        "engulfing_pattern_btc": {
+          "success": true,
+          "symbol": "BCHUSDT",
+          "rsi_threshold": 50,
+          "stable_candle_ratio": 0.2
+        },
+        "ENGULFING_PATTERN_BTCUSDT": {
+          "success": true,
+          "symbol": "BTCUSDT",
+          "rsi_threshold": 50,
+          "stable_candle_ratio": 0.2
+        },
+        "ENGULFING_PATTERN_ETHUSDT": {
+          "success": true,
+          "symbol": "ETHUSDT",
+          "rsi_threshold": 50,
+          "stable_candle_ratio": 0.2
+        },
+        "ENGULFING_PATTERN_ADAUSDT": {
+          "success": true,
+          "symbol": "ADAUSDT",
+          "rsi_threshold": 50,
+          "stable_candle_ratio": 0.2
+        }
+      }
+    },
+    "dashboard_simulation": {
+      "success": true,
+      "dashboard_data": {
+        "engulfing_pattern_btc": {
+          "strategy_name": "engulfing_pattern_btc",
+          "symbol": "BCHUSDT",
+          "timeframe": "1h",
+          "margin": "$10.0 USDT",
+          "leverage": "3x",
+          "current_price": "Loading...",
+          "status": "PRICE_ERROR"
+        },
+        "ENGULFING_PATTERN_BTCUSDT": {
+          "strategy_name": "ENGULFING_PATTERN_BTCUSDT",
+          "symbol": "BTCUSDT",
+          "timeframe": "1h",
+          "margin": "$10.0 USDT",
+          "leverage": "3x",
+          "current_price": "$116,472.2000",
+          "status": "SCANNING"
+        },
+        "ENGULFING_PATTERN_ETHUSDT": {
+          "strategy_name": "ENGULFING_PATTERN_ETHUSDT",
+          "symbol": "ETHUSDT",
+          "timeframe": "1h",
+          "margin": "$10.0 USDT",
+          "leverage": "3x",
+          "current_price": "$3,654.1900",
+          "status": "SCANNING"
+        },
+        "ENGULFING_PATTERN_ADAUSDT": {
+          "strategy_name": "ENGULFING_PATTERN_ADAUSDT",
+          "symbol": "ADAUSDT",
+          "timeframe": "1h",
+          "margin": "$10.0 USDT",
+          "leverage": "3x",
+          "current_price": "$0.7916",
+          "status": "SCANNING"
+        }
+      }
+    },
+    "deployment_readiness": {
+      "ready": true,
+      "critical_issues": [],
+      "warnings": [],
+      "recommendation": "DEPLOY"
+    }
+  }
+}
