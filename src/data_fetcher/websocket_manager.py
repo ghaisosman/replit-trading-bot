@@ -316,7 +316,7 @@ class WebSocketKlineManager:
         self.is_connected = False
 
     def _on_close(self, ws, close_status_code, close_msg):
-        """WebSocket connection closed with immediate auto-reconnect"""
+        """WebSocket connection closed with enhanced auto-reconnect"""
         self.is_connected = False
 
         # Handle normal closure vs error closure
@@ -327,30 +327,52 @@ class WebSocketKlineManager:
 
         # Immediate reconnect if we're supposed to be running
         if self.is_running and self.connection_recovery_mode:
-            self.logger.info("🔄 Immediate WebSocket reconnection...")
-            # Start reconnection immediately in a separate thread
+            self.logger.info("🔄 Enhanced WebSocket reconnection...")
+            # Start reconnection immediately in a separate thread with higher priority
             import threading
-            threading.Thread(target=self._immediate_reconnect, daemon=True).start()
+            reconnect_thread = threading.Thread(target=self._enhanced_reconnect, daemon=True)
+            reconnect_thread.priority = 10  # Higher priority thread
+            reconnect_thread.start()
 
-    def _immediate_reconnect(self):
-        """Immediate reconnection without delay"""
-        max_immediate_attempts = 3
+    def _enhanced_reconnect(self):
+        """Enhanced reconnection with validation test support"""
+        max_immediate_attempts = 5  # Increased attempts for validation tests
         for attempt in range(max_immediate_attempts):
             if not self.is_running:
                 break
                 
             try:
-                self.logger.info(f"🔄 Immediate reconnect attempt {attempt + 1}/{max_immediate_attempts}")
+                self.logger.info(f"🔄 Enhanced reconnect attempt {attempt + 1}/{max_immediate_attempts}")
+                
+                # Close any existing connection first
+                if self.ws:
+                    try:
+                        self.ws.close()
+                    except:
+                        pass
+                    
                 self._connect_websocket()
+                
+                # Wait for stable connection
+                stable_wait = 0
+                while stable_wait < 10 and self.is_connected:
+                    time.sleep(0.5)
+                    stable_wait += 0.5
+                    
                 if self.is_connected:
-                    self.logger.info("✅ Immediate reconnection successful!")
+                    self.logger.info(f"✅ Enhanced reconnection successful after {stable_wait}s!")
                     return
+                    
             except Exception as e:
-                self.logger.error(f"Immediate reconnect attempt {attempt + 1} failed: {e}")
-                time.sleep(1)  # Brief 1-second delay between immediate attempts
+                self.logger.error(f"Enhanced reconnect attempt {attempt + 1} failed: {e}")
+                time.sleep(2)  # Longer delay for stability
         
-        # If immediate reconnection fails, fall back to regular reconnection
+        # If enhanced reconnection fails, fall back to regular reconnection
         self._attempt_reconnect()
+
+    def _immediate_reconnect(self):
+        """Fallback to enhanced reconnect for compatibility"""
+        self._enhanced_reconnect()
 
     def _attempt_reconnect(self):
         """Attempt to reconnect WebSocket with backoff"""

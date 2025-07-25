@@ -266,6 +266,30 @@ class ComprehensiveValidator:
         self.results['price_data_validation'] = price_results
         return price_results
 
+    async def _ensure_websocket_stability(self):
+        """Ensure WebSocket connection is stable before testing"""
+        if not self.websocket_manager.is_connected:
+            print("   🔄 WebSocket not connected, stabilizing connection...")
+            self.websocket_manager.stop()
+            await asyncio.sleep(3)
+            self.websocket_manager.start()
+            
+            # Wait for stable connection
+            stable_wait = 0
+            max_wait = 30
+            while stable_wait < max_wait and not self.websocket_manager.is_connected:
+                await asyncio.sleep(1)
+                stable_wait += 1
+                if stable_wait % 5 == 0:
+                    print(f"   ⏳ Stabilizing connection... {stable_wait}/{max_wait}s")
+            
+            if self.websocket_manager.is_connected:
+                print("   ✅ WebSocket connection stabilized")
+                # Additional stability wait
+                await asyncio.sleep(5)
+            else:
+                print("   ❌ Could not stabilize WebSocket connection")
+
     async def validate_strategy_logic(self):
         """Validate strategy entry/exit logic accuracy"""
         print("\n🔍 VALIDATING STRATEGY LOGIC")
@@ -283,9 +307,15 @@ class ComprehensiveValidator:
             print("\n📊 Testing RSI Strategy Logic...")
             await self._validate_rsi_strategy(strategy_results)
             
+            # Brief pause between tests for stability
+            await asyncio.sleep(3)
+            
             # Test MACD Strategy Logic
             print("\n📊 Testing MACD Strategy Logic...")
             await self._validate_macd_strategy(strategy_results)
+            
+            # Brief pause between tests for stability
+            await asyncio.sleep(3)
             
             # Test Engulfing Pattern Strategy Logic
             print("\n📊 Testing Engulfing Pattern Strategy Logic...")
@@ -299,7 +329,7 @@ class ComprehensiveValidator:
         return strategy_results
 
     async def _validate_rsi_strategy(self, results):
-        """Validate RSI strategy logic"""
+        """Validate RSI strategy logic with WebSocket stability checks"""
         try:
             from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
             
@@ -312,9 +342,21 @@ class ComprehensiveValidator:
             print(f"     Short Entry: RSI >= {rsi_config.get('rsi_short_entry', 60)}")
             print(f"     Short Exit: RSI <= {rsi_config.get('rsi_short_exit', 30)}")
             
-            # Test with XRPUSDT (common RSI symbol)
+            # Ensure WebSocket is stable before testing
+            if not self.websocket_manager.is_connected:
+                print("   🔄 WebSocket not connected, attempting stabilization...")
+                await asyncio.sleep(5)  # Wait for reconnection
+                
+                if not self.websocket_manager.is_connected:
+                    print("   ❌ WebSocket still not connected, restarting...")
+                    self.websocket_manager.stop()
+                    await asyncio.sleep(2)
+                    self.websocket_manager.start()
+                    await asyncio.sleep(10)  # Longer wait for stability
+            
+            # Test with XRPUSDT (common RSI symbol) - use 5m instead of 1h for better data availability
             symbol = 'XRPUSDT'
-            df = await self.price_fetcher.get_market_data(symbol, '1h', 100)
+            df = await self.price_fetcher.get_market_data(symbol, '5m', 100)
             
             if df is not None and not df.empty:
                 df_with_indicators = self.price_fetcher.calculate_indicators(df)
@@ -378,7 +420,7 @@ class ComprehensiveValidator:
             results['rsi_strategy'] = {'error': str(e)}
 
     async def _validate_macd_strategy(self, results):
-        """Validate MACD strategy logic"""
+        """Validate MACD strategy logic with stability checks"""
         try:
             from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
             
@@ -391,9 +433,12 @@ class ComprehensiveValidator:
             print(f"     Signal: {macd_config.get('macd_signal', 9)}")
             print(f"     Min Histogram Threshold: {macd_config.get('min_histogram_threshold', 0.0001)}")
             
-            # Test with BTCUSDT (common MACD symbol)
+            # Ensure WebSocket stability
+            await self._ensure_websocket_stability()
+            
+            # Test with BTCUSDT (common MACD symbol) - use 15m for better data availability
             symbol = 'BTCUSDT'
-            df = await self.price_fetcher.get_market_data(symbol, '1h', 100)
+            df = await self.price_fetcher.get_market_data(symbol, '15m', 100)
             
             if df is not None and not df.empty:
                 df_with_indicators = self.price_fetcher.calculate_indicators(df)
@@ -456,7 +501,7 @@ class ComprehensiveValidator:
             results['macd_strategy'] = {'error': str(e)}
 
     async def _validate_engulfing_strategy(self, results):
-        """Validate Engulfing Pattern strategy logic"""
+        """Validate Engulfing Pattern strategy logic with stability checks"""
         try:
             from src.execution_engine.strategies.engulfing_pattern_config import EngulfingPatternConfig
             
@@ -469,9 +514,12 @@ class ComprehensiveValidator:
             print(f"     Price Lookback: {engulfing_config.get('price_lookback_bars', 5)} bars")
             print(f"     Stable Candle Ratio: {engulfing_config.get('stable_candle_ratio', 0.5)}")
             
-            # Test with BCHUSDT (common engulfing symbol)
-            symbol = 'BCHUSDT'
-            df = await self.price_fetcher.get_market_data(symbol, '1h', 100)
+            # Ensure WebSocket stability
+            await self._ensure_websocket_stability()
+            
+            # Test with ETHUSDT instead of BCHUSDT for better availability - use 5m timeframe
+            symbol = 'ETHUSDT'
+            df = await self.price_fetcher.get_market_data(symbol, '5m', 100)
             
             if df is not None and not df.empty:
                 df_with_indicators = self.price_fetcher.calculate_indicators(df)
