@@ -72,5 +72,12 @@
     "partial_tp_pnl_threshold": 20.0,
     "partial_tp_position_percentage": 50.0,
     "enabled": true
+  },
+  "engulfing_pattern": {
+    "enabled": true,
+    "symbol": "BTCUSDT",
+    "margin": 10.0,
+    "leverage": 3,
+    "timeframe": "1h"
   }
 }

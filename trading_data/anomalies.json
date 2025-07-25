@@ -29,7 +29,22 @@
       "notified": true,
       "cleared_at": null,
       "binance_position_amt": 0.0
+    },
+    "orphan_RSI_ETH_ETHUSDT": {
+      "id": "orphan_RSI_ETH_ETHUSDT",
+      "type": "orphan",
+      "symbol": "ETHUSDT",
+      "strategy_name": "RSI_ETH",
+      "quantity": 0.01,
+      "side": "SELL",
+      "entry_price": 3647.12,
+      "detected_at": "2025-07-25T19:26:57.372888",
+      "status": "active",
+      "cycles_remaining": 1,
+      "notified": true,
+      "cleared_at": null,
+      "binance_position_amt": 0.0
     }
   },
-  "last_updated": "2025-07-25T19:26:26.898288"
+  "last_updated": "2025-07-25T19:27:57.719889"
 }
