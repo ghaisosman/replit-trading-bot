@@ -1375,7 +1375,10 @@ def update_strategy(strategy_name):
 
 @app.route('/api/balance')
 @rate_limit('balance', max_requests=10, window_seconds=60)
-def get_balance():
+def indent the whole file and fix the indentation error at line 338
+
+```python
+ get_balance():
     """Get balance with bulletproof error handling and comprehensive debugging"""
     request_id = f"balance_{int(time.time() * 1000)}"
     logger.debug(f"🔍 DEBUG [{request_id}]: Balance API called")
@@ -2198,7 +2201,6 @@ def get_ml_insights():
             return jsonify({'success': False, 'error': insights['error']})
 
         return jsonify({'success': True, 'insights': insights})
-
     except Exception as e:
         logger.error(f"Error getting ML insights: {e}")
         return jsonify({'success': False, 'error': str(e)})
