@@ -1,0 +1,116 @@
+{
+  "timestamp": "2025-07-25T08:34:46.528112",
+  "websocket_validation": {
+    "connection_status": "CONNECTED",
+    "data_reception": "SUCCESS",
+    "stream_count": 8,
+    "symbols_tracked": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "XRPUSDT",
+      "SOLUSDT"
+    ],
+    "data_freshness": {
+      "BTCUSDT_1m": {
+        "is_fresh": true,
+        "cached_klines": 2,
+        "last_update": "2025-07-25T08:34:48.260682"
+      },
+      "BTCUSDT_5m": {
+        "is_fresh": true,
+        "cached_klines": 2,
+        "last_update": "2025-07-25T08:34:48.260460"
+      },
+      "ETHUSDT_1m": {
+        "is_fresh": true,
+        "cached_klines": 1,
+        "last_update": "2025-07-25T08:34:47.859666"
+      },
+      "ETHUSDT_5m": {
+        "is_fresh": true,
+        "cached_klines": 1,
+        "last_update": "2025-07-25T08:34:47.859734"
+      },
+      "XRPUSDT_1m": {
+        "is_fresh": true,
+        "cached_klines": 1,
+        "last_update": "2025-07-25T08:34:48.090225"
+      },
+      "XRPUSDT_5m": {
+        "is_fresh": true,
+        "cached_klines": 1,
+        "last_update": "2025-07-25T08:34:48.089472"
+      },
+      "SOLUSDT_1m": {
+        "is_fresh": true,
+        "cached_klines": 1,
+        "last_update": "2025-07-25T08:34:47.835501"
+      },
+      "SOLUSDT_5m": {
+        "is_fresh": true,
+        "cached_klines": 1,
+        "last_update": "2025-07-25T08:34:47.836128"
+      }
+    },
+    "message_processing": "UNKNOWN",
+    "statistics": {
+      "messages_received": 10,
+      "klines_processed": 10,
+      "connection_uptime": 1753432487.678963,
+      "last_message_time": "2025-07-25 08:34:48.260671",
+      "reconnections": 1,
+      "is_connected": true,
+      "subscribed_streams": 8,
+      "cached_symbols": 4,
+      "uptime_seconds": 0.5925478935241699
+    },
+    "current_prices": {
+      "BTCUSDT": 115455.5,
+      "ETHUSDT": 3656.83,
+      "XRPUSDT": 3.0912
+    }
+  },
+  "strategy_validation": {
+    "rsi_strategy": {
+      "error": "No data available"
+    },
+    "macd_strategy": {
+      "error": "No data available"
+    },
+    "engulfing_strategy": {
+      "error": "No data available"
+    },
+    "signal_generation_accuracy": {}
+  },
+  "price_data_validation": {
+    "data_availability": {
+      "BTCUSDT": {
+        "market_data_available": false,
+        "indicators_calculated": false,
+        "data_points": 0,
+        "websocket_data": false,
+        "rest_fallback": false
+      },
+      "ETHUSDT": {
+        "market_data_available": false,
+        "indicators_calculated": false,
+        "data_points": 0,
+        "websocket_data": false,
+        "rest_fallback": false
+      },
+      "XRPUSDT": {
+        "market_data_available": false,
+        "indicators_calculated": false,
+        "data_points": 0,
+        "websocket_data": false,
+        "rest_fallback": false
+      }
+    },
+    "indicator_calculation": {},
+    "data_quality": {},
+    "websocket_vs_rest": {}
+  },
+  "indicator_validation": {},
+  "signal_generation_validation": {},
+  "overall_status": "PARTIAL"
+}
