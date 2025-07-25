@@ -16,7 +16,7 @@ def get_engulfing_pattern_config():
             'rsi_threshold': 50,
             'rsi_long_exit': 70,
             'rsi_short_exit': 30,
-            'stable_candle_ratio': 0.3,  # Relaxed from 0.5
+            'stable_candle_ratio': 0.2,  # Further relaxed for more pattern detection
             'price_lookback_bars': 5,
             'max_loss_pct': 10
         },
@@ -30,7 +30,7 @@ def get_engulfing_pattern_config():
             'rsi_threshold': 50,
             'rsi_long_exit': 70,
             'rsi_short_exit': 30,
-            'stable_candle_ratio': 0.3,  # Relaxed from 0.5
+            'stable_candle_ratio': 0.2,  # Further relaxed for more pattern detection
             'price_lookback_bars': 5,
             'max_loss_pct': 10
         },
@@ -44,7 +44,7 @@ def get_engulfing_pattern_config():
             'rsi_threshold': 50,
             'rsi_long_exit': 70,
             'rsi_short_exit': 30,
-            'stable_candle_ratio': 0.3,  # Relaxed from 0.5
+            'stable_candle_ratio': 0.2,  # Further relaxed for more pattern detection
             'price_lookback_bars': 5,
             'max_loss_pct': 10
         }
