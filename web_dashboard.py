@@ -334,14 +334,14 @@ def dashboard():
             # Ensure we always have both strategies available for display
             if 'rsi_oversold' not in strategies:
                 strategies['rsi_oversold'] = {
-                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m',
+                    'symbol': 'SOLUSDT', 'margin': 12.5, 'leverage': 25, 'timeframe': '15m'},
                     'max_loss_pct': 5, 'assessment_interval': 20, 'decimals': 2,
                     'cooldown_period': 300, 'rsi_long_entry': 30, 'rsi_long_exit': 70,
                     'rsi_short_entry': 70, 'rsi_short_exit': 30
                 }
             if 'macd_divergence' not in strategies:
                 strategies['macd_divergence'] = {
-                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '5m',
+                    'symbol': 'BTCUSDT', 'margin': 50.0, 'leverage': 5, 'timeframe': '5m'},
                     'max_loss_pct': 10, 'assessment_interval': 60, 'decimals': 3,
                     'cooldown_period': 300, 'macd_fast': 12, 'macd_slow': 26, 'macd_signal': 9,
                     'min_histogram_threshold': 0.0001, 'macd_entry_threshold': 0.05,
@@ -649,13 +649,13 @@ def get_bot_status():
                 if IMPORTS_AVAILABLE:
                     from src.execution_engine.trade_database import TradeDatabase
                     trade_db = TradeDatabase()
-                    
+
                     # Count open trades in database
                     open_count = 0
                     for trade_id, trade_data in trade_db.trades.items():
                         if trade_data.get('trade_status') == 'OPEN':
                             open_count += 1
-                    
+
                     default_response['active_positions'] = open_count
                     logger.debug(f"🔍 DEBUG [{request_id}]: Active positions from database: {open_count}")
                 else:
@@ -1531,22 +1531,22 @@ def get_positions():
             try:
                 from src.execution_engine.trade_database import TradeDatabase
                 trade_db = TradeDatabase()
-                
+
                 # Get all open trades from database
                 open_trades = []
                 for trade_id, trade_data in trade_db.trades.items():
                     if trade_data.get('trade_status') == 'OPEN':
                         open_trades.append((trade_id, trade_data))
-                
+
                 logger.info(f"🔍 DEBUG: Found {len(open_trades)} open trades in database")
-                
+
                 # Convert database trades to position format
                 for trade_id, trade_data in open_trades:
                     try:
                         symbol = trade_data.get('symbol')
                         if not symbol:
                             continue
-                            
+
                         # Get current price for PnL calculation
                         current_price = None
                         try:
@@ -1559,7 +1559,7 @@ def get_positions():
                         # Calculate PnL
                         pnl = 0.0
                         pnl_percent = 0.0
-                        
+
                         if current_price and trade_data.get('entry_price') and trade_data.get('quantity'):
                             entry_price = float(trade_data['entry_price'])
                             quantity = float(trade_data['quantity'])
@@ -1635,13 +1635,13 @@ def get_positions():
         # Return positions with proper status
         status = 'active' if positions else 'no_positions'
         logger.info(f"🔍 DEBUG: Returning {len(positions)} positions with status: {status}")
-        
+
         # Add position summary for debugging
         if positions:
             logger.debug(f"📊 Position summary:")
             for pos in positions:
                 logger.debug(f"   {pos.get('strategy', 'Unknown')}: {pos.get('symbol', 'Unknown')} - ${pos.get('current_price', 0):.4f}")
-        
+
         return jsonify({
             'success': True,
             'positions': positions,
@@ -1659,7 +1659,7 @@ def get_positions():
         logger.error(f"❌ Positions API error: {e}")
         import traceback
         logger.error(f"❌ Positions API traceback: {traceback.format_exc()}")
-        
+
         default_response.update({
             'success': False,
             'status': 'api_error',
@@ -1694,11 +1694,11 @@ def get_rsi(symbol):
         # Try to get market data with multiple fallbacks
         klines = None
         intervals_to_try = ['15m', '5m', '1h']
-        
+
         for interval in intervals_to_try:
             try:
                 logger.debug(f"   Trying {interval} interval for {symbol}")
-                
+
                 if binance_client.is_futures:
                     klines = binance_client.client.futures_klines(
                         symbol=symbol,
@@ -1717,7 +1717,7 @@ def get_rsi(symbol):
                     break
                 else:
                     logger.debug(f"   ⚠️ Insufficient data with {interval}: {len(klines) if klines else 0} klines")
-                    
+
             except Exception as interval_error:
                 logger.debug(f"   ❌ Failed {interval} interval: {interval_error}")
                 continue
@@ -1971,7 +1971,7 @@ def get_current_price(symbol):
         if not IMPORTS_AVAILABLE:
             logger.debug(f"Price fetcher not available for {symbol} - demo mode")
             return None
-            
+
         if not price_fetcher:
             logger.warning(f"Price fetcher instance not available for {symbol}")
             return None
@@ -1987,7 +1987,7 @@ def get_current_price(symbol):
                 return None
         except Exception as price_error:
             logger.error(f"❌ Price fetch failed for {symbol}: {price_error}")
-            
+
             # Try fallback method with direct Binance client
             try:
                 ticker = price_fetcher.binance_client.get_symbol_ticker(symbol)
@@ -2005,7 +2005,7 @@ def get_current_price(symbol):
             except Exception as fallback_error:
                 logger.error(f"❌ Fallback price fetch failed for {symbol}: {fallback_error}")
                 return None
-                
+
     except Exception as e:
         logger.error(f"❌ Critical error getting current price for {symbol}: {e}")
         import traceback

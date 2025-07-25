@@ -451,6 +451,102 @@ class BotManager:
                     self.telegram_reporter.report_error("Unexpected Error", str(e))
                     await asyncio.sleep(min(30, 5 * consecutive_errors))  # Progressive backoff
 
+    def _display_strategy_scanning_block(self, strategy_name: str, strategy_config: Dict, df: pd.DataFrame, current_price: float):
+        """Display clean strategy scanning block with current indicators for web dashboard"""
+        try:
+            symbol = strategy_config.get('symbol', 'UNKNOWN')
+            timeframe = strategy_config.get('timeframe', '15m')
+            margin = strategy_config.get('margin', 50.0)
+            leverage = strategy_config.get('leverage', 5)
+
+            # Get current indicators based on strategy type
+            indicator_display = "Loading..."
+            
+            try:
+                if 'rsi' in strategy_name.lower() and 'engulfing' not in strategy_name.lower():
+                    # RSI Strategy
+                    if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
+                        current_rsi = df['rsi'].iloc[-1]
+                        if not pd.isna(current_rsi):
+                            rsi_entry = strategy_config.get('rsi_long_entry', 30)
+                            rsi_exit = strategy_config.get('rsi_long_exit', 70)
+                            indicator_display = f"RSI: {current_rsi:.1f} (Entry: <{rsi_entry}, Exit: >{rsi_exit})"
+                        else:
+                            indicator_display = "RSI: Calculating..."
+                    else:
+                        indicator_display = "RSI: Waiting for data..."
+
+                elif 'macd' in strategy_name.lower():
+                    # MACD Strategy
+                    if ('macd' in df.columns and 'macd_signal' in df.columns and 
+                        len(df['macd'].dropna()) > 0 and len(df['macd_signal'].dropna()) > 0):
+                        macd_line = df['macd'].iloc[-1]
+                        macd_signal = df['macd_signal'].iloc[-1]
+                        if not pd.isna(macd_line) and not pd.isna(macd_signal):
+                            macd_diff = macd_line - macd_signal
+                            indicator_display = f"MACD: {macd_line:.4f}/{macd_signal:.4f} (Diff: {macd_diff:+.4f})"
+                        else:
+                            indicator_display = "MACD: Calculating..."
+                    else:
+                        indicator_display = "MACD: Waiting for data..."
+
+                elif 'engulfing' in strategy_name.lower():
+                    # Engulfing Pattern Strategy
+                    rsi_value = "N/A"
+                    pattern_status = "No Pattern"
+                    stable_status = "❌"
+
+                    if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
+                        current_rsi = df['rsi'].iloc[-1]
+                        if not pd.isna(current_rsi):
+                            rsi_value = f"{current_rsi:.1f}"
+
+                    # Check for patterns
+                    if len(df) >= 2:
+                        if 'bullish_engulfing' in df.columns and df['bullish_engulfing'].iloc[-1]:
+                            pattern_status = "Bullish Engulfing"
+                        elif 'bearish_engulfing' in df.columns and df['bearish_engulfing'].iloc[-1]:
+                            pattern_status = "Bearish Engulfing"
+
+                    # Check stability
+                    stable_ratio = strategy_config.get('stable_candle_ratio', 0.5)
+                    if 'is_stable' in df.columns and df['is_stable'].iloc[-1]:
+                        stable_status = "✅"
+
+                    indicator_display = f"RSI: {rsi_value} | Pattern: {pattern_status} | Stable: {stable_status}"
+
+                elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
+                    # Smart Money Strategy
+                    indicator_display = "Smart Money Analysis"
+                    if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
+                        current_rsi = df['rsi'].iloc[-1]
+                        if not pd.isna(current_rsi):
+                            indicator_display += f" | RSI: {current_rsi:.1f}"
+
+                else:
+                    # Other strategies - show RSI as fallback
+                    if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
+                        current_rsi = df['rsi'].iloc[-1]
+                        if not pd.isna(current_rsi):
+                            indicator_display = f"RSI: {current_rsi:.1f}"
+                        else:
+                            indicator_display = "RSI: Calculating..."
+                    else:
+                        indicator_display = "Indicators: Waiting for data..."
+
+            except Exception as e:
+                self.logger.debug(f"Error calculating indicators for display: {e}")
+                indicator_display = "Indicators: Error loading"
+
+            # Display clean strategy scanning block
+            self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
+            self.logger.info(f"💱 Symbol: {symbol} | ⏱️ Timeframe: {timeframe}")
+            self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
+            self.logger.info(f"📊 {indicator_display}")
+
+        except Exception as e:
+            self.logger.error(f"Error displaying strategy scanning block: {e}")
+
     async def _display_active_positions_pnl_throttled(self):
         """Display current PnL for all active positions with throttling - FIXED DUPLICATE DISPLAY"""
         try:
@@ -733,7 +829,7 @@ class BotManager:
                                 'symbol': symbol,
                                 'side': side,
                                 'quantity': quantity,
-                                ''entry_price': entry_price,
+                                'entry_price': entry_price,
                                 'position_amt': position_amt
                             }
                             self.logger.info(f"🔍 DEBUG: Found Binance position: {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price}")
@@ -873,9 +969,11 @@ class BotManager:
             if not self._check_balance_requirements(strategy_config):
                 return
 
-            # Log market assessment start
+            # Clean strategy scanning display for web dashboard
             margin = strategy_config.get('margin', 50.0)
             leverage = strategy_config.get('leverage', 5)
+            
+            # Log scanning start with clean format
             self.logger.info(f"🔍 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | Margin: ${margin:.1f} | Leverage: {leverage}x")
 
             # Enhanced market data fetching with timeframe-specific optimization
@@ -911,6 +1009,9 @@ class BotManager:
             # Ensure strategy name is in config for signal processor
             strategy_config_with_name = strategy_config.copy()
             strategy_config_with_name['name'] = strategy_name
+
+            # Display strategy scanning block with current indicators
+            self._display_strategy_scanning_block(strategy_name, strategy_config, df, current_price)
 
             # Evaluate entry conditions
             signal = self.signal_processor.evaluate_entry_conditions(df, strategy_config_with_name)
