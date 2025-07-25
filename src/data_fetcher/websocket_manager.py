@@ -439,25 +439,30 @@ class WebSocketKlineManager:
         """Check if cached data is fresh enough with startup grace period"""
         symbol = symbol.upper()
 
-        if symbol not in self.last_updates or interval not in self.last_updates[symbol]:
-            # During startup, check if we have any cached data at all
-            if symbol in self.kline_cache and interval in self.kline_cache[symbol]:
-                cached_data = list(self.kline_cache[symbol][interval])
-                if len(cached_data) > 0:
-                    # If we have data but no update timestamp, it's startup - be lenient
-                    self.logger.debug(f"💡 No timestamp but have data for {symbol} {interval} - startup grace period")
-                    return True
-            return False
-
-        last_update = self.last_updates[symbol][interval]
-        age = (datetime.now() - last_update).total_seconds()
-
-        # Be more lenient during the first few minutes after connection
-        connection_time = time.time() - self.stats.get('connection_uptime', time.time())
-        if connection_time < 300:  # First 5 minutes after connection
-            max_age_seconds = max(max_age_seconds, 300)  # Allow up to 5 minutes old data
-
-        return age <= max_age_seconds
+        # First check if we have any data at all
+        if symbol in self.kline_cache and interval in self.kline_cache[symbol]:
+            cached_data = list(self.kline_cache[symbol][interval])
+            if len(cached_data) > 0:
+                # If we have recent data, check timestamp
+                if symbol in self.last_updates and interval in self.last_updates[symbol]:
+                    last_update = self.last_updates[symbol][interval]
+                    age = (datetime.now() - last_update).total_seconds()
+                    
+                    # Be more lenient during the first few minutes after connection
+                    connection_time = time.time() - self.stats.get('connection_uptime', time.time())
+                    if connection_time < 300:  # First 5 minutes after connection
+                        max_age_seconds = max(max_age_seconds, 300)  # Allow up to 5 minutes old data
+                    
+                    return age <= max_age_seconds
+                else:
+                    # Have data but no timestamp - check if data itself is recent
+                    latest_kline = cached_data[-1]
+                    data_age = time.time() - latest_kline.get('received_at', 0)
+                    if data_age <= max_age_seconds * 2:  # Double tolerance for received_at
+                        self.logger.debug(f"💡 Using received_at timestamp for freshness check: {data_age:.1f}s")
+                        return True
+        
+        return False
 
     def add_update_callback(self, callback: Callable):
         """Add callback function for real-time updates"""

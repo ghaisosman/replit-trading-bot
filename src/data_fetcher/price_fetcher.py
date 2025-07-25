@@ -81,140 +81,55 @@ class PriceFetcher:
         try:
             self.logger.debug(f"Fetching market data for {symbol} | {interval} | limit: {limit}")
 
-            # First, try to get data from WebSocket cache
+            # Ensure WebSocket is tracking this symbol first
+            websocket_manager.add_symbol_interval(symbol, interval)
+
+            # Start WebSocket if not running
+            if not websocket_manager.is_running:
+                self.logger.info(f"🚀 Starting WebSocket for {symbol} {interval}")
+                websocket_manager.start()
+                
+                # Wait for connection
+                connection_wait = 0
+                while not websocket_manager.is_connected and connection_wait < 15:
+                    time.sleep(1)
+                    connection_wait += 1
+
+            # Try to get cached data with relaxed freshness requirements
             cached_klines = websocket_manager.get_cached_klines(symbol, interval, limit)
-
-            if cached_klines and websocket_manager.is_data_fresh(symbol, interval, max_age_seconds=60):
+            
+            # Check if we have any cached data at all (be more flexible for strategy validation)
+            if cached_klines and len(cached_klines) > 0:
                 self.logger.debug(f"✅ Using WebSocket cached data for {symbol} {interval} ({len(cached_klines)} klines)")
-
-                # Convert WebSocket data to DataFrame
-                df_data = []
-                for kline in cached_klines:
-                    df_data.append([
-                        kline['timestamp'], kline['open'], kline['high'], kline['low'], 
-                        kline['close'], kline['volume'], kline['close_time'],
-                        0, 0, 0, 0, 0  # Placeholder values for additional columns
-                    ])
-
-                df = pd.DataFrame(df_data, columns=[
-                    'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                    'close_time', 'quote_asset_volume', 'number_of_trades',
-                    'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
-                ])
-
+                return self._convert_websocket_to_dataframe(cached_klines)
+            
+            # If no cached data, wait for WebSocket data
+            if websocket_manager.is_connected:
+                self.logger.info(f"⏳ Waiting for WebSocket data for {symbol} {interval}")
+                
+                wait_time = 0
+                max_wait = 45  # Increased wait time for strategy validation
+                
+                while wait_time < max_wait:
+                    time.sleep(2)
+                    wait_time += 2
+                    
+                    cached_klines = websocket_manager.get_cached_klines(symbol, interval, limit)
+                    if cached_klines and len(cached_klines) > 0:
+                        self.logger.info(f"📡 Got WebSocket data after waiting {wait_time}s")
+                        return self._convert_websocket_to_dataframe(cached_klines)
+                    
+                    if wait_time % 10 == 0:  # Log every 10 seconds
+                        self.logger.info(f"   ⏳ Still waiting... {wait_time}/{max_wait}s")
+                
+                self.logger.error(f"❌ Could not get WebSocket data for {symbol} {interval} within {max_wait}s")
+                return None
             else:
-                # Instead of REST API fallback, wait for WebSocket data
-                self.logger.warning(f"⚠️ WebSocket data unavailable/stale for {symbol} {interval}")
-
-                # Ensure WebSocket is tracking this symbol
-                websocket_manager.add_symbol_interval(symbol, interval)
-
-                # Wait for WebSocket data instead of REST fallback
-                if websocket_manager.is_connected:
-                    self.logger.info(f"⏳ Waiting for WebSocket data for {symbol} {interval}")
-
-                    wait_time = 0
-                    max_wait = 30  # 30 seconds max wait
-
-                    while wait_time < max_wait:
-                        time.sleep(2)
-                        wait_time += 2
-
-                        cached_klines = websocket_manager.get_cached_klines(symbol, interval, limit)
-                        if cached_klines and websocket_manager.is_data_fresh(symbol, interval, max_age_seconds=300):
-                            self.logger.info(f"📡 Got WebSocket data after waiting {wait_time}s")
-
-                            # Convert WebSocket data to DataFrame
-                            df_data = []
-                            for kline in cached_klines:
-                                df_data.append([
-                                    kline['timestamp'], kline['open'], kline['high'], kline['low'], 
-                                    kline['close'], kline['volume'], kline['close_time'],
-                                    0, 0, 0, 0, 0  # Placeholder values for additional columns
-                                ])
-
-                            df = pd.DataFrame(df_data, columns=[
-                                'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                                'close_time', 'quote_asset_volume', 'number_of_trades',
-                                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
-                            ])
-                            break
-                    else:
-                        # If we couldn't get WebSocket data, return None instead of REST call
-                        self.logger.error(f"❌ Could not get WebSocket data for {symbol} {interval} within {max_wait}s")
-                        return None
-                else:
-                    self.logger.error(f"❌ WebSocket not connected, cannot fetch data for {symbol} {interval}")
-                    return None
-
-            # Apply timezone adjustment if configured (preserves all existing logic)
-            if self.use_local_timezone or self.timezone_offset_hours != 0:
-                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-                df['timestamp'] = df['timestamp'].apply(lambda x: self._adjust_timestamp_for_timezone(int(x.timestamp() * 1000)))
-            else:
-                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-
-            # Convert to proper data types with high precision
-            numeric_columns = ['open', 'high', 'low', 'close', 'volume']
-            for col in numeric_columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-
-            # Try to enhance with real-time WebSocket data if we're using cached data
-            if cached_klines:
-                try:
-                    latest_ws_kline = websocket_manager.get_latest_kline(symbol, interval)
-                    if latest_ws_kline:
-                        # Convert ws_data timestamp to datetime object
-                        latest_timestamp = pd.to_datetime(int(latest_ws_kline['timestamp']), unit='ms')
-
-                        # If the latest WebSocket data is newer than our last cached data
-                        if latest_timestamp > df['timestamp'].iloc[-1]:
-                            # Add new row with WebSocket data
-                            new_row = pd.DataFrame({
-                                'timestamp': [latest_timestamp],
-                                'open': [latest_ws_kline['open']],
-                                'high': [latest_ws_kline['high']],
-                                'low': [latest_ws_kline['low']],
-                                'close': [latest_ws_kline['close']],
-                                'volume': [latest_ws_kline['volume']],
-                                'close_time': [latest_ws_kline['close_time']],
-                                'quote_asset_volume': [0],
-                                'number_of_trades': [0],
-                                'taker_buy_base_asset_volume': [0],
-                                'taker_buy_quote_asset_volume': [0],
-                                'ignore': [0]
-                            })
-                            df = pd.concat([df, new_row], ignore_index=True)
-                            self.logger.debug(f"Enhanced {symbol} data with latest WebSocket kline")
-                        else:
-                            # Update the last row with current WebSocket data
-                            df.iloc[-1, df.columns.get_loc('close')] = latest_ws_kline['close']
-                            df.iloc[-1, df.columns.get_loc('high')] = max(df.iloc[-1]['high'], latest_ws_kline['high'])
-                            df.iloc[-1, df.columns.get_loc('low')] = min(df.iloc[-1]['low'], latest_ws_kline['low'])
-                            df.iloc[-1, df.columns.get_loc('volume')] = latest_ws_kline['volume']
-                            self.logger.debug(f"Updated {symbol} latest candle with WebSocket data")
-
-                except Exception as ws_error:
-                    self.logger.debug(f"WebSocket enhancement failed for {symbol}: {ws_error}")
-                    # Continue with cached data
-
-            # Sort by timestamp to ensure proper order
-            df = df.sort_values(by='timestamp')
-
-            # Remove any duplicate timestamps
-            df = df[~df.index.duplicated(keep='last')]
-
-            # Remove any rows with NaN values
-            df = df.dropna()
-
-            if df.empty:
-                self.logger.warning(f"DataFrame is empty after processing for {symbol}")
+                self.logger.error(f"❌ WebSocket not connected, cannot fetch data for {symbol} {interval}")
                 return None
 
-            df.set_index('timestamp', inplace=True)
-
-            # Return only requested amount
-            return df.tail(limit)
+            # Use the helper method for consistent dataframe conversion
+            return self._convert_websocket_to_dataframe(cached_klines, limit)
 
         except Exception as e:
             self.logger.error(f"Error fetching market data for {symbol}: {e}")
@@ -400,7 +315,7 @@ class PriceFetcher:
 
         return rsi
 
-    def _convert_websocket_to_dataframe(self, cached_data: List[Dict]) -> pd.DataFrame:
+    def _convert_websocket_to_dataframe(self, cached_data: List[Dict], limit: int = None) -> pd.DataFrame:
         """Convert WebSocket data to DataFrame format"""
         df_data = []
         for kline in cached_data:
@@ -428,6 +343,22 @@ class PriceFetcher:
         for col in numeric_columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
 
+        # Sort by timestamp to ensure proper order
+        df = df.sort_values(by='timestamp')
+        
+        # Remove any duplicate timestamps
+        df = df.drop_duplicates(subset=['timestamp'], keep='last')
+        
+        # Remove any rows with NaN values
+        df = df.dropna()
+        
+        if df.empty:
+            self.logger.warning(f"DataFrame is empty after processing")
+            return None
+            
         df.set_index('timestamp', inplace=True)
-
+        
+        # Return only requested amount if limit specified
+        if limit:
+            return df.tail(limit)
         return df
