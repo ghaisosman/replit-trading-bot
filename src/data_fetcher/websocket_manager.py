@@ -325,6 +325,16 @@ class WebSocketKlineManager:
         else:
             self.logger.warning(f"WebSocket closed: {close_status_code} - {close_msg}")
 
+        # PRESERVE EXISTING CACHE DATA during reconnection
+        cache_sizes = {}
+        for symbol in self.kline_cache:
+            cache_sizes[symbol] = {}
+            for interval in self.kline_cache[symbol]:
+                cache_sizes[symbol][interval] = len(self.kline_cache[symbol][interval])
+        
+        if cache_sizes:
+            self.logger.info(f"📊 Preserving cached data during reconnection: {cache_sizes}")
+
         # Immediate reconnect if we're supposed to be running
         if self.is_running and self.connection_recovery_mode:
             self.logger.info("🔄 Enhanced WebSocket reconnection...")
