@@ -103,25 +103,49 @@ class PriceFetcher:
                 ])
 
             else:
-                # Fallback to REST API if WebSocket data is not available or stale
-                self.logger.warning(f"⚠️ WebSocket data unavailable/stale for {symbol} {interval}, using REST API fallback")
-
-                # Make sure symbol/interval is added to WebSocket manager for future
+                # Instead of REST API fallback, wait for WebSocket data
+                self.logger.warning(f"⚠️ WebSocket data unavailable/stale for {symbol} {interval}")
+                
+                # Ensure WebSocket is tracking this symbol
                 websocket_manager.add_symbol_interval(symbol, interval)
+                
+                # Wait for WebSocket data instead of REST fallback
+                if websocket_manager.is_connected:
+                    self.logger.info(f"⏳ Waiting for WebSocket data for {symbol} {interval}")
+                    
+                    wait_time = 0
+                    max_wait = 30  # 30 seconds max wait
+                    
+                    while wait_time < max_wait:
+                        time.sleep(2)
+                        wait_time += 2
+                        
+                        cached_klines = websocket_manager.get_cached_klines(symbol, interval, limit)
+                        if cached_klines and websocket_manager.is_data_fresh(symbol, interval, max_age_seconds=300):
+                            self.logger.info(f"📡 Got WebSocket data after waiting {wait_time}s")
+                            
+                            # Convert WebSocket data to DataFrame
+                            df_data = []
+                            for kline in cached_klines:
+                                df_data.append([
+                                    kline['timestamp'], kline['open'], kline['high'], kline['low'], 
+                                    kline['close'], kline['volume'], kline['close_time'],
+                                    0, 0, 0, 0, 0  # Placeholder values for additional columns
+                                ])
 
-                # Use REST API as fallback (rate limited)
-                klines = self.binance_client.get_historical_klines(symbol, interval, limit)
-
-                if not klines:
-                    self.logger.warning(f"No kline data received for {symbol}")
+                            df = pd.DataFrame(df_data, columns=[
+                                'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                                'close_time', 'quote_asset_volume', 'number_of_trades',
+                                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
+                            ])
+                            break
+                    else:
+                        # If we couldn't get WebSocket data, return None instead of REST call
+                        self.logger.error(f"❌ Could not get WebSocket data for {symbol} {interval} within {max_wait}s")
+                        return None
+                else:
+                    self.logger.error(f"❌ WebSocket not connected, cannot fetch data for {symbol} {interval}")
                     return None
-
-                # Convert to DataFrame
-                df = pd.DataFrame(klines, columns=[
-                    'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                    'close_time', 'quote_asset_volume', 'number_of_trades',
-                    'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
-                ])
 
             # Apply timezone adjustment if configured (preserves all existing logic)
             if self.use_local_timezone or self.timezone_offset_hours != 0:
@@ -199,40 +223,54 @@ class PriceFetcher:
     def get_ohlcv_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:
         """Get OHLCV data as DataFrame with enhanced accuracy"""
         try:
-            # Check WebSocket data freshness first
-            if websocket_manager.is_data_fresh(symbol, interval, max_age_seconds=120):
-                cached_data = websocket_manager.get_cached_klines(symbol, interval, limit)
-                if cached_data:
-                    self.logger.info(f"📡 Using fresh WebSocket data for {symbol} {interval} ({len(cached_data)} klines)")
-                    return self._convert_websocket_to_dataframe(cached_data)
-
-            # CRITICAL: Avoid REST API calls during IP ban period
-            self.logger.warning(f"⚠️ WebSocket data unavailable/stale for {symbol} {interval}")
-
-            # Start WebSocket for this symbol if not already streaming
+            # First, ensure WebSocket is tracking this symbol/interval
+            websocket_manager.add_symbol_interval(symbol, interval)
+            
+            # Check if WebSocket is connected first
             if not websocket_manager.is_connected:
-                self.logger.info(f"🔄 Starting WebSocket stream for {symbol} {interval}")
-                websocket_manager.add_symbol_interval(symbol, interval)
-
-                # Wait for WebSocket connection instead of REST API fallback
-                max_wait = 30  # seconds
+                self.logger.info(f"🔄 WebSocket not connected, starting for {symbol} {interval}")
+                websocket_manager.start()
+                
+                # Wait for connection with better patience
+                max_wait = 45  # Increased wait time
                 wait_time = 0
                 while wait_time < max_wait and not websocket_manager.is_connected:
                     time.sleep(1)
                     wait_time += 1
+                    if wait_time % 10 == 0:  # Log every 10 seconds
+                        self.logger.info(f"⏳ Waiting for WebSocket connection... {wait_time}/{max_wait}s")
 
-                if websocket_manager.is_connected:
-                    # Try to get cached data after WebSocket connects
-                    time.sleep(2)  # Give time for initial data
+            # Try to get cached data with more flexible freshness requirements
+            cached_data = websocket_manager.get_cached_klines(symbol, interval, limit)
+            
+            if cached_data and len(cached_data) > 0:
+                self.logger.info(f"📡 Using WebSocket data for {symbol} {interval} ({len(cached_data)} klines)")
+                return self._convert_websocket_to_dataframe(cached_data)
+            
+            # If WebSocket is connected but no data yet, wait for initial data
+            if websocket_manager.is_connected:
+                self.logger.info(f"⏳ WebSocket connected, waiting for initial data for {symbol} {interval}")
+                
+                # Wait for initial data with patience
+                data_wait = 0
+                max_data_wait = 60  # 1 minute to get initial data
+                
+                while data_wait < max_data_wait:
+                    time.sleep(2)  # Check every 2 seconds
+                    data_wait += 2
+                    
                     cached_data = websocket_manager.get_cached_klines(symbol, interval, limit)
-                    if cached_data:
-                        self.logger.info(f"📡 Got WebSocket data after connection for {symbol} {interval}")
+                    if cached_data and len(cached_data) > 0:
+                        self.logger.info(f"📡 Got initial WebSocket data for {symbol} {interval} after {data_wait}s")
                         return self._convert_websocket_to_dataframe(cached_data)
+                    
+                    if data_wait % 10 == 0:  # Log every 10 seconds
+                        self.logger.info(f"⏳ Waiting for WebSocket data... {data_wait}/{max_data_wait}s")
 
-            # LAST RESORT: Only use REST API if absolutely necessary and not during ban
-            self.logger.error(f"❌ WebSocket unavailable for {symbol} {interval} - Cannot fetch data during IP ban period")
-
-            # Return None instead of making REST API calls during ban
+            # CRITICAL: During IP ban period, return None instead of making REST calls
+            self.logger.error(f"❌ WebSocket data unavailable for {symbol} {interval} - Avoiding REST API during IP ban")
+            self.logger.error(f"💡 Recommendation: Wait for WebSocket data or check connection status")
+            
             return None
 
         except Exception as e:
