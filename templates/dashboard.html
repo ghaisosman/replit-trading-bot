@@ -1,6 +1,3 @@
-The code changes refine the log categorization to distinguish between strategy scanning messages and other strategy-related messages, improving clarity in the console log.
-```
-```replit_final_file
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -841,7 +838,8 @@ The code changes refine the log categorization to distinguish between strategy s
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button                </div>
+                    <button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1536,3 +1534,1569 @@ The code changes refine the log categorization to distinguish between strategy s
                     return getDefaultResponse('/api/console-log');
                 });
         }
+
+        function updateConsoleLogUI(data) {            const consoleLog = document.getElementById('consoleLog');
+            if (consoleLog && data.success && data.logs) {
+                // Process logs with enhanced formatting
+                const formattedLogs = formatConsoleLogs(data.logs);
+                consoleLog.innerHTML = formattedLogs;
+                if (autoScroll) {
+                    consoleLog.scrollTop = consoleLog.scrollHeight;
+                }
+            }
+        }
+
+        function formatConsoleLogs(logs) {
+            if (!logs || logs.length === 0) {
+                return '<div class="log-entry log-info">No logs available</div>';
+            }
+
+            let formattedOutput = '';
+            let currentStrategyBlock = null;
+            let blockBuffer = [];
+
+            logs.forEach(function(log, index) {
+                if (!log || typeof log !== 'string') return;
+
+                const cleanLog = log.trim();
+                if (!cleanLog) return;
+
+                const logType = detectLogType(cleanLog);
+                const timestamp = extractTimestamp(cleanLog);
+                const message = extractMessage(cleanLog);
+                const strategyInfo = extractStrategyInfo(cleanLog);
+
+                // Check if this is a strategy scanning message
+                if (isStrategyScanning(cleanLog)) {
+                    // Close previous block if different strategy
+                    if (currentStrategyBlock && currentStrategyBlock !== strategyInfo.strategy) {
+                        formattedOutput += formatStrategyBlock(currentStrategyBlock, blockBuffer);
+                        blockBuffer = [];
+                    }
+
+                    currentStrategyBlock = strategyInfo.strategy;
+                    blockBuffer.push({
+                        type: 'scanning',
+                        data: strategyInfo,
+                        timestamp: timestamp,
+                        message: message
+                    });
+                } else if (isActivePosition(cleanLog)) {
+                    // Close any strategy scanning block
+                    if (currentStrategyBlock) {
+                        formattedOutput += formatStrategyBlock(currentStrategyBlock, blockBuffer);
+                        blockBuffer = [];
+                        currentStrategyBlock = null;
+                    }
+
+                    // Format active position as special block
+                    const positionInfo = extractPositionInfo(cleanLog);
+                    formattedOutput += formatActivePositionBlock(positionInfo, timestamp, message);
+                } else {
+                    // Close any strategy block and add regular message
+                    if (currentStrategyBlock) {
+                        formattedOutput += formatStrategyBlock(currentStrategyBlock, blockBuffer);
+                        blockBuffer = [];
+                        currentStrategyBlock = null;
+                    }
+
+                    formattedOutput += formatLogEntry(cleanLog, logType, timestamp, message);
+                }
+            });
+
+            // Close any remaining strategy block
+            if (currentStrategyBlock) {
+                formattedOutput += formatStrategyBlock(currentStrategyBlock, blockBuffer);
+            }
+
+            return formattedOutput || '<div class="log-entry log-info">Console initialized</div>';
+        }
+
+        function detectLogType(log) {
+            const logUpper = log.toUpperCase();
+
+            if (logUpper.includes('ERROR') || logUpper.includes('❌') || logUpper.includes('FAILED')) {
+                return 'error';
+            } else if (logUpper.includes('WARNING') || logUpper.includes('⚠️') || logUpper.includes('WARN')) {
+                return 'warning';
+            } else if (logUpper.includes('SUCCESS') || logUpper.includes('✅') || logUpper.includes('COMPLETED')) {
+                return 'success';
+            } else if (logUpper.includes('INFO') || logUpper.includes('ℹ️') || logUpper.includes('📊')) {
+                return 'info';
+            } else if (logUpper.includes('TRADE') || logUpper.includes('POSITION') || logUpper.includes('ORDER')) {
+                return 'trade';
+            } else if (logUpper.includes('STRATEGY') || logUpper.includes('SIGNAL') || logUpper.includes('ANALYSIS')) {
+                return 'strategy';
+            } else {
+                return 'default';
+            }
+        }
+
+        function detectCategory(log) {
+            const logUpper = log.toUpperCase();
+
+            if (logUpper.includes('TRADE') || logUpper.includes('POSITION') || logUpper.includes('ORDER') || logUpper.includes('BUY') || logUpper.includes('SELL')) {
+                return 'trading';
+            } else if (logUpper.includes('STRATEGY') || logUpper.includes('RSI') || logUpper.includes('MACD') || logUpper.includes('SIGNAL')) {
+                return 'strategy';
+            } else if (logUpper.includes('ERROR') || logUpper.includes('FAILED') || logUpper.includes('EXCEPTION')) {
+                return 'error';
+            } else if (logUpper.includes('API') || logUpper.includes('CONNECTION') || logUpper.includes('BINANCE')) {
+                return 'system';
+            } else if (logUpper.includes('BALANCE') || logUpper.includes('MARGIN') || logUpper.includes('PNL')) {
+                return 'financial';
+            } else {
+                return 'general';
+            }
+        }
+
+        function getCategoryIcon(category) {
+            const icons = {
+                'trading': '💹',
+                'strategy': '🎯',
+                'error': '🚨',
+                'system': '⚙️',
+                'financial': '💰',
+                'general': '📝'
+            };
+            return icons[category] || '📝';
+        }
+
+        function extractTimestamp(log) {
+            // Try to extract timestamp patterns like [HH:MM:SS] or [YYYY-MM-DD HH:MM:SS]
+            const timestampMatch = log.match(/\[([0-9]{1,4}[-:]?[0-9]{1,2}[-:]?[0-9]{1,2}[\s]?[0-9]{1,2}:[0-9]{2}:[0-9]{2})\]/);
+            return timestampMatch ? timestampMatch[1] : null;
+        }
+
+        function extractMessage(log) {
+            // Remove timestamp and clean the message
+            let message = log.replace(/\[[0-9-:\s]+\]/, '').trim();
+
+            // Remove log level prefixes
+            message = message.replace(/^(ERROR|WARNING|INFO|DEBUG|SUCCESS)[\s:-]*/, '');
+
+            return message;
+        }
+
+        function formatLogEntry(fullLog, type, timestamp, message, category = 'general') {
+            const timeStr = timestamp ? `<span class="log-timestamp">${timestamp}</span>` : '';
+            const typeIcon = getTypeIcon(type);
+
+            return `
+                <div class="log-entry log-${type}" data-category="${category}">
+                    <div class="log-header">
+                        ${timeStr}
+                        <span class="log-type-icon">${typeIcon}</span>
+                    </div>
+                    <div class="log-message">${escapeHtml(message || fullLog)}</div>
+                </div>
+            `;
+        }
+
+        function getTypeIcon(type) {
+            const icons = {
+                'error': '❌',
+                'warning': '⚠️',
+                'success': '✅',
+                'info': 'ℹ️',
+                'trade': '💹',
+                'strategy': '🎯',
+                'default': '•'
+            };
+            return icons[type] || '•';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function isStrategyScanning(log) {
+            return log.includes('SCANNING') && (log.includes('|') || log.includes('Strategy:'));
+        }
+
+        function isActivePosition(log) {
+            return log.includes('TRADE IN PROGRESS') || log.includes('ACTIVE POSITION');
+        }
+
+        function extractStrategyInfo(log) {
+            const info = {
+                strategy: 'UNKNOWN',
+                symbol: '',
+                timeframe: '',
+                margin: '',
+                leverage: '',
+                price: '',
+                indicator: ''
+            };
+
+            try {
+                // Extract strategy name patterns
+                let strategyMatch = log.match(/🔍 SCANNING [A-Z]+ \| ([A-Z_]+)/);
+                if (!strategyMatch) {
+                    strategyMatch = log.match(/📈 SCANNING [A-Z]+ \| ([A-Z_]+)/);
+                }
+                if (!strategyMatch) {
+                    strategyMatch = log.match(/Strategy: ([A-Z_]+)/);
+                }
+
+                if (strategyMatch) {
+                    info.strategy = strategyMatch[1];
+                }
+
+                // Extract symbol
+                const symbolMatch = log.match(/SCANNING ([A-Z]+)/);
+                if (symbolMatch) {
+                    info.symbol = symbolMatch[1];
+                }
+
+                // Extract timeframe
+                const timeframeMatch = log.match(/(\d+[mh])/);
+                if (timeframeMatch) {
+                    info.timeframe = timeframeMatch[1];
+                }
+
+                // Extract margin and leverage
+                const marginMatch = log.match(/\$(\d+\.?\d*)/);
+                if (marginMatch) {
+                    info.margin = marginMatch[1];
+                }
+
+                const leverageMatch = log.match(/(\d+)x/);
+                if (leverageMatch) {
+                    info.leverage = leverageMatch[1];
+                }
+
+                // Extract price
+                const priceMatch = log.match(/Price: \$([0-9,]+\.?\d*)/);
+                if (priceMatch) {
+                    info.price = priceMatch[1];
+                }
+
+                // Extract indicator (RSI or MACD)
+                const rsiMatch = log.match(/RSI: ([\d\.]+)/);
+                const macdMatch = log.match(/MACD: ([-\d\.]+)\/([-\d\.]+)/);
+                const histogramMatch = log.match(/H: ([-\d\.]+)/);
+
+                if (rsiMatch) {
+                    info.indicator = `RSI: ${rsiMatch[1]}`;
+                } else if (macdMatch && histogramMatch) {
+                    info.indicator = `MACD: ${macdMatch[1]}/${macdMatch[2]} | H: ${histogramMatch[1]}`;
+                }
+
+            } catch (e) {
+                // Fallback to basic parsing
+            }
+
+            return info;
+        }
+
+        function extractPositionInfo(log) {
+            const info = {
+                strategy: '',
+                symbol: '',
+                side: '',
+                entry: '',
+                current: '',
+                pnl: '',
+                indicator: ''
+            };
+
+            try {
+                const strategyMatch = log.match(/Strategy: ([A-Z_]+)/);
+                if (strategyMatch) info.strategy = strategyMatch[1];
+
+                const symbolMatch = log.match(/Symbol: ([A-Z]+)/);
+                if (symbolMatch) info.symbol = symbolMatch[1];
+
+                const sideMatch = log.match(/Side: ([A-Z]+)/);
+                if (sideMatch) info.side = sideMatch[1];
+
+                const entryMatch = log.match(/Entry: \$([0-9,]+\.?\d*)/);
+                if (entryMatch) info.entry = entryMatch[1];
+
+                const currentMatch = log.match(/Current: \$([0-9,]+\.?\d*)/);
+                if (currentMatch) info.current = currentMatch[1];
+
+                const pnlMatch = log.match(/PnL: \$([+-]?[0-9,]+\.?\d*) USDT \(([+-]?[\d\.]+)%\)/);
+                if (pnlMatch) info.pnl = `$${pnlMatch[1]} (${pnlMatch[2]}%)`;
+
+                const indicatorMatch = log.match(/Indicator: ([^║]+)/);
+                if (indicatorMatch) info.indicator = indicatorMatch[1].trim();
+            } catch (e) {
+                // Fallback
+            }
+
+            return info;
+        }
+
+        function formatStrategyBlock(strategy, blockData) {
+            if (!blockData || blockData.length === 0) return '';
+
+            const strategyColor = getStrategyColor(strategy);
+            const latestData = blockData[blockData.length - 1].data;
+            const timestamp = blockData[blockData.length - 1].timestamp;
+
+            return `
+                <div class="log-entry log-strategy-block" style="border-left-color: ${strategyColor}; background: linear-gradient(90deg, ${strategyColor}15, transparent);">
+                    <div class="strategy-block-header" style="color: ${strategyColor};">
+                        <span class="log-timestamp">${timestamp}</span>
+                        <span class="strategy-name">🔍 ${strategy} SCANNING</span>
+                    </div>
+                    <div class="strategy-block-content">
+                        <div class="strategy-data-row">💱 Symbol: <span style="color: ${strategyColor};">${latestData.symbol}</span></div>
+                        <div class="strategy-data-row">⏱️ Timeframe: <span style="color: ${strategyColor};">${latestData.timeframe}</span></div>
+                        <div class="strategy-data-row">💵 Margin: <span style="color: ${strategyColor};">$${latestData.margin} USDT</span></div>
+                        <div class="strategy-data-row">⚡ Leverage: <span style="color: ${strategyColor};">${latestData.leverage}x</span></div>
+                        <div class="strategy-data-row">📊 Price: <span style="color: ${strategyColor};">$${latestData.price}</span></div>
+                        ${latestData.indicator ? `<div class="strategy-data-row">📈 ${latestData.indicator}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function formatActivePositionBlock(positionInfo, timestamp, message) {
+            const strategyColor = getStrategyColor(positionInfo.strategy);
+            const pnlColor = positionInfo.pnl && positionInfo.pnl.includes('+') ? '#2ed573' : '#ff4757';
+
+            return `
+                <div class="log-entry log-position-block" style="border: 2px solid ${strategyColor}; background: linear-gradient(135deg, ${strategyColor}20, transparent);">
+                    <div class="position-block-header" style="color: ${strategyColor};">
+                        <span class="log-timestamp">${timestamp}</span>
+                        <span class="position-title">📊 ACTIVE POSITION</span>
+                    </div>
+                    <div class="position-block-content">
+                        <div class="position-data-row">🎯 Strategy: <span style="color: ${strategyColor}; font-weight: bold;">${positionInfo.strategy}</span></div>
+                        <div class="position-data-row">💱 Symbol: <span style="color: ${strategyColor};">${positionInfo.symbol}</span></div>
+                        <div class="position-data-row">📊 Side: <span style="color: ${strategyColor};">${positionInfo.side}</span></div>
+                        <div class="position-data-row">💵 Entry: <span style="color: ${strategyColor};">$${positionInfo.entry}</span></div>
+                        <div class="position-data-row">📊 Current: <span style="color: ${strategyColor};">$${positionInfo.current}</span></div>
+                        ${positionInfo.indicator ? `<div class="position-data-row">📈 ${positionInfo.indicator}</div>` : ''}
+                        ${positionInfo.pnl ? `<div class="position-data-row">💰 PnL: <span style="color: ${pnlColor}; font-weight: bold;">${positionInfo.pnl}</span></div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function getStrategyColor(strategy) {
+            const colors = {
+                'RSI_OVERSOLD': '#e74c3c',
+                'RSI_ETH': '#3498db', 
+                'MACD_DIVERGENCE': '#9b59b6',
+                'MACD_BTC': '#f39c12',
+                'DEFAULT': '#95a5a6'
+            };
+            return colors[strategy] || colors['DEFAULT'];
+        }
+
+        function updateConsoleLogErrorUI() {
+            const consoleLog = document.getElementById('consoleLog');
+            if (consoleLog) {
+                consoleLog.innerHTML = '<div class="text-warning">⚠️ Connection lost - Reconnecting...</div>';
+            }
+        }
+
+        // Update positions with intelligent caching and throttling
+        function updatePositions() {
+            // Check cache first
+            const cachedData = getCachedData('positions');
+            if (cachedData) {
+                updatePositionsUI(cachedData);
+                return;
+            }
+
+            // Check if we can make a new request
+            if (!canMakeRequest('positions')) {
+                return; // Skip this update cycle
+            }
+
+            markRequestStart('positions');
+
+            fetch('/api/positions')
+                .then(response => response.json())
+                .then(data => {
+                    setCachedData('positions', data);
+                    updatePositionsUI(data);
+                })
+                .catch(error => {
+                    console.error('Error updating positions:', error);
+                    document.getElementById('positionsTableBody').innerHTML = '<tr><td colspan="9" class="text-warning text-center">Error loading positions</td></tr>';
+                })
+                .finally(() => {
+                    markRequestEnd('positions');
+                });
+        }
+
+        function updatePositionsUI(data) {
+            const positionsTableBody = document.getElementById('positionsTableBody');
+            positionsTableBody.innerHTML = '';
+
+            if (data.success && data.positions && data.positions.length > 0) {
+                data.positions.forEach(function(position) {
+                    // Validate and sanitize position data
+                    const entryPrice = position.entry_price || 0;
+                    const currentPrice = position.current_price || 0;
+                    const pnl = position.pnl || 0;
+                    const pnlPercent = position.pnl_percent || 0;
+
+                    const row = '<tr>' +
+                            '<td>' + (position.strategy || 'Unknown') + '</td>' +
+                            '<td>' + (position.symbol || 'Unknown') + '</td>' +
+                            '<td>' + (position.side || 'Unknown') + '</td>' +
+                            '<td>' + formatNumber(entryPrice) + '</td>' +
+                            '<td>' + formatNumber(position.margin_invested || 0) + '</td>' +
+                            '<td>' + formatNumber(currentPrice) + '</td>' +
+                            '<td class="' + (pnl >= 0 ? 'text-success' : 'text-danger') + '">' + formatNumber(pnl) + '</td>' +
+                            '<td class="' + (pnlPercent >= 0 ? 'text-success' : 'text-danger') + '">' + formatNumber(pnlPercent) + '%</td>' +
+                            '<td id="rsi-' + data.positions.indexOf(position) + '">Loading...</td>' +
+                        '</tr>';
+                    positionsTableBody.innerHTML += row;
+                });
+
+                // Fetch RSI values for each position after rendering the table
+                data.positions.forEach(function(position, index) {
+                    fetchRSI(position.symbol, index);
+                });
+            } else {
+                positionsTableBody.innerHTML = '<tr><td colspan="9" class="text-muted text-center">No active positions.</td></tr>';
+            }
+        }
+
+
+        function fetchRSI(symbol, index) {
+            fetch('/api/rsi/' + symbol)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success && data.rsi !== undefined) {
+                        let rsiValue = data.rsi;
+                        let rsiClass = 'bg-secondary';
+                        let rsiText = 'RSI: ' + rsiValue;
+
+                        // Add note indicator if it's estimated/fallback
+                        if (data.note) {
+                            rsiText += ' (~)';
+                        }
+
+                        // Color code RSI values
+                        if (rsiValue <= 30) {
+                            rsiClass = 'bg-success'; // Oversold - green
+                        } else if (rsiValue >= 70) {
+                            rsiClass = 'bg-danger'; // Overbought - red
+                        } else if (rsiValue <= 40) {
+                            rsiClass = 'bg-info'; // Low - blue
+                        } else if (rsiValue >= 60) {
+                            rsiClass = 'bg-warning'; // High - yellow
+                        }
+
+                        const rsiElement = document.getElementById('rsi-' + index);
+                        if (rsiElement) {
+                            rsiElement.className = `badge ${rsiClass}`;
+                            rsiElement.textContent = rsiText;
+                        }
+                    } else {
+                        const rsiElement = document.getElementById('rsi-' + index);
+                        if (rsiElement) {
+                            rsiElement.className = 'badge bg-danger';
+                            rsiElement.textContent = 'RSI: Error';
+                            rsiElement.title = data.error || 'Failed to calculate RSI';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.debug('RSI fetch error for ' + symbol + ':', error);
+                    const rsiElement = document.getElementById('rsi-' + index);
+                    if (rsiElement) {
+                        rsiElement.className = 'badge bg-secondary';
+                        rsiElement.textContent = 'RSI: --';
+                        rsiElement.title = 'RSI calculation in progress';
+                    }
+                });
+        }
+
+        // Initialize dashboard with intelligent adaptive polling system
+        let updateTimeouts = {};
+        let pollingActive = true;
+
+         // Simple API request function without complex error handling
+        function apiRequest(url) {
+            return fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                })
+                .catch(error => {
+                    console.error('API request failed:', error);
+                    return { success: false, error: error.message };
+                });
+        }
+
+        // FIXED: Enhanced safe API response handler to prevent parsing errors
+        function safeApiCall(url, options = {}) {
+            return fetch(url, options)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+                    }
+
+                    // Get content type to validate JSON response
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        throw new Error('Invalid content type - expected JSON');
+                    }
+
+                    return response.text();
+                })
+                .then(text => {
+                    if (!text || text.trim() === '') {
+                        return getDefaultResponse(url);
+                    }
+
+                    try {
+                        const data = JSON.parse(text);
+                        // Validate that we got an object
+                        if (!data || typeof data !== 'object') {
+                            return getDefaultResponse(url);
+                        }
+                        return data;
+                    } catch (parseError) {
+                        console.warn('JSON parse error for', url, ':', parseError.message);
+                        return getDefaultResponse(url);
+                    }
+                })
+                .catch(error => {
+                    console.warn('API call failed for', url, ':', error.message);
+                    return getDefaultResponse(url);
+                });
+        }
+
+        function getDefaultResponse(url){
+            const currentTime = new Date().toLocaleTimeString();
+
+            if (url.includes('/api/bot/status') || url.includes('/api/bot_status')) {
+                return {
+                    success: true,
+                    running: false,
+                    is_running: false,
+                    active_positions: 0,
+                    strategies: 0,
+                    balance: 0.0,
+                    status: 'api_fallback',
+                    last_update: currentTime,
+                    timestamp: currentTime
+                };
+            } else if (url.includes('/api/console-log')) {
+                return {
+                    success: true,
+                    logs: ['[' + currentTime + '] 🔄 API temporarily unavailable'],
+                    status: 'api_fallback',
+                    timestamp: currentTime
+                };
+            } else if (url.includes('/api/positions')) {
+                return {
+                    success: true,
+                    positions: [],
+                    status: 'api_fallback',
+                    count: 0,
+                    timestamp: currentTime
+                };
+            } else if (url.includes('/api/balance')) {
+                return {
+                    success: true,
+                    total_balance: 0.0,
+                    available_balance: 0.0,
+                    used_balance: 0.0,
+                    last_updated: new Date().toISOString(),
+                    status: 'api_fallback'
+                };
+            }
+
+            return { success: false, error: 'Unknown endpoint' };
+        }
+
+        // FIXED: Enhanced intelligent update system with adaptive intervals
+        function startIntelligentUpdates() {
+            // Clear any existingtimeouts
+            Object.values(updateTimeouts).forEach(timeout => clearTimeout(timeout));
+            updateTimeouts = {};
+
+            pollingActive = true;
+
+            // Start adaptive polling loops
+            scheduleAdaptiveUpdate('botStatus', updateBotStatus);
+            scheduleAdaptiveUpdate('balance', updateBalance);
+            scheduleAdaptiveUpdate('consoleLog', updateConsoleLog);
+            scheduleAdaptiveUpdate('positions', updatePositions);
+        }
+
+        function scheduleAdaptiveUpdate(key, updateFunction) {
+            if (!pollingActive) return;
+
+            const executeUpdate = () => {
+                if (!pollingActive) return;
+
+                // Execute the update function with proper error handling
+                try {
+                    Promise.resolve(updateFunction())
+                        .then(() => {
+                            // Schedule next update only if polling is still active
+                            if (pollingActive) {
+                                const interval = calculateAdaptiveInterval(key);
+                                updateTimeouts[key] = setTimeout(executeUpdate, interval);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Update error for ' + key + ':', error || 'Unknown error');
+                            // Still schedule next update even if current one failed
+                            if (pollingActive) {
+                                const interval = Math.min(calculateAdaptiveInterval(key) * 2, 30000); // Backoff on error
+                                updateTimeouts[key] = setTimeout(executeUpdate, interval);
+                            }
+                        });
+                } catch (syncError) {
+                    console.error('Synchronous error for ' + key + ':', syncError || 'Unknown sync error');
+                    // Still schedule next update
+                    if (pollingActive) {
+                        const interval = Math.min(calculateAdaptiveInterval(key) * 2, 30000);
+                        updateTimeouts[key] = setTimeout(executeUpdate, interval);
+                    }
+                }
+            };
+
+            // Start immediately
+            executeUpdate();
+        }
+
+        function stopIntelligentUpdates() {
+            pollingActive = false;            Object.values(updateTimeouts).forEach(timeout => clearTimeout(timeout));
+            updateTimeouts = {};
+        }
+
+        // Refresh data function with complete cache invalidation and adaptive reset
+        function refreshData() {
+            // Clear all caches to force fresh data
+            Object.keys(apiCache).forEach(key => {
+                apiCache[key].data = null;
+                apiCache[key].timestamp = 0;
+                apiCache[key].consecutiveHits = 0;
+                apiCache[key].ttl = key === 'botStatus' ? 8000 :
+                                   key === 'balance' ? 30000 :
+                                   key === 'positions' ? 12000 : 5000;
+            });
+
+            // Reset throttle timers and intervals
+            Object.keys(requestThrottle).forEach(key => {
+                requestThrottle[key].lastRequest = 0;
+                requestThrottle[key].currentInterval = requestThrottle[key].minInterval;
+            });
+
+            // Reset adaptive behavior
+            connectionState = 'healthy';
+            inactivityCount = 0;
+
+            // Clear active requests set
+            activeRequests.clear();
+
+            // Force immediate updates
+            Promise.allSettled([
+                updateBotStatus(),
+                updateBalance(),
+                updateConsoleLog(),
+                updatePositions()
+            ]).then(() => {
+                console.log('🔄 Dashboard refresh completed');
+            });
+        }
+
+        // Simple dashboard initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Dashboard initialization started');
+
+            // Initial data load
+            updateBotStatus();
+            updateBalance();
+            updateConsoleLog();
+            updatePositions();
+
+            // Set up regular updates
+            setInterval(updateBotStatus, 8000);    // 8 seconds
+            setInterval(updateBalance, 30000);     // 30 seconds
+            setInterval(updateConsoleLog, 5000);   // 5 seconds
+            setInterval(updatePositions, 12000);   // 12 seconds
+
+            console.log('✅ Dashboard initialized with simple polling');
+        });
+
+            // Handle visibility changes to optimize resource usage
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    console.log('👁️ Tab hidden - optimizing polling for background mode');
+                    // Slow down polling when tab is not visible
+                    Object.keys(requestThrottle).forEach(key => {
+                        requestThrottle[key].currentInterval = requestThrottle[key].maxInterval;
+                    });
+                } else {
+                    console.log('👁️ Tab visible - resuming normal polling');
+                    // Resume normal polling and refresh data
+                    Object.keys(requestThrottle).forEach(key => {
+                        requestThrottle[key].currentInterval = requestThrottle[key].minInterval;
+                    });
+
+                    // Refresh all data when tab becomes visible
+                    Promise.allSettled([
+                        updateBotStatus(),
+                        updateBalance(),
+                        updateConsoleLog(),
+                        updatePositions()
+                    ]).then(() => {
+                        console.log('🔄 Dashboard refresh completed');
+                    });
+                }
+            });
+
+            // FIXED: Add comprehensive error handler for API response parsing errors
+            window.addEventListener('error', function(event) {
+                if (event.message && (
+                    event.message.includes('Unexpected end of input') ||
+                    event.message.includes('JSON.parse') ||
+                    event.message.includes('SyntaxError')
+                )) {
+                    console.log('🔧 Suppressed parsing error - continuing normally');
+                    event.preventDefault();
+                    return false;
+                }
+            });
+
+            // FIXED: Add comprehensive promise rejection handler
+            window.addEventListener('unhandledrejection', function(event) {
+                if (event.reason && event.reason.message && (
+                    event.reason.message.includes('Unexpected end of input') ||
+                    event.reason.message.includes('JSON.parse') ||
+                    event.reason.message.includes('SyntaxError')
+                )) {
+                    console.log('🔧 Suppressed parsing rejection - continuing normally');
+                    event.preventDefault();
+                    return false;
+                }
+            });
+
+            // Cleanup on page unload
+            window.addEventListener('beforeunload', function() {
+                stopIntelligentUpdates();
+            });
+
+
+        // Show strategies info
+        function showStrategiesInfo() {
+            alert('Check the Strategy Configuration table below for current settings.');
+        }
+
+        // Show console info
+        function showConsoleInfo() {
+            alert('Console shows real-time bot activity:\n\n' +
+                  '• Green messages: Successful operations\n' +
+                  '• Red messages: Errors or warnings\n' +
+                  '• Blue messages: Information\n' +
+                  '• Yellow messages: Market analysis\n\n' +
+                  'Auto-scroll keeps the latest messages visible.');
+        }
+
+        // Load strategies with cache busting
+        function loadStrategiesWithCacheBust() {
+            const timestamp = new Date().getTime();
+            fetch('/api/strategies?_t=' + timestamp)
+                .then(response => response.json())
+                .then(strategies => {
+                    // Update global strategies cache
+                    window.strategiesData = strategies;
+                    window.strategiesCache = strategies;
+                    console.log('🔄 Strategies data refreshed with latest configurations');
+                })
+                .catch(error => {
+                    console.error('Error refreshing strategies:', error);
+                });
+        }
+
+        // Edit strategy configuration
+        function editStrategy(strategyName) {
+            // Force fresh data fetch with timestamp to bypass cache
+            const timestamp = new Date().getTime();
+            fetch('/api/strategies?_t=' + timestamp)
+                .then(response => response.json())
+                .then(strategies => {
+                    const config = strategies[strategyName];
+                    if (config) {
+                        editStrategyConfig(strategyName);
+                    } else {
+                        alert('Strategy not found: ' + strategyName);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading strategy:', error);
+                    alert('Error loading strategy: ' + error);
+                });
+        }
+
+        // View strategy statistics function
+        function viewStrategyStats(strategyName) {
+            alert('📊 Strategy Statistics for ' + strategyName.replace('_', ' ').toUpperCase() + '\n\n' +
+                  'Feature coming soon!\n\n' +
+                  '• Trade success rate\n' +
+                  '• Average profit/loss\n' +
+                  '• Performance over time\n' +
+                  '• Risk metrics');
+        }
+
+        function disableStrategy(strategyName) {
+            if (confirm('Are you sure you want to disable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n' +
+                       'This will stop the bot from scanning for new trades for this strategy.\n' +
+                       'Existing positions will remain active.')) {
+
+                // Find the specific button for this strategy
+                const button = document.querySelector(`button[data-strategy="${strategyName}"]`);
+                if (!button) return;
+
+                // Store original state for rollback
+                const originalHTML = button.innerHTML;
+                const originalClass = button.className;
+                const originalOnclick = button.getAttribute('onclick');
+
+                // Immediately update button state to show feedback
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Disabling...';
+                button.disabled = true;
+                button.className = 'btn btn-warning btn-sm strategy-toggle-btn';
+
+                fetch('/api/strategies/' + strategyName + '/disable', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        // Update button to enable state and store the new state
+                        button.innerHTML = '<i class="fas fa-play"></i> Enable';
+                        button.disabled = false;
+                        button.className = 'btn btn-outline-success btn-sm strategy-toggle-btn';
+                        button.setAttribute('onclick', `enableStrategy('${strategyName}')`);
+                        button.setAttribute('data-state', 'disabled');
+
+                        // Store state in localStorage for persistence across page reloads
+                        localStorage.setItem(`strategy_${strategyName}_state`, 'disabled');
+
+                        // Show success message
+                        showAlert('Strategy disabled successfully!', 'success');
+
+                        // Update strategy status badge
+                        updateStrategyStatusBadge(strategyName, 'disabled');
+                    } else {
+                        // Revert button state on error
+                        button.innerHTML = originalHTML;
+                        button.disabled = false;
+button.className = originalClass;
+                        button.setAttribute('onclick', originalOnclick);
+                        showAlert('Error disabling strategy: ' + result.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error disabling strategy:', error);
+                    // Revert button state on error
+                    button.innerHTML = originalHTML;
+                    button.disabled = false;
+                    button.className = originalClass;
+                    button.setAttribute('onclick', originalOnclick);
+                    showAlert('Error disabling strategy: ' + error.message, 'error');
+                });
+            }
+        }
+
+        // Enable strategy function
+        function enableStrategy(strategyName) {
+            if (confirm('Are you sure you want to enable ' + strategyName.replace('_', ' ').toUpperCase() + '?\n\n' +
+                       'This will resume scanning for new trades for this strategy.')) {
+
+                // Find the specific button for this strategy
+                const button = document.querySelector(`button[data-strategy="${strategyName}"]`);
+                if (!button) return;
+
+                // Store original state for rollback
+                const originalHTML = button.innerHTML;
+                const originalClass = button.className;
+                const originalOnclick = button.getAttribute('onclick');
+
+                // Immediately update button state to show feedback
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enabling...';
+                button.disabled = true;
+                button.className = 'btn btn-warning btn-sm strategy-toggle-btn';
+
+                fetch('/api/strategies/' + strategyName + '/enable', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        // Update button to disable state and store the new state
+                        button.innerHTML = '<i class="fas fa-pause"></i> Disable';
+                        button.disabled = false;
+                        button.className = 'btn btn-outline-danger btn-sm strategy-toggle-btn';
+                        button.setAttribute('onclick', `disableStrategy('${strategyName}')`);
+                        button.setAttribute('data-state', 'enabled');
+
+                        // Store state in localStorage for persistence across page reloads
+                        localStorage.setItem(`strategy_${strategyName}_state`, 'enabled');
+
+                        // Show success message
+                        showAlert('Strategy enabled successfully!', 'success');
+
+                        // Update strategy status badge
+                        updateStrategyStatusBadge(strategyName, 'enabled');
+                    } else {
+                        // Revert button state on error
+                        button.innerHTML = originalHTML;
+                        button.disabled = false;
+                        button.className = originalClass;
+                        button.setAttribute('onclick', originalOnclick);
+                        showAlert('Error enabling strategy: ' + result.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error enabling strategy:', error);
+                    // Revert button state on error
+                    button.innerHTML = originalHTML;
+                    button.disabled = false;
+                    button.className = originalClass;
+                    button.setAttribute('onclick', originalOnclick);
+                    showAlert('Error enabling strategy: ' + error.message, 'error');
+                });
+            }
+        }
+
+        // Helper function to update strategy status badge
+        function updateStrategyStatusBadge(strategyName, state) {
+            // Find strategy card and update badge
+            const strategyCards = document.querySelectorAll('.card');
+            strategyCards.forEach(function(card) {
+                const strategyTitle = card.querySelector('h5');
+                if (strategyTitle && strategyTitle.textContent.toLowerCase().includes(strategyName.replace('_', ' ').toLowerCase())) {
+                    const badge = card.querySelector('.badge');
+                    if (badge) {
+                        if (state === 'disabled') {
+                            badge.innerHTML = '<i class="fas fa-pause"></i> Disabled';
+                            badge.className = 'badge bg-secondary';
+                        } else {
+                            badge.innerHTML = '<i class="fas fa-play"></i> Active';
+                            badge.className = 'badge bg-success';
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize button states on page load using localStorage
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check localStorage for any overridden button states
+            const buttons = document.querySelectorAll('.strategy-toggle-btn');
+            buttons.forEach(function(button) {
+                const strategyName = button.getAttribute('data-strategy');
+                const storedState = localStorage.getItem(`strategy_${strategyName}_state`);
+
+                if (storedState) {
+                    // Override server-side state with client-side stored state
+                    if (storedState === 'disabled') {
+                        button.innerHTML = '<i class="fas fa-play"></i> Enable';
+                        button.className = 'btn btn-outline-success btn-sm strategy-toggle-btn';
+                        button.setAttribute('onclick', `enableStrategy('${strategyName}')`);
+                        button.setAttribute('data-state', 'disabled');
+                        updateStrategyStatusBadge(strategyName, 'disabled');
+                    } else {
+                        button.innerHTML = '<i class="fas fa-pause"></i> Disable';
+                        button.className = 'btn btn-outline-danger btn-sm strategy-toggle-btn';
+                        button.setAttribute('onclick', `disableStrategy('${strategyName}')`);
+                        button.setAttribute('data-state', 'enabled');
+                        updateStrategyStatusBadge(strategyName, 'enabled');
+                    }
+                }
+            });
+        });
+
+        // Strategy management functions
+        let currentStrategyName = '';
+
+        function togglePartialTpConfig() {
+            const toggle = document.getElementById('partialTpEnabled');
+            const configSection = document.getElementById('partialTpConfigSection');
+            const thresholdInput = document.getElementById('partialTpPnlThreshold');
+            const positionInput = document.getElementById('partialTpPositionPercentage');
+            const exampleDiv = document.getElementById('partialTpExample');
+
+            if (toggle.checked) {
+                // Enable partial TP configuration
+                configSection.style.opacity = '1';
+                configSection.style.pointerEvents = 'auto';
+                thresholdInput.disabled = false;
+                positionInput.disabled = false;
+
+                // Set default values if empty
+                if (!thresholdInput.value) {
+                    thresholdInput.value = 50;
+                }
+                if (!positionInput.value) {
+                    positionInput.value = 50;
+                }
+
+                console.log('✅ Partial TP enabled - configuration unlocked');
+            } else {
+                // Disable partial TP configuration
+                configSection.style.opacity = '0.5';
+                configSection.style.pointerEvents = 'none';
+                thresholdInput.disabled = true;
+                positionInput.disabled = true;
+
+                // Clear values when disabled to prevent accidental saving
+                thresholdInput.value = '';
+                positionInput.value = '';
+
+                console.log('❌ Partial TP disabled - configuration locked');
+            }
+
+            // Update example calculation
+            updatePartialTpExample();
+        }
+
+        function updatePartialTpExample() {
+            const toggle = document.getElementById('partialTpEnabled');
+            const threshold = document.getElementById('partialTpPnlThreshold').value;
+            const position = document.getElementById('partialTpPositionPercentage').value;
+            const exampleDiv = document.getElementById('partialTpExample');
+
+            if (toggle.checked && threshold && position) {
+                exampleDiv.innerHTML = `
+                    <small>
+                        <strong>Your Configuration:</strong> ${threshold}% PnL threshold, ${position}% position size<br>
+                        • When profit reaches ${threshold}% of margin → Close ${position}% of position<br>
+                        • Remaining ${100 - position}% continues until stop loss or manual exit
+                    </small>
+                `;
+                exampleDiv.className = 'alert alert-success mt-2';
+            } else if (toggle.checked) {
+                exampleDiv.innerHTML = `
+                    <small>
+                        <strong>Example:</strong> With 50% PnL threshold and 50% position size:<br>
+                        • When profit reaches 50% of margin → Close 50% of position<br>
+                        • Remaining 50% continues until stop loss or manual exit
+                    </small>
+                `;
+                exampleDiv.className = 'alert alert-info mt-2';
+            } else {
+                exampleDiv.innerHTML = `
+                    <small>
+                        <strong>Partial Take Profit is disabled.</strong><br>
+                        Enable the toggle above to configure automatic partial profit taking.
+                    </small>
+                `;
+                exampleDiv.className = 'alert alert-secondary mt-2';
+            }
+        }
+
+        function editStrategyConfig(strategyName) {
+            currentStrategyName = strategyName;
+
+            fetch('/api/strategies')
+                .then(response => response.json())
+                .then(data => {
+                    const config = data[strategyName];
+                    if (config) {
+                        // Basic parameters
+                        document.getElementById('strategyName').value = strategyName;
+                        document.getElementById('strategySymbol').value = config.symbol || '';
+                        document.getElementById('strategyMargin').value = config.margin || '';
+                        document.getElementById('strategyLeverage').value = config.leverage || '';
+                        document.getElementById('strategyDecimals').value = config.decimals || 2;
+                        document.getElementById('strategyTimeframe').value = config.timeframe || '';
+                        document.getElementById('strategyMaxLoss').value = config.max_loss_pct || 10;
+                        document.getElementById('assessmentInterval').value = config.assessment_interval || 300;
+                        if (config.cooldown_period !== undefined) {
+                                document.getElementById('cooldownPeriod').value = config.cooldown_period;
+                            }
+
+                            // Partial Take Profit Configuration
+                            const hasPartialTpConfig = config.partial_tp_pnl_threshold !== undefined && 
+                                                     config.partial_tp_position_percentage !== undefined &&
+                                                     config.partial_tp_pnl_threshold > 0 && 
+                                                     config.partial_tp_position_percentage > 0;
+
+                            const partialTpToggle = document.getElementById('partialTpEnabled');
+                            partialTpToggle.checked = hasPartialTpConfig;
+
+                            if (hasPartialTpConfig) {
+                                document.getElementById('partialTpPnlThreshold').value = config.partial_tp_pnl_threshold;
+                                document.getElementById('partialTpPositionPercentage').value = config.partial_tp_position_percentage;
+                            } else {
+                                document.getElementById('partialTpPnlThreshold').value = '';
+                                document.getElementById('partialTpPositionPercentage').value = '';
+                            }
+
+                            // Apply toggle state
+                            togglePartialTpConfig();
+
+                        // Hide all strategy-specific sections first
+                        document.getElementById('rsiParameters').style.display = 'none';
+                        document.getElementById('macdParameters').style.display = 'none';
+
+                        // Show and populate RSI parameters if it's an RSI strategy
+                        if (strategyName.toLowerCase().includes('rsi')){
+                            document.getElementById('rsiParameters').style.display = 'block';
+                            document.getElementById('rsiLongEntry').value = config.rsi_long_entry || 40;
+                            document.getElementById('rsiLongExit').value = config.rsi_long_exit || 70;
+                            document.getElementById('rsiShortEntry').value = config.rsi_short_entry || 60;
+                            document.getElementById('rsiShortExit').value = config.rsi_short_exit || 30;
+                        }
+
+                        // Show and populate MACD parameters if it's a MACD strategy
+                        if (strategyName.toLowerCase().includes('macd')) {
+                            document.getElementById('macdParameters').style.display = 'block';
+                            document.getElementById('macdFast').value = config.macd_fast || 12;
+                            document.getElementById('macdSlow').value = config.macd_slow || 26;
+                            document.getElementById('macdSignal').value = config.macd_signal || 9;
+                            document.getElementById('minHistogramThreshold').value = config.min_histogram_threshold || 0.0001;
+                            document.getElementById('macdEntryThreshold').value = config.macd_entry_threshold || config.min_distance_threshold || 0.0015;
+                            document.getElementById('macdExitThreshold').value = config.macd_exit_threshold || 0.002;
+                            document.getElementById('histogramDivergenceLookback').value = config.histogram_divergence_lookback || 10;
+                            document.getElementById('priceDivergenceLookback').value = config.price_divergence_lookback || 10;
+                            document.getElementById('confirmationCandles').value = config.confirmation_candles || 2;
+                            document.getElementById('divergenceStrengthMin').value = config.divergence_strength_min || 0.4;
+                        }
+
+                        // Show modal using Bootstrap 5
+                        const modal = new bootstrap.Modal(document.getElementById('strategyModal'));
+                        modal.show();
+                    } else {
+                        alert('Strategy configuration not found.');
+                    }
+                })
+                .catch(error => console.error('Error fetching strategy config:', error));
+        }
+
+        // Save strategy configuration
+        function saveStrategyConfig() {
+            const strategyName = document.getElementById('strategyName').value;
+
+            const updates = {
+                symbol: document.getElementById('strategySymbol').value,
+                margin: parseFloat(document.getElementById('strategyMargin').value),
+                leverage: parseInt(document.getElementById('strategyLeverage').value),
+                decimals: parseInt(document.getElementById('strategyDecimals').value),
+                timeframe: document.getElementById('strategyTimeframe').value,
+                max_loss_pct: parseFloat(document.getElementById('strategyMaxLoss').value),
+                assessment_interval: parseInt(document.getElementById('assessmentInterval').value),
+                cooldown_period: parseInt(document.getElementById('cooldownPeriod').value)
+            };
+
+            // Partial Take Profit Configuration
+            const partialTpEnabled = document.getElementById('partialTpEnabled').checked;
+
+            if (partialTpEnabled) {
+                const threshold = document.getElementById('partialTpPnlThreshold').value;
+                const positionSize = document.getElementById('partialTpPositionPercentage').value;
+
+                if (threshold && positionSize) {
+                    updates.partial_tp_pnl_threshold = parseFloat(threshold);
+                    updates.partial_tp_position_percentage = parseFloat(positionSize);
+                    console.log('✅ Partial TP config saved:', updates.partial_tp_pnl_threshold + '% threshold, ' + updates.partial_tp_position_percentage + '% position');
+                } else {
+                    alert('⚠️ Partial TP is enabled but missing configuration values.\nPlease fill both threshold and position size, or disable partial TP.');
+                    return;
+                }
+            } else {
+                // Explicitly disable partial TP by setting to 0
+                updates.partial_tp_pnl_threshold = 0;
+                updates.partial_tp_position_percentage = 0;
+                console.log('❌ Partial TP disabled - saved as 0');
+            }
+
+            // Add strategy-specific parameters
+            if (strategyName.toLowerCase().includes('rsi')) {
+                updates.rsi_long_entry = parseInt(document.getElementById('rsiLongEntry').value);
+                updates.rsi_long_exit = parseInt(document.getElementById('rsiLongExit').value);
+                updates.rsi_short_entry = parseInt(document.getElementById('rsiShortEntry').value);
+                updates.rsi_short_exit = parseInt(document.getElementById('rsiShortExit').value);
+            }
+
+             if (strategyName.toLowerCase().includes('macd')) {
+                updates.macd_fast = parseInt(document.getElementById('macdFast').value);
+                updates.macd_slow = parseInt(document.getElementById('macdSlow').value);
+                updates.macd_signal = parseInt(document.getElementById('macdSignal').value);
+                updates.min_histogram_threshold = parseFloat(document.getElementById('minHistogramThreshold').value);
+                updates.macd_entry_threshold = parseFloat(document.getElementById('macdEntryThreshold').value);
+                updates.macd_exit_threshold = parseFloat(document.getElementById('macdExitThreshold').value);
+                updates.histogram_divergence_lookback = parseInt(document.getElementById('histogramDivergenceLookback').value);
+                updates.price_divergence_lookback = parseInt(document.getElementById('priceDivergenceLookback').value);
+                updates.confirmation_candles = parseInt(document.getElementById('confirmationCandles').value);
+                updates.divergence_strength_min = parseFloat(document.getElementById('divergenceStrengthMin').value);
+            }
+
+             // Safety validation to prevent zero entries
+             if (updates.margin <= 0 || updates.leverage <= 0 || updates.max_loss_pct <= 0 || updates.assessment_interval <= 0 || updates.cooldown_period <= 0) {
+                alert('Error: Critical parameters (margin, leverage, max loss %, assessment interval, cooldown period) cannot be zero.');
+                return;
+            }
+
+            fetch('/api/strategies/' + strategyName, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updates)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Always show success message first
+                    showAlert('Configuration saved successfully!', 'success');
+
+                    // Close the modal immediately on success
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('strategyModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+
+                    // Handle safety validation feedback after closing modal
+                    handleSafetyValidation(data);
+
+                    // Reload strategies to show updated config
+                    loadStrategiesWithCacheBust();
+                } else {
+                    alert('Error updating strategy: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error saving configuration: ' + error.message);
+            });
+        }
+
+        // Add new strategy function
+        function addNewStrategy() {
+            // Reset form
+            document.getElementById('addStrategyForm').reset();
+
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('addStrategyModal'));
+            modal.show();
+        }
+
+        // Save new strategy
+        function saveNewStrategy() {
+            const name = document.getElementById('newStrategyName').value.trim();
+
+            if (!name) {
+                alert('Strategy name is required');
+                return;
+            }
+
+            if (!name.toLowerCase().includes('rsi') && !name.toLowerCase().includes('macd')) {
+                alert('Strategy name must contain "rsi" or "macd" to determine strategy type');
+                return;
+            }
+
+            const symbol = document.getElementById('newStrategySymbol').value.trim();
+            if (!symbol) {
+                alert('Symbol is required');
+                return;
+            }
+
+            const newStrategy = {
+                name: name,
+                symbol: symbol.toUpperCase(),
+                margin: parseFloat(document.getElementById('newStrategyMargin').value),
+                leverage: parseInt(document.getElementById('newStrategyLeverage').value),
+                timeframe: document.getElementById('newStrategyTimeframe').value,
+                max_loss_pct: parseFloat(document.getElementById('newStrategyMaxLoss').value),
+                assessment_interval: parseInt(document.getElementById('newStrategyInterval').value),
+                cooldown_period: parseInt(document.getElementById('newStrategyCooldown').value)
+            };
+
+            // Add strategy-specific parameters
+            if (name.toLowerCase().includes('rsi')) {
+                newStrategy.rsi_long_entry = 30;
+                newStrategy.rsi_long_exit = 70;
+                newStrategy.rsi_short_entry = 70;
+                newStrategy.rsi_short_exit = 30;
+            } else if (name.toLowerCase().includes('macd')) {
+                newStrategy.macd_fast = 12;
+                newStrategy.macd_slow = 26;
+                newStrategy.macd_signal = 9;
+                newStrategy.divergence_strength_min = 0.6;
+            }
+
+             // Safety validation to prevent zero entries
+             if (newStrategy.margin <= 0 || newStrategy.leverage <= 0 || newStrategy.max_loss_pct <= 0 || newStrategy.assessment_interval <= 0 || newStrategy.cooldown_period <= 0) {
+                alert('Error: Critical parameters (margin, leverage, max loss %, assessment interval, cooldown period) cannot be zero.');
+                return;
+            }
+
+            fetch('/api/strategies', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(newStrategy)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('addStrategyModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+
+                    alert('✅ Strategy created successfully!\n\n' +
+                          '• Strategy: ' + data.strategy.symbol + '\n' +
+                          '• Margin: $' + data.strategy.margin + ' USDT\n' +
+                          '• Leverage: ' + data.strategy.leverage + 'x\n\n' +
+                          'The strategy will be active when the bot restarts.');
+
+                    // Refresh the page to show new strategy
+                    location.reload();
+                } else {
+                    alert('❌ Error creating strategy:\n\n' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error creating strategy:', error);
+                alert('Error creating strategy: ' + error);
+            });
+        }
+
+        // Console log functions
+        function clearConsoleLog() {
+            const consoleLog = document.getElementById('consoleLog');
+            if (consoleLog) {
+                consoleLog.innerHTML = '<div class="text-muted">Console cleared</div>';
+            }
+        }
+
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            const btn = document.getElementById('autoScrollBtn');
+            if (btn) {
+                btn.innerHTML = autoScroll ?
+                    '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: ON' :
+                    '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: OFF';
+            }
+        }
+
+        // Show alert function for better user feedback
+        function showAlert(message, type) {
+            // Remove existing alerts
+            const existingAlerts = document.querySelectorAll('.dynamic-alert');
+            existingAlerts.forEach(function(alert) { alert.remove(); });
+
+            // Create new alert
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} dynamic-alert position-fixed`;
+            alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            alertDiv.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
+                ${message}
+                <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
+            `;
+
+            document.body.appendChild(alertDiv);
+
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+
+        // Utility functions
+        function formatNumber(number) {
+            // Handle NaN, null, undefined, and infinite values
+            if (number === null || number === undefined || isNaN(number) || !isFinite(number)) {
+                return '0.00';
+            }
+            return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(number);
+        }
+
+         // Refresh dashboard data
+        function updateDashboard() {
+            refreshData();
+        }
+         // Show anomalies function
+        function showAnomalies() {
+            alert('Anomaly Detection System\n\n' +
+                  '• Unusual market movements\n' +
+                  '• Unexpected position changes\n' +
+                  '• API connection issues\n' +
+                  '• Risk management alerts\n\n' +
+                  'Check console logs for detailed anomaly reports.');
+        }
+
+        function displayInsights(insights) {
+            const container = document.getElementById('insights-content');
+
+            if (!insights || Object.keys(insights).length === 0) {
+                container.innerHTML = '<div class="text-muted">No insights available yet.</div>';
+                return;
+            }
+
+            let html = '';
+            for (const [key, value] of Object.entries(insights)) {
+                html += `
+                    <div class="insight-item">
+                        <span class="insight-label">${key}:</span>
+                        <span class="insight-value">${value}</span>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        function displayPredictions(predictions) {
+            const container = document.getElementById('predictions-content');
+
+            if (!predictions || predictions.length === 0) {
+                container.innerHTML = '<div class="text-muted">No predictions available yet.</div>';
+                return;
+            }
+
+            let html = '';
+            predictions.forEach(function(prediction) {
+                const statusClass = prediction.confidence > 0.7 ? 'profitable' : 
+                                  prediction.confidence < 0.3 ? 'unprofitable' : 'neutral';
+
+                html += `
+                    <div class="prediction-item">
+                        <strong>${prediction.symbol}</strong> - ${prediction.direction}
+                        <span class="status ${statusClass}">${(prediction.confidence * 100).toFixed(1)}% confidence</span>
+                        <small>${prediction.timeframe}</small>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function showSuccess(containerId, message) {
+            const container = document.getElementById(containerId);
+            const existingContent = container.innerHTML;
+            container.innerHTML = `<div class="success">✅ ${message}</div><br>${existingContent}`;
+
+            // Remove success message after 5 seconds
+            setTimeout(() => {
+                container.innerHTML = existingContent;
+            }, 5000);
+        }
+
+        // Safety validation feedback function
+        function handleSafetyValidation(data) {
+            if (data && data.safety_warnings && data.safety_warnings.length > 0) {
+                let warningMessage = '⚠️ Safety corrections were applied:\n\n';
+                data.safety_warnings.forEach(function(warning) {
+                    warningMessage += '• ' + warning + '\n';
+                });
+                warningMessage += '\nConfiguration was saved with safe default values.';
+
+                // Show as a warning alert instead of blocking alert
+                showAlert(warningMessage, 'warning');
+            }
+        }
+
+        // Alert function
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+
+            const container = document.querySelector('.container-fluid'); // Or any specific container you want to insert into
+            container.prepend(alertDiv);
+
+            // Automatically close the alert after 5 seconds
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+
+        // Include MACD threshold fields in form data collection
+        // Include MACD threshold fields in form data collection
+        function collectFormData(strategyName) {
+            const formData = {};
+
+            formData.symbol = document.getElementById('strategySymbol').value;
+            formData.margin = parseFloat(document.getElementById('strategyMargin').value);
+            formData.leverage = parseInt(document.getElementById('strategyLeverage').value);
+            formData.decimals = parseInt(document.getElementById('strategyDecimals').value);
+            formData.timeframe = document.getElementById('strategyTimeframe').value;
+            formData.max_loss_pct = parseFloat(document.getElementById('strategyMaxLoss').value);
+            formData.assessment_interval = parseInt(document.getElementById('assessmentInterval').value);
+            formData.cooldown_period = parseInt(document.getElementById('cooldownPeriod').value);
+
+            // Partial Take Profit Configuration
+            formData.partialTpEnabled = document.getElementById('partialTpEnabled').checked;
+
+            if (formData.partialTpEnabled) {
+                const threshold = document.getElementById('partialTpPnlThreshold').value;
+                const positionSize = document.getElementById('partialTpPositionPercentage').value;
+
+                if (threshold && positionSize) {
+                    formData.partial_tp_pnl_threshold = parseFloat(threshold);
+                    formData.partial_tp_position_percentage = parseFloat(positionSize);
+                }
+            }
+
+            if (strategyName.toLowerCase().includes('rsi')) {
+                formData.rsi_long_entry = parseInt(document.getElementById('rsiLongEntry').value);
+                formData.rsi_long_exit = parseInt(document.getElementById('rsiLongExit').value);
+                formData.rsi_short_entry = parseInt(document.getElementById('rsiShortEntry').value);
+                formData.rsi_short_exit = parseInt(document.getElementById('rsiShortExit').value);
+            }
+
+            if (strategyName.toLowerCase().includes('macd')) {
+                formData.macd_fast = parseInt(document.getElementById('macdFast').value);
+                formData.macd_slow = parseInt(document.getElementById('macdSlow').value);
+                formData.macd_signal = parseInt(document.getElementById('macdSignal').value);
+                formData.min_histogram_threshold = parseFloat(document.getElementById('minHistogramThreshold').value);
+                formData.macd_entry_threshold = parseFloat(document.getElementById('macdEntryThreshold').value);
+                formData.macd_exit_threshold = parseFloat(document.getElementById('macdExitThreshold').value);
+                formData.histogram_divergence_lookback = parseInt(document.getElementById('histogramDivergenceLookback').value);
+                formData.price_divergence_lookback = parseInt(document.getElementById('priceDivergenceLookback').value);
+                formData.confirmation_candles = parseInt(document.getElementById('confirmationCandles').value);
+                formData.divergence_strength_min = parseFloat(document.getElementById('divergenceStrengthMin').value);
+            }
+
+            return formData;
+        }
+
+        // Show safety validation feedback in alert
+        function handleSafetyValidation(data) {
+            if (data && data.safety_warnings && data.safety_warnings.length > 0) {
+                let warningMessage = '⚠️ Safety corrections were applied:\n\n';
+                data.safety_warnings.forEach(function(warning) {
+                    warningMessage += '• ' + warning + '\n';
+                });
+                warningMessage += '\nConfiguration was saved with safe default values.';
+
+                // Show the safety warning as an alert on the page
+                showAlert(warningMessage, 'warning');
+            }
+        }
+</script>
+</body>
+</html>

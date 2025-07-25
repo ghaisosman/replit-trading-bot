@@ -4,10 +4,10 @@ All configuration is now managed through the web dashboard interface.
 """
 
 def get_engulfing_pattern_config():
-    """Get engulfing pattern configuration - single strategy only"""
+    """Get engulfing pattern configuration for all symbols"""
     return {
-        'engulfing_pattern': {
-            'name': 'engulfing_pattern',
+        'ENGULFING_PATTERN_BTCUSDT': {
+            'name': 'ENGULFING_PATTERN_BTCUSDT',
             'symbol': 'BTCUSDT',
             'timeframe': '1h',
             'margin_usdt': 10.0,
@@ -16,7 +16,35 @@ def get_engulfing_pattern_config():
             'rsi_threshold': 50,
             'rsi_long_exit': 70,
             'rsi_short_exit': 30,
-            'stable_candle_ratio': 0.2,
+            'stable_candle_ratio': 0.2,  # Further relaxed for more pattern detection
+            'price_lookback_bars': 5,
+            'max_loss_pct': 10
+        },
+        'ENGULFING_PATTERN_ETHUSDT': {
+            'name': 'ENGULFING_PATTERN_ETHUSDT',
+            'symbol': 'ETHUSDT',
+            'timeframe': '1h',
+            'margin_usdt': 10.0,
+            'leverage': 3,
+            'rsi_period': 14,
+            'rsi_threshold': 50,
+            'rsi_long_exit': 70,
+            'rsi_short_exit': 30,
+            'stable_candle_ratio': 0.2,  # Further relaxed for more pattern detection
+            'price_lookback_bars': 5,
+            'max_loss_pct': 10
+        },
+        'ENGULFING_PATTERN_ADAUSDT': {
+            'name': 'ENGULFING_PATTERN_ADAUSDT',
+            'symbol': 'ADAUSDT',
+            'timeframe': '1h',
+            'margin_usdt': 10.0,
+            'leverage': 3,
+            'rsi_period': 14,
+            'rsi_threshold': 50,
+            'rsi_long_exit': 70,
+            'rsi_short_exit': 30,
+            'stable_candle_ratio': 0.2,  # Further relaxed for more pattern detection
             'price_lookback_bars': 5,
             'max_loss_pct': 10
         }
@@ -24,12 +52,12 @@ def get_engulfing_pattern_config():
 
 class EngulfingPatternConfig:
     """Configuration class for Engulfing Pattern Strategy - kept for compatibility"""
-
+    
     @staticmethod
     def get_config():
         """Get default configuration - web dashboard is source of truth"""
         return DEFAULT_PARAMETERS
-
+    
     @staticmethod
     def update_config(updates):
         """Deprecated - use web dashboard"""

@@ -38,9 +38,7 @@
     "SMART_MONEY_REVERSAL": "\u001b[95m",
     "OPEN": "\u001b[95m",
     "DATABASE": "\u001b[95m",
-    "SUCCESS": "\u001b[95m",
-    "SCANNING": "\u001b[95m",
-    "ADAUSDT": "\u001b[95m"
+    "SUCCESS": "\u001b[95m"
   },
   "active_position_colors": {
     "LOADED": "\u001b[1;95m",
@@ -81,8 +79,6 @@
     "SMART_MONEY_REVERSAL": "\u001b[1;95m",
     "OPEN": "\u001b[1;95m",
     "DATABASE": "\u001b[1;95m",
-    "SUCCESS": "\u001b[1;95m",
-    "SCANNING": "\u001b[1;95m",
-    "ADAUSDT": "\u001b[1;95m"
+    "SUCCESS": "\u001b[1;95m"
   }
 }

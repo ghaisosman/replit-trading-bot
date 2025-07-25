@@ -114,29 +114,6 @@ class TradingConfigManager:
                     'macd_entry_threshold': 0.05,
                     'macd_exit_threshold': 0.02
                 })
-            elif 'engulfing' in strategy_name.lower():
-                # Get symbol from strategy name if possible
-                symbol = 'BTCUSDT'  # default
-                if 'btc' in strategy_name.lower():
-                    symbol = 'BTCUSDT'
-                elif 'eth' in strategy_name.lower():
-                    symbol = 'ETHUSDT'
-                elif 'ada' in strategy_name.lower():
-                    symbol = 'ADAUSDT'
-
-                config.update({
-                    'symbol': symbol,
-                    'margin': 10.0,
-                    'leverage': 3,
-                    'timeframe': '1h',
-                    'rsi_period': 14,
-                    'rsi_threshold': 50,
-                    'rsi_long_exit': 70,
-                    'rsi_short_exit': 30,
-                    'stable_candle_ratio': 0.2,
-                    'price_lookback_bars': 5,
-                    'max_loss_pct': 10
-                })
 
             import logging
             logging.getLogger(__name__).info(f"⚠️ {strategy_name}: Using default config - no web dashboard config found")
@@ -261,22 +238,6 @@ class TradingConfigManager:
                 'macd_exit_threshold': 0.02,
                 'decimals': 3,
                 'cooldown_period': 300
-            },
-            'engulfing_pattern': {
-                **self.default_params.to_dict(),
-                'symbol': 'BTCUSDT',
-                'margin': 10.0,
-                'leverage': 3,
-                'timeframe': '1h',
-                'rsi_period': 14,
-                'rsi_threshold': 50,
-                'rsi_long_exit': 70,
-                'rsi_short_exit': 30,
-                'stable_candle_ratio': 0.2,
-                'price_lookback_bars': 5,
-                'max_loss_pct': 10,
-                'decimals': 3,
-                'cooldown_period': 300
             }
         }
 
@@ -297,9 +258,9 @@ class TradingConfigManager:
         """Update strategy configuration with new values"""
         import logging
         try:
-            # Initialize strategy config if it doesn't exist
             if strategy_name not in self.strategy_configs:
-                self.strategy_configs[strategy_name] = {}
+                logging.getLogger(__name__).error(f"Strategy '{strategy_name}' not found in configuration")
+                return False
 
             # Update the strategy configuration
             if self.strategy_configs[strategy_name] is None:
@@ -327,101 +288,9 @@ class TradingConfigManager:
     def is_strategy_enabled(self, strategy_name):
         """Check if a strategy is enabled"""
         try:
-            # If strategy exists in web dashboard config, use that
-            if strategy_name in self.strategy_configs:
-                return self.strategy_configs[strategy_name].get('enabled', True)
-            
-            # For default strategies not yet configured, they're enabled by default
-            default_strategies = ['rsi_oversold', 'macd_divergence', 'engulfing_pattern']
-            if strategy_name in default_strategies:
-                return True
-                
-            # Unknown strategies are disabled
-            return False
+            return self.strategy_configs.get(strategy_name, {}).get('enabled', False)
         except Exception:
             return False
-
-    def get_all_strategy_configs(self) -> Dict[str, Dict]:
-        """Get all strategy configurations"""
-        import logging
-        try:
-            # Return all loaded strategy configs from web dashboard
-            all_configs = {}
-            
-            # Include all configs from web dashboard
-            for strategy_name, config in self.strategy_configs.items():
-                all_configs[strategy_name] = config
-            
-            # Also include default strategies if they're not in web dashboard
-            default_strategies = ['rsi_oversold', 'macd_divergence', 'engulfing_pattern']
-            
-            for strategy_name in default_strategies:
-                if strategy_name not in all_configs:
-                    config = self.get_strategy_config(strategy_name, {})
-                    if config:
-                        all_configs[strategy_name] = config
-
-            logging.getLogger(__name__).info(f"✅ Retrieved {len(all_configs)} strategy configurations")
-            return all_configs
-
-        except Exception as e:
-            logging.getLogger(__name__).error(f"Error getting all strategy configs: {e}")
-            return {}
-
-    def remove_duplicate_strategies(self):
-        """Remove duplicate strategy configurations - keep only single engulfing strategy"""
-        import os
-        import json
-        import logging
-        try:
-            logging.getLogger(__name__).info("🧹 Cleaning engulfing strategies to single instance")
-
-            config_file = "trading_data/web_dashboard_configs.json"
-
-            if os.path.exists(config_file):
-                with open(config_file, 'r') as f:
-                    dashboard_config = json.load(f)
-
-                # Find all engulfing strategies
-                engulfing_strategies = [key for key in dashboard_config.keys() if 'engulfing' in key.lower()]
-                
-                if len(engulfing_strategies) > 1:
-                    logging.getLogger(__name__).info(f"Found {len(engulfing_strategies)} engulfing strategies, keeping only 'engulfing_pattern'")
-                    
-                    # Keep only the main engulfing_pattern, remove all others
-                    removed_count = 0
-                    for strategy_name in engulfing_strategies:
-                        if strategy_name != 'engulfing_pattern':
-                            del dashboard_config[strategy_name]
-                            removed_count += 1
-                            logging.getLogger(__name__).info(f"🗑️ Removed: {strategy_name}")
-                    
-                    # Ensure we have the main engulfing_pattern strategy
-                    if 'engulfing_pattern' not in dashboard_config:
-                        dashboard_config['engulfing_pattern'] = {
-                            'symbol': 'BTCUSDT',
-                            'margin': 10.0,
-                            'leverage': 3,
-                            'timeframe': '1h',
-                            'enabled': True
-                        }
-                        logging.getLogger(__name__).info("✅ Added main engulfing_pattern strategy")
-
-                    # Save updated config
-                    with open(config_file, 'w') as f:
-                        json.dump(dashboard_config, f, indent=2)
-
-                    logging.getLogger(__name__).info(f"✅ Cleaned to single engulfing strategy, removed {removed_count} duplicates")
-                    return removed_count
-                else:
-                    logging.getLogger(__name__).info("✅ Already have single engulfing strategy")
-                    return 0
-
-            return 0
-
-        except Exception as e:
-            logging.getLogger(__name__).error(f"❌ Error cleaning engulfing strategies: {e}")
-            return 0
 
 # Global config manager instance
 trading_config_manager = TradingConfigManager()
