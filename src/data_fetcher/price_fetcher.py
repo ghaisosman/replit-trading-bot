@@ -7,6 +7,7 @@ from src.binance_client.client import BinanceClientWrapper
 from datetime import datetime, timezone, timedelta
 from src.config.global_config import global_config
 from src.data_fetcher.websocket_manager import websocket_manager
+import time
 
 class PriceFetcher:
     """Fetches and processes price data"""
@@ -61,7 +62,7 @@ class PriceFetcher:
             if ws_price and websocket_manager.is_data_fresh(symbol, '1m', max_age_seconds=30):
                 self.price_cache[symbol] = ws_price
                 return ws_price
-            
+
             # Fallback to REST API if WebSocket data is unavailable
             self.logger.debug(f"Using REST API fallback for {symbol} current price")
             ticker = self.binance_client.get_symbol_ticker(symbol)
@@ -70,7 +71,7 @@ class PriceFetcher:
                 self.price_cache[symbol] = price
                 return price
             return None
-            
+
         except Exception as e:
             self.logger.error(f"Error getting current price for {symbol}: {e}")
             return None
@@ -82,10 +83,10 @@ class PriceFetcher:
 
             # First, try to get data from WebSocket cache
             cached_klines = websocket_manager.get_cached_klines(symbol, interval, limit)
-            
+
             if cached_klines and websocket_manager.is_data_fresh(symbol, interval, max_age_seconds=60):
                 self.logger.debug(f"✅ Using WebSocket cached data for {symbol} {interval} ({len(cached_klines)} klines)")
-                
+
                 # Convert WebSocket data to DataFrame
                 df_data = []
                 for kline in cached_klines:
@@ -94,23 +95,23 @@ class PriceFetcher:
                         kline['close'], kline['volume'], kline['close_time'],
                         0, 0, 0, 0, 0  # Placeholder values for additional columns
                     ])
-                
+
                 df = pd.DataFrame(df_data, columns=[
                     'timestamp', 'open', 'high', 'low', 'close', 'volume',
                     'close_time', 'quote_asset_volume', 'number_of_trades',
                     'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
                 ])
-                
+
             else:
                 # Fallback to REST API if WebSocket data is not available or stale
                 self.logger.warning(f"⚠️ WebSocket data unavailable/stale for {symbol} {interval}, using REST API fallback")
-                
+
                 # Make sure symbol/interval is added to WebSocket manager for future
                 websocket_manager.add_symbol_interval(symbol, interval)
-                
+
                 # Use REST API as fallback (rate limited)
                 klines = self.binance_client.get_historical_klines(symbol, interval, limit)
-                
+
                 if not klines:
                     self.logger.warning(f"No kline data received for {symbol}")
                     return None
@@ -198,44 +199,41 @@ class PriceFetcher:
     def get_ohlcv_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:
         """Get OHLCV data as DataFrame with enhanced accuracy"""
         try:
-            # Get more data than needed for better indicator calculation
-            extended_limit = min(limit + 50, 1000)  # Add buffer for accurate indicators
-            klines = self.binance_client.get_historical_klines(symbol, interval, extended_limit)
-            if not klines:
-                return None
+            # Check WebSocket data freshness first
+            if websocket_manager.is_data_fresh(symbol, interval, max_age_seconds=120):
+                cached_data = websocket_manager.get_cached_klines(symbol, interval, limit)
+                if cached_data:
+                    self.logger.info(f"📡 Using fresh WebSocket data for {symbol} {interval} ({len(cached_data)} klines)")
+                    return self._convert_websocket_to_dataframe(cached_data)
 
-            # Convert to DataFrame
-            df = pd.DataFrame(klines, columns=[
-                'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                'close_time', 'quote_asset_volume', 'number_of_trades',
-                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
-            ])
+            # CRITICAL: Avoid REST API calls during IP ban period
+            self.logger.warning(f"⚠️ WebSocket data unavailable/stale for {symbol} {interval}")
 
-            # Apply timezone adjustment if configured (preserves all existing logic)
-            if self.use_local_timezone or self.timezone_offset_hours != 0:
-                df['timestamp'] = df['timestamp'].apply(self._adjust_timestamp_for_timezone)
+            # Start WebSocket for this symbol if not already streaming
+            if not websocket_manager.is_connected:
+                self.logger.info(f"🔄 Starting WebSocket stream for {symbol} {interval}")
+                websocket_manager.add_symbol_interval(symbol, interval)
 
-            # Convert to proper data types with high precision
-            numeric_columns = ['open', 'high', 'low', 'close', 'volume']
-            for col in numeric_columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+                # Wait for WebSocket connection instead of REST API fallback
+                max_wait = 30  # seconds
+                wait_time = 0
+                while wait_time < max_wait and not websocket_manager.is_connected:
+                    time.sleep(1)
+                    wait_time += 1
 
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df.set_index('timestamp', inplace=True)
+                if websocket_manager.is_connected:
+                    # Try to get cached data after WebSocket connects
+                    time.sleep(2)  # Give time for initial data
+                    cached_data = websocket_manager.get_cached_klines(symbol, interval, limit)
+                    if cached_data:
+                        self.logger.info(f"📡 Got WebSocket data after connection for {symbol} {interval}")
+                        return self._convert_websocket_to_dataframe(cached_data)
 
-            # Sort by timestamp to ensure proper order
-            df = df.sort_index()
+            # LAST RESORT: Only use REST API if absolutely necessary and not during ban
+            self.logger.error(f"❌ WebSocket unavailable for {symbol} {interval} - Cannot fetch data during IP ban period")
 
-            # Remove any duplicate timestamps
-            df = df[~df.index.duplicated(keep='last')]
-
-            # Return only requested amount but keep the extra data for calculations
-            result_df = df[['open', 'high', 'low', 'close', 'volume']].tail(limit)
-
-            # Log data quality
-            self.logger.debug(f"📊 DATA QUALITY | {symbol} | Requested: {limit} | Got: {len(result_df)} | Latest: {result_df.index[-1]}")
-
-            return result_df
+            # Return None instead of making REST API calls during ban
+            return None
 
         except Exception as e:
             self.logger.error(f"Error getting OHLCV data for {symbol}: {e}")
@@ -343,3 +341,35 @@ class PriceFetcher:
         rsi = 100 - (100 / (1 + rs))
 
         return rsi
+
+    def _convert_websocket_to_dataframe(self, cached_data: List[Dict]) -> pd.DataFrame:
+        """Convert WebSocket data to DataFrame format"""
+        df_data = []
+        for kline in cached_data:
+            df_data.append([
+                kline['timestamp'], kline['open'], kline['high'], kline['low'],
+                kline['close'], kline['volume'], kline['close_time'],
+                0, 0, 0, 0, 0  # Placeholder values for additional columns
+            ])
+
+        df = pd.DataFrame(df_data, columns=[
+            'timestamp', 'open', 'high', 'low', 'close', 'volume',
+            'close_time', 'quote_asset_volume', 'number_of_trades',
+            'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
+        ])
+
+        # Apply timezone adjustment if configured (preserves all existing logic)
+        if self.use_local_timezone or self.timezone_offset_hours != 0:
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df['timestamp'] = df['timestamp'].apply(lambda x: self._adjust_timestamp_for_timezone(int(x.timestamp() * 1000)))
+        else:
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+
+        # Convert to proper data types with high precision
+        numeric_columns = ['open', 'high', 'low', 'close', 'volume']
+        for col in numeric_columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        df.set_index('timestamp', inplace=True)
+
+        return df

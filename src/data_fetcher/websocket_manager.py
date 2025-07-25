@@ -154,7 +154,7 @@ class WebSocketKlineManager:
                         break
                         
     def _connect_websocket(self):
-        """Establish WebSocket connection"""
+        """Establish WebSocket connection with improved error handling"""
         try:
             # Create combined stream URL - Binance supports combined streams
             if len(self.subscribed_streams) == 1:
@@ -168,7 +168,7 @@ class WebSocketKlineManager:
             
             self.logger.info(f"🔗 Connecting to WebSocket: {url}")
             
-            # Create WebSocket connection
+            # Create WebSocket connection with improved settings
             self.ws = websocket.WebSocketApp(
                 url,
                 on_open=self._on_open,
@@ -177,16 +177,19 @@ class WebSocketKlineManager:
                 on_close=self._on_close
             )
             
-            # Run WebSocket with SSL context
+            # Run WebSocket with improved settings for reliability
             self.ws.run_forever(
                 sslopt={"cert_reqs": ssl.CERT_NONE},
-                ping_interval=self.ping_interval,
-                ping_timeout=10
+                ping_interval=20,  # More frequent pings
+                ping_timeout=10,
+                origin="https://www.binance.com",  # Add origin header
+                host="fstream.binance.com"  # Explicit host
             )
             
         except Exception as e:
             self.logger.error(f"Failed to connect WebSocket: {e}")
-            raise
+            # Don't raise immediately, let the retry logic handle it
+            time.sleep(5)  # Brief delay before retry
             
     def _on_open(self, ws):
         """WebSocket connection opened"""
@@ -236,8 +239,19 @@ class WebSocketKlineManager:
             self.logger.debug(f"Raw message: {message[:200]}...")  # First 200 chars for debugging
             
     def _on_error(self, ws, error):
-        """WebSocket error handler"""
-        self.logger.error(f"WebSocket error: {error}")
+        """WebSocket error handler with geographic restriction detection"""
+        error_str = str(error)
+        
+        if "403" in error_str or "Forbidden" in error_str:
+            self.logger.error(f"🚫 WebSocket Geographic Restriction Detected: {error}")
+            self.logger.error("💡 This is likely due to Replit's server location being blocked by Binance")
+            self.logger.error("🔧 Recommendation: Use proxy infrastructure as described in Instructions.md")
+        elif "429" in error_str or "rate limit" in error_str.lower():
+            self.logger.error(f"⚠️ WebSocket Rate Limit Error: {error}")
+            self.logger.error("🔄 Will retry with exponential backoff")
+        else:
+            self.logger.error(f"WebSocket error: {error}")
+            
         self.is_connected = False
         
     def _on_close(self, ws, close_status_code, close_msg):
