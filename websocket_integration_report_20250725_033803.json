@@ -1,0 +1,265 @@
+{
+  "test_timestamp": "2025-07-25T03:38:03.380225",
+  "overall_status": "SUCCESS",
+  "connection_success_rate": 100.0,
+  "symbols_tested": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
+  "test_duration_minutes": 1.0,
+  "detailed_results": {
+    "websocket_connections": {
+      "BTCUSDT": {
+        "connected": true,
+        "data_received": 23,
+        "errors": 0,
+        "status": "SUCCESS"
+      },
+      "ETHUSDT": {
+        "connected": true,
+        "data_received": 23,
+        "errors": 0,
+        "status": "SUCCESS"
+      },
+      "SOLUSDT": {
+        "connected": true,
+        "data_received": 20,
+        "errors": 0,
+        "status": "SUCCESS"
+      }
+    },
+    "data_quality": {
+      "BTCUSDT": {
+        "status": "GOOD",
+        "metrics": {
+          "total_messages": 90,
+          "unique_timestamps": 1,
+          "price_consistency": true,
+          "volume_consistency": true,
+          "timestamp_sequence": false,
+          "api_comparison": {
+            "api_close": 115406.7,
+            "ws_close": 115385.3,
+            "difference_percent": 0.018543117513969448
+          }
+        },
+        "issues": [
+          "Duplicate timestamps detected"
+        ],
+        "sample_data": [
+          {
+            "symbol": "BTCUSDT",
+            "open": 115309.0,
+            "high": 115420.0,
+            "low": 115304.4,
+            "close": 115404.2,
+            "volume": 274.239,
+            "timestamp": 1753414620000,
+            "is_closed": false,
+            "received_at": 1753414673.2662785
+          },
+          {
+            "symbol": "BTCUSDT",
+            "open": 115309.0,
+            "high": 115420.0,
+            "low": 115304.4,
+            "close": 115397.6,
+            "volume": 275.093,
+            "timestamp": 1753414620000,
+            "is_closed": false,
+            "received_at": 1753414673.518935
+          },
+          {
+            "symbol": "BTCUSDT",
+            "open": 115309.0,
+            "high": 115420.0,
+            "low": 115304.4,
+            "close": 115385.3,
+            "volume": 276.21,
+            "timestamp": 1753414620000,
+            "is_closed": false,
+            "received_at": 1753414673.82134
+          }
+        ]
+      },
+      "ETHUSDT": {
+        "status": "GOOD",
+        "metrics": {
+          "total_messages": 63,
+          "unique_timestamps": 1,
+          "price_consistency": true,
+          "volume_consistency": true,
+          "timestamp_sequence": false,
+          "api_comparison": {
+            "api_close": 3586.07,
+            "ws_close": 3585.41,
+            "difference_percent": 0.018404548712108497
+          }
+        },
+        "issues": [
+          "Duplicate timestamps detected"
+        ],
+        "sample_data": [
+          {
+            "symbol": "ETHUSDT",
+            "open": 3585.19,
+            "high": 3588.7,
+            "low": 3584.46,
+            "close": 3585.66,
+            "volume": 5723.344,
+            "timestamp": 1753414620000,
+            "is_closed": false,
+            "received_at": 1753414673.6118846
+          },
+          {
+            "symbol": "ETHUSDT",
+            "open": 3585.19,
+            "high": 3588.7,
+            "low": 3584.46,
+            "close": 3585.4,
+            "volume": 5755.989,
+            "timestamp": 1753414620000,
+            "is_closed": false,
+            "received_at": 1753414673.8735414
+          },
+          {
+            "symbol": "ETHUSDT",
+            "open": 3585.19,
+            "high": 3588.7,
+            "low": 3584.46,
+            "close": 3585.41,
+            "volume": 5758.709,
+            "timestamp": 1753414620000,
+            "is_closed": false,
+            "received_at": 1753414674.4215674
+          }
+        ]
+      },
+      "SOLUSDT": {
+        "status": "GOOD",
+        "metrics": {
+          "total_messages": 40,
+          "unique_timestamps": 1,
+          "price_consistency": true,
+          "volume_consistency": true,
+          "timestamp_sequence": false,
+          "api_comparison": {
+            "api_close": 176.57,
+            "ws_close": 176.51,
+            "difference_percent": 0.03398085745030428
+          }
+        },
+        "issues": [
+          "Duplicate timestamps detected"
+        ],
+        "sample_data": [
+          {
+            "symbol": "SOLUSDT",
+            "open": 176.43,
+            "high": 176.66,
+            "low": 176.4,
+            "close": 176.55,
+            "volume": 34380.97,
+            "timestamp": 1753414620000,
+            "is_closed": false,
+            "received_at": 1753414674.5814688
+          },
+          {
+            "symbol": "SOLUSDT",
+            "open": 176.43,
+            "high": 176.66,
+            "low": 176.4,
+            "close": 176.51,
+            "volume": 34631.08,
+            "timestamp": 1753414620000,
+            "is_closed": false,
+            "received_at": 1753414674.85951
+          },
+          {
+            "symbol": "SOLUSDT",
+            "open": 176.43,
+            "high": 176.66,
+            "low": 176.4,
+            "close": 176.51,
+            "volume": 34690.73,
+            "timestamp": 1753414620000,
+            "is_closed": false,
+            "received_at": 1753414675.5056012
+          }
+        ]
+      }
+    },
+    "bot_integration": {
+      "BTCUSDT": {
+        "status": "SUCCESS",
+        "details": {
+          "websocket_data_available": true,
+          "data_freshness": "0.1s",
+          "enhancement_possible": true,
+          "price_fetcher_compatible": true,
+          "api_data_retrieved": 50
+        }
+      },
+      "ETHUSDT": {
+        "status": "SUCCESS",
+        "details": {
+          "websocket_data_available": true,
+          "data_freshness": "0.1s",
+          "enhancement_possible": true,
+          "price_fetcher_compatible": true,
+          "api_data_retrieved": 50
+        }
+      },
+      "SOLUSDT": {
+        "status": "SUCCESS",
+        "details": {
+          "websocket_data_available": true,
+          "data_freshness": "0.2s",
+          "enhancement_possible": true,
+          "price_fetcher_compatible": true,
+          "api_data_retrieved": 50
+        }
+      }
+    },
+    "rate_limit_impact": {
+      "test_duration_seconds": 4.68236231803894,
+      "theoretical_api_calls": 6,
+      "actual_api_calls": 3,
+      "efficiency_improvement_percent": 50.0,
+      "calls_per_minute": 38.44213407120262,
+      "websocket_data_available": 3
+    },
+    "performance_metrics": {
+      "BTCUSDT": {
+        "total_messages": 123,
+        "average_interval_seconds": 0.28940682137598756,
+        "messages_per_second": 3.455343572226426,
+        "estimated_latency_ms": 3271.699905395508,
+        "connection_errors": 0
+      },
+      "ETHUSDT": {
+        "total_messages": 92,
+        "average_interval_seconds": 0.3087173582433344,
+        "messages_per_second": 3.2392088533349948,
+        "estimated_latency_ms": 3242.4330711364746,
+        "connection_errors": 0
+      },
+      "SOLUSDT": {
+        "total_messages": 69,
+        "average_interval_seconds": 0.3120942606645472,
+        "messages_per_second": 3.2041601722206754,
+        "estimated_latency_ms": 3313.3652210235596,
+        "connection_errors": 0
+      }
+    }
+  },
+  "recommendations": [
+    "WebSocket integration is working well - consider production deployment"
+  ],
+  "summary": {
+    "websocket_connections": 3,
+    "data_quality_good": 3,
+    "rate_limit_improvement": 50.0
+  }
+}
