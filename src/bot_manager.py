@@ -998,7 +998,6 @@ class BotManager:
                     self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
                     self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
                     self.logger.info(f"📊 MACD Line: {macd_line:.6f} | Signal: {macd_signal:.6f} | Histogram: {macd_histogram:.6f}")
-                    continue
 
                 elif 'rsi' in strategy_name.lower() and 'engulfing' not in strategy_name.lower():
                     # Enhanced RSI scanning display
