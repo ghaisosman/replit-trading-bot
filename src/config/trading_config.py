@@ -114,6 +114,29 @@ class TradingConfigManager:
                     'macd_entry_threshold': 0.05,
                     'macd_exit_threshold': 0.02
                 })
+            elif 'engulfing' in strategy_name.lower():
+                # Get symbol from strategy name if possible
+                symbol = 'BTCUSDT'  # default
+                if 'btc' in strategy_name.lower():
+                    symbol = 'BTCUSDT'
+                elif 'eth' in strategy_name.lower():
+                    symbol = 'ETHUSDT'
+                elif 'ada' in strategy_name.lower():
+                    symbol = 'ADAUSDT'
+                
+                config.update({
+                    'symbol': symbol,
+                    'margin': 10.0,
+                    'leverage': 3,
+                    'timeframe': '1h',
+                    'rsi_period': 14,
+                    'rsi_threshold': 50,
+                    'rsi_long_exit': 70,
+                    'rsi_short_exit': 30,
+                    'stable_candle_ratio': 0.2,
+                    'price_lookback_bars': 5,
+                    'max_loss_pct': 10
+                })
 
             import logging
             logging.getLogger(__name__).info(f"⚠️ {strategy_name}: Using default config - no web dashboard config found")
@@ -237,6 +260,54 @@ class TradingConfigManager:
                 'macd_entry_threshold': 0.05,
                 'macd_exit_threshold': 0.02,
                 'decimals': 3,
+                'cooldown_period': 300
+            },
+            'ENGULFING_PATTERN_BTCUSDT': {
+                **self.default_params.to_dict(),
+                'symbol': 'BTCUSDT',
+                'margin': 10.0,
+                'leverage': 3,
+                'timeframe': '1h',
+                'rsi_period': 14,
+                'rsi_threshold': 50,
+                'rsi_long_exit': 70,
+                'rsi_short_exit': 30,
+                'stable_candle_ratio': 0.2,
+                'price_lookback_bars': 5,
+                'max_loss_pct': 10,
+                'decimals': 3,
+                'cooldown_period': 300
+            },
+            'ENGULFING_PATTERN_ETHUSDT': {
+                **self.default_params.to_dict(),
+                'symbol': 'ETHUSDT',
+                'margin': 10.0,
+                'leverage': 3,
+                'timeframe': '1h',
+                'rsi_period': 14,
+                'rsi_threshold': 50,
+                'rsi_long_exit': 70,
+                'rsi_short_exit': 30,
+                'stable_candle_ratio': 0.2,
+                'price_lookback_bars': 5,
+                'max_loss_pct': 10,
+                'decimals': 2,
+                'cooldown_period': 300
+            },
+            'ENGULFING_PATTERN_ADAUSDT': {
+                **self.default_params.to_dict(),
+                'symbol': 'ADAUSDT',
+                'margin': 10.0,
+                'leverage': 3,
+                'timeframe': '1h',
+                'rsi_period': 14,
+                'rsi_threshold': 50,
+                'rsi_long_exit': 70,
+                'rsi_short_exit': 30,
+                'stable_candle_ratio': 0.2,
+                'price_lookback_bars': 5,
+                'max_loss_pct': 10,
+                'decimals': 2,
                 'cooldown_period': 300
             }
         }
