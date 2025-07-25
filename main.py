@@ -82,9 +82,6 @@ async def main():
     # Check if running on Render (or any deployment)
     is_deployment = os.environ.get('RENDER') == 'true' or os.environ.get('REPLIT_DEPLOYMENT') == '1'
     
-    # Set deployment flag globally for auto-recovery
-    os.environ['IS_DEPLOYMENT'] = '1' if is_deployment else '0'
-    
     # Check for potential dual deployment situation
     if not is_deployment:
         try:
