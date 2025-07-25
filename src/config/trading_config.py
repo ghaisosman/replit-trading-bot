@@ -367,14 +367,23 @@ class TradingConfigManager:
         """Get all strategy configurations"""
         import logging
         try:
+            # Return all loaded strategy configs from web dashboard
             all_configs = {}
+            
+            # Include all configs from web dashboard
+            for strategy_name, config in self.strategy_configs.items():
+                all_configs[strategy_name] = config
+            
+            # Also include default strategies if they're not in web dashboard
+            default_strategies = ['rsi_oversold', 'macd_divergence', 'ENGULFING_PATTERN_BTCUSDT', 'ENGULFING_PATTERN_ETHUSDT', 'ENGULFING_PATTERN_ADAUSDT']
+            
+            for strategy_name in default_strategies:
+                if strategy_name not in all_configs:
+                    config = self.get_strategy_config(strategy_name, {})
+                    if config:
+                        all_configs[strategy_name] = config
 
-            # Get configs from all sources
-            for strategy_name in ['rsi_oversold', 'macd_divergence', 'engulfing_pattern', 'smart_money']:
-                config = self.get_strategy_config(strategy_name, {})
-                if config:
-                    all_configs[strategy_name] = config
-
+            logging.getLogger(__name__).info(f"✅ Retrieved {len(all_configs)} strategy configurations")
             return all_configs
 
         except Exception as e:
