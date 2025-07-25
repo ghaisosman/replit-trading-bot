@@ -1,0 +1,315 @@
+{
+  "timestamp": "2025-07-25T03:48:27.036602",
+  "telegram_configured": true,
+  "total_tests": 19,
+  "passed_tests": 19,
+  "failed_tests": 0,
+  "success_rate": 100.0,
+  "results_by_type": {
+    "connection": [
+      {
+        "message_type": "connection",
+        "test_name": "Telegram Connection Test",
+        "success": true,
+        "message_content": "Connection test completed",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:07.360390"
+      }
+    ],
+    "startup": [
+      {
+        "message_type": "startup",
+        "test_name": "Bot Startup Notification",
+        "success": true,
+        "message_content": "\n\ud83d\ude80 <b>TRADING BOT STARTED</b>\n\u23f0 <b>Time:</b> 03:48:07\n\ud83c\udf10 <b>Mode:</b> MAINNET\n\n\ud83d\udcca <b>STRATEGIES ACTIVE:</b>\n\u2022 RSI_OVERSOLD\n\u2022 MACD_DIVERGENCE\n\u2022 ENGULFING_PATTERN\n\n\ud83d\udcb1 <b>TRADING PAIRS:</b>\n\u2022 BTCUSDT\n\u2022 ETHUSDT\n\u2022 SOLUSDT\n\n\ud83d\udcb0 <b>Account Balance:</b> $1,000.00 USDT\n\ud83d\udcc8 <b>Open Positions:</b> 0\n\n\u2705 <b>Status:</b> Monitoring markets for entry signals\n\ud83d\udd04 <b>Next Update:</b> Real-time alerts enabled\n",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:07.918089"
+      }
+    ],
+    "shutdown": [
+      {
+        "message_type": "shutdown",
+        "test_name": "Bot Shutdown Notification",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:09.492592"
+      }
+    ],
+    "position_opened": [
+      {
+        "message_type": "position_opened",
+        "test_name": "RSI Oversold Position Opened",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:10.067914"
+      },
+      {
+        "message_type": "position_opened",
+        "test_name": "MACD Divergence Position Opened",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:10.639135"
+      },
+      {
+        "message_type": "position_opened",
+        "test_name": "Engulfing Pattern Position Opened",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:11.215807"
+      },
+      {
+        "message_type": "position_opened",
+        "test_name": "Smart Money Position Opened",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:11.788946"
+      }
+    ],
+    "position_closed": [
+      {
+        "message_type": "position_closed",
+        "test_name": "RSI Oversold Position Closed (Profit)",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:14.362953"
+      },
+      {
+        "message_type": "position_closed",
+        "test_name": "MACD Divergence Position Closed (Profit)",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:14.939348"
+      },
+      {
+        "message_type": "position_closed",
+        "test_name": "Engulfing Pattern Position Closed (Loss)",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:15.508962"
+      },
+      {
+        "message_type": "position_closed",
+        "test_name": "Smart Money Position Closed (Profit)",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:16.087363"
+      }
+    ],
+    "error": [
+      {
+        "message_type": "error",
+        "test_name": "Strategy-Specific Error",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:18.799455"
+      },
+      {
+        "message_type": "error",
+        "test_name": "General System Error",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:19.375147"
+      },
+      {
+        "message_type": "error",
+        "test_name": "Order Execution Error",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:19.949700"
+      }
+    ],
+    "balance_warning": [
+      {
+        "message_type": "balance_warning",
+        "test_name": "Low Balance Warning",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:22.032757"
+      }
+    ],
+    "anomaly_orphan": [
+      {
+        "message_type": "anomaly_orphan",
+        "test_name": "Orphan Trade Detection",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:22.670680"
+      }
+    ],
+    "anomaly_orphan_cleared": [
+      {
+        "message_type": "anomaly_orphan_cleared",
+        "test_name": "Orphan Trade Cleared",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:23.246029"
+      }
+    ],
+    "anomaly_ghost": [
+      {
+        "message_type": "anomaly_ghost",
+        "test_name": "Ghost Trade Detection",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:23.879800"
+      }
+    ],
+    "anomaly_ghost_cleared": [
+      {
+        "message_type": "anomaly_ghost_cleared",
+        "test_name": "Ghost Trade Cleared",
+        "success": true,
+        "message_content": "No message content found",
+        "error": null,
+        "timestamp": "2025-07-25T03:48:24.461019"
+      }
+    ]
+  },
+  "all_messages": [
+    {
+      "timestamp": "2025-07-25T03:48:08.492451",
+      "content": "\n\ud83d\ude80 <b>TRADING BOT STARTED</b>\n\u23f0 <b>Time:</b> 03:48:07\n\ud83c\udf10 <b>Mode:</b> MAINNET\n\n\ud83d\udcca <b>STRATEGIES ACTIVE:</b>\n\u2022 RSI_OVERSOLD\n\u2022 MACD_DIVERGENCE\n\u2022 ENGULFING_PATTERN\n\n\ud83d\udcb1 <b>TRADING PAIRS:</b>\n\u2022 BTCUSDT\n\u2022 ETHUSDT\n\u2022 SOLUSDT\n\n\ud83d\udcb0 <b>Account Balance:</b> $1,000.00 USDT\n\ud83d\udcc8 <b>Open Positions:</b> 0\n\n\u2705 <b>Status:</b> Monitoring markets for entry signals\n\ud83d\udd04 <b>Next Update:</b> Real-time alerts enabled\n",
+      "method": "report_bot_startup"
+    },
+    {
+      "timestamp": "2025-07-25T03:48:09.493092",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:10.068384",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:10.639519",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:11.216292",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:11.789381",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:14.363425",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:14.939700",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:15.509402",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:16.087704",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:18.799880",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:19.375548",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:19.950048",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:22.033182",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:22.671049",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:23.246410",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:23.880139",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    },
+    {
+      "timestamp": "2025-07-25T03:48:24.461396",
+      "content": "No message content found",
+      "method": "send_message",
+      "args_count": 1,
+      "kwargs_keys": []
+    }
+  ],
+  "configuration_status": {
+    "bot_token_configured": true,
+    "chat_id_configured": true,
+    "reporter_enabled": true
+  }
+}
