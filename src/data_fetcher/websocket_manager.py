@@ -156,9 +156,15 @@ class WebSocketKlineManager:
     def _connect_websocket(self):
         """Establish WebSocket connection"""
         try:
-            # Create combined stream URL
-            streams = "/".join(self.subscribed_streams)
-            url = f"{self.base_url}{streams}"
+            # Create combined stream URL - Binance supports combined streams
+            if len(self.subscribed_streams) == 1:
+                # Single stream
+                stream = list(self.subscribed_streams)[0]
+                url = f"wss://fstream.binance.com/ws/{stream}"
+            else:
+                # Multiple streams combined
+                streams = "/".join(sorted(self.subscribed_streams))  # Sort for consistency
+                url = f"wss://fstream.binance.com/ws/{streams}"
             
             self.logger.info(f"🔗 Connecting to WebSocket: {url}")
             
@@ -198,20 +204,36 @@ class WebSocketKlineManager:
         """Process incoming WebSocket message"""
         try:
             data = json.loads(message)
+            self.stats['messages_received'] += 1
+            self.stats['last_message_time'] = datetime.now()
             
-            # Handle stream data
+            # Handle stream data - check multiple possible formats
             if 'stream' in data and 'data' in data:
+                # Combined stream format: {"stream": "btcusdt@kline_1m", "data": {...}}
                 stream_name = data['stream']
                 kline_data = data['data']
                 
                 if 'k' in kline_data:  # Kline data
                     self._process_kline_data(stream_name, kline_data['k'])
+                    self.logger.debug(f"📊 Processed kline from combined stream: {stream_name}")
                     
-            self.stats['messages_received'] += 1
-            self.stats['last_message_time'] = datetime.now()
-            
+            elif 'k' in data:
+                # Direct kline format: {"e": "kline", "E": timestamp, "s": "BTCUSDT", "k": {...}}
+                if 'e' in data and data['e'] == 'kline':
+                    symbol = data['s'].lower()
+                    # Extract interval from kline data
+                    interval = data['k']['i']
+                    stream_name = f"{symbol}@kline_{interval}"
+                    self._process_kline_data(stream_name, data['k'])
+                    self.logger.debug(f"📊 Processed kline from direct format: {stream_name}")
+                    
+            else:
+                # Log unrecognized message format for debugging
+                self.logger.debug(f"🔍 Unrecognized message format: {list(data.keys())}")
+                
         except Exception as e:
             self.logger.error(f"Error processing WebSocket message: {e}")
+            self.logger.debug(f"Raw message: {message[:200]}...")  # First 200 chars for debugging
             
     def _on_error(self, ws, error):
         """WebSocket error handler"""
@@ -226,14 +248,19 @@ class WebSocketKlineManager:
     def _process_kline_data(self, stream_name: str, kline: Dict[str, Any]):
         """Process incoming kline data and update cache"""
         try:
+            self.logger.debug(f"🔍 Processing kline for stream: {stream_name}")
+            
             # Parse stream name to get symbol and interval
             # Format: btcusdt@kline_1m
             parts = stream_name.split('@')
             if len(parts) != 2 or not parts[1].startswith('kline_'):
+                self.logger.warning(f"❌ Invalid stream name format: {stream_name}")
                 return
                 
             symbol = parts[0].upper()
             interval = parts[1].replace('kline_', '')
+            
+            self.logger.debug(f"🔍 Parsed: {symbol} {interval}")
             
             # Create standardized kline data
             processed_kline = {
@@ -255,9 +282,11 @@ class WebSocketKlineManager:
             
             self.stats['klines_processed'] += 1
             
+            self.logger.debug(f"✅ Kline processed: {symbol} {interval} @ ${processed_kline['close']:.4f} | Total processed: {self.stats['klines_processed']}")
+            
             # Log closed klines (completed candles)
             if processed_kline['is_closed']:
-                self.logger.debug(f"📊 Kline closed: {symbol} {interval} @ ${processed_kline['close']:.1f}")
+                self.logger.info(f"📊 Kline closed: {symbol} {interval} @ ${processed_kline['close']:.4f}")
                 
             # Notify callbacks
             for callback in self.update_callbacks:
@@ -267,7 +296,10 @@ class WebSocketKlineManager:
                     self.logger.error(f"Error in update callback: {e}")
                     
         except Exception as e:
-            self.logger.error(f"Error processing kline data: {e}")
+            self.logger.error(f"Error processing kline data for {stream_name}: {e}")
+            self.logger.debug(f"Kline data keys: {list(kline.keys())}")
+            import traceback
+            traceback.print_exc()
             
     def _send_ping(self):
         """Send ping to keep connection alive"""

@@ -29,7 +29,7 @@ from src.binance_client.client import BinanceClientWrapper
 def setup_test_logging():
     """Setup logging for testing"""
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,  # Changed to DEBUG for more detailed output
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(sys.stdout)
