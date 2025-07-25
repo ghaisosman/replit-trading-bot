@@ -262,7 +262,7 @@ class TradingConfigManager:
                 'decimals': 3,
                 'cooldown_period': 300
             },
-            'ENGULFING_PATTERN_BTCUSDT': {
+            'engulfing_pattern': {
                 **self.default_params.to_dict(),
                 'symbol': 'BTCUSDT',
                 'margin': 10.0,
@@ -276,38 +276,6 @@ class TradingConfigManager:
                 'price_lookback_bars': 5,
                 'max_loss_pct': 10,
                 'decimals': 3,
-                'cooldown_period': 300
-            },
-            'ENGULFING_PATTERN_ETHUSDT': {
-                **self.default_params.to_dict(),
-                'symbol': 'ETHUSDT',
-                'margin': 10.0,
-                'leverage': 3,
-                'timeframe': '1h',
-                'rsi_period': 14,
-                'rsi_threshold': 50,
-                'rsi_long_exit': 70,
-                'rsi_short_exit': 30,
-                'stable_candle_ratio': 0.2,
-                'price_lookback_bars': 5,
-                'max_loss_pct': 10,
-                'decimals': 2,
-                'cooldown_period': 300
-            },
-            'ENGULFING_PATTERN_ADAUSDT': {
-                **self.default_params.to_dict(),
-                'symbol': 'ADAUSDT',
-                'margin': 10.0,
-                'leverage': 3,
-                'timeframe': '1h',
-                'rsi_period': 14,
-                'rsi_threshold': 50,
-                'rsi_long_exit': 70,
-                'rsi_short_exit': 30,
-                'stable_candle_ratio': 0.2,
-                'price_lookback_bars': 5,
-                'max_loss_pct': 10,
-                'decimals': 2,
                 'cooldown_period': 300
             }
         }
@@ -329,9 +297,9 @@ class TradingConfigManager:
         """Update strategy configuration with new values"""
         import logging
         try:
+            # Initialize strategy config if it doesn't exist
             if strategy_name not in self.strategy_configs:
-                logging.getLogger(__name__).error(f"Strategy '{strategy_name}' not found in configuration")
-                return False
+                self.strategy_configs[strategy_name] = {}
 
             # Update the strategy configuration
             if self.strategy_configs[strategy_name] is None:
@@ -359,7 +327,17 @@ class TradingConfigManager:
     def is_strategy_enabled(self, strategy_name):
         """Check if a strategy is enabled"""
         try:
-            return self.strategy_configs.get(strategy_name, {}).get('enabled', False)
+            # If strategy exists in web dashboard config, use that
+            if strategy_name in self.strategy_configs:
+                return self.strategy_configs[strategy_name].get('enabled', True)
+            
+            # For default strategies not yet configured, they're enabled by default
+            default_strategies = ['rsi_oversold', 'macd_divergence', 'engulfing_pattern']
+            if strategy_name in default_strategies:
+                return True
+                
+            # Unknown strategies are disabled
+            return False
         except Exception:
             return False
 
@@ -375,7 +353,7 @@ class TradingConfigManager:
                 all_configs[strategy_name] = config
             
             # Also include default strategies if they're not in web dashboard
-            default_strategies = ['rsi_oversold', 'macd_divergence', 'ENGULFING_PATTERN_BTCUSDT', 'ENGULFING_PATTERN_ETHUSDT', 'ENGULFING_PATTERN_ADAUSDT']
+            default_strategies = ['rsi_oversold', 'macd_divergence', 'engulfing_pattern']
             
             for strategy_name in default_strategies:
                 if strategy_name not in all_configs:
