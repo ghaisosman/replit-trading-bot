@@ -38,9 +38,9 @@ class OrphanDetectionClearingTest:
     
     def __init__(self):
         self.test_start_time = datetime.now()
-        self.test_strategy = 'rsi_oversold'
-        self.test_symbol = 'SOLUSDT'
+        self.test_strategies = ['rsi_oversold', 'macd_divergence', 'engulfing_pattern', 'smart_money']
         self.results = {}
+        self.created_orphans = []
         
         # Initialize components
         self.trade_db = TradeDatabase()
@@ -55,7 +55,7 @@ class OrphanDetectionClearingTest:
         print("🧪 COMPREHENSIVE ORPHAN DETECTION & CLEARING TEST")
         print("=" * 60)
         print(f"⏰ Test started: {self.test_start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"🎯 Testing strategy: {self.test_strategy} on {self.test_symbol}")
+        print(f"🎯 Testing strategies: {', '.join(self.test_strategies)}")
         
     def run_test(self):
         """Execute complete test sequence"""
@@ -63,22 +63,22 @@ class OrphanDetectionClearingTest:
             print("\n🔧 PHASE 1: Environment Setup")
             self._setup_test_environment()
             
-            print("\n📊 PHASE 2: Create Test Trade")
-            self._create_test_trade()
+            print("\n📊 PHASE 2: Create Test Orphan Trades")
+            self._create_test_orphan_trades()
             
-            print("\n🔍 PHASE 3: Force Orphan Condition")
-            self._force_orphan_condition()
-            
-            print("\n👻 PHASE 4: Test Orphan Detection")
+            print("\n🔍 PHASE 3: Test Orphan Detection")
             self._test_orphan_detection()
             
-            print("\n🧹 PHASE 5: Test Orphan Clearing")
+            print("\n🧹 PHASE 4: Test Orphan Clearing")
             self._test_orphan_clearing()
             
-            print("\n✅ PHASE 6: Verify Complete Cleanup")
-            self._verify_complete_cleanup()
+            print("\n📈 PHASE 5: Verify Database Updates")
+            self._verify_database_updates()
             
-            print("\n📈 PHASE 7: Generate Test Report")
+            print("\n🖥️ PHASE 6: Verify Dashboard Updates")
+            self._verify_dashboard_updates()
+            
+            print("\n✅ PHASE 7: Generate Test Report")
             self._generate_test_report()
             
         except Exception as e:
@@ -92,16 +92,26 @@ class OrphanDetectionClearingTest:
             print("🔧 Setting up test environment...")
             
             # Clear any existing orphan trades
+            initial_orphans = len(self.trade_monitor.orphan_trades)
             self.trade_monitor.orphan_trades.clear()
-            print("   ✅ Cleared existing orphan trades")
+            print(f"   ✅ Cleared {initial_orphans} existing orphan trades")
             
             # Clear any existing positions in order manager
+            initial_positions = len(self.order_manager.active_positions)
             self.order_manager.active_positions.clear()
-            print("   ✅ Cleared order manager positions")
+            print(f"   ✅ Cleared {initial_positions} order manager positions")
             
-            # Register test strategy
-            self.trade_monitor.register_strategy(self.test_strategy, self.test_symbol)
-            print(f"   ✅ Registered {self.test_strategy} for {self.test_symbol}")
+            # Register test strategies with symbols
+            strategy_symbols = {
+                'rsi_oversold': 'SOLUSDT',
+                'macd_divergence': 'BTCUSDT',
+                'engulfing_pattern': 'ETHUSDT',
+                'smart_money': 'XRPUSDT'
+            }
+            
+            for strategy, symbol in strategy_symbols.items():
+                self.trade_monitor.register_strategy(strategy, symbol)
+                print(f"   ✅ Registered {strategy} for {symbol}")
             
             # Test dashboard connectivity
             dashboard_available = self._test_dashboard_connectivity()
@@ -109,9 +119,9 @@ class OrphanDetectionClearingTest:
             self.results['environment_setup'] = {
                 'status': 'SUCCESS',
                 'dashboard_available': dashboard_available,
-                'orphan_trades_cleared': True,
-                'positions_cleared': True,
-                'strategy_registered': True,
+                'orphan_trades_cleared': initial_orphans,
+                'positions_cleared': initial_positions,
+                'strategies_registered': len(strategy_symbols),
                 'timestamp': datetime.now().isoformat()
             }
             
@@ -122,125 +132,112 @@ class OrphanDetectionClearingTest:
             print(f"❌ Environment setup failed: {e}")
             self.results['environment_setup'] = {'status': 'ERROR', 'error': str(e)}
     
-    def _create_test_trade(self):
-        """Create a test trade in the system"""
+    def _create_test_orphan_trades(self):
+        """Create test orphan trades for all strategies"""
         try:
-            print("📊 Creating test trade...")
+            print("📊 Creating test orphan trades...")
             
-            # Create test position
-            test_position = Position(
-                symbol=self.test_symbol,
-                side='BUY',
-                quantity=0.05,
-                entry_price=150.25,
-                strategy_name=self.test_strategy,
-                stop_loss=142.74,  # 5% stop loss
-                take_profit=165.28  # 10% take profit
-            )
-            
-            # Add to order manager
-            self.order_manager.active_positions[self.test_strategy] = test_position
-            print(f"   ✅ Created position: {self.test_symbol} {test_position.side} {test_position.quantity} @ ${test_position.entry_price}")
-            
-            # Create database record
-            self.test_trade_id = f"TEST_ORPHAN_{self.test_strategy}_{int(time.time())}"
-            trade_data = {
-                'trade_id': self.test_trade_id,
-                'strategy_name': self.test_strategy,
-                'symbol': self.test_symbol,
-                'side': test_position.side,
-                'quantity': test_position.quantity,
-                'entry_price': test_position.entry_price,
-                'trade_status': 'OPEN',
-                'position_value_usdt': test_position.entry_price * test_position.quantity,
-                'leverage': 1,
-                'margin_used': test_position.entry_price * test_position.quantity,
-                'stop_loss': test_position.stop_loss,
-                'take_profit': test_position.take_profit,
-                'created_at': datetime.now().isoformat(),
-                'last_updated': datetime.now().isoformat()
-            }
-            
-            # Add to database
-            db_success = self.trade_db.add_trade(self.test_trade_id, trade_data)
-            
-            self.results['test_trade_creation'] = {
-                'status': 'SUCCESS' if db_success else 'PARTIAL',
-                'trade_id': self.test_trade_id,
-                'position_created': True,
-                'database_record_added': db_success,
-                'position_details': {
-                    'symbol': test_position.symbol,
-                    'side': test_position.side,
-                    'quantity': test_position.quantity,
-                    'entry_price': test_position.entry_price
+            strategy_configs = {
+                'rsi_oversold': {
+                    'symbol': 'SOLUSDT',
+                    'side': 'BUY',
+                    'quantity': 0.05,
+                    'entry_price': 150.25
                 },
+                'macd_divergence': {
+                    'symbol': 'BTCUSDT', 
+                    'side': 'SELL',
+                    'quantity': 0.002,
+                    'entry_price': 67500.50
+                },
+                'engulfing_pattern': {
+                    'symbol': 'ETHUSDT',
+                    'side': 'BUY', 
+                    'quantity': 0.015,
+                    'entry_price': 3250.75
+                },
+                'smart_money': {
+                    'symbol': 'XRPUSDT',
+                    'side': 'SELL',
+                    'quantity': 25.0,
+                    'entry_price': 2.15
+                }
+            }
+            
+            created_count = 0
+            
+            for strategy in self.test_strategies:
+                print(f"\n   🎯 Creating orphan trade for {strategy}:")
+                
+                config = strategy_configs[strategy]
+                
+                # Create position in order manager (simulating bot opened position)
+                position = Position(
+                    symbol=config['symbol'],
+                    side=config['side'],
+                    quantity=config['quantity'],
+                    entry_price=config['entry_price'],
+                    strategy_name=strategy,
+                    stop_loss=config['entry_price'] * 0.95 if config['side'] == 'BUY' else config['entry_price'] * 1.05,
+                    take_profit=config['entry_price'] * 1.10 if config['side'] == 'BUY' else config['entry_price'] * 0.90
+                )
+                
+                # Add to order manager
+                self.order_manager.active_positions[strategy] = position
+                print(f"      ✅ Created bot position: {config['symbol']} {config['side']} {config['quantity']}")
+                
+                # Create database record
+                trade_id = f"TEST_ORPHAN_{strategy}_{int(time.time())}"
+                trade_data = {
+                    'trade_id': trade_id,
+                    'strategy_name': strategy,
+                    'symbol': config['symbol'],
+                    'side': config['side'],
+                    'quantity': config['quantity'],
+                    'entry_price': config['entry_price'],
+                    'trade_status': 'OPEN',
+                    'position_value_usdt': config['entry_price'] * config['quantity'],
+                    'leverage': 1,
+                    'margin_used': config['entry_price'] * config['quantity'],
+                    'stop_loss': position.stop_loss,
+                    'take_profit': position.take_profit,
+                    'created_at': datetime.now().isoformat(),
+                    'last_updated': datetime.now().isoformat(),
+                    'test_orphan': True  # Mark as test
+                }
+                
+                # Add to database
+                db_success = self.trade_db.add_trade(trade_id, trade_data)
+                if db_success:
+                    print(f"      ✅ Created database record: {trade_id}")
+                    self.created_orphans.append({
+                        'strategy': strategy,
+                        'trade_id': trade_id,
+                        'symbol': config['symbol'],
+                        'position': position
+                    })
+                    created_count += 1
+                else:
+                    print(f"      ❌ Failed to create database record for {strategy}")
+            
+            self.results['orphan_creation'] = {
+                'status': 'SUCCESS' if created_count == len(self.test_strategies) else 'PARTIAL',
+                'created_count': created_count,
+                'expected_count': len(self.test_strategies),
+                'created_orphans': [o['strategy'] for o in self.created_orphans],
                 'timestamp': datetime.now().isoformat()
             }
             
-            if db_success:
-                print(f"   ✅ Database record created: {self.test_trade_id}")
-            else:
-                print(f"   ⚠️ Database record creation failed")
-                
-            print("✅ Test trade creation completed")
+            print(f"\n✅ Orphan creation completed: {created_count}/{len(self.test_strategies)} orphans created")
             
         except Exception as e:
-            print(f"❌ Test trade creation failed: {e}")
-            self.results['test_trade_creation'] = {'status': 'ERROR', 'error': str(e)}
-    
-    def _force_orphan_condition(self):
-        """Force orphan condition by simulating manual closure on Binance"""
-        try:
-            print("🔍 Forcing orphan condition...")
-            
-            # Get initial Binance positions to verify none exist
-            binance_positions = self._get_binance_positions(self.test_symbol)
-            has_real_position = any(abs(float(pos.get('positionAmt', 0))) > 0.001 
-                                  for pos in binance_positions)
-            
-            print(f"   📊 Binance positions for {self.test_symbol}: {len(binance_positions)}")
-            print(f"   📊 Has real position on Binance: {has_real_position}")
-            
-            # Verify bot thinks position exists
-            bot_has_position = self.test_strategy in self.order_manager.active_positions
-            print(f"   📊 Bot thinks position exists: {bot_has_position}")
-            
-            # Verify database shows open trade
-            db_trade = self.trade_db.get_trade(self.test_trade_id)
-            db_shows_open = db_trade and db_trade.get('trade_status') == 'OPEN'
-            print(f"   📊 Database shows open trade: {db_shows_open}")
-            
-            # This creates the orphan condition:
-            # - Bot thinks position is open (in order_manager)
-            # - Database shows trade as open
-            # - But Binance has no actual position (simulating manual closure)
-            
-            self.results['orphan_condition'] = {
-                'status': 'SUCCESS',
-                'bot_has_position': bot_has_position,
-                'binance_has_position': has_real_position,
-                'database_shows_open': db_shows_open,
-                'orphan_condition_created': bot_has_position and not has_real_position and db_shows_open,
-                'timestamp': datetime.now().isoformat()
-            }
-            
-            if bot_has_position and not has_real_position and db_shows_open:
-                print("   ✅ Orphan condition successfully created")
-                print("   📊 Bot: position exists | Binance: no position | Database: open")
-            else:
-                print("   ⚠️ Orphan condition may not be properly set")
-                
-            print("✅ Orphan condition setup completed")
-            
-        except Exception as e:
-            print(f"❌ Orphan condition setup failed: {e}")
-            self.results['orphan_condition'] = {'status': 'ERROR', 'error': str(e)}
+            print(f"❌ Orphan creation failed: {e}")
+            self.results['orphan_creation'] = {'status': 'ERROR', 'error': str(e)}
     
     def _test_orphan_detection(self):
         """Test orphan trade detection"""
         try:
-            print("👻 Testing orphan detection...")
+            print("🔍 Testing orphan detection...")
             
             # Record initial state
             initial_orphan_count = len(self.trade_monitor.orphan_trades)
@@ -251,48 +248,36 @@ class OrphanDetectionClearingTest:
             self.trade_monitor.check_for_anomalies(suppress_notifications=True)
             
             # Wait a moment for processing
-            time.sleep(1)
+            time.sleep(2)
             
             # Check detection results
             final_orphan_count = len(self.trade_monitor.orphan_trades)
+            detected_orphan_ids = list(self.trade_monitor.orphan_trades.keys())
+            
             print(f"   📊 Final orphan trades: {final_orphan_count}")
-            print(f"   📊 Orphan trade IDs: {list(self.trade_monitor.orphan_trades.keys())}")
+            print(f"   📊 Detected orphan IDs: {detected_orphan_ids}")
             
-            # Look for our specific orphan
-            expected_orphan_id = f"{self.test_strategy}_{self.test_symbol}"
-            orphan_detected = expected_orphan_id in self.trade_monitor.orphan_trades
+            # Verify each created orphan was detected
+            expected_orphans = [f"{o['strategy']}_{o['symbol']}" for o in self.created_orphans]
+            detected_orphans = detected_orphan_ids
             
-            if orphan_detected:
-                orphan_trade = self.trade_monitor.orphan_trades[expected_orphan_id]
-                print(f"   ✅ Orphan detected: {expected_orphan_id}")
-                print(f"   📊 Cycles remaining: {orphan_trade.cycles_remaining}")
-                print(f"   📊 Detection time: {orphan_trade.detected_at}")
-                
-                orphan_details = {
-                    'orphan_id': expected_orphan_id,
-                    'cycles_remaining': orphan_trade.cycles_remaining,
-                    'detected_at': orphan_trade.detected_at.isoformat(),
-                    'position_symbol': orphan_trade.position.symbol,
-                    'position_side': orphan_trade.position.side,
-                    'position_quantity': orphan_trade.position.quantity
-                }
-            else:
-                print(f"   ❌ Orphan NOT detected: {expected_orphan_id}")
-                print(f"   🔍 Available orphan IDs: {list(self.trade_monitor.orphan_trades.keys())}")
-                orphan_details = None
+            detection_success = set(expected_orphans).issubset(set(detected_orphans))
+            
+            print(f"   📊 Expected orphans: {expected_orphans}")
+            print(f"   📊 Detected orphans: {detected_orphans}")
+            print(f"   📊 Detection success: {detection_success}")
             
             self.results['orphan_detection'] = {
-                'status': 'SUCCESS' if orphan_detected else 'FAILED',
+                'status': 'SUCCESS' if detection_success else 'FAILED',
                 'initial_orphan_count': initial_orphan_count,
                 'final_orphan_count': final_orphan_count,
-                'orphan_detected': orphan_detected,
-                'expected_orphan_id': expected_orphan_id,
-                'orphan_details': orphan_details,
-                'all_orphan_ids': list(self.trade_monitor.orphan_trades.keys()),
+                'expected_orphans': expected_orphans,
+                'detected_orphans': detected_orphans,
+                'detection_success': detection_success,
                 'timestamp': datetime.now().isoformat()
             }
             
-            if orphan_detected:
+            if detection_success:
                 print("✅ Orphan detection test PASSED")
             else:
                 print("❌ Orphan detection test FAILED")
@@ -306,161 +291,210 @@ class OrphanDetectionClearingTest:
         try:
             print("🧹 Testing orphan clearing...")
             
-            # Get the orphan trade
-            expected_orphan_id = f"{self.test_strategy}_{self.test_symbol}"
+            cleared_count = 0
+            clearing_results = {}
             
-            if expected_orphan_id not in self.trade_monitor.orphan_trades:
-                print(f"   ❌ Cannot test clearing - orphan {expected_orphan_id} not found")
-                self.results['orphan_clearing'] = {
-                    'status': 'SKIPPED',
-                    'reason': 'Orphan not detected in previous phase'
-                }
-                return
-            
-            orphan_trade = self.trade_monitor.orphan_trades[expected_orphan_id]
-            print(f"   📊 Found orphan: {expected_orphan_id}")
-            print(f"   📊 Initial cycles: {orphan_trade.cycles_remaining}")
-            
-            # Record initial states
-            initial_position_exists = self.test_strategy in self.order_manager.active_positions
-            initial_db_status = self.trade_db.get_trade(self.test_trade_id)
-            initial_db_open = initial_db_status and initial_db_status.get('trade_status') == 'OPEN'
-            
-            print(f"   📊 Initial position in order manager: {initial_position_exists}")
-            print(f"   📊 Initial database status: {'OPEN' if initial_db_open else 'CLOSED/MISSING'}")
-            
-            # Force clearing by setting cycles to 0
-            print("   ⏱️ Forcing clearing by setting cycles to 0...")
-            orphan_trade.cycles_remaining = 0
-            
-            # Process clearing
-            print("   🔄 Processing cycle countdown...")
-            self.trade_monitor._process_cycle_countdown(suppress_notifications=True)
-            
-            # Wait for processing
-            time.sleep(1)
-            
-            # Check clearing results
-            orphan_still_exists = expected_orphan_id in self.trade_monitor.orphan_trades
-            position_still_exists = self.test_strategy in self.order_manager.active_positions
-            
-            # Check database status
-            final_db_status = self.trade_db.get_trade(self.test_trade_id)
-            final_db_closed = final_db_status and final_db_status.get('trade_status') == 'CLOSED'
-            
-            print(f"   📊 Orphan still exists: {orphan_still_exists}")
-            print(f"   📊 Position still in order manager: {position_still_exists}")
-            print(f"   📊 Database status: {'CLOSED' if final_db_closed else 'OPEN/MISSING'}")
-            
-            # Check database update details
-            if final_db_status:
-                exit_reason = final_db_status.get('exit_reason', 'Not set')
-                orphan_cleared_flag = final_db_status.get('orphan_cleared', False)
-                manually_closed_flag = final_db_status.get('manually_closed', False)
+            for orphan_data in self.created_orphans:
+                strategy = orphan_data['strategy']
+                symbol = orphan_data['symbol']
+                trade_id = orphan_data['trade_id']
+                orphan_id = f"{strategy}_{symbol}"
                 
-                print(f"   📊 Exit reason: {exit_reason}")
-                print(f"   📊 Orphan cleared flag: {orphan_cleared_flag}")
-                print(f"   📊 Manually closed flag: {manually_closed_flag}")
+                print(f"\n   🎯 Testing clearing for {strategy}:")
+                
+                # Check if orphan exists
+                if orphan_id not in self.trade_monitor.orphan_trades:
+                    print(f"      ❌ Orphan {orphan_id} not found for clearing")
+                    clearing_results[strategy] = {'status': 'NOT_FOUND'}
+                    continue
+                
+                orphan_trade = self.trade_monitor.orphan_trades[orphan_id]
+                print(f"      📊 Found orphan: {orphan_id} with {orphan_trade.cycles_remaining} cycles")
+                
+                # Record initial states
+                initial_position_exists = strategy in self.order_manager.active_positions
+                initial_db_trade = self.trade_db.get_trade(trade_id)
+                initial_db_open = initial_db_trade and initial_db_trade.get('trade_status') == 'OPEN'
+                
+                print(f"      📊 Initial position in order manager: {initial_position_exists}")
+                print(f"      📊 Initial database status: {'OPEN' if initial_db_open else 'CLOSED/MISSING'}")
+                
+                # Force clearing by setting cycles to 0
+                print("      ⏱️ Forcing clearing by setting cycles to 0...")
+                orphan_trade.cycles_remaining = 0
+                
+                # Process clearing
+                print("      🔄 Processing cycle countdown...")
+                self.trade_monitor._process_cycle_countdown(suppress_notifications=True)
+                
+                # Wait for processing
+                time.sleep(1)
+                
+                # Check clearing results
+                orphan_still_exists = orphan_id in self.trade_monitor.orphan_trades
+                position_still_exists = strategy in self.order_manager.active_positions
+                
+                # Check database status
+                final_db_trade = self.trade_db.get_trade(trade_id)
+                final_db_closed = final_db_trade and final_db_trade.get('trade_status') == 'CLOSED'
+                
+                print(f"      📊 Orphan still exists: {orphan_still_exists}")
+                print(f"      📊 Position still in order manager: {position_still_exists}")
+                print(f"      📊 Database status: {'CLOSED' if final_db_closed else 'OPEN/MISSING'}")
+                
+                # Determine success
+                clearing_successful = (not orphan_still_exists and 
+                                     not position_still_exists and 
+                                     final_db_closed)
+                
+                if clearing_successful:
+                    cleared_count += 1
+                    print(f"      ✅ Successfully cleared {strategy}")
+                else:
+                    print(f"      ❌ Failed to clear {strategy}")
+                
+                clearing_results[strategy] = {
+                    'status': 'SUCCESS' if clearing_successful else 'FAILED',
+                    'orphan_cleared': not orphan_still_exists,
+                    'position_cleared': not position_still_exists,
+                    'database_updated': final_db_closed,
+                    'final_db_trade': final_db_trade
+                }
             
-            # Determine success
-            clearing_successful = (not orphan_still_exists and 
-                                 not position_still_exists and 
-                                 final_db_closed)
+            overall_success = cleared_count == len(self.created_orphans)
             
             self.results['orphan_clearing'] = {
-                'status': 'SUCCESS' if clearing_successful else 'FAILED',
-                'initial_states': {
-                    'orphan_exists': True,
-                    'position_exists': initial_position_exists,
-                    'database_open': initial_db_open
-                },
-                'final_states': {
-                    'orphan_exists': orphan_still_exists,
-                    'position_exists': position_still_exists,
-                    'database_closed': final_db_closed
-                },
-                'database_details': final_db_status if final_db_status else {},
-                'clearing_successful': clearing_successful,
+                'status': 'SUCCESS' if overall_success else 'FAILED',
+                'cleared_count': cleared_count,
+                'expected_count': len(self.created_orphans),
+                'clearing_results': clearing_results,
+                'overall_success': overall_success,
                 'timestamp': datetime.now().isoformat()
             }
             
-            if clearing_successful:
-                print("✅ Orphan clearing test PASSED")
-                print("   ✅ Orphan removed from trade monitor")
-                print("   ✅ Position cleared from order manager")
-                print("   ✅ Database updated to CLOSED")
+            if overall_success:
+                print(f"\n✅ Orphan clearing test PASSED: {cleared_count}/{len(self.created_orphans)} orphans cleared")
             else:
-                print("❌ Orphan clearing test FAILED")
-                if orphan_still_exists:
-                    print("   ❌ Orphan still exists in trade monitor")
-                if position_still_exists:
-                    print("   ❌ Position still exists in order manager")
-                if not final_db_closed:
-                    print("   ❌ Database not updated to CLOSED")
-                    
+                print(f"\n❌ Orphan clearing test FAILED: {cleared_count}/{len(self.created_orphans)} orphans cleared")
+                
         except Exception as e:
             print(f"❌ Orphan clearing test failed: {e}")
             self.results['orphan_clearing'] = {'status': 'ERROR', 'error': str(e)}
     
-    def _verify_complete_cleanup(self):
-        """Verify complete system cleanup"""
+    def _verify_database_updates(self):
+        """Verify database records were properly updated"""
         try:
-            print("✅ Verifying complete cleanup...")
+            print("📈 Verifying database updates...")
             
-            # Check all systems are clean
-            orphan_count = len(self.trade_monitor.orphan_trades)
-            position_count = len([pos for pos in self.order_manager.active_positions.values() 
-                                if pos.strategy_name == self.test_strategy])
+            updated_count = 0
+            database_results = {}
             
-            # Count open trades in database
-            open_trades = 0
-            for trade_id, trade_data in self.trade_db.trades.items():
-                if (trade_data.get('strategy_name') == self.test_strategy and 
-                    trade_data.get('trade_status') == 'OPEN'):
-                    open_trades += 1
+            for orphan_data in self.created_orphans:
+                strategy = orphan_data['strategy']
+                trade_id = orphan_data['trade_id']
+                
+                trade_record = self.trade_db.get_trade(trade_id)
+                
+                if trade_record:
+                    status = trade_record.get('trade_status')
+                    exit_reason = trade_record.get('exit_reason')
+                    orphan_cleared = trade_record.get('orphan_cleared', False)
+                    manually_closed = trade_record.get('manually_closed', False)
+                    
+                    is_properly_updated = (status == 'CLOSED' and 
+                                         'Orphan' in str(exit_reason) and 
+                                         orphan_cleared)
+                    
+                    if is_properly_updated:
+                        updated_count += 1
+                        print(f"   ✅ {strategy}: Properly updated to CLOSED")
+                    else:
+                        print(f"   ❌ {strategy}: Not properly updated (Status: {status})")
+                    
+                    database_results[strategy] = {
+                        'status': status,
+                        'exit_reason': exit_reason,
+                        'orphan_cleared': orphan_cleared,
+                        'manually_closed': manually_closed,
+                        'properly_updated': is_properly_updated
+                    }
+                else:
+                    print(f"   ❌ {strategy}: Trade record not found")
+                    database_results[strategy] = {'status': 'NOT_FOUND'}
             
-            # Check dashboard if available
-            dashboard_positions = []
-            if self.results.get('environment_setup', {}).get('dashboard_available'):
-                dashboard_positions = self._get_dashboard_positions() or []
-                test_positions_on_dashboard = [pos for pos in dashboard_positions 
-                                             if pos.get('strategy') == self.test_strategy]
-            else:
-                test_positions_on_dashboard = []
+            overall_success = updated_count == len(self.created_orphans)
             
-            print(f"   📊 Orphan trades remaining: {orphan_count}")
-            print(f"   📊 Test positions in order manager: {position_count}")
-            print(f"   📊 Open test trades in database: {open_trades}")
-            print(f"   📊 Test positions on dashboard: {len(test_positions_on_dashboard)}")
-            
-            # Determine if cleanup is complete
-            cleanup_complete = (orphan_count == 0 and 
-                              position_count == 0 and 
-                              open_trades == 0 and 
-                              len(test_positions_on_dashboard) == 0)
-            
-            self.results['complete_cleanup'] = {
-                'status': 'SUCCESS' if cleanup_complete else 'INCOMPLETE',
-                'system_state': {
-                    'orphan_trades': orphan_count,
-                    'test_positions': position_count,
-                    'open_db_trades': open_trades,
-                    'dashboard_positions': len(test_positions_on_dashboard)
-                },
-                'cleanup_complete': cleanup_complete,
+            self.results['database_verification'] = {
+                'status': 'SUCCESS' if overall_success else 'FAILED',
+                'updated_count': updated_count,
+                'expected_count': len(self.created_orphans),
+                'database_results': database_results,
+                'overall_success': overall_success,
                 'timestamp': datetime.now().isoformat()
             }
             
-            if cleanup_complete:
-                print("✅ Complete cleanup verification PASSED")
-                print("   ✅ All systems clean - no traces remaining")
+            if overall_success:
+                print(f"✅ Database verification PASSED: {updated_count}/{len(self.created_orphans)} records updated")
             else:
-                print("⚠️ Complete cleanup verification INCOMPLETE")
-                print("   ⚠️ Some traces may remain in the system")
+                print(f"❌ Database verification FAILED: {updated_count}/{len(self.created_orphans)} records updated")
                 
         except Exception as e:
-            print(f"❌ Complete cleanup verification failed: {e}")
-            self.results['complete_cleanup'] = {'status': 'ERROR', 'error': str(e)}
+            print(f"❌ Database verification failed: {e}")
+            self.results['database_verification'] = {'status': 'ERROR', 'error': str(e)}
+    
+    def _verify_dashboard_updates(self):
+        """Verify dashboard reflects the changes"""
+        try:
+            print("🖥️ Verifying dashboard updates...")
+            
+            if not self.results.get('environment_setup', {}).get('dashboard_available'):
+                print("   ⚠️ Dashboard not available - skipping verification")
+                self.results['dashboard_verification'] = {
+                    'status': 'SKIPPED',
+                    'reason': 'Dashboard not available'
+                }
+                return
+            
+            # Get positions from dashboard API
+            dashboard_positions = self._get_dashboard_positions()
+            
+            if dashboard_positions is None:
+                print("   ❌ Failed to get dashboard positions")
+                self.results['dashboard_verification'] = {
+                    'status': 'ERROR',
+                    'error': 'Failed to get dashboard positions'
+                }
+                return
+            
+            # Check for test orphan positions on dashboard
+            test_positions_found = []
+            for position in dashboard_positions:
+                strategy = position.get('strategy')
+                if strategy in self.test_strategies:
+                    test_positions_found.append(strategy)
+            
+            # Dashboard should show NO test positions after clearing
+            dashboard_clean = len(test_positions_found) == 0
+            
+            print(f"   📊 Test positions found on dashboard: {test_positions_found}")
+            print(f"   📊 Dashboard clean status: {dashboard_clean}")
+            
+            self.results['dashboard_verification'] = {
+                'status': 'SUCCESS' if dashboard_clean else 'FAILED',
+                'test_positions_found': test_positions_found,
+                'dashboard_clean': dashboard_clean,
+                'total_dashboard_positions': len(dashboard_positions),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            if dashboard_clean:
+                print("✅ Dashboard verification PASSED: No test positions found")
+            else:
+                print("❌ Dashboard verification FAILED: Test positions still visible")
+                
+        except Exception as e:
+            print(f"❌ Dashboard verification failed: {e}")
+            self.results['dashboard_verification'] = {'status': 'ERROR', 'error': str(e)}
     
     def _test_dashboard_connectivity(self) -> bool:
         """Test if dashboard is accessible"""
@@ -481,19 +515,6 @@ class OrphanDetectionClearingTest:
             print(f"     ⚠️ Error getting dashboard positions: {e}")
         return None
     
-    def _get_binance_positions(self, symbol: str) -> List[Dict]:
-        """Get positions from Binance for a specific symbol"""
-        try:
-            if self.binance_client.is_futures:
-                account_info = self.binance_client.client.futures_account()
-                positions = account_info.get('positions', [])
-                return [pos for pos in positions if pos.get('symbol') == symbol]
-            else:
-                return []
-        except Exception as e:
-            print(f"     ⚠️ Error getting Binance positions for {symbol}: {e}")
-            return []
-    
     def _generate_test_report(self):
         """Generate comprehensive test report"""
         try:
@@ -503,90 +524,75 @@ class OrphanDetectionClearingTest:
             test_duration = datetime.now() - self.test_start_time
             print(f"⏱️ Test Duration: {test_duration.total_seconds():.1f} seconds")
             
-            # Environment Setup
-            env_status = self.results.get('environment_setup', {}).get('status', 'UNKNOWN')
-            print(f"\n🔧 Environment Setup: {env_status}")
+            # Phase Results
+            phases = [
+                ('Environment Setup', 'environment_setup'),
+                ('Orphan Creation', 'orphan_creation'),
+                ('Orphan Detection', 'orphan_detection'),
+                ('Orphan Clearing', 'orphan_clearing'),
+                ('Database Verification', 'database_verification'),
+                ('Dashboard Verification', 'dashboard_verification')
+            ]
             
-            # Test Trade Creation
-            trade_status = self.results.get('test_trade_creation', {}).get('status', 'UNKNOWN')
-            print(f"📊 Test Trade Creation: {trade_status}")
+            successful_phases = 0
+            total_phases = len(phases)
             
-            # Orphan Condition
-            condition_status = self.results.get('orphan_condition', {}).get('status', 'UNKNOWN')
-            condition_created = self.results.get('orphan_condition', {}).get('orphan_condition_created', False)
-            print(f"🔍 Orphan Condition: {condition_status} ({'Created' if condition_created else 'Not Created'})")
-            
-            # Orphan Detection
-            detection_status = self.results.get('orphan_detection', {}).get('status', 'UNKNOWN')
-            orphan_detected = self.results.get('orphan_detection', {}).get('orphan_detected', False)
-            print(f"👻 Orphan Detection: {detection_status} ({'Detected' if orphan_detected else 'Not Detected'})")
-            
-            # Orphan Clearing
-            clearing_status = self.results.get('orphan_clearing', {}).get('status', 'UNKNOWN')
-            clearing_successful = self.results.get('orphan_clearing', {}).get('clearing_successful', False)
-            print(f"🧹 Orphan Clearing: {clearing_status} ({'Successful' if clearing_successful else 'Failed'})")
-            
-            # Complete Cleanup
-            cleanup_status = self.results.get('complete_cleanup', {}).get('status', 'UNKNOWN')
-            cleanup_complete = self.results.get('complete_cleanup', {}).get('cleanup_complete', False)
-            print(f"✅ Complete Cleanup: {cleanup_status} ({'Complete' if cleanup_complete else 'Incomplete'})")
+            print(f"\n📊 PHASE RESULTS:")
+            for phase_name, result_key in phases:
+                result = self.results.get(result_key, {})
+                status = result.get('status', 'UNKNOWN')
+                
+                if status == 'SUCCESS':
+                    successful_phases += 1
+                    print(f"   ✅ {phase_name}: {status}")
+                elif status == 'SKIPPED':
+                    print(f"   ⏭️ {phase_name}: {status}")
+                else:
+                    print(f"   ❌ {phase_name}: {status}")
             
             # Overall Result
             print(f"\n🎯 OVERALL TEST RESULT")
             print("-" * 40)
             
-            # Calculate overall success
-            successful_phases = 0
-            total_phases = 6
+            success_rate = (successful_phases / total_phases) * 100
             
-            phase_results = [
-                ('Environment Setup', env_status == 'SUCCESS'),
-                ('Test Trade Creation', trade_status in ['SUCCESS', 'PARTIAL']),
-                ('Orphan Condition', condition_created),
-                ('Orphan Detection', orphan_detected),
-                ('Orphan Clearing', clearing_successful),
-                ('Complete Cleanup', cleanup_complete)
-            ]
-            
-            for phase_name, success in phase_results:
-                if success:
-                    successful_phases += 1
-                    print(f"   ✅ {phase_name}")
-                else:
-                    print(f"   ❌ {phase_name}")
-            
-            overall_success_rate = (successful_phases / total_phases) * 100
-            
-            if overall_success_rate >= 90:
+            if success_rate >= 90:
                 result_emoji = "🟢"
                 result_text = "EXCELLENT"
-            elif overall_success_rate >= 75:
-                result_emoji = "🟡"
+            elif success_rate >= 75:
+                result_emoji = "🟡"  
                 result_text = "GOOD"
-            elif overall_success_rate >= 50:
+            elif success_rate >= 50:
                 result_emoji = "🟠"
                 result_text = "PARTIAL"
             else:
                 result_emoji = "🔴"
                 result_text = "FAILED"
             
-            print(f"\n{result_emoji} Overall Success Rate: {overall_success_rate:.1f}% ({result_text})")
+            print(f"{result_emoji} Overall Success Rate: {success_rate:.1f}% ({result_text})")
             print(f"📊 Successful Phases: {successful_phases}/{total_phases}")
             
             # Key Findings
             print(f"\n🔍 KEY FINDINGS:")
             
-            if orphan_detected and clearing_successful:
-                print("   ✅ Orphan detection and clearing working properly")
-            elif orphan_detected and not clearing_successful:
-                print("   ⚠️ Orphan detection works but clearing has issues")
-            elif not orphan_detected:
-                print("   ❌ Orphan detection not working - clearing cannot be tested")
+            detection_result = self.results.get('orphan_detection', {})
+            clearing_result = self.results.get('orphan_clearing', {})
+            database_result = self.results.get('database_verification', {})
             
-            if cleanup_complete:
-                print("   ✅ Complete system cleanup successful")
+            if detection_result.get('detection_success'):
+                print("   ✅ Orphan detection working properly")
             else:
-                print("   ⚠️ System cleanup incomplete - traces may remain")
+                print("   ❌ Orphan detection has issues")
+            
+            if clearing_result.get('overall_success'):
+                print("   ✅ Orphan clearing working properly")
+            else:
+                print("   ❌ Orphan clearing has issues")
+            
+            if database_result.get('overall_success'):
+                print("   ✅ Database updates working properly")
+            else:
+                print("   ❌ Database updates have issues")
             
             # Save detailed results
             report_filename = f"orphan_detection_clearing_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
