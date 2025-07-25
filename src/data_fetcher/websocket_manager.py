@@ -134,10 +134,11 @@ class WebSocketKlineManager:
                 while self.is_running and self.is_connected:
                     time.sleep(1)
 
-                    # Send ping if needed
-                    current_time = time.time()
-                    if current_time - self.last_ping > self.ping_interval:
-                        self._send_ping()
+                    # Send ping if needed (only if we have a valid connection)
+                    if self.ws and self.is_connected:
+                        current_time = time.time()
+                        if current_time - self.last_ping > self.ping_interval:
+                            self._send_ping()
 
             except Exception as e:
                 self.logger.error(f"WebSocket connection error: {e}")
@@ -308,7 +309,12 @@ class WebSocketKlineManager:
     def _on_close(self, ws, close_status_code, close_msg):
         """WebSocket connection closed"""
         self.is_connected = False
-        self.logger.warning(f"WebSocket closed: {close_status_code} - {close_msg}")
+        
+        # Handle normal closure vs error closure
+        if close_status_code in [1000, 1001]:  # Normal closure codes
+            self.logger.info(f"WebSocket closed normally: {close_status_code}")
+        else:
+            self.logger.warning(f"WebSocket closed: {close_status_code} - {close_msg}")
 
     def _process_kline_data(self, stream_name: str, kline: Dict[str, Any]):
         """Process incoming kline data and update cache"""
@@ -369,11 +375,16 @@ class WebSocketKlineManager:
     def _send_ping(self):
         """Send ping to keep connection alive"""
         try:
-            if self.ws and hasattr(self.ws, 'sock') and self.ws.sock and not self.ws.sock.closed:
-                self.ws.send('{"method": "ping"}')
-                self.last_ping = time.time()
+            if self.ws and hasattr(self.ws, 'sock') and self.ws.sock:
+                # Check if socket is still connected
+                try:
+                    self.ws.ping()  # Use built-in ping method
+                    self.last_ping = time.time()
+                    self.logger.debug("📤 Ping sent successfully")
+                except Exception as ping_error:
+                    self.logger.debug(f"Ping failed: {ping_error}")
         except Exception as e:
-            self.logger.error(f"Error sending ping: {e}")
+            self.logger.debug(f"Ping not available: {e}")
 
     def _update_subscription(self):
         """Update WebSocket subscription (for dynamic stream management)"""
