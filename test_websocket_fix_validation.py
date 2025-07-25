@@ -17,7 +17,7 @@ from datetime import datetime
 # Add src to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from src.data_fetcher.websocket_manager import WebSocketManager
+from src.data_fetcher.websocket_manager import websocket_manager
 from src.utils.logger import logger
 
 class WebSocketFixValidator:

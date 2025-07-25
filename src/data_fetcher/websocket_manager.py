@@ -1,7 +1,4 @@
-The code has been modified to address variable scope issues, improve ping functionality, and enhance WebSocket error handling for better connection stability.
-```
 
-```python
 import asyncio
 import json
 import logging
@@ -488,4 +485,3 @@ class WebSocketKlineManager:
 
 # Global WebSocket manager instance
 websocket_manager = WebSocketKlineManager()
-```
