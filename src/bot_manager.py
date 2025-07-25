@@ -339,6 +339,15 @@ class BotManager:
                 # Display current PnL for all active positions (throttled)
                 await self._display_active_positions_pnl_throttled()
 
+            # Log WebSocket status periodically (every 50 iterations ~= 5 minutes)
+                if hasattr(self, '_websocket_status_counter'):
+                    self._websocket_status_counter += 1
+                else:
+                    self._websocket_status_counter = 1
+
+                if self._websocket_status_counter % 50 == 0:
+                    self._log_websocket_status()
+
                 # Check each strategy
                 for strategy_name, strategy_config in self.strategies.items():
                     if not strategy_config.get('enabled', True):
@@ -636,22 +645,22 @@ class BotManager:
     async def _recover_active_positions(self):
         """Simplified single-source position recovery with comprehensive debugging"""
         self.logger.info("🔍 DEBUG: Position recovery started")
-        
+
         try:
             self.logger.info("🛡️ POSITION RECOVERY: Starting simplified recovery process...")
-            
+
             # Step 1: Get all open trades from database
             from src.execution_engine.trade_database import TradeDatabase
             trade_db = TradeDatabase()
-            
+
             open_trades = {}
             for trade_id, trade_data in trade_db.trades.items():
                 if trade_data.get('trade_status') == 'OPEN':
                     open_trades[trade_id] = trade_data
                     self.logger.info(f"🔍 DEBUG: Found open trade in DB: {trade_id} | {trade_data.get('symbol')} | {trade_data.get('side')}")
-            
+
             self.logger.info(f"🔍 DEBUG: Found {len(open_trades)} open trades in database")
-            
+
             # Step 2: Get current Binance positions
             binance_positions = {}
             if self.binance_client.is_futures:
@@ -664,7 +673,7 @@ class BotManager:
                             entry_price = float(position.get('entryPrice', 0))
                             side = 'BUY' if position_amt > 0 else 'SELL'
                             quantity = abs(position_amt)
-                            
+
                             binance_positions[symbol] = {
                                 'symbol': symbol,
                                 'side': side,
@@ -676,20 +685,20 @@ class BotManager:
                 except Exception as e:
                     self.logger.error(f"❌ Error fetching Binance positions: {e}")
                     binance_positions = {}
-            
+
             self.logger.info(f"🔍 DEBUG: Found {len(binance_positions)} active positions on Binance")
-            
+
             # Step 3: Match database trades with Binance positions
             recovered_positions = []
-            
+
             for trade_id, trade_data in open_trades.items():
                 symbol = trade_data.get('symbol')
                 db_side = trade_data.get('side')
                 db_quantity = float(trade_data.get('quantity', 0))
                 db_entry_price = float(trade_data.get('entry_price', 0))
-                
+
                 self.logger.info(f"🔍 DEBUG: Matching trade {trade_id} - {symbol} {db_side} Qty:{db_quantity} Entry:${db_entry_price}")
-                
+
                 # Check if corresponding Binance position exists
                 binance_pos = binance_positions.get(symbol)
                 if binance_pos:
@@ -697,18 +706,18 @@ class BotManager:
                     side_match = binance_pos['side'] == db_side
                     qty_tolerance = max(db_quantity * 0.05, 0.001)  # 5% tolerance
                     price_tolerance = max(db_entry_price * 0.05, 0.01)  # 5% tolerance
-                    
+
                     qty_match = abs(binance_pos['quantity'] - db_quantity) <= qty_tolerance
                     price_match = abs(binance_pos['entry_price'] - db_entry_price) <= price_tolerance
-                    
+
                     self.logger.info(f"🔍 DEBUG: Match check - Side:{side_match} Qty:{qty_match} Price:{price_match}")
-                    
+
                     if side_match and qty_match and price_match:
                         # Perfect match - recover this position
                         strategy_name = trade_data.get('strategy_name', 'RECOVERED')
-                        
+
                         self.logger.info(f"✅ RECOVERY MATCH: {trade_id} | {strategy_name} | {symbol}")
-                        
+
                         from src.execution_engine.order_manager import Position
                         position = Position(
                             strategy_name=strategy_name,
@@ -723,13 +732,13 @@ class BotManager:
                             entry_time=datetime.now(),  # Use current time for recovery
                             status="OPEN"
                         )
-                        
+
                         # Set strategy config reference if possible
                         if strategy_name in self.strategies:
                             position.strategy_config = self.strategies[strategy_name]
-                        
+
                         recovered_positions.append((strategy_name, position))
-                        
+
                         # Register with anomaly detector IMMEDIATELY to prevent interference
                         if hasattr(self, 'anomaly_detector') and self.anomaly_detector:
                             self.anomaly_detector.register_bot_trade(symbol, strategy_name)
@@ -738,11 +747,11 @@ class BotManager:
                         self.logger.warning(f"⚠️ POSITION MISMATCH: {trade_id} | DB vs Binance data doesn't match closely enough")
                 else:
                     self.logger.warning(f"⚠️ ORPHAN TRADE: {trade_id} | Database shows open but no Binance position")
-            
+
             # Step 4: Load recovered positions into order manager
             if recovered_positions:
                 self.logger.info(f"🛡️ LOADING {len(recovered_positions)} RECOVERED POSITIONS...")
-                
+
                 for strategy_name, position in recovered_positions:
                     # Avoid conflicts - only one position per strategy
                     if strategy_name not in self.order_manager.active_positions:
@@ -750,15 +759,15 @@ class BotManager:
                         self.logger.info(f"✅ LOADED RECOVERED POSITION: {strategy_name} | {position.symbol} | {position.side} | Entry: ${position.entry_price}")
                     else:
                         self.logger.warning(f"⚠️ RECOVERY CONFLICT: Strategy {strategy_name} already has position, skipping recovery")
-                
+
                 self.logger.info(f"🛡️ RECOVERY COMPLETE: {len(self.order_manager.active_positions)} active positions loaded")
-            
+
             else:
                 self.logger.info("🛡️ POSITION RECOVERY: No matching positions to recover - starting fresh")
-            
+
             # Step 5: Log final recovery summary
             self.logger.info(f"🔍 DEBUG: Recovery summary - DB Open: {len(open_trades)}, Binance: {len(binance_positions)}, Recovered: {len(recovered_positions)}")
-            
+
         except Exception as e:
             self.logger.error(f"❌ POSITION RECOVERY ERROR: {e}")
             import traceback
@@ -1049,3 +1058,16 @@ class BotManager:
 
         except Exception as e:
             self.logger.error(f"Error in exit conditions check: {e}")
+
+    def _log_websocket_status(self):
+        """Logs the current status of the WebSocket connection."""
+        # Placeholder for WebSocket status logging.  Implement your WebSocket
+        # connection and status tracking, then log the relevant information here.
+        # Example:
+        # if self.binance_client.websocket_connected:
+        #     self.logger.info("✅ WebSocket: Connected")
+        # else:
+        #     self.logger.warning("⚠️ WebSocket: Disconnected")
+
+        # For now, just log a placeholder message.
+        self.logger.info("🔍 WebSocket Status: (Implementation Pending)")

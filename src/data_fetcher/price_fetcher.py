@@ -62,63 +62,109 @@ class PriceFetcher:
         return None
 
     async def get_market_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:
-        """Get market data with real-time current candle integration and enhanced accuracy"""
+        """Get historical market data with WebSocket enhancement"""
         try:
-            # Get historical completed candles with extended buffer for accurate indicators
-            extended_limit = min(limit + 100, 1000)  # More buffer for better indicator accuracy
-            historical_df = self.get_ohlcv_data(symbol, interval, extended_limit)
-            if historical_df is None or historical_df.empty:
+            self.logger.debug(f"Fetching market data for {symbol} | {interval} | limit: {limit}")
+
+            # Use existing rate limiting from binance_client
+            klines = self.binance_client.get_historical_klines(symbol, interval, limit)
+
+            if not klines:
+                self.logger.warning(f"No kline data received for {symbol}")
                 return None
 
-            # Get multiple current price samples for better accuracy
-            current_prices = []
-            for _ in range(3):  # Take 3 samples
-                price = self.get_current_price(symbol)
-                if price:
-                    current_prices.append(price)
-            
-            if not current_prices:
-                # No current price available, use historical data with calculations
-                return self.calculate_indicators(historical_df).tail(limit)
+            # Convert to DataFrame
+            df = pd.DataFrame(klines, columns=[
+                'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                'close_time', 'quote_asset_volume', 'number_of_trades',
+                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
+            ])
 
-            # Use average of current price samples for stability
-            current_price = sum(current_prices) / len(current_prices)
+            # Apply timezone adjustment if configured (preserves all existing logic)
+            if self.use_local_timezone or self.timezone_offset_hours != 0:
+                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                df['timestamp'] = df['timestamp'].apply(lambda x: self._adjust_timestamp_for_timezone(int(x.timestamp() * 1000)))
+            else:
+                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
 
-            # Update the last (current) candle with real-time price
-            last_candle = historical_df.iloc[-1].copy()
-            
-            # More sophisticated current candle update
-            historical_df.iloc[-1, historical_df.columns.get_loc('close')] = current_price
-            
-            # Update high if current price is higher
-            if current_price > last_candle['high']:
-                historical_df.iloc[-1, historical_df.columns.get_loc('high')] = current_price
-            
-            # Update low if current price is lower  
-            if current_price < last_candle['low']:
-                historical_df.iloc[-1, historical_df.columns.get_loc('low')] = current_price
+            # Convert to proper data types with high precision
+            numeric_columns = ['open', 'high', 'low', 'close', 'volume']
+            for col in numeric_columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
 
-            # Update volume weighted price impact (more realistic)
-            price_change = abs(current_price - last_candle['close']) / last_candle['close']
-            if price_change > 0.001:  # Significant price movement
-                # Adjust volume slightly to reflect real-time activity
-                volume_adjustment = 1 + (price_change * 0.1)  # Small volume boost for active markets
-                historical_df.iloc[-1, historical_df.columns.get_loc('volume')] *= volume_adjustment
+            # Try to enhance with real-time WebSocket data
+            try:
+                from src.bot_manager import BotManager
+                import sys
 
-            # Calculate indicators on updated data (full dataset for accuracy)
-            historical_df = self.calculate_indicators(historical_df)
+                # Get bot manager instance if available
+                main_module = sys.modules.get('__main__')
+                bot_manager = getattr(main_module, 'bot_manager', None) if main_module else None
 
-            # Log real-time update details
-            price_change_pct = ((current_price - last_candle['close']) / last_candle['close']) * 100
-            self.logger.debug(f"🔄 REAL-TIME UPDATE | {symbol} | {interval} | Historical: ${last_candle['close']:.4f} | Current: ${current_price:.4f} | Change: {price_change_pct:+.2f}%")
+                if (bot_manager and hasattr(bot_manager, 'websocket_data') and 
+                    symbol in bot_manager.websocket_data and 
+                    bot_manager.websocket_data[symbol]['connected']):
 
-            # Return only requested amount but after full calculation
-            return historical_df.tail(limit)
+                    ws_data = bot_manager.websocket_data[symbol]['latest_kline']
+                    if ws_data and bot_manager.websocket_data[symbol]['last_update']:
+                        # Check if WebSocket data is recent (less than 30 seconds old)
+                        data_age = (datetime.now() - bot_manager.websocket_data[symbol]['last_update']).total_seconds()
+                        if data_age < 30:
+                            # Convert ws_data timestamp to datetime object
+                            latest_timestamp = pd.to_datetime(int(ws_data['timestamp']), unit='ms')
+
+                            # If the latest WebSocket data is newer than our last API data
+                            if latest_timestamp > df['timestamp'].iloc[-1]:
+                                # Add new row with WebSocket data
+                                new_row = pd.DataFrame({
+                                    'timestamp': [latest_timestamp],
+                                    'open': [ws_data['open']],
+                                    'high': [ws_data['high']],
+                                    'low': [ws_data['low']],
+                                    'close': [ws_data['close']],
+                                    'volume': [ws_data['volume']],
+                                    'close_time': [ws_data['timestamp']],
+                                    'quote_asset_volume': [0],
+                                    'number_of_trades': [0],
+                                    'taker_buy_base_asset_volume': [0],
+                                    'taker_buy_quote_asset_volume': [0],
+                                    'ignore': [0]
+                                })
+                                df = pd.concat([df, new_row], ignore_index=True)
+                                self.logger.debug(f"Enhanced {symbol} data with WebSocket (age: {data_age:.1f}s)")
+                            else:
+                                # Update the last row with current WebSocket data
+                                df.iloc[-1, df.columns.get_loc('close')] = ws_data['close']
+                                df.iloc[-1, df.columns.get_loc('high')] = max(df.iloc[-1]['high'], ws_data['high'])
+                                df.iloc[-1, df.columns.get_loc('low')] = min(df.iloc[-1]['low'], ws_data['low'])
+                                df.iloc[-1, df.columns.get_loc('volume')] = ws_data['volume']
+                                self.logger.debug(f"Updated {symbol} latest candle with WebSocket data")
+
+            except Exception as ws_error:
+                self.logger.debug(f"WebSocket enhancement failed for {symbol}: {ws_error}")
+                # Continue with API-only data
+
+            # Sort by timestamp to ensure proper order
+            df = df.sort_values(by='timestamp')
+
+            # Remove any duplicate timestamps
+            df = df[~df.index.duplicated(keep='last')]
+
+            # Remove any rows with NaN values
+            df = df.dropna()
+
+            if df.empty:
+                self.logger.warning(f"DataFrame is empty after processing for {symbol}")
+                return None
+
+            df.set_index('timestamp', inplace=True)
+
+            # Return only requested amount
+            return df.tail(limit)
 
         except Exception as e:
-            self.logger.error(f"Error getting enhanced market data for {symbol}: {e}")
-            fallback_df = self.get_ohlcv_data(symbol, interval, limit)
-            return self.calculate_indicators(fallback_df) if fallback_df is not None else None
+            self.logger.error(f"Error fetching market data for {symbol}: {e}")
+            return None
 
     def get_ohlcv_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:
         """Get OHLCV data as DataFrame with enhanced accuracy"""
@@ -156,7 +202,7 @@ class PriceFetcher:
 
             # Return only requested amount but keep the extra data for calculations
             result_df = df[['open', 'high', 'low', 'close', 'volume']].tail(limit)
-            
+
             # Log data quality
             self.logger.debug(f"📊 DATA QUALITY | {symbol} | Requested: {limit} | Got: {len(result_df)} | Latest: {result_df.index[-1]}")
 
@@ -176,17 +222,17 @@ class PriceFetcher:
 
             # Calculate RSI using Binance-compatible method (primary)
             df['rsi'] = self._calculate_rsi_manual(df['close'].values, period=14)
-            
+
             # Calculate RSI using ta library for comparison and fallback
             df['rsi_ta'] = ta.momentum.RSIIndicator(df['close'], window=14).rsi()
-            
+
             # Use manual RSI as primary, fallback to ta library if needed
             df['rsi'] = df['rsi'].fillna(df['rsi_ta'])
 
             # Moving Averages - use pandas for precise calculation
             df['sma_20'] = df['close'].rolling(window=20, min_periods=20).mean()
             df['sma_50'] = df['close'].rolling(window=50, min_periods=50).mean()
-            
+
             # EMA calculation using pandas exponential weighted mean (more accurate)
             df['ema_12'] = df['close'].ewm(span=12, adjust=False, min_periods=12).mean()
             df['ema_26'] = df['close'].ewm(span=26, adjust=False, min_periods=26).mean()
@@ -224,7 +270,7 @@ class PriceFetcher:
             current_macd = df['macd'].iloc[-1] if not pd.isna(df['macd'].iloc[-1]) else None
             current_macd_signal = df['macd_signal'].iloc[-1] if not pd.isna(df['macd_signal'].iloc[-1]) else None
             current_histogram = df['macd_histogram'].iloc[-1] if not pd.isna(df['macd_histogram'].iloc[-1]) else None
-            
+
             # Enhanced logging for real-time accuracy
             indicators_log = f"📊 REAL-TIME INDICATORS | Price: ${current_price:.4f}"
             if current_rsi is not None:
@@ -233,7 +279,7 @@ class PriceFetcher:
                 indicators_log += f" | MACD: {current_macd:.6f}/{current_macd_signal:.6f}"
             if current_histogram is not None:
                 indicators_log += f" | Histogram: {current_histogram:.6f}"
-            
+
             self.logger.debug(indicators_log)
 
             return df
@@ -249,7 +295,7 @@ class PriceFetcher:
 
         # Calculate price changes
         deltas = pd.Series(prices).diff()
-        
+
         # Separate gains and losses
         gains = deltas.where(deltas > 0, 0)
         losses = -deltas.where(deltas < 0, 0)
@@ -266,5 +312,5 @@ class PriceFetcher:
         # Calculate RSI
         rs = avg_gains / avg_losses
         rsi = 100 - (100 / (1 + rs))
-        
+
         return rsi

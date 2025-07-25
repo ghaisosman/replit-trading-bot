@@ -26,3 +26,4 @@ pyperclip==1.8.2
 websocket
 websocket-client
 websocket-client
+websocket-client
