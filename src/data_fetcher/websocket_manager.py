@@ -163,6 +163,7 @@ class WebSocketKlineManager:
             else:
                 # Multiple streams - use combined stream endpoint
                 streams_list = list(sorted(self.subscribed_streams))
+                # Fix URL format for combined streams
                 combined_params = "/".join(streams_list)
                 url = f"wss://fstream.binance.com/stream?streams={combined_params}"
 
