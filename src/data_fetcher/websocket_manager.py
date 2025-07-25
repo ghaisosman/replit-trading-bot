@@ -184,24 +184,25 @@ class WebSocketKlineManager:
                 }
             )
 
-            # Production-optimized WebSocket settings
+            # Production-optimized WebSocket settings with improved error handling
             self.ws.run_forever(
                 sslopt={
                     "cert_reqs": ssl.CERT_NONE,
                     "check_hostname": False,
                     "ssl_version": ssl.PROTOCOL_TLS
                 },
-                ping_interval=30,  # Standard ping interval
-                ping_timeout=10,
+                ping_interval=None,  # Disable automatic ping to prevent socket errors
+                ping_timeout=None,   # Disable ping timeout 
                 suppress_origin=False,
-                origin="https://www.binance.com"
+                origin="https://www.binance.com",
+                skip_utf8_validation=True  # Skip validation for better performance
             )
 
         except Exception as e:
             self.logger.error(f"Failed to connect WebSocket: {e}")
             import traceback
             self.logger.error(f"Full traceback: {traceback.format_exc()}")
-            time.sleep(5)  # Brief delay before retry
+            time.sleep(2)  # Shorter delay for faster recovery
 
     def _on_open(self, ws):
         """WebSocket connection opened with verification"""
@@ -373,18 +374,27 @@ class WebSocketKlineManager:
             traceback.print_exc()
 
     def _send_ping(self):
-        """Send ping to keep connection alive"""
+        """Send ping to keep connection alive with safe socket checking"""
         try:
-            if self.ws and hasattr(self.ws, 'sock') and self.ws.sock:
-                # Check if socket is still connected
+            # More robust socket state checking
+            if (self.ws and 
+                hasattr(self.ws, 'sock') and 
+                self.ws.sock is not None and
+                hasattr(self.ws.sock, 'sock') and
+                self.ws.sock.sock is not None):
+                
+                # Try manual ping via send method (more reliable)
                 try:
-                    self.ws.ping()  # Use built-in ping method
+                    self.ws.send('{"method": "ping"}')
                     self.last_ping = time.time()
-                    self.logger.debug("📤 Ping sent successfully")
+                    self.logger.debug("📤 Manual ping sent successfully")
                 except Exception as ping_error:
-                    self.logger.debug(f"Ping failed: {ping_error}")
+                    self.logger.debug(f"Manual ping failed: {ping_error}")
+            else:
+                self.logger.debug("🔍 Socket not ready for ping - skipping")
+                
         except Exception as e:
-            self.logger.debug(f"Ping not available: {e}")
+            self.logger.debug(f"Ping operation skipped: {e}")
 
     def _update_subscription(self):
         """Update WebSocket subscription (for dynamic stream management)"""
