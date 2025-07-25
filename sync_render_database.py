@@ -59,9 +59,14 @@ class RenderDatabaseSync:
             self.order_manager = OrderManager(self.binance_client, trade_logger)
             print("✅ Order manager initialized")
             
+            # Initialize telegram reporter
+            from src.reporting.telegram_reporter import TelegramReporter
+            self.telegram_reporter = TelegramReporter()
+            print("✅ Telegram reporter initialized")
+            
             # Initialize trade monitor
             from src.execution_engine.trade_monitor import TradeMonitor
-            self.trade_monitor = TradeMonitor(self.binance_client, self.order_manager)
+            self.trade_monitor = TradeMonitor(self.binance_client, self.order_manager, self.telegram_reporter)
             print("✅ Trade monitor initialized")
             
             return True
