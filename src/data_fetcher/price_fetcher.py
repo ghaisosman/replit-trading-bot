@@ -105,25 +105,25 @@ class PriceFetcher:
             else:
                 # Instead of REST API fallback, wait for WebSocket data
                 self.logger.warning(f"⚠️ WebSocket data unavailable/stale for {symbol} {interval}")
-                
+
                 # Ensure WebSocket is tracking this symbol
                 websocket_manager.add_symbol_interval(symbol, interval)
-                
+
                 # Wait for WebSocket data instead of REST fallback
                 if websocket_manager.is_connected:
                     self.logger.info(f"⏳ Waiting for WebSocket data for {symbol} {interval}")
-                    
+
                     wait_time = 0
                     max_wait = 30  # 30 seconds max wait
-                    
+
                     while wait_time < max_wait:
                         time.sleep(2)
                         wait_time += 2
-                        
+
                         cached_klines = websocket_manager.get_cached_klines(symbol, interval, limit)
                         if cached_klines and websocket_manager.is_data_fresh(symbol, interval, max_age_seconds=300):
                             self.logger.info(f"📡 Got WebSocket data after waiting {wait_time}s")
-                            
+
                             # Convert WebSocket data to DataFrame
                             df_data = []
                             for kline in cached_klines:
@@ -225,12 +225,32 @@ class PriceFetcher:
         try:
             # First, ensure WebSocket is tracking this symbol/interval
             websocket_manager.add_symbol_interval(symbol, interval)
-            
+
+            # WebSocket integration - ensure WebSocket manager is properly started
+            if not websocket_manager.is_running:
+                self.logger.info("🚀 Starting WebSocket manager for real-time data...")
+                websocket_manager.start()
+
+                # Wait for connection with timeout
+                connection_timeout = 15  # 15 seconds
+                wait_start = time.time()
+
+                while not websocket_manager.is_connected and (time.time() - wait_start) < connection_timeout:
+                    time.sleep(1)
+
+                if websocket_manager.is_connected:
+                    self.logger.info("✅ WebSocket connection established")
+                else:
+                    self.logger.warning("⚠️ WebSocket connection timeout - will rely on REST API")
+
+            elif not websocket_manager.is_connected:
+                self.logger.warning("⚠️ WebSocket manager running but not connected")
+
             # Check if WebSocket is connected first
             if not websocket_manager.is_connected:
                 self.logger.info(f"🔄 WebSocket not connected, starting for {symbol} {interval}")
                 websocket_manager.start()
-                
+
                 # Wait for connection with better patience
                 max_wait = 45  # Increased wait time
                 wait_time = 0
@@ -242,35 +262,35 @@ class PriceFetcher:
 
             # Try to get cached data with more flexible freshness requirements
             cached_data = websocket_manager.get_cached_klines(symbol, interval, limit)
-            
+
             if cached_data and len(cached_data) > 0:
                 self.logger.info(f"📡 Using WebSocket data for {symbol} {interval} ({len(cached_data)} klines)")
                 return self._convert_websocket_to_dataframe(cached_data)
-            
+
             # If WebSocket is connected but no data yet, wait for initial data
             if websocket_manager.is_connected:
                 self.logger.info(f"⏳ WebSocket connected, waiting for initial data for {symbol} {interval}")
-                
+
                 # Wait for initial data with patience
                 data_wait = 0
                 max_data_wait = 60  # 1 minute to get initial data
-                
+
                 while data_wait < max_data_wait:
                     time.sleep(2)  # Check every 2 seconds
                     data_wait += 2
-                    
+
                     cached_data = websocket_manager.get_cached_klines(symbol, interval, limit)
                     if cached_data and len(cached_data) > 0:
                         self.logger.info(f"📡 Got initial WebSocket data for {symbol} {interval} after {data_wait}s")
                         return self._convert_websocket_to_dataframe(cached_data)
-                    
+
                     if data_wait % 10 == 0:  # Log every 10 seconds
                         self.logger.info(f"⏳ Waiting for WebSocket data... {data_wait}/{max_data_wait}s")
 
             # CRITICAL: During IP ban period, return None instead of making REST calls
             self.logger.error(f"❌ WebSocket data unavailable for {symbol} {interval} - Avoiding REST API during IP ban")
             self.logger.error(f"💡 Recommendation: Wait for WebSocket data or check connection status")
-            
+
             return None
 
         except Exception as e:

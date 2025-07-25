@@ -154,103 +154,154 @@ class WebSocketKlineManager:
                         break
                         
     def _connect_websocket(self):
-        """Establish WebSocket connection with improved error handling"""
+        """Establish WebSocket connection with deployment-optimized settings"""
         try:
-            # Create combined stream URL - Binance supports combined streams
+            # Use proper combined streams URL for Binance
             if len(self.subscribed_streams) == 1:
-                # Single stream
+                # Single stream - direct connection
                 stream = list(self.subscribed_streams)[0]
                 url = f"wss://fstream.binance.com/ws/{stream}"
             else:
-                # Multiple streams combined
-                streams = "/".join(sorted(self.subscribed_streams))  # Sort for consistency
-                url = f"wss://fstream.binance.com/ws/{streams}"
+                # Multiple streams - use combined stream endpoint
+                streams_list = list(sorted(self.subscribed_streams))
+                combined_params = "/".join(streams_list)
+                url = f"wss://fstream.binance.com/stream?streams={combined_params}"
             
             self.logger.info(f"🔗 Connecting to WebSocket: {url}")
+            self.logger.info(f"📡 Streams: {list(self.subscribed_streams)}")
             
-            # Create WebSocket connection with improved settings
+            # Create WebSocket connection with production-ready settings
             self.ws = WebSocketApp(
                 url,
                 on_open=self._on_open,
                 on_message=self._on_message,
                 on_error=self._on_error,
-                on_close=self._on_close
+                on_close=self._on_close,
+                header={
+                    "User-Agent": "python-binance-websocket/1.0",
+                    "Origin": "https://www.binance.com"
+                }
             )
             
-            # Run WebSocket with improved settings for reliability
+            # Production-optimized WebSocket settings
             self.ws.run_forever(
-                sslopt={"cert_reqs": ssl.CERT_NONE},
-                ping_interval=20,  # More frequent pings
+                sslopt={
+                    "cert_reqs": ssl.CERT_NONE,
+                    "check_hostname": False,
+                    "ssl_version": ssl.PROTOCOL_TLS
+                },
+                ping_interval=30,  # Standard ping interval
                 ping_timeout=10,
-                origin="https://www.binance.com",  # Add origin header
-                host="fstream.binance.com"  # Explicit host
+                suppress_origin=False,
+                origin="https://www.binance.com"
             )
             
         except Exception as e:
             self.logger.error(f"Failed to connect WebSocket: {e}")
-            # Don't raise immediately, let the retry logic handle it
+            import traceback
+            self.logger.error(f"Full traceback: {traceback.format_exc()}")
             time.sleep(5)  # Brief delay before retry
             
     def _on_open(self, ws):
-        """WebSocket connection opened"""
+        """WebSocket connection opened with verification"""
         self.is_connected = True
         self.reconnect_attempts = 0
         self.last_ping = time.time()
         self.stats['connection_uptime'] = time.time()
         self.stats['reconnections'] += 1
         
-        self.logger.info(f"✅ WebSocket connected with {len(self.subscribed_streams)} streams")
+        self.logger.info(f"✅ WebSocket Connected Successfully!")
+        self.logger.info(f"📡 Active Streams: {len(self.subscribed_streams)}")
         for stream in self.subscribed_streams:
-            self.logger.info(f"   📡 {stream}")
+            self.logger.info(f"   🔗 {stream}")
+            
+        # Send a test ping to verify bidirectional communication
+        try:
+            self._send_ping()
+            self.logger.info("📤 Test ping sent to verify connection")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Could not send test ping: {e}")
             
     def _on_message(self, ws, message):
-        """Process incoming WebSocket message"""
+        """Process incoming WebSocket message with improved format handling"""
         try:
             data = json.loads(message)
             self.stats['messages_received'] += 1
             self.stats['last_message_time'] = datetime.now()
             
-            # Handle stream data - check multiple possible formats
+            # Handle different message formats from Binance WebSocket
             if 'stream' in data and 'data' in data:
                 # Combined stream format: {"stream": "btcusdt@kline_1m", "data": {...}}
                 stream_name = data['stream']
-                kline_data = data['data']
+                message_data = data['data']
                 
-                if 'k' in kline_data:  # Kline data
-                    self._process_kline_data(stream_name, kline_data['k'])
-                    self.logger.debug(f"📊 Processed kline from combined stream: {stream_name}")
+                if 'k' in message_data:  # Kline data
+                    self._process_kline_data(stream_name, message_data['k'])
+                    self.logger.debug(f"📊 Combined stream kline: {stream_name}")
+                elif 'e' in message_data and message_data['e'] == 'kline':
+                    # Sometimes data is nested differently
+                    self._process_kline_data(stream_name, message_data['k'])
+                    self.logger.debug(f"📊 Combined stream nested kline: {stream_name}")
                     
-            elif 'k' in data:
+            elif 'e' in data and data['e'] == 'kline':
                 # Direct kline format: {"e": "kline", "E": timestamp, "s": "BTCUSDT", "k": {...}}
-                if 'e' in data and data['e'] == 'kline':
-                    symbol = data['s'].lower()
-                    # Extract interval from kline data
-                    interval = data['k']['i']
-                    stream_name = f"{symbol}@kline_{interval}"
-                    self._process_kline_data(stream_name, data['k'])
-                    self.logger.debug(f"📊 Processed kline from direct format: {stream_name}")
-                    
-            else:
-                # Log unrecognized message format for debugging
-                self.logger.debug(f"🔍 Unrecognized message format: {list(data.keys())}")
+                symbol = data['s'].lower()
+                interval = data['k']['i']
+                stream_name = f"{symbol}@kline_{interval}"
+                self._process_kline_data(stream_name, data['k'])
+                self.logger.debug(f"📊 Direct kline: {stream_name}")
                 
+            elif 'k' in data and 's' in data:
+                # Alternative direct format
+                symbol = data['s'].lower()
+                interval = data['k']['i']
+                stream_name = f"{symbol}@kline_{interval}"
+                self._process_kline_data(stream_name, data['k'])
+                self.logger.debug(f"📊 Alt direct kline: {stream_name}")
+                
+            else:
+                # Log unknown formats for debugging (but don't spam)
+                if self.stats['messages_received'] % 100 == 1:  # Log every 100th unknown message
+                    self.logger.debug(f"🔍 Unknown message format: {list(data.keys())[:5]}")
+                
+        except json.JSONDecodeError as e:
+            self.logger.error(f"JSON decode error: {e}")
+            self.logger.debug(f"Raw message: {message[:200]}...")
         except Exception as e:
             self.logger.error(f"Error processing WebSocket message: {e}")
-            self.logger.debug(f"Raw message: {message[:200]}...")  # First 200 chars for debugging
+            self.logger.debug(f"Raw message: {message[:200]}...")
+            import traceback
+            self.logger.debug(f"Traceback: {traceback.format_exc()}")
             
     def _on_error(self, ws, error):
-        """WebSocket error handler with geographic restriction detection"""
+        """WebSocket error handler with comprehensive error analysis"""
         error_str = str(error)
         
+        # Log the raw error for debugging
+        self.logger.error(f"🚫 WebSocket Error: {error}")
+        
+        # Categorize error types for better debugging
         if "403" in error_str or "Forbidden" in error_str:
-            self.logger.error(f"🚫 WebSocket Geographic Restriction Detected: {error}")
-            self.logger.error("💡 This is likely due to Replit's server location being blocked by Binance")
-            self.logger.error("🔧 Recommendation: Use proxy infrastructure as described in Instructions.md")
+            self.logger.error("🚫 Access Forbidden - Check URL format and permissions")
         elif "429" in error_str or "rate limit" in error_str.lower():
-            self.logger.error(f"⚠️ WebSocket Rate Limit Error: {error}")
-            self.logger.error("🔄 Will retry with exponential backoff")
+            self.logger.error("⚠️ Rate Limit - Will retry with backoff")
+        elif "timeout" in error_str.lower() or "timed out" in error_str.lower():
+            self.logger.error("⏱️ Connection Timeout - Network or server issue")
+        elif "connection" in error_str.lower():
+            self.logger.error("🔌 Connection Issue - Will retry connection")
+        elif "ssl" in error_str.lower() or "certificate" in error_str.lower():
+            self.logger.error("🔒 SSL/TLS Issue - Certificate or encryption problem")
+        elif "websocket" in error_str.lower():
+            self.logger.error("📡 WebSocket Protocol Issue")
         else:
-            self.logger.error(f"WebSocket error: {error}")
+            self.logger.error("❓ Unknown Error Type")
+            
+        # Add detailed error info for debugging
+        self.logger.error(f"🔍 Error details: {type(error).__name__}: {error}")
+        
+        # Import traceback for full error context in deployment
+        import traceback
+        self.logger.error(f"🔍 Full traceback: {traceback.format_exc()}")
             
         self.is_connected = False
         
