@@ -140,12 +140,17 @@ class EngulfingPatternStrategy:
             # Current open is below previous close AND current close is above previous open
             body_engulfing = (df['open'] < df['prev_close']) & (df['close'] > df['prev_open'])
             
-            # Additional validation: ensure significant engulfing (not just tiny overlap)
+            # Additional validation: ensure significant engulfing (relaxed requirements)
             prev_body_size = abs(df['prev_open'] - df['prev_close'])
             curr_body_size = abs(df['open'] - df['close'])
-            significant_engulfing = curr_body_size > (prev_body_size * 0.8)  # Current body at least 80% of previous
+            significant_engulfing = curr_body_size > (prev_body_size * 0.5)  # Current body at least 50% of previous (relaxed from 80%)
             
-            bullish_engulfing = prev_bearish & curr_bullish & body_engulfing & significant_engulfing
+            # Also ensure both candles have meaningful size
+            min_body_threshold = df['close'] * 0.0005  # 0.05% of price
+            prev_meaningful = prev_body_size > min_body_threshold
+            curr_meaningful = curr_body_size > min_body_threshold
+            
+            bullish_engulfing = prev_bearish & curr_bullish & body_engulfing & significant_engulfing & prev_meaningful & curr_meaningful
             
             return bullish_engulfing
 
@@ -166,12 +171,17 @@ class EngulfingPatternStrategy:
             # Current open is above previous close AND current close is below previous open
             body_engulfing = (df['open'] > df['prev_close']) & (df['close'] < df['prev_open'])
             
-            # Additional validation: ensure significant engulfing (not just tiny overlap)
+            # Additional validation: ensure significant engulfing (relaxed requirements)
             prev_body_size = abs(df['prev_open'] - df['prev_close'])
             curr_body_size = abs(df['open'] - df['close'])
-            significant_engulfing = curr_body_size > (prev_body_size * 0.8)  # Current body at least 80% of previous
+            significant_engulfing = curr_body_size > (prev_body_size * 0.5)  # Current body at least 50% of previous (relaxed from 80%)
             
-            bearish_engulfing = prev_bullish & curr_bearish & body_engulfing & significant_engulfing
+            # Also ensure both candles have meaningful size
+            min_body_threshold = df['close'] * 0.0005  # 0.05% of price
+            prev_meaningful = prev_body_size > min_body_threshold
+            curr_meaningful = curr_body_size > min_body_threshold
+            
+            bearish_engulfing = prev_bullish & curr_bearish & body_engulfing & significant_engulfing & prev_meaningful & curr_meaningful
             
             return bearish_engulfing
 
