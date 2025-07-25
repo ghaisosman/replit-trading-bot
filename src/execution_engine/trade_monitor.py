@@ -664,7 +664,7 @@ class TradeMonitor:
         return (strategy_name in self.orphan_trades or 
                 any(ghost_id.startswith(f"{strategy_name}_") for ghost_id in self.ghost_trades))
 
-    def get_anomaly_status(self, strategy_name: str) -> Optional[str):
+    def get_anomaly_status(self, strategy_name: str) -> Optional[str]:
         """Get anomaly status for a strategy"""
         if strategy_name in self.orphan_trades:
             cycles = self.orphan_trades[strategy_name].cycles_remaining
