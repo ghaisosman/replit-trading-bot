@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from pathlib import Path
 import pandas as pd
+import os
 
 @dataclass
 class TradeRecord:
@@ -56,9 +57,7 @@ class TradeRecord:
         return data
 
 class TradeLogger:
-    """Comprehensive trade logging for ML analysis"""
-
-    def __init__(self):
+    def __init__(self, log_file: str = None):
         self.logger = logging.getLogger(__name__)
 
         # Create data directories
@@ -70,6 +69,27 @@ class TradeLogger:
         self.data_dir.mkdir(exist_ok=True)
         self.trades_dir.mkdir(exist_ok=True)
         self.reports_dir.mkdir(exist_ok=True)
+
+        # Environment-based log file isolation
+        if log_file is None:
+            # Detect environment and use appropriate log file
+            is_render_deployment = os.environ.get('RENDER') == 'true'
+            is_replit_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
+
+            if is_render_deployment:
+                # Render deployment gets its own isolated log file
+                self.log_file = "trading_data/trade_log_render.json"
+                self.logger.info("🚀 RENDER DEPLOYMENT: Using isolated render trade log")
+            elif is_replit_deployment:
+                # Replit deployment gets its own isolated log file
+                self.log_file = "trading_data/trade_log_replit.json"
+                self.logger.info("🚀 REPLIT DEPLOYMENT: Using isolated replit trade log")
+            else:
+                # Development environment uses default log file
+                self.log_file = "trading_data/trade_log_dev.json"
+                self.logger.info("🛠️ DEVELOPMENT: Using development trade log")
+        else:
+            self.log_file = log_file
 
         # File paths
         self.trades_json_file = self.trades_dir / "all_trades.json"

@@ -7,9 +7,30 @@ from typing import Optional, Dict, Any, List
 class TradeDatabase:
     """Simplified trade database - mirrors trade logger data only"""
 
-    def __init__(self, db_file: str = "trading_data/trade_database.json"):
+    def __init__(self, db_file: str = None):
         self.logger = logging.getLogger(__name__)
-        self.db_file = db_file
+        
+        # Environment-based database isolation
+        if db_file is None:
+            # Detect environment and use appropriate database file
+            is_render_deployment = os.environ.get('RENDER') == 'true'
+            is_replit_deployment = os.environ.get('REPLIT_DEPLOYMENT') == '1'
+            
+            if is_render_deployment:
+                # Render deployment gets its own isolated database
+                self.db_file = "trading_data/trade_database_render.json"
+                self.logger.info("🚀 RENDER DEPLOYMENT: Using isolated render database")
+            elif is_replit_deployment:
+                # Replit deployment gets its own isolated database
+                self.db_file = "trading_data/trade_database_replit.json"
+                self.logger.info("🚀 REPLIT DEPLOYMENT: Using isolated replit database")
+            else:
+                # Development environment uses default database
+                self.db_file = "trading_data/trade_database_dev.json"
+                self.logger.info("🛠️ DEVELOPMENT: Using development database")
+        else:
+            self.db_file = db_file
+        
         self.trades = {}
         self._ensure_directory()
         self._load_database()
@@ -21,6 +42,7 @@ class TradeDatabase:
     def _load_database(self):
         """Load trades from database file"""
         try:
+            self.logger.info(f"📂 Loading database from: {self.db_file}")
             if os.path.exists(self.db_file):
                 with open(self.db_file, 'r') as f:
                     data = json.load(f)
