@@ -78,70 +78,68 @@ class PriceFetcher:
             return None
 
     async def get_market_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:
-        """
-        Get market data with WebSocket-first approach and REST fallback
-        """
+        """Get market data with enhanced historical data bootstrapping"""
         try:
-            # First try WebSocket data with connection check
-            if hasattr(self, 'websocket_manager') and self.websocket_manager:
-                # Check if WebSocket is connected, if not try to reconnect
-                if not websocket_manager.is_connected and websocket_manager.is_running:
-                    self.logger.warning(f"⚠️ WebSocket not connected for {symbol} {interval}, checking connection...")
-                    # Give it a moment to reconnect
-                    await asyncio.sleep(2)
+            # Always ensure minimum data requirements for indicators
+            min_required = max(limit, 200)  # MACD needs 26, RSI needs 14, plus buffer for accuracy
 
-                cached_klines = websocket_manager.get_cached_klines(symbol, interval, limit)
+            # Try WebSocket data first
+            websocket_data = websocket_manager.get_cached_klines(symbol, interval, min_required)
 
-                if cached_klines and len(cached_klines) > 0:
-                    self.logger.debug(f"✅ Using WebSocket cached data for {symbol} {interval} ({len(cached_klines)} klines)")
-                    return self._convert_websocket_to_dataframe(cached_klines)
-                else:
-                    self.logger.warning(f"⚠️ Insufficient WebSocket data for {symbol} {interval} (have: {len(cached_klines) if cached_klines else 0}, need: {min(10, limit)})")
+            if websocket_data and len(websocket_data) >= min_required:
+                if websocket_manager.is_data_fresh(symbol, interval, max_age_seconds=120):
+                    df = self._convert_websocket_to_dataframe(websocket_data)
+                    if len(df) >= min_required:
+                        self.logger.debug(f"✅ Using WebSocket data: {symbol} {interval} ({len(df)} candles)")
+                        return df
 
-            # Ensure WebSocket is tracking this symbol first
-            websocket_manager.add_symbol_interval(symbol, interval)
+            # If WebSocket data is insufficient, bootstrap with REST API
+            self.logger.info(f"🔄 Bootstrapping historical data for {symbol} {interval}")
 
-            # Start WebSocket if not running
-            if not websocket_manager.is_running:
-                self.logger.info(f"🚀 Starting WebSocket for {symbol} {interval}")
-                websocket_manager.start()
+            # Fetch comprehensive historical data
+            enhanced_limit = max(min_required, 500)  # Get plenty of historical data
 
-                # Wait for connection
-                connection_wait = 0
-                while not websocket_manager.is_connected and connection_wait < 15:
-                    time.sleep(1)
-                    connection_wait += 1
-
-            # If no cached data, wait for WebSocket data
-            if websocket_manager.is_connected:
-                self.logger.info(f"⏳ Waiting for WebSocket data for {symbol} {interval}")
-
-                wait_time = 0
-                max_wait = 45  # Increased wait time for strategy validation
-
-                while wait_time < max_wait:
-                    time.sleep(2)
-                    wait_time += 2
-
-                    cached_klines = websocket_manager.get_cached_klines(symbol, interval, limit)
-                    if cached_klines and len(cached_klines) > 0:
-                        self.logger.info(f"📡 Got WebSocket data after waiting {wait_time}s")
-                        return self._convert_websocket_to_dataframe(cached_klines)
-
-                    if wait_time % 10 == 0:  # Log every 10 seconds
-                        self.logger.info(f"   ⏳ Still waiting... {wait_time}/{max_wait}s")
-
-                self.logger.error(f"❌ Could not get WebSocket data for {symbol} {interval} within {max_wait}s")
-                return None
+            if self.binance_client.is_futures:
+                klines = self.binance_client.client.futures_klines(
+                    symbol=symbol,
+                    interval=interval,
+                    limit=enhanced_limit
+                )
             else:
-                self.logger.error(f"❌ WebSocket not connected, cannot fetch data for {symbol} {interval}")
+                klines = self.binance_client.client.get_klines(
+                    symbol=symbol,
+                    interval=interval,
+                    limit=enhanced_limit
+                )
+
+            if not klines:
+                self.logger.warning(f"No REST API data received for {symbol} {interval}")
                 return None
 
-            # Use the helper method for consistent dataframe conversion
-            return self._convert_websocket_to_dataframe(cached_klines, limit)
+            # Convert to DataFrame
+            df = pd.DataFrame(klines, columns=[
+                'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                'close_time', 'quote_asset_volume', 'number_of_trades',
+                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
+            ])
+
+            # Convert data types
+            for col in ['open', 'high', 'low', 'close', 'volume']:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df = df.set_index('timestamp')
+
+            # Validate we have sufficient data
+            if len(df) >= min_required:
+                self.logger.info(f"✅ Historical data loaded: {symbol} {interval} ({len(df)} candles)")
+            else:
+                self.logger.warning(f"⚠️ Still insufficient data: {len(df)} candles (need {min_required}+)")
+
+            return df
 
         except Exception as e:
-            self.logger.error(f"Error fetching market data for {symbol}: {e}")
+            self.logger.error(f"Error fetching market data for {symbol} {interval}: {e}")
             return None
 
     def get_ohlcv_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:
@@ -222,74 +220,83 @@ class PriceFetcher:
             return None
 
     def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate technical indicators with enhanced real-time accuracy"""
+        """Calculate technical indicators with enhanced validation and error handling"""
         try:
-            # Ensure we have enough data
-            if len(df) < 50:
+            df = df.copy()
+
+            if len(df) < 26:  # Need at least 26 for MACD
                 self.logger.warning("Insufficient data for accurate indicator calculation")
+                # Still calculate what we can with available data
+                if len(df) >= 14:
+                    # Calculate RSI with available data
+                    delta = df['close'].diff()
+                    gain = (delta.where(delta > 0, 0)).rolling(window=min(14, len(df)-1)).mean()
+                    loss = (-delta.where(delta < 0, 0)).rolling(window=min(14, len(df)-1)).mean()
+                    rs = gain / loss
+                    df['rsi'] = 100 - (100 / (1 + rs))
+
                 return df
 
-            # Calculate RSI using Binance-compatible method (primary)
-            df['rsi'] = self._calculate_rsi_manual(df['close'].values, period=14)
+            # RSI (14-period) - Enhanced calculation
+            delta = df['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
 
-            # Calculate RSI using ta library for comparison and fallback
-            df['rsi_ta'] = ta.momentum.RSIIndicator(df['close'], window=14).rsi()
+            # Avoid division by zero
+            rs = gain / loss.replace(0, 0.000001)
+            df['rsi'] = 100 - (100 / (1 + rs))
 
-            # Use manual RSI as primary, fallback to ta library if needed
-            df['rsi'] = df['rsi'].fillna(df['rsi_ta'])
+            # MACD (12, 26, 9) - Enhanced calculation
+            exp1 = df['close'].ewm(span=12, adjust=False).mean()
+            exp2 = df['close'].ewm(span=26, adjust=False).mean()
 
-            # Moving Averages - use pandas for precise calculation
-            df['sma_20'] = df['close'].rolling(window=20, min_periods=20).mean()
-            df['sma_50'] = df['close'].rolling(window=50, min_periods=50).mean()
-
-            # EMA calculation using pandas exponential weighted mean (more accurate)
-            df['ema_12'] = df['close'].ewm(span=12, adjust=False, min_periods=12).mean()
-            df['ema_26'] = df['close'].ewm(span=26, adjust=False, min_periods=26).mean()
-
-            # MACD calculation (Binance-compatible)
-            df['macd'] = df['ema_12'] - df['ema_26']
-            df['macd_signal'] = df['macd'].ewm(span=9, adjust=False, min_periods=9).mean()
+            df['macd'] = exp1 - exp2
+            df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
             df['macd_histogram'] = df['macd'] - df['macd_signal']
 
-            # Additional MACD using ta library for comparison and validation
-            try:
-                macd_indicator = ta.trend.MACD(df['close'], window_fast=12, window_slow=26, window_sign=9)
-                df['macd_ta'] = macd_indicator.macd()
-                df['macd_signal_ta'] = macd_indicator.macd_signal()
-                df['macd_histogram_ta'] = macd_indicator.macd_diff()
-            except:
-                # Fallback if ta library fails
-                df['macd_ta'] = df['macd']
-                df['macd_signal_ta'] = df['macd_signal']
-                df['macd_histogram_ta'] = df['macd_histogram']
+            # Simple Moving Averages
+            if len(df) >= 20:
+                df['sma_20'] = df['close'].rolling(window=20).mean()
+            if len(df) >= 50:
+                df['sma_50'] = df['close'].rolling(window=50).mean()
 
-            # Bollinger Bands for additional analysis
-            df['bb_middle'] = df['close'].rolling(window=20).mean()
-            bb_std = df['close'].rolling(window=20).std()
-            df['bb_upper'] = df['bb_middle'] + (bb_std * 2)
-            df['bb_lower'] = df['bb_middle'] - (bb_std * 2)
+            # Bollinger Bands (20-period)
+            if len(df) >= 20:
+                sma20 = df['close'].rolling(window=20).mean()
+                std20 = df['close'].rolling(window=20).std()
+                df['bb_upper'] = sma20 + (std20 * 2)
+                df['bb_lower'] = sma20 - (std20 * 2)
+                df['bb_middle'] = sma20
 
-            # Volume-based indicators
-            df['volume_sma'] = df['volume'].rolling(window=20, min_periods=20).mean()
-            df['volume_ratio'] = df['volume'] / df['volume_sma']
+            # Candlestick patterns (requires at least 2 candles)
+            if len(df) >= 2:
+                # Bullish Engulfing
+                df['bullish_engulfing'] = (
+                    (df['close'].shift(1) < df['open'].shift(1)) &  # Previous candle was bearish
+                    (df['close'] > df['open']) &  # Current candle is bullish
+                    (df['open'] < df['close'].shift(1)) &  # Current open below previous close
+                    (df['close'] > df['open'].shift(1))  # Current close above previous open
+                )
 
-            # Log current values with enhanced details
-            current_price = df['close'].iloc[-1]
-            current_rsi = df['rsi'].iloc[-1] if not pd.isna(df['rsi'].iloc[-1]) else None
-            current_macd = df['macd'].iloc[-1] if not pd.isna(df['macd'].iloc[-1]) else None
-            current_macd_signal = df['macd_signal'].iloc[-1] if not pd.isna(df['macd_signal'].iloc[-1]) else None
-            current_histogram = df['macd_histogram'].iloc[-1] if not pd.isna(df['macd_histogram'].iloc[-1]) else None
+                # Bearish Engulfing
+                df['bearish_engulfing'] = (
+                    (df['close'].shift(1) > df['open'].shift(1)) &  # Previous candle was bullish
+                    (df['close'] < df['open']) &  # Current candle is bearish
+                    (df['open'] > df['close'].shift(1)) &  # Current open above previous close
+                    (df['close'] < df['open'].shift(1))  # Current close below previous open
+                )
 
-            # Enhanced logging for real-time accuracy
-            indicators_log = f"📊 REAL-TIME INDICATORS | Price: ${current_price:.4f}"
-            if current_rsi is not None:
-                indicators_log += f" | RSI: {current_rsi:.2f}"
-            if current_macd is not None and current_macd_signal is not None:
-                indicators_log += f" | MACD: {current_macd:.6f}/{current_macd_signal:.6f}"
-            if current_histogram is not None:
-                indicators_log += f" | Histogram: {current_histogram:.6f}"
+            # Log successful indicator calculation
+            indicators_calculated = []
+            if 'rsi' in df.columns and not df['rsi'].isna().all():
+                indicators_calculated.append('RSI')
+            if 'macd' in df.columns and not df['macd'].isna().all():
+                indicators_calculated.append('MACD')
+            if 'sma_20' in df.columns and not df['sma_20'].isna().all():
+                indicators_calculated.append('SMA20')
 
-            self.logger.debug(indicators_log)
+            if indicators_calculated:
+                self.logger.debug(f"✅ Calculated indicators: {', '.join(indicators_calculated)} ({len(df)} candles)")
 
             return df
 
