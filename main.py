@@ -35,17 +35,26 @@ def run_web_dashboard():
 
         logger = logging.getLogger(__name__)
         
+        import socket
+        
         for port in fallback_ports:
             try:
-                logger.info(f"🌐 Attempting to start web dashboard on port {port}")
-                app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
-                break
-            except OSError as e:
-                if "Address already in use" in str(e):
+                # Test if port is available before trying to bind
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1)
+                result = sock.connect_ex(('localhost', port))
+                sock.close()
+                
+                if result == 0:
                     logger.warning(f"⚠️ Port {port} is already in use, trying next port...")
                     continue
-                else:
-                    raise e
+                
+                logger.info(f"🌐 Starting web dashboard on port {port}")
+                app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
+                break
+            except Exception as e:
+                logger.warning(f"⚠️ Port {port} failed: {e}, trying next port...")
+                continue
         else:
             logger.error("❌ Could not start web dashboard on any available port")
 
@@ -72,6 +81,22 @@ async def main():
 
     # Check if running on Render (or any deployment)
     is_deployment = os.environ.get('RENDER') == 'true' or os.environ.get('REPLIT_DEPLOYMENT') == '1'
+    
+    # Check for potential dual deployment situation
+    if not is_deployment:
+        try:
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex(('localhost', 5000))
+            sock.close()
+            
+            if result == 0:
+                logger.warning("⚠️ DUAL DEPLOYMENT DETECTED!")
+                logger.warning("💡 Port 5000 is occupied - likely by your live Render deployment")
+                logger.warning("🔄 Will use alternative port for development dashboard")
+        except:
+            pass
 
     if is_deployment:
         logger.info("🚀 RENDER DEPLOYMENT MODE: Starting web dashboard + bot with independent control")
