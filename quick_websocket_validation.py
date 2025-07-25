@@ -75,17 +75,17 @@ async def quick_validation():
             print("❌ Price fetching failed")
             return False
         
-        # Test 4: REST API Fallback
-        print("\n🔄 Testing REST API Backup...")
-        try:
-            connection_test = await binance_client.test_connection()
-            if connection_test:
-                print("✅ REST API working as backup")
-            else:
-                print("❌ REST API not working")
-                return False
-        except Exception as e:
-            print(f"❌ REST API error: {e}")
+        # Test 4: WebSocket Stability Check
+        print("\n🔗 Testing WebSocket Stability...")
+        await asyncio.sleep(3)  # Wait for more data
+        
+        final_stats = ws_manager.get_statistics()
+        final_messages = final_stats.get('messages_received', 0)
+        
+        if final_messages > messages:
+            print(f"✅ WebSocket stable - received {final_messages - messages} additional messages")
+        else:
+            print("⚠️ WebSocket data flow may be unstable")
             return False
         
         # Cleanup
@@ -95,7 +95,8 @@ async def quick_validation():
         print("✅ WebSocket: Working")
         print("✅ Data Flow: Working") 
         print("✅ Price Updates: Working")
-        print("✅ REST Backup: Working")
+        print("✅ WebSocket Stability: Confirmed")
+        print("🚫 REST API: Disabled (avoiding geographic restrictions)")
         
         return True
         

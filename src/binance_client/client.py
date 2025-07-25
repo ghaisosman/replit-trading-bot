@@ -85,7 +85,7 @@ class BinanceClientWrapper:
         self._last_request_time = time.time()
         self._request_count += 1
 
-    def test_connection(self) -> bool:
+    async def test_connection(self) -> bool:
         """Test API connection with improved error handling"""
         try:
             self._rate_limit()
