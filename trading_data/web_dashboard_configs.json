@@ -72,18 +72,5 @@
     "partial_tp_pnl_threshold": 20.0,
     "partial_tp_position_percentage": 50.0,
     "enabled": true
-  },
-  "engulfing_pattern_btc": {
-    "symbol": "BCHUSDT",
-    "margin": 10.0,
-    "leverage": 3,
-    "timeframe": "1h",
-    "max_loss_pct": 5.0,
-    "assessment_interval": 60,
-    "decimals": 3,
-    "cooldown_period": 60,
-    "partial_tp_pnl_threshold": 20.0,
-    "partial_tp_position_percentage": 50.0,
-    "enabled": true
   }
 }
