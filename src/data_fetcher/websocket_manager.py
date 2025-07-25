@@ -1,4 +1,3 @@
-
 import asyncio
 import json
 import logging
@@ -134,7 +133,7 @@ class WebSocketKlineManager:
                 # Keep connection alive without ping monitoring
                 while self.is_running and self.is_connected:
                     time.sleep(5)  # Longer sleep since no ping needed
-                    
+
                     # Update ping timestamp to prevent timeout logic
                     if self.is_connected:
                         self.last_ping = time.time()
@@ -317,14 +316,33 @@ class WebSocketKlineManager:
         self.is_connected = False
 
     def _on_close(self, ws, close_status_code, close_msg):
-        """WebSocket connection closed"""
+        """WebSocket connection closed with auto-reconnect"""
         self.is_connected = False
-        
+
         # Handle normal closure vs error closure
         if close_status_code in [1000, 1001]:  # Normal closure codes
             self.logger.info(f"WebSocket closed normally: {close_status_code}")
         else:
             self.logger.warning(f"WebSocket closed: {close_status_code} - {close_msg}")
+
+        # Auto-reconnect if we're supposed to be running
+        if self.is_running and self.connection_recovery_mode:
+            self.logger.info("🔄 Auto-reconnecting WebSocket...")
+            # Brief delay before reconnect
+            import threading
+            threading.Timer(2.0, self._attempt_reconnect).start()
+
+    def _attempt_reconnect(self):
+        """Attempt to reconnect WebSocket"""
+        if self.is_running and not self.is_connected:
+            try:
+                self.logger.info("🔄 Attempting WebSocket reconnection...")
+                self._connect_websocket()
+            except Exception as e:
+                self.logger.error(f"Reconnection failed: {e}")
+                if self.reconnect_attempts < self.max_reconnect_attempts:
+                    import threading
+                    threading.Timer(5.0, self._attempt_reconnect).start()
 
     def _process_kline_data(self, stream_name: str, kline: Dict[str, Any]):
         """Process incoming kline data and update cache"""
@@ -447,12 +465,12 @@ class WebSocketKlineManager:
                 if symbol in self.last_updates and interval in self.last_updates[symbol]:
                     last_update = self.last_updates[symbol][interval]
                     age = (datetime.now() - last_update).total_seconds()
-                    
+
                     # Be more lenient during the first few minutes after connection
                     connection_time = time.time() - self.stats.get('connection_uptime', time.time())
                     if connection_time < 300:  # First 5 minutes after connection
                         max_age_seconds = max(max_age_seconds, 300)  # Allow up to 5 minutes old data
-                    
+
                     return age <= max_age_seconds
                 else:
                     # Have data but no timestamp - check if data itself is recent
@@ -461,7 +479,7 @@ class WebSocketKlineManager:
                     if data_age <= max_age_seconds * 2:  # Double tolerance for received_at
                         self.logger.debug(f"💡 Using received_at timestamp for freshness check: {data_age:.1f}s")
                         return True
-        
+
         return False
 
     def add_update_callback(self, callback: Callable):
