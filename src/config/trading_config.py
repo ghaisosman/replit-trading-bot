@@ -123,7 +123,7 @@ class TradingConfigManager:
                     symbol = 'ETHUSDT'
                 elif 'ada' in strategy_name.lower():
                     symbol = 'ADAUSDT'
-                
+
                 config.update({
                     'symbol': symbol,
                     'margin': 10.0,
@@ -362,6 +362,78 @@ class TradingConfigManager:
             return self.strategy_configs.get(strategy_name, {}).get('enabled', False)
         except Exception:
             return False
+
+    def get_all_strategy_configs(self) -> Dict[str, Dict]:
+        """Get all strategy configurations"""
+        import logging
+        try:
+            all_configs = {}
+
+            # Get configs from all sources
+            for strategy_name in ['rsi_oversold', 'macd_divergence', 'engulfing_pattern', 'smart_money']:
+                config = self.get_strategy_config(strategy_name, {})
+                if config:
+                    all_configs[strategy_name] = config
+
+            return all_configs
+
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Error getting all strategy configs: {e}")
+            return {}
+
+    def remove_duplicate_strategies(self):
+        """Remove duplicate strategy configurations"""
+        import os
+        import json
+        import logging
+        try:
+            logging.getLogger(__name__).info("🧹 Removing duplicate strategy configurations")
+
+            # Check for duplicate engulfing pattern strategies
+            config_file = "trading_data/web_dashboard_configs.json"
+
+            if os.path.exists(config_file):
+                with open(config_file, 'r') as f:
+                    dashboard_config = json.load(f)
+
+                # Count strategy occurrences
+                strategy_counts = {}
+                strategies_to_remove = []
+
+                for key in list(dashboard_config.keys()):
+                    if 'engulfing' in key.lower():
+                        base_name = 'engulfing_pattern'
+                        if base_name not in strategy_counts:
+                            strategy_counts[base_name] = []
+                        strategy_counts[base_name].append(key)
+
+                # Remove duplicates (keep the first occurrence)
+                removed_count = 0
+                for base_name, occurrences in strategy_counts.items():
+                    if len(occurrences) > 1:
+                        # Keep the first, remove the rest
+                        for duplicate in occurrences[1:]:
+                            if duplicate in dashboard_config:
+                                del dashboard_config[duplicate]
+                                removed_count += 1
+                                logging.getLogger(__name__).info(f"🗑️ Removed duplicate strategy: {duplicate}")
+
+                # Save updated config
+                if removed_count > 0:
+                    with open(config_file, 'w') as f:
+                        json.dump(dashboard_config, f, indent=2)
+
+                    logging.getLogger(__name__).info(f"✅ Removed {removed_count} duplicate strategies")
+                    return removed_count
+                else:
+                    logging.getLogger(__name__).info("✅ No duplicate strategies found")
+                    return 0
+
+            return 0
+
+        except Exception as e:
+            logging.getLogger(__name__).error(f"❌ Error removing duplicate strategies: {e}")
+            return 0
 
 # Global config manager instance
 trading_config_manager = TradingConfigManager()

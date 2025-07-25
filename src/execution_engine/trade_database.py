@@ -625,6 +625,59 @@ class TradeDatabase:
         except Exception as e:
             self.logger.error(f"❌ Error cleaning up old trades: {e}")
 
+    def force_sync_with_logger(self):
+        """Force complete sync with trade logger - logger is source of truth"""
+        try:
+            self.logger.info("🔄 FORCE SYNC: Starting complete database-logger synchronization")
+            
+            from src.analytics.trade_logger import trade_logger
+            
+            # Clear database and rebuild from logger
+            original_count = len(self.trades)
+            self.trades.clear()
+            
+            # Add all logger trades to database
+            synced_count = 0
+            failed_count = 0
+            
+            for trade in trade_logger.trades:
+                try:
+                    trade_dict = trade.to_dict()
+                    
+                    # Ensure required database fields
+                    if 'trade_status' not in trade_dict:
+                        trade_dict['trade_status'] = trade_dict.get('status', 'OPEN')
+                    
+                    if 'created_at' not in trade_dict:
+                        trade_dict['created_at'] = trade_dict.get('timestamp', datetime.now().isoformat())
+                    
+                    if 'last_updated' not in trade_dict:
+                        trade_dict['last_updated'] = datetime.now().isoformat()
+                    
+                    # Add to database without calling add_trade (to avoid recursion)
+                    self.trades[trade.trade_id] = trade_dict
+                    synced_count += 1
+                    
+                except Exception as e:
+                    self.logger.error(f"❌ Failed to sync trade {trade.trade_id}: {e}")
+                    failed_count += 1
+                    continue
+            
+            # Save the synchronized database
+            save_success = self._save_database()
+            
+            if save_success:
+                self.logger.info(f"✅ FORCE SYNC COMPLETE: {synced_count} trades synced, {failed_count} failed")
+                self.logger.info(f"📊 Database updated: {original_count} → {len(self.trades)} trades")
+                return synced_count
+            else:
+                self.logger.error("❌ FORCE SYNC FAILED: Database save unsuccessful")
+                return 0
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error in force sync with logger: {e}")
+            return 0
+
     def search_trades(self, **criteria):
         """Search trades by multiple criteria"""
         try:
