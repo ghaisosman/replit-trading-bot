@@ -36,9 +36,10 @@ class WebSocketKlineManager:
 
         # Connection health monitoring
         self.last_ping = time.time()
-        self.ping_interval = 30  # seconds
+        self.ping_interval = 30  # seconds (unused - ping disabled)
         self.reconnect_attempts = 0
-        self.max_reconnect_attempts = 10
+        self.max_reconnect_attempts = 20  # Increased attempts
+        self.connection_recovery_mode = True
 
         # Callbacks for real-time data updates
         self.update_callbacks = []
@@ -130,15 +131,13 @@ class WebSocketKlineManager:
             try:
                 self._connect_websocket()
 
-                # Keep connection alive
+                # Keep connection alive without ping monitoring
                 while self.is_running and self.is_connected:
-                    time.sleep(1)
-
-                    # Send ping if needed (only if we have a valid connection)
-                    if self.ws and self.is_connected:
-                        current_time = time.time()
-                        if current_time - self.last_ping > self.ping_interval:
-                            self._send_ping()
+                    time.sleep(5)  # Longer sleep since no ping needed
+                    
+                    # Update ping timestamp to prevent timeout logic
+                    if self.is_connected:
+                        self.last_ping = time.time()
 
             except Exception as e:
                 self.logger.error(f"WebSocket connection error: {e}")
@@ -374,25 +373,12 @@ class WebSocketKlineManager:
             traceback.print_exc()
 
     def _send_ping(self):
-        """Send ping to keep connection alive with safe socket checking"""
+        """Send ping to keep connection alive - disabled to prevent socket errors"""
         try:
-            # More robust socket state checking
-            if (self.ws and 
-                hasattr(self.ws, 'sock') and 
-                self.ws.sock is not None and
-                hasattr(self.ws.sock, 'sock') and
-                self.ws.sock.sock is not None):
-                
-                # Try manual ping via send method (more reliable)
-                try:
-                    self.ws.send('{"method": "ping"}')
-                    self.last_ping = time.time()
-                    self.logger.debug("📤 Manual ping sent successfully")
-                except Exception as ping_error:
-                    self.logger.debug(f"Manual ping failed: {ping_error}")
-            else:
-                self.logger.debug("🔍 Socket not ready for ping - skipping")
-                
+            # Skip all ping operations to prevent NoneType socket errors
+            # Binance WebSocket maintains connection without manual pings
+            self.last_ping = time.time()
+            self.logger.debug("📤 Ping disabled - relying on server-side keepalive")
         except Exception as e:
             self.logger.debug(f"Ping operation skipped: {e}")
 
