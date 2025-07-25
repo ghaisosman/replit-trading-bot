@@ -64,17 +64,31 @@ class PriceFetcher:
                 self.price_cache[symbol] = ws_price
                 return ws_price
 
+            # Check cached price if WebSocket fails
+            if symbol in self.price_cache:
+                cached_price = self.price_cache[symbol]
+                if cached_price and cached_price > 0:
+                    self.logger.debug(f"Using cached price for {symbol}: ${cached_price:,.4f}")
+                    return cached_price
+
             # Fallback to REST API if WebSocket data is unavailable
             self.logger.debug(f"Using REST API fallback for {symbol} current price")
             ticker = self.binance_client.get_symbol_ticker(symbol)
             if ticker:
                 price = float(ticker['price'])
-                self.price_cache[symbol] = price
-                return price
+                if price > 0:
+                    self.price_cache[symbol] = price
+                    return price
+
+            # Final fallback - return None but log clearly
+            self.logger.warning(f"No valid price data available for {symbol}")
             return None
 
         except Exception as e:
             self.logger.error(f"Error getting current price for {symbol}: {e}")
+            # Return cached price if available as emergency fallback
+            if symbol in self.price_cache and self.price_cache[symbol] > 0:
+                return self.price_cache[symbol]
             return None
 
     async def get_market_data(self, symbol: str, interval: str, limit: int = 100) -> Optional[pd.DataFrame]:

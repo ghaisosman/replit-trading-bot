@@ -733,7 +733,7 @@ class BotManager:
                                 'symbol': symbol,
                                 'side': side,
                                 'quantity': quantity,
-                                'entry_price': entry_price,
+                                ''entry_price': entry_price,
                                 'position_amt': position_amt
                             }
                             self.logger.info(f"🔍 DEBUG: Found Binance position: {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price}")
@@ -996,7 +996,8 @@ class BotManager:
                     # Enhanced MACD scanning display with clear price and indicators
                     self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
                     self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
-                    self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
+                    price_display = f"${current_price:,.4f}" if current_price and current_price > 0 else "N/A"
+                    self.logger.info(f"💰 Price: {price_display} | 💵 Margin: ${margin:.1f} @ {leverage}x")
                     self.logger.info(f"📊 MACD Line: {macd_line:.6f} | Signal: {macd_signal:.6f} | Histogram: {macd_histogram:.6f}")
 
                 elif 'rsi' in strategy_name.lower() and 'engulfing' not in strategy_name.lower():
@@ -1006,7 +1007,8 @@ class BotManager:
 
                     self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
                     self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
-                    self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
+                    price_display = f"${current_price:,.4f}" if current_price and current_price > 0 else "N/A"
+                    self.logger.info(f"💰 Price: {price_display} | 💵 Margin: ${margin:.1f} @ {leverage}x")
                     self.logger.info(f"📊 RSI: {current_rsi:.2f} | Long Entry: ≤{rsi_long_entry} | Short Entry: ≥{rsi_short_entry}")
 
                 elif 'engulfing' in strategy_name.lower():
@@ -1039,7 +1041,8 @@ class BotManager:
 
                     self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
                     self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
-                    self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
+                    price_display = f"${current_price:,.4f}" if current_price and current_price > 0 else "N/A"
+                    self.logger.info(f"💰 Price: {price_display} | 💵 Margin: ${margin:.1f} @ {leverage}x")
                     self.logger.info(f"📊 RSI: {current_rsi:.2f} | Pattern: {pattern_status} | Stable: {'✅' if stable_candle else '❌'}")
                     self.logger.info(f"📈 Momentum: {price_momentum}")
 
@@ -1047,7 +1050,8 @@ class BotManager:
                     # Generic strategy scanning display
                     self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
                     self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
-                    self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
+                    price_display = f"${current_price:,.4f}" if current_price and current_price > 0 else "N/A"
+                    self.logger.info(f"💰 Price: {price_display} | 💵 Margin: ${margin:.1f} @ {leverage}x")
 
         except Exception as e:
             self.logger.error(f"Error processing strategy {strategy_name}: {e}")

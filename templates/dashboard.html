@@ -1733,16 +1733,25 @@
 
             try {
                 // Extract strategy name patterns
-                let strategyMatch = log.match(/🔍 SCANNING [A-Z]+ \| ([A-Z_]+)/);
+                let strategyMatch = log.match(/🔍 SCANNING \| ([A-Z_]+)/);
+                if (!strategyMatch) {
+                    strategyMatch = log.match(/🔍 SCANNING [A-Z]+ \| ([A-Z_]+)/);
+                }
                 if (!strategyMatch) {
                     strategyMatch = log.match(/📈 SCANNING [A-Z]+ \| ([A-Z_]+)/);
                 }
                 if (!strategyMatch) {
                     strategyMatch = log.match(/Strategy: ([A-Z_]+)/);
                 }
+                if (!strategyMatch) {
+                    // Handle cases where strategy name is in the scanning line
+                    strategyMatch = log.match(/🔍 ([A-Z_]+) SCANNING/);
+                }
 
                 if (strategyMatch) {
                     info.strategy = strategyMatch[1];
+                } else if (log.includes('UNKNOWN')) {
+                    info.strategy = 'UNKNOWN';
                 }
 
                 // Extract symbol
@@ -1768,10 +1777,16 @@
                     info.leverage = leverageMatch[1];
                 }
 
-                // Extract price
-                const priceMatch = log.match(/Price: \$([0-9,]+\.?\d*)/);
+                // Extract price - handle various formats including null
+                const priceMatch = log.match(/Price: \$([0-9,]+\.?\d*|null)/);
                 if (priceMatch) {
-                    info.price = priceMatch[1];
+                    info.price = priceMatch[1] === 'null' ? 'N/A' : priceMatch[1];
+                } else {
+                    // Try alternative price patterns
+                    const altPriceMatch = log.match(/💰 Price: \$([0-9,]+\.?\d*|null)/);
+                    if (altPriceMatch) {
+                        info.price = altPriceMatch[1] === 'null' ? 'N/A' : altPriceMatch[1];
+                    }
                 }
 
                 // Extract indicator (RSI or MACD)
