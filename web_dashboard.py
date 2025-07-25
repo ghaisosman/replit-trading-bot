@@ -1636,24 +1636,39 @@ def get_positions():
         status = 'active' if positions else 'no_positions'
         logger.info(f"🔍 DEBUG: Returning {len(positions)} positions with status: {status}")
         
+        # Add position summary for debugging
+        if positions:
+            logger.debug(f"📊 Position summary:")
+            for pos in positions:
+                logger.debug(f"   {pos.get('strategy', 'Unknown')}: {pos.get('symbol', 'Unknown')} - ${pos.get('current_price', 0):.4f}")
+        
         return jsonify({
             'success': True,
             'positions': positions,
             'status': status,
             'count': len(positions),
             'timestamp': current_time,
-            'source': 'database'
+            'source': 'database',
+            'debug_info': {
+                'positions_found': len(positions),
+                'source': 'database' if IMPORTS_AVAILABLE else 'fallback'
+            }
         })
 
     except Exception as e:
-        logger.error(f"Positions API error: {e}")
+        logger.error(f"❌ Positions API error: {e}")
         import traceback
-        logger.error(f"Positions API traceback: {traceback.format_exc()}")
+        logger.error(f"❌ Positions API traceback: {traceback.format_exc()}")
         
         default_response.update({
             'success': False,
             'status': 'api_error',
-            'error': str(e)
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'debug_info': {
+                'error_location': 'positions_endpoint',
+                'imports_available': IMPORTS_AVAILABLE
+            }
         })
         return jsonify(default_response)
 
@@ -1661,58 +1676,127 @@ def get_positions():
 def get_rsi(symbol):
     """Get RSI value for a symbol with comprehensive error handling"""
     try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'Binance client not available'})
-
-        # Validate symbol
+        # Validate inputs first
         if not symbol or len(symbol) < 6:
-            return jsonify({'success': False, 'error': 'Invalid symbol'})
+            logger.error(f"❌ Invalid symbol provided: {symbol}")
+            return jsonify({'success': False, 'error': 'Invalid symbol format'})
 
-        # Try to get klines with proper error handling
-        try:
-            klines = binance_client.get_klines(symbol=symbol, interval='15m', limit=100)
+        if not IMPORTS_AVAILABLE:
+            logger.debug(f"📊 RSI not available for {symbol} - demo mode")
+            return jsonify({'success': False, 'error': 'RSI calculation not available in demo mode'})
 
-            if not klines or len(klines) < 15:
-                # Fallback: Try different timeframe
-                klines = binance_client.get_klines(symbol=symbol, interval='5m', limit=100)
+        if not binance_client:
+            logger.error(f"❌ Binance client not initialized for {symbol}")
+            return jsonify({'success': False, 'error': 'Trading client not available'})
 
-            if not klines or len(klines) < 15:
-                return jsonify({'success': False, 'error': f'Insufficient market data for {symbol}'})
+        logger.debug(f"📊 Calculating RSI for {symbol}")
 
-        except Exception as e:
-            logger.error(f"Error fetching klines for {symbol}: {e}")
-            return jsonify({'success': False, 'error': f'Failed to fetch market data for {symbol}'})
+        # Try to get market data with multiple fallbacks
+        klines = None
+        intervals_to_try = ['15m', '5m', '1h']
+        
+        for interval in intervals_to_try:
+            try:
+                logger.debug(f"   Trying {interval} interval for {symbol}")
+                
+                if binance_client.is_futures:
+                    klines = binance_client.client.futures_klines(
+                        symbol=symbol,
+                        interval=interval,
+                        limit=100
+                    )
+                else:
+                    klines = binance_client.client.get_klines(
+                        symbol=symbol,
+                        interval=interval,
+                        limit=100
+                    )
 
-        # Convert to closes
+                if klines and len(klines) >= 15:
+                    logger.debug(f"   ✅ Got {len(klines)} klines using {interval} interval")
+                    break
+                else:
+                    logger.debug(f"   ⚠️ Insufficient data with {interval}: {len(klines) if klines else 0} klines")
+                    
+            except Exception as interval_error:
+                logger.debug(f"   ❌ Failed {interval} interval: {interval_error}")
+                continue
+
+        if not klines or len(klines) < 15:
+            logger.error(f"❌ Insufficient market data for {symbol} after trying all intervals")
+            return jsonify({
+                'success': False, 
+                'error': f'Insufficient market data for {symbol}',
+                'note': 'Market may be inactive or symbol invalid'
+            })
+
+        # Convert to closes with validation
         closes = []
-        for kline in klines:
+        for i, kline in enumerate(klines):
             try:
                 close_price = float(kline[4])
-                closes.append(close_price)
-            except (ValueError, IndexError):
+                if close_price > 0:  # Ensure positive price
+                    closes.append(close_price)
+                else:
+                    logger.warning(f"   Invalid close price at index {i}: {close_price}")
+            except (ValueError, IndexError, TypeError) as convert_error:
+                logger.warning(f"   Failed to convert kline {i}: {convert_error}")
                 continue
 
         if len(closes) < 14:
-            return jsonify({'success': False, 'error': f'Not enough valid price data for RSI calculation for {symbol}'})
+            logger.error(f"❌ Not enough valid price data for {symbol}: {len(closes)} closes")
+            return jsonify({
+                'success': False, 
+                'error': f'Not enough valid price data for RSI calculation',
+                'data_points': len(closes),
+                'required': 14
+            })
 
-        # Calculate RSI using the same method as the bot
+        # Calculate RSI with validation
         try:
             rsi = calculate_rsi(closes, period=14)
 
-            # Validate RSI value
-            if rsi < 0 or rsi > 100:
-                rsi = 50.0  # Default to neutral if calculation is invalid
+            # Validate RSI result
+            if rsi is None or not isinstance(rsi, (int, float)):
+                logger.error(f"❌ RSI calculation returned invalid result for {symbol}: {rsi}")
+                return jsonify({
+                    'success': False, 
+                    'error': 'RSI calculation failed - invalid result',
+                    'note': 'Check price data quality'
+                })
 
-            return jsonify({'success': True, 'rsi': round(rsi, 2)})
+            if rsi < 0 or rsi > 100:
+                logger.warning(f"⚠️ RSI out of range for {symbol}: {rsi}, clamping to valid range")
+                rsi = max(0, min(100, rsi))  # Clamp to valid range
+
+            logger.debug(f"✅ RSI calculated successfully for {symbol}: {rsi:.2f}")
+            return jsonify({
+                'success': True, 
+                'rsi': round(rsi, 2),
+                'data_points': len(closes),
+                'symbol': symbol
+            })
 
         except Exception as calc_error:
-            logger.error(f"RSI calculation error for {symbol}: {calc_error}")
-            return jsonify({'success': False, 'error': f'RSI calculation failed for {symbol}'})
+            logger.error(f"❌ RSI calculation error for {symbol}: {calc_error}")
+            import traceback
+            logger.error(f"❌ RSI calculation traceback: {traceback.format_exc()}")
+            return jsonify({
+                'success': False, 
+                'error': f'RSI calculation failed: {str(calc_error)}',
+                'symbol': symbol
+            })
 
     except Exception as e:
-        logger.error(f"Error in get_rsi endpoint for {symbol}: {e}")
-        # Return a fallback RSI instead of error to prevent infinite loading
-        return jsonify({'success': False, 'error': f'Failed to get RSI for {symbol}'})
+        logger.error(f"❌ Critical error in RSI endpoint for {symbol}: {e}")
+        import traceback
+        logger.error(f"❌ RSI endpoint traceback: {traceback.format_exc()}")
+        return jsonify({
+            'success': False, 
+            'error': f'RSI service error: {str(e)}',
+            'symbol': symbol,
+            'endpoint': 'rsi'
+        })
 
 def calculate_rsi(prices, period=14):
     """Calculate RSI indicator with enhanced validation"""
@@ -1882,22 +1966,50 @@ def update_proxy_status():
 # Removed duplicate route - using the existing '/api/bot/status' route with rate limiting instead
 
 def get_current_price(symbol):
-    """Get current price for a symbol with error handling"""
+    """Get current price for a symbol with enhanced error handling"""
     try:
-        if IMPORTS_AVAILABLE and price_fetcher:
-            ticker = price_fetcher.binance_client.get_symbol_ticker(symbol)
-            if ticker and 'price' in ticker:
-                price = float(ticker['price'])
-                logger.debug(f"Price fetch successful for {symbol}: ${price}")
-                return price
+        if not IMPORTS_AVAILABLE:
+            logger.debug(f"Price fetcher not available for {symbol} - demo mode")
+            return None
+            
+        if not price_fetcher:
+            logger.warning(f"Price fetcher instance not available for {symbol}")
+            return None
+
+        # Try to get current price with proper error handling
+        try:
+            current_price = price_fetcher.get_current_price(symbol)
+            if current_price and current_price > 0:
+                logger.debug(f"✅ Price fetch successful for {symbol}: ${current_price}")
+                return current_price
             else:
-                logger.warning(f"Invalid ticker response for {symbol}: {ticker}")
-        else:
-            logger.warning(f"Price fetcher not available for {symbol}")
+                logger.warning(f"⚠️ Invalid price received for {symbol}: {current_price}")
+                return None
+        except Exception as price_error:
+            logger.error(f"❌ Price fetch failed for {symbol}: {price_error}")
+            
+            # Try fallback method with direct Binance client
+            try:
+                ticker = price_fetcher.binance_client.get_symbol_ticker(symbol)
+                if ticker and 'price' in ticker:
+                    price = float(ticker['price'])
+                    if price > 0:
+                        logger.debug(f"✅ Fallback price fetch successful for {symbol}: ${price}")
+                        return price
+                    else:
+                        logger.warning(f"⚠️ Invalid fallback price for {symbol}: {price}")
+                        return None
+                else:
+                    logger.error(f"❌ Invalid ticker response for {symbol}: {ticker}")
+                    return None
+            except Exception as fallback_error:
+                logger.error(f"❌ Fallback price fetch failed for {symbol}: {fallback_error}")
+                return None
+                
     except Exception as e:
-        logger.error(f"Error getting current price for {symbol}: {e}")
+        logger.error(f"❌ Critical error getting current price for {symbol}: {e}")
         import traceback
-        logger.error(f"Price fetch error traceback: {traceback.format_exc()}")
+        logger.error(f"❌ Price fetch error traceback: {traceback.format_exc()}")
     return None
 
 def calculate_pnl(position, current_price):
