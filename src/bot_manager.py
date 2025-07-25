@@ -732,8 +732,7 @@ class BotManager:
                             binance_positions[symbol] = {
                                 'symbol': symbol,
                                 'side': side,
-                                'quantity': quantity```python
-,
+                                'quantity': quantity,
                                 'entry_price': entry_price,
                                 'position_amt': position_amt
                             }
