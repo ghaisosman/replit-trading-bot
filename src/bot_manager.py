@@ -148,6 +148,22 @@ class BotManager:
             self.logger.warning(f"⚠️ Web log handler initialization failed (non-critical): {e}")
             # Continue without web logging - bot can still function
 
+        # Initialize components
+        self.binance_client = BinanceClientWrapper()
+        from src.execution_engine.trade_database import TradeDatabase
+        self.trade_db = TradeDatabase()
+        self.order_manager = OrderManager(self.binance_client, trade_logger, self.telegram_reporter)
+        self.trade_monitor = TradeMonitor(self.binance_client, self.order_manager, self.telegram_reporter)
+
+        # Initialize auto-recovery system
+        from src.execution_engine.auto_recovery_system import get_auto_recovery_system
+        self.auto_recovery = get_auto_recovery_system(
+            self.binance_client, 
+            self.trade_db, 
+            self.order_manager, 
+            self.trade_monitor
+        )
+
     def _initialize_web_logging(self):
         """Initialize web logging handler safely after basic setup"""
         try:
@@ -270,6 +286,18 @@ class BotManager:
             # Log startup scan completion status
             self.logger.info(f"🔍 STARTUP SCAN STATUS: startup_protection_complete = {self.anomaly_detector.startup_complete}")
 
+            # Initialize deployment environment if needed
+            from src.execution_engine.deployment_init import initialize_deployment_environment
+            deployment_success = await initialize_deployment_environment(self)
+            if not deployment_success:
+                self.logger.error("❌ Deployment initialization failed")
+                return False
+
+            # Start auto-recovery system
+            if self.auto_recovery:
+                await self.auto_recovery.start_auto_recovery()
+                self.logger.info("🔄 Auto-recovery system started")
+
             await self._main_trading_loop()
 
         except Exception as e:
@@ -329,6 +357,10 @@ class BotManager:
 
             # DON'T remove web log handler - keep it for dashboard
             self.logger.info("🌐 Keeping web log handler active for dashboard")
+
+            # Stop auto-recovery system
+            if self.auto_recovery:
+                self.auto_recovery.stop()
 
             # Small delay to ensure cleanup completes
             await asyncio.sleep(0.5)  # Reduced delay
@@ -527,7 +559,7 @@ class BotManager:
 
                                 # Display strategy-specific indicators with enhanced error handling
                                 indicator_text = "Indicators loading..."
-                                
+
                                 if 'rsi' in strategy_name.lower() and 'engulfing' not in strategy_name.lower():
                                     # RSI Strategy - show current RSI
                                     if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
@@ -538,7 +570,7 @@ class BotManager:
                                             indicator_text = "RSI: Calculating..."
                                     else:
                                         indicator_text = "RSI: Waiting for data..."
-                                        
+
                                 elif 'macd' in strategy_name.lower():
                                     # MACD Strategy - show MACD line and signal
                                     if ('macd' in df.columns and 'macd_signal' in df.columns and 
@@ -551,26 +583,26 @@ class BotManager:
                                             indicator_text = "MACD: Calculating..."
                                     else:
                                         indicator_text = "MACD: Waiting for data..."
-                                        
+
                                 elif 'engulfing' in strategy_name.lower():
                                     # Engulfing Pattern - show RSI + pattern status
                                     pattern_status = "No Pattern"
                                     rsi_value = "N/A"
-                                    
+
                                     if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
                                         current_rsi = df['rsi'].iloc[-1]
                                         if not pd.isna(current_rsi):
                                             rsi_value = f"{current_rsi:.1f}"
-                                    
+
                                     # Check for patterns
                                     if len(df) >= 2:
                                         if 'bullish_engulfing' in df.columns and df['bullish_engulfing'].iloc[-1]:
                                             pattern_status = "Bullish Engulfing"
                                         elif 'bearish_engulfing' in df.columns and df['bearish_engulfing'].iloc[-1]:
                                             pattern_status = "Bearish Engulfing"
-                                    
+
                                     indicator_text = f"RSI: {rsi_value} | Pattern: {pattern_status}"
-                                    
+
                                 elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
                                     # Smart Money - show custom analysis
                                     indicator_text = "Smart Money Analysis"
@@ -578,7 +610,7 @@ class BotManager:
                                         current_rsi = df['rsi'].iloc[-1]
                                         if not pd.isna(current_rsi):
                                             indicator_text += f" | RSI: {current_rsi:.1f}"
-                                            
+
                                 else:
                                     # Other strategies - try to show RSI as fallback
                                     if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
@@ -1057,31 +1089,31 @@ class BotManager:
         """Initialize WebSocket streams for all configured strategies"""
         try:
             self.logger.info("📡 INITIALIZING WEBSOCKET STREAMS...")
-            
+
             # Add all strategy symbols and intervals to WebSocket manager
             for strategy_name, strategy_config in self.strategies.items():
                 symbol = strategy_config.get('symbol')
                 interval = strategy_config.get('timeframe', '15m')
-                
+
                 if symbol:
                     websocket_manager.add_symbol_interval(symbol, interval)
                     self.logger.info(f"   📡 Added WebSocket stream: {symbol} @ {interval}")
-            
+
             # Also add 1m streams for current price updates
             for strategy_name, strategy_config in self.strategies.items():
                 symbol = strategy_config.get('symbol')
                 if symbol:
                     websocket_manager.add_symbol_interval(symbol, '1m')
-            
+
             # Start WebSocket manager
             if websocket_manager.subscribed_streams:
                 websocket_manager.start()
                 self.logger.info(f"🚀 WEBSOCKET MANAGER STARTED with {len(websocket_manager.subscribed_streams)} streams")
-                
+
                 # Wait a moment for initial connection
                 import time
                 time.sleep(2)
-                
+
                 # Log connection status
                 stats = websocket_manager.get_statistics()
                 if stats['is_connected']:
@@ -1090,7 +1122,7 @@ class BotManager:
                     self.logger.warning("⚠️ WEBSOCKET CONNECTION PENDING...")
             else:
                 self.logger.warning("⚠️ No WebSocket streams to initialize")
-                
+
         except Exception as e:
             self.logger.error(f"❌ WEBSOCKET INITIALIZATION ERROR: {e}")
             self.logger.warning("🔄 Continuing with REST API fallback...")
@@ -1160,26 +1192,26 @@ class BotManager:
         """Logs the current status of the WebSocket connection."""
         try:
             stats = websocket_manager.get_statistics()
-            
+
             if stats['is_connected']:
                 uptime_minutes = stats['uptime_seconds'] / 60
                 self.logger.info(f"✅ WebSocket: Connected | Uptime: {uptime_minutes:.1f}m | Messages: {stats['messages_received']} | Klines: {stats['klines_processed']}")
             else:
                 self.logger.warning("⚠️ WebSocket: Disconnected - Using REST API fallback")
-                
+
             # Log cache status for key symbols
             cache_status = websocket_manager.get_cache_status()
             fresh_count = 0
             total_count = 0
-            
+
             for symbol in cache_status:
                 for interval in cache_status[symbol]:
                     total_count += 1
                     if cache_status[symbol][interval]['is_fresh']:
                         fresh_count += 1
-            
+
             if total_count > 0:
                 self.logger.info(f"📊 WebSocket Cache: {fresh_count}/{total_count} streams fresh")
-                
+
         except Exception as e:
             self.logger.error(f"Error logging WebSocket status: {e}")
