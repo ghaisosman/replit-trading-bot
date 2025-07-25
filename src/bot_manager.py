@@ -1009,7 +1009,6 @@ class BotManager:
                     self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
                     self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
                     self.logger.info(f"📊 RSI: {current_rsi:.2f} | Long Entry: ≤{rsi_long_entry} | Short Entry: ≥{rsi_short_entry}")
-                    continue
 
                 elif 'engulfing' in strategy_name.lower():
                     # Enhanced Engulfing pattern scanning display
@@ -1044,14 +1043,12 @@ class BotManager:
                     self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
                     self.logger.info(f"📊 RSI: {current_rsi:.2f} | Pattern: {pattern_status} | Stable: {'✅' if stable_candle else '❌'}")
                     self.logger.info(f"📈 Momentum: {price_momentum}")
-                    continue
 
                 else:
                     # Generic strategy scanning display
                     self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
                     self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
                     self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
-                    continue
 
         except Exception as e:
             self.logger.error(f"Error processing strategy {strategy_name}: {e}")
