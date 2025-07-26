@@ -1140,11 +1140,11 @@
 
     <script>
         // Global variables for auto-scroll
-        let autoScroll = true;
-        let consoleLogBuffer = [];
+        var autoScroll = true;
+        var consoleLogBuffer = [];
 
         // Add autoRefresh variable
-        let autoRefresh = true;
+        var autoRefresh = true;
 
         // Bot control functions
         document.getElementById('botToggle').addEventListener('click', function() {
@@ -1183,27 +1183,27 @@
         }
 
         // 🔧 INTELLIGENT API POLLING SYSTEM - Prevents excessive requests
-        const apiCache = {
+        var apiCache = {
             botStatus: { data: null, timestamp: 0, ttl: 8000, consecutiveHits: 0 },     // 8 second cache, track stability
             balance: { data: null, timestamp: 0, ttl: 30000, consecutiveHits: 0 },      // 30 second cache
             positions: { data: null, timestamp: 0, ttl: 12000, consecutiveHits: 0 },    // 12 second cache
             consoleLog: { data: null, timestamp: 0, ttl: 5000, consecutiveHits: 0 }     // 5 second cache for console
         };
 
-        const requestThrottle = {
+        var requestThrottle = {
             botStatus: { lastRequest: 0, minInterval: 8000, maxInterval: 20000, currentInterval: 8000 },
             balance: { lastRequest: 0, minInterval: 30000, maxInterval: 60000, currentInterval: 30000 },
             positions: { lastRequest: 0, minInterval: 12000, maxInterval: 25000, currentInterval: 12000 },
             consoleLog: { lastRequest: 0, minInterval: 5000, maxInterval: 15000, currentInterval: 5000 }
         };
 
-        let activeRequests = new Set(); // Track active requests to prevent duplicates
-        let connectionState = 'healthy'; // Track connection health: 'healthy', 'degraded', 'poor'
-        let inactivityCount = 0; // Track consecutive inactive periods
+        var activeRequests = []; // Track active requests to prevent duplicates (using array instead of Set)
+        var connectionState = 'healthy'; // Track connection health: 'healthy', 'degraded', 'poor'
+        var inactivityCount = 0; // Track consecutive inactive periods
 
         function getCachedData(cacheKey) {
-            const cache = apiCache[cacheKey];
-            const now = Date.now();
+            var cache = apiCache[cacheKey];
+            var now = Date.now();
 
             if (cache.data && (now - cache.timestamp) < cache.ttl) {
                 // Track cache hits for adaptive behavior
@@ -1244,22 +1244,22 @@
         }
 
         function canMakeRequest(requestKey) {
-            const throttle = requestThrottle[requestKey];
-            const now = Date.now();
+            var throttle = requestThrottle[requestKey];
+            var now = Date.now();
 
             // Adaptive interval based on activity and connection state
-            const adaptiveInterval = calculateAdaptiveInterval(requestKey);
+            var adaptiveInterval = calculateAdaptiveInterval(requestKey);
 
             if ((now - throttle.lastRequest) < adaptiveInterval) {
                 return false;
             }
 
-            if (activeRequests.has(requestKey)) {
+            if (activeRequests.indexOf(requestKey) !== -1) {
                 return false; // Request already in progress
             }
 
             // Check global rate limiting to prevent API flooding
-            if (activeRequests.size >= 2) {
+            if (activeRequests.length >= 2) {
                 return false; // Maximum 2 concurrent requests
             }
 
@@ -1293,11 +1293,17 @@
 
         function markRequestStart(requestKey) {
             requestThrottle[requestKey].lastRequest = Date.now();
-            activeRequests.add(requestKey);
+            if (activeRequests.indexOf(requestKey) === -1) {
+                activeRequests.push(requestKey);
+            }
         }
 
-        function markRequestEnd(requestKey, success = true) {
-            activeRequests.delete(requestKey);
+        function markRequestEnd(requestKey, success) {
+            success = success !== undefined ? success : true;
+            var index = activeRequests.indexOf(requestKey);
+            if (index !== -1) {
+                activeRequests.splice(index, 1);
+            }
 
             // Update connection state based on request success
             if (success) {
@@ -2038,29 +2044,30 @@
                 });
         }
 
-        // FIXED: Enhanced safe API response handler to prevent parsing errors
-        function safeApiCall(url, options = {}) {
+        // FIXED: Enhanced safe API response handler to prevent parsing errors (ES5 compatible)
+        function safeApiCall(url, options) {
+            options = options || {};
             return fetch(url, options)
-                .then(response => {
+                .then(function(response) {
                     if (!response.ok) {
                         throw new Error('HTTP ' + response.status + ': ' + response.statusText);
                     }
 
                     // Get content type to validate JSON response
-                    const contentType = response.headers.get('content-type');
+                    var contentType = response.headers.get('content-type');
                     if (!contentType || !contentType.includes('application/json')) {
                         throw new Error('Invalid content type - expected JSON');
                     }
 
                     return response.text();
                 })
-                .then(text => {
+                .then(function(text) {
                     if (!text || text.trim() === '') {
                         return getDefaultResponse(url);
                     }
 
                     try {
-                        const data = JSON.parse(text);
+                        var data = JSON.parse(text);
                         // Validate that we got an object
                         if (!data || typeof data !== 'object') {
                             return getDefaultResponse(url);
@@ -2071,14 +2078,14 @@
                         return getDefaultResponse(url);
                     }
                 })
-                .catch(error => {
+                .catch(function(error) {
                     console.warn('API call failed for', url, ':', error.message);
                     return getDefaultResponse(url);
                 });
         }
 
         function getDefaultResponse(url){
-            const currentTime = new Date().toLocaleTimeString();
+            var currentTime = new Date().toLocaleTimeString();
 
             if (url.includes('/api/bot/status') || url.includes('/api/bot_status')) {
                 return {
@@ -2204,8 +2211,8 @@
             connectionState = 'healthy';
             inactivityCount = 0;
 
-            // Clear active requests set
-            activeRequests.clear();
+            // Clear active requests array
+            activeRequests = [];
 
             // Force immediate updates
             Promise.all([
