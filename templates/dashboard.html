@@ -838,7 +838,8 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button                </div>
+                    <button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1533,7 +1534,8 @@
                     return getDefaultResponse('/api/console-log');
                 });
         }```html
-        function updateConsoleLogUI(data) {            const consoleLog = document.getElementById('consoleLog');
+        function updateConsoleLogUI(data) {
+            const consoleLog = document.getElementById('consoleLog');
             if (consoleLog && data.success && data.logs) {
                 // Process logs with enhanced formatting
                 const formattedLogs = formatConsoleLogs(data.logs);
@@ -2018,19 +2020,19 @@
         }
 
         // Initialize dashboard with intelligent adaptive polling system
-        let updateTimeouts = {};
-        let pollingActive = true;
+        var updateTimeouts = {};
+        var pollingActive = true;
 
          // Simple API request function without complex error handling
         function apiRequest(url) {
             return fetch(url)
-                .then(response => {
+                .then(function(response) {
                     if (!response.ok) {
                         throw new Error('HTTP ' + response.status);
                     }
                     return response.json();
                 })
-                .catch(error => {
+                .catch(function(error) {
                     console.error('API request failed:', error);
                     return { success: false, error: error.message };
                 });
@@ -2137,24 +2139,24 @@
         function scheduleAdaptiveUpdate(key, updateFunction) {
             if (!pollingActive) return;
 
-            const executeUpdate = () => {
+            function executeUpdate() {
                 if (!pollingActive) return;
 
                 // Execute the update function with proper error handling
                 try {
                     Promise.resolve(updateFunction())
-                        .then(() => {
+                        .then(function() {
                             // Schedule next update only if polling is still active
                             if (pollingActive) {
-                                const interval = calculateAdaptiveInterval(key);
+                                var interval = calculateAdaptiveInterval(key);
                                 updateTimeouts[key] = setTimeout(executeUpdate, interval);
                             }
                         })
-                        .catch(error => {
+                        .catch(function(error) {
                             console.error('Update error for ' + key + ':', error || 'Unknown error');
                             // Still schedule next update even if current one failed
                             if (pollingActive) {
-                                const interval = Math.min(calculateAdaptiveInterval(key) * 2, 30000); // Backoff on error
+                                var interval = Math.min(calculateAdaptiveInterval(key) * 2, 30000); // Backoff on error
                                 updateTimeouts[key] = setTimeout(executeUpdate, interval);
                             }
                         });
@@ -2162,25 +2164,28 @@
                     console.error('Synchronous error for ' + key + ':', syncError || 'Unknown sync error');
                     // Still schedule next update
                     if (pollingActive) {
-                        const interval = Math.min(calculateAdaptiveInterval(key) * 2, 30000);
+                        var interval = Math.min(calculateAdaptiveInterval(key) * 2, 30000);
                         updateTimeouts[key] = setTimeout(executeUpdate, interval);
                     }
                 }
-            };
+            }
 
             // Start immediately
             executeUpdate();
         }
 
         function stopIntelligentUpdates() {
-            pollingActive = false;            Object.values(updateTimeouts).forEach(timeout => clearTimeout(timeout));
+            pollingActive = false;
+            Object.keys(updateTimeouts).forEach(function(key) {
+                clearTimeout(updateTimeouts[key]);
+            });
             updateTimeouts = {};
         }
 
         // Refresh data function with complete cache invalidation and adaptive reset
         function refreshData() {
             // Clear all caches to force fresh data
-            Object.keys(apiCache).forEach(key => {
+            Object.keys(apiCache).forEach(function(key) {
                 apiCache[key].data = null;
                 apiCache[key].timestamp = 0;
                 apiCache[key].consecutiveHits = 0;
@@ -2190,7 +2195,7 @@
             });
 
             // Reset throttle timers and intervals
-            Object.keys(requestThrottle).forEach(key => {
+            Object.keys(requestThrottle).forEach(function(key) {
                 requestThrottle[key].lastRequest = 0;
                 requestThrottle[key].currentInterval = requestThrottle[key].minInterval;
             });
@@ -2203,12 +2208,12 @@
             activeRequests.clear();
 
             // Force immediate updates
-            Promise.allSettled([
+            Promise.all([
                 updateBotStatus(),
                 updateBalance(),
                 updateConsoleLog(),
                 updatePositions()
-            ]).then(() => {
+            ]).then(function() {
                 console.log('🔄 Dashboard refresh completed');
             });
         }
