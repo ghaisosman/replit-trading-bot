@@ -1,7 +1,7 @@
 html
 <!-- console log functions -->
                 function clearConsoleLog() {
-                    const consoleLog = document.getElementById('consoleLog');
+                    var consoleLog = document.getElementById('consoleLog');
                     if (consoleLog) {
                         consoleLog.innerHTML = '<div class="text-muted">Console cleared</div>';
                     }
@@ -9,7 +9,7 @@ html
 
                 function toggleAutoScroll() {
                     autoScroll = !autoScroll;
-                    const btn = document.getElementById('autoScrollBtn');
+                    var btn = document.getElementById('autoScrollBtn');
                     if (btn) {
                         btn.innerHTML = autoScroll ?
                             '<i class="fas fa-arrows-alt-v"></i> Auto-scroll: ON' :
@@ -41,15 +41,15 @@ html
                 }
 
                 function displayInsights(insights) {
-                    const container = document.getElementById('insights-content');
+                    var container = document.getElementById('insights-content');
 
                     if (!insights || Object.keys(insights).length === 0) {
                         container.innerHTML = '<div class="text-muted">No insights available yet.</div>';
                         return;
                     }
 
-                    let html = '';
-                    for (const [key, value] of Object.entries(insights)) {
+                    var html = '';
+                    for (var [key, value] of Object.entries(insights)) {
                         html += `
                             <div class="insight-item">
                                 <span class="insight-label">${key}:</span>
@@ -61,16 +61,16 @@ html
                 }
 
                 function displayPredictions(predictions) {
-                    const container = document.getElementById('predictions-content');
+                    var container = document.getElementById('predictions-content');
 
                     if (!predictions || predictions.length === 0) {
                         container.innerHTML = '<div class="text-muted">No predictions available yet.</div>';
                         return;
                     }
 
-                    let html = '';
+                    var html = '';
                     predictions.forEach(function(prediction) {
-                        const statusClass = prediction.confidence > 0.7 ? 'profitable' : 
+                        var statusClass = prediction.confidence > 0.7 ? 'profitable' : 
                                           prediction.confidence < 0.3 ? 'unprofitable' : 'neutral';
 
                         html += `
@@ -85,12 +85,12 @@ html
                 }
 
                 function showSuccess(containerId, message) {
-                    const container = document.getElementById(containerId);
-                    const existingContent = container.innerHTML;
+                    var container = document.getElementById(containerId);
+                    var existingContent = container.innerHTML;
                     container.innerHTML = `<div class="success">✅ ${message}</div><br>${existingContent}`;
 
                     // Remove success message after 5 seconds
-                    setTimeout(() => {
+                    setTimeout(function() {
                         container.innerHTML = existingContent;
                     }, 5000);
                 }
@@ -98,7 +98,7 @@ html
                 // Safety validation feedback function
                 function handleSafetyValidation(data) {
                     if (data && data.safety_warnings && data.safety_warnings.length > 0) {
-                        let warningMessage = '⚠️ Safety corrections were applied:\n\n';
+                        var warningMessage = '⚠️ Safety corrections were applied:\n\n';
                         data.safety_warnings.forEach(function(warning) {
                             warningMessage += '• ' + warning + '\n';
                         });
@@ -111,18 +111,18 @@ html
 
                 // Alert function
                 function showAlert(message, type) {
-                    const alertDiv = document.createElement('div');
+                    var alertDiv = document.createElement('div');
                     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
                     alertDiv.innerHTML = `
                         ${message}
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     `;
 
-                    const container = document.querySelector('.container-fluid'); // Or any specific container you want to insert into
+                    var container = document.querySelector('.container-fluid'); // Or any specific container you want to insert into
                     container.prepend(alertDiv);
 
                     // Automatically close the alert after 5 seconds
-                    setTimeout(() => {
+                    setTimeout(function() {
                         alertDiv.remove();
                     }, 5000);
                 }
@@ -130,7 +130,7 @@ html
                 // Include MACD threshold fields in form data collection
                 // Include MACD threshold fields in form data collection
                 function collectFormData(strategyName) {
-                    const formData = {};
+                    var formData = {};
 
                     formData.symbol = document.getElementById('strategySymbol').value;
                     formData.margin = parseFloat(document.getElementById('strategyMargin').value);
@@ -145,8 +145,8 @@ html
                     formData.partialTpEnabled = document.getElementById('partialTpEnabled').checked;
 
                     if (formData.partialTpEnabled) {
-                        const threshold = document.getElementById('partialTpPnlThreshold').value;
-                        const positionSize = document.getElementById('partialTpPositionPercentage').value;
+                        var threshold = document.getElementById('partialTpPnlThreshold').value;
+                        var positionSize = document.getElementById('partialTpPositionPercentage').value;
 
                         if (threshold && positionSize) {
                             formData.partial_tp_pnl_threshold = parseFloat(threshold);
@@ -180,7 +180,7 @@ html
                 // Show safety validation feedback in alert
                 function handleSafetyValidation(data) {
                     if (data && data.safety_warnings && data.safety_warnings.length > 0) {
-                        let warningMessage = '⚠️ Safety corrections were applied:\n\n';
+                        var warningMessage = '⚠️ Safety corrections were applied:\n\n';
                         data.safety_warnings.forEach(function(warning) {
                             warningMessage += '• ' + warning + '\n';
                         });
@@ -234,7 +234,7 @@ html
                     fetch('/api/shared_database_status')
                     .then(response => response.json())
                     .then(data => {
-                        const statusElement = document.getElementById('sharedDbStatusText');
+                        var statusElement = document.getElementById('sharedDbStatusText');
                         if (data.status === 'connected') {
                             statusElement.innerHTML = `Connected - ${data.total_trades} trades (${data.open_trades} open, ${data.closed_trades} closed)`;
                             document.getElementById('sharedDbStatus').className = 'alert alert-success';
@@ -249,6 +249,6 @@ html
                         document.getElementById('sharedDbStatus').className = 'alert alert-danger';
                     });
                 }
-            </script>
+            
             </body>
             </html>
