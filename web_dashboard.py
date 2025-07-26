@@ -785,7 +785,7 @@ def get_strategies():
                 # RSI Strategy Specific Parameters
                 if 'rsi' in name.lower():
                     config.setdefault('rsi_period', 14)
-                    config.setdefault('rsi_long_entry', 30)    # Oversold entry
+                    config.setdefault('rsi_long_entry', 30)<replit_final_file>
                     config.setdefault('rsi_long_exit', 70)     # Take profit (overbought)
                     config.setdefault('rsi_short_entry', 70)   # Overbought entry  
                     config.setdefault('rsi_short_exit', 30)    # Take profit (oversold)
@@ -2599,6 +2599,17 @@ def sync_trades_from_logger():
         trade_db = TradeDatabase()
         sync_count = trade_db.sync_trades_from_logger(trade_logger)
         return jsonify({
+        'status': 'success',
+        'message': f'Synced {sync_count} trades from logger to database'
+    })
+    except Exception as e:
+        logger.error(f"Error syncing trades from logger: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Error syncing trades: {str(e)}'
+        })
+
+    return jsonify({
         'status': 'success',
         'message': f'Synced {sync_count} trades from logger to database'
     })
