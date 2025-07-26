@@ -3,6 +3,7 @@ import os
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
+from .shared_database import shared_db
 
 class TradeDatabase:
     """Simplified trade database - mirrors trade logger data only"""
@@ -258,6 +259,17 @@ class TradeDatabase:
                 return False
 
             self.logger.info(f"✅ Trade added to database: {trade_id} | {trade_data['symbol']} | {trade_data['side']}")
+            
+            # Sync to shared database
+            try:
+                shared_success = shared_db.add_trade(trade_id, trade_data.copy())
+                if shared_success:
+                    self.logger.info(f"🔄 Trade synced to shared database: {trade_id}")
+                else:
+                    self.logger.warning(f"⚠️ Failed to sync trade to shared database: {trade_id}")
+            except Exception as sync_error:
+                self.logger.warning(f"⚠️ Shared database sync error: {sync_error}")
+            
             return True
 
         except Exception as e:
@@ -277,6 +289,14 @@ class TradeDatabase:
                 save_result = self._save_database()
                 if save_result:
                     self.logger.info(f"✅ Trade updated in database: {trade_id}")
+
+                    # Sync to shared database
+                    try:
+                        shared_success = shared_db.update_trade(trade_id, updates.copy())
+                        if shared_success:
+                            self.logger.info(f"🔄 Trade update synced to shared database: {trade_id}")
+                    except Exception as sync_error:
+                        self.logger.warning(f"⚠️ Shared database sync error: {sync_error}")
 
                     # Automatically sync to logger after successful database update
                     try:
@@ -602,6 +622,51 @@ class TradeDatabase:
 
         except Exception as e:
             self.logger.error(f"❌ Error cleaning up old trades: {e}")
+
+    def sync_with_shared_database(self, direction: str = "both") -> Dict[str, int]:
+        """Bidirectional sync with shared database"""
+        try:
+            sync_results = {"to_shared": 0, "from_shared": 0, "conflicts": 0}
+
+            if direction in ["both", "to_shared"]:
+                # Sync local trades to shared database
+                sync_results["to_shared"] = shared_db.sync_from_local(self.trades)
+
+            if direction in ["both", "from_shared"]:
+                # Get trades from shared database
+                shared_trades = shared_db.sync_to_local()
+                
+                for trade_id, shared_trade in shared_trades.items():
+                    if trade_id not in self.trades:
+                        # New trade from shared database
+                        self.trades[trade_id] = shared_trade
+                        sync_results["from_shared"] += 1
+                    else:
+                        # Check for conflicts based on timestamps
+                        local_updated = self.trades[trade_id].get('last_updated', '')
+                        shared_updated = shared_trade.get('shared_db_updated', '')
+                        
+                        if shared_updated > local_updated:
+                            # Shared database has newer data
+                            self.trades[trade_id].update(shared_trade)
+                            sync_results["from_shared"] += 1
+                        elif local_updated > shared_updated:
+                            # Local has newer data - already handled in to_shared sync
+                            pass
+                        else:
+                            # Potential conflict
+                            sync_results["conflicts"] += 1
+
+                # Save updated local database
+                if sync_results["from_shared"] > 0:
+                    self._save_database()
+
+            self.logger.info(f"🔄 Shared database sync complete: {sync_results}")
+            return sync_results
+
+        except Exception as e:
+            self.logger.error(f"❌ Error syncing with shared database: {e}")
+            return {"to_shared": 0, "from_shared": 0, "conflicts": 0, "error": str(e)}
 
     def search_trades(self, **criteria):
         """Search trades by multiple criteria"""

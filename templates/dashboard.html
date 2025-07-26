@@ -838,8 +838,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button>
-                </div>
+                    <button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button                </div>
             </div>
         </div>
     </div>
@@ -1533,8 +1532,7 @@
                     markRequestEnd('consoleLog', false);
                     return getDefaultResponse('/api/console-log');
                 });
-        }
-
+        }```html
         function updateConsoleLogUI(data) {            const consoleLog = document.getElementById('consoleLog');
             if (consoleLog && data.success && data.logs) {
                 // Process logs with enhanced formatting
@@ -3096,6 +3094,65 @@ button.className = originalClass;
                 // Show the safety warning as an alert on the page
                 showAlert(warningMessage, 'warning');
             }
+        }
+
+        function syncDatabase() {
+            fetch('/api/sync_database', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showAlert('success', data.message);
+                    loadTrades();
+                } else {
+                    showAlert('danger', 'Sync failed: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('danger', 'Sync request failed');
+            });
+        }
+
+        function syncSharedDatabase() {
+            fetch('/api/sync_shared_database', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showAlert('success', data.message);
+                    loadTrades();
+                    loadSharedDatabaseStatus();
+                } else {
+                    showAlert('danger', 'Shared sync failed: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('danger', 'Shared sync request failed');
+            });
+        }
+
+        function loadSharedDatabaseStatus() {
+            fetch('/api/shared_database_status')
+            .then(response => response.json())
+            .then(data => {
+                const statusElement = document.getElementById('sharedDbStatusText');
+                if (data.status === 'connected') {
+                    statusElement.innerHTML = `Connected - ${data.total_trades} trades (${data.open_trades} open, ${data.closed_trades} closed)`;
+                    document.getElementById('sharedDbStatus').className = 'alert alert-success';
+                } else {
+                    statusElement.innerHTML = `${data.status} - ${data.message || 'Unknown error'}`;
+                    document.getElementById('sharedDbStatus').className = 'alert alert-warning';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('sharedDbStatusText').innerHTML = 'Error loading status';
+                document.getElementById('sharedDbStatus').className = 'alert alert-danger';
+            });
         }
 </script>
 </body>
