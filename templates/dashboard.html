@@ -1148,8 +1148,8 @@
 
         // Bot control functions
         document.getElementById('botToggle').addEventListener('click', function() {
-            const isRunning = this.textContent.includes('Stop');
-            const endpoint = isRunning ? '/api/bot/stop' : '/api/bot/start';
+            var isRunning = this.textContent.includes('Stop');
+            var endpoint = isRunning ? '/api/bot/stop' : '/api/bot/start';
 
             fetch(endpoint, {
                 method: 'POST',
@@ -1157,15 +1157,17 @@
                     'Content-Type': 'application/json',
                 }
             })
-            .then(response => response.json())
-            .then(data => {
+            .then(function(response) {
+                return response.json();
+            })
+            .then(function(data) {
                 if (data.success) {
                     location.reload();
                 } else {
                     alert('Error: ' + data.message);
                 }
             })
-            .catch(error => {
+            .catch(function(error) {
                 console.error('Error:', error);
                 alert('Connection error');
             });
@@ -1223,19 +1225,19 @@
         }
 
         function setCachedData(cacheKey, data) {
-            const cache = apiCache[cacheKey];
-            const previousData = cache.data;
+            var cache = apiCache[cacheKey];
+            var previousData = cache.data;
 
             cache.data = data;
             cache.timestamp = Date.now();
 
             // Check if data has changed to adjust adaptive behavior
-            const dataChanged = JSON.stringify(previousData) !== JSON.stringify(data);
+            var dataChanged = JSON.stringify(previousData) !== JSON.stringify(data);
 
             if (dataChanged) {
                 // Data changed - reset to faster polling
                 cache.consecutiveHits = 0;
-                cache.ttl = Math.max(cache.ttl * 0.8, requestThrottle[cacheKey]?.minInterval || 5000);
+                cache.ttl = Math.max(cache.ttl * 0.8, requestThrottle[cacheKey] ? requestThrottle[cacheKey].minInterval : 5000);
                 inactivityCount = 0; // Reset global inactivity
             } else {
                 // Data stable - can slow down polling
@@ -1267,24 +1269,21 @@
         }
 
         function calculateAdaptiveInterval(requestKey) {
-            const throttle = requestThrottle[requestKey];
-            let interval = throttle.currentInterval;
+            var throttle = requestThrottle[requestKey];
+            var interval = throttle.currentInterval;
 
             // Adjust based on connection state
-            switch (connectionState) {
-                case 'degraded':
-                    interval *= 1.5;
-                    break;
-                case 'poor':
-                    interval *= 2;
-                    break;
-                default: // healthy
-                    // Adjust based on inactivity
-                    if (inactivityCount > 5) {
-                        interval = Math.min(interval * 1.3, throttle.maxInterval);
-                    } else if (inactivityCount < 2) {
-                        interval = Math.max(interval * 0.9, throttle.minInterval);
-                    }
+            if (connectionState === 'degraded') {
+                interval *= 1.5;
+            } else if (connectionState === 'poor') {
+                interval *= 2;
+            } else {
+                // healthy - adjust based on inactivity
+                if (inactivityCount > 5) {
+                    interval = Math.min(interval * 1.3, throttle.maxInterval);
+                } else if (inactivityCount < 2) {
+                    interval = Math.max(interval * 0.9, throttle.minInterval);
+                }
             }
 
             throttle.currentInterval = Math.max(Math.min(interval, throttle.maxInterval), throttle.minInterval);
@@ -2541,14 +2540,14 @@ button.className = originalClass;
         });
 
         // Strategy management functions
-        let currentStrategyName = '';
+        var currentStrategyName = '';
 
         function togglePartialTpConfig() {
-            const toggle = document.getElementById('partialTpEnabled');
-            const configSection = document.getElementById('partialTpConfigSection');
-            const thresholdInput = document.getElementById('partialTpPnlThreshold');
-            const positionInput = document.getElementById('partialTpPositionPercentage');
-            const exampleDiv = document.getElementById('partialTpExample');
+            var toggle = document.getElementById('partialTpEnabled');
+            var configSection = document.getElementById('partialTpConfigSection');
+            var thresholdInput = document.getElementById('partialTpPnlThreshold');
+            var positionInput = document.getElementById('partialTpPositionPercentage');
+            var exampleDiv = document.getElementById('partialTpExample');
 
             if (toggle.checked) {
                 // Enable partial TP configuration
@@ -2585,10 +2584,10 @@ button.className = originalClass;
         }
 
         function updatePartialTpExample() {
-            const toggle = document.getElementById('partialTpEnabled');
-            const threshold = document.getElementById('partialTpPnlThreshold').value;
-            const position = document.getElementById('partialTpPositionPercentage').value;
-            const exampleDiv = document.getElementById('partialTpExample');
+            var toggle = document.getElementById('partialTpEnabled');
+            var threshold = document.getElementById('partialTpPnlThreshold').value;
+            var position = document.getElementById('partialTpPositionPercentage').value;
+            var exampleDiv = document.getElementById('partialTpExample');
 
             if (toggle.checked && threshold && position) {
                 exampleDiv.innerHTML = `
