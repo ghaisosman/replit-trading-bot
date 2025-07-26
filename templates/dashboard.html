@@ -1148,13 +1148,13 @@
 
         // Bot control functions
         document.getElementById('botToggle').addEventListener('click', function() {
-            var isRunning = this.textContent.includes('Stop');
+            var isRunning = this.textContent.indexOf('Stop') !== -1;
             var endpoint = isRunning ? '/api/bot/stop' : '/api/bot/start';
 
             fetch(endpoint, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 }
             })
             .then(function(response) {
@@ -1184,12 +1184,12 @@
             }
         }
 
-        // 🔧 INTELLIGENT API POLLING SYSTEM - Prevents excessive requests
+        // INTELLIGENT API POLLING SYSTEM - Prevents excessive requests
         var apiCache = {
-            botStatus: { data: null, timestamp: 0, ttl: 8000, consecutiveHits: 0 },     // 8 second cache, track stability
-            balance: { data: null, timestamp: 0, ttl: 30000, consecutiveHits: 0 },      // 30 second cache
-            positions: { data: null, timestamp: 0, ttl: 12000, consecutiveHits: 0 },    // 12 second cache
-            consoleLog: { data: null, timestamp: 0, ttl: 5000, consecutiveHits: 0 }     // 5 second cache for console
+            botStatus: { data: null, timestamp: 0, ttl: 8000, consecutiveHits: 0 },
+            balance: { data: null, timestamp: 0, ttl: 30000, consecutiveHits: 0 },
+            positions: { data: null, timestamp: 0, ttl: 12000, consecutiveHits: 0 },
+            consoleLog: { data: null, timestamp: 0, ttl: 5000, consecutiveHits: 0 }
         };
 
         var requestThrottle = {
@@ -1362,16 +1362,16 @@
         // Simple bot status update
         function updateBotStatus() {
             apiRequest('/api/bot/status')
-                .then(data => {
+                .then(function(data) {
                     if (data && data.success !== false) {
-                        const statusElement = document.getElementById('statusBadge');
-                        const botToggle = document.getElementById('botToggle');
-                        const botStatus = document.getElementById('botStatus');
-                        const activePositions = document.getElementById('activePositions');
-                        const activeStrategies = document.getElementById('activeStrategies');
-                        const balanceElement = document.getElementById('balance');
+                        var statusElement = document.getElementById('statusBadge');
+                        var botToggle = document.getElementById('botToggle');
+                        var botStatus = document.getElementById('botStatus');
+                        var activePositions = document.getElementById('activePositions');
+                        var activeStrategies = document.getElementById('activeStrategies');
+                        var balanceElement = document.getElementById('balance');
 
-                        const isRunning = data.running || data.is_running || false;
+                        var isRunning = data.running || data.is_running || false;
 
                         // Update button
                         if (botToggle) {
@@ -1419,21 +1419,21 @@
                         }
                     }
                 })
-                .catch(error => {
+                .catch(function(error) {
                     console.error('Error updating bot status:', error);
                 });
         }
 
          function updateBotStatusErrorUI(errorData) {
             // Enhanced offline status handling with error details
-            const statusBadge = document.getElementById('statusBadge');
-            const botToggle = document.getElementById('botToggle');
-            const botStatus = document.getElementById('botStatus');
-            const activePositions = document.getElementById('activePositions');
+            var statusBadge = document.getElementById('statusBadge');
+            var botToggle = document.getElementById('botToggle');
+            var botStatus = document.getElementById('botStatus');
+            var activePositions = document.getElementById('activePositions');
 
             // Determine error type and appropriate message
-            let statusText = 'CONNECTION ISSUE';
-            let buttonText = 'Connection Lost';
+            var statusText = 'CONNECTION ISSUE';
+            var buttonText = 'Connection Lost';
 
             if (errorData && errorData.status) {
                 switch (errorData.status) {
@@ -1497,15 +1497,15 @@
         // Simple balance update
         function updateBalance() {
             apiRequest('/api/balance')
-                .then(data => {
+                .then(function(data) {
                     if (data && data.success !== false) {
-                        const balance = document.getElementById('balance');
+                        var balance = document.getElementById('balance');
                         if (balance) {
                             balance.textContent = (data.total_balance || 0).toFixed(2);
                         }
                     }
                 })
-                .catch(error => {
+                .catch(function(error) {
                     console.error('Error updating balance:', error);
                 });
         }
@@ -1513,7 +1513,7 @@
         // Update console log with safe API handling
         function updateConsoleLog() {
             // Check cache first
-            const cachedData = getCachedData('consoleLog');
+            var cachedData = getCachedData('consoleLog');
             if (cachedData) {
                 updateConsoleLogUI(cachedData);
                 return Promise.resolve(cachedData);
@@ -1527,23 +1527,23 @@
             markRequestStart('consoleLog');
 
             return safeApiCall('/api/console-log')
-                .then(data => {
+                .then(function(data) {
                     setCachedData('consoleLog', data);
                     updateConsoleLogUI(data);
                     markRequestEnd('consoleLog', true);
                     return data;
                 })
-                .catch(error => {
+                .catch(function(error) {
                     updateConsoleLogErrorUI();
                     markRequestEnd('consoleLog', false);
                     return getDefaultResponse('/api/console-log');
                 });
         }```html
         function updateConsoleLogUI(data) {
-            const consoleLog = document.getElementById('consoleLog');
+            var consoleLog = document.getElementById('consoleLog');
             if (consoleLog && data.success && data.logs) {
                 // Process logs with enhanced formatting
-                const formattedLogs = formatConsoleLogs(data.logs);
+                var formattedLogs = formatConsoleLogs(data.logs);
                 consoleLog.innerHTML = formattedLogs;
                 if (autoScroll) {
                     consoleLog.scrollTop = consoleLog.scrollHeight;
@@ -1556,20 +1556,21 @@
                 return '<div class="log-entry log-info">No logs available</div>';
             }
 
-            let formattedOutput = '';
-            let currentStrategyBlock = null;
-            let blockBuffer = [];
+            var formattedOutput = '';
+            var currentStrategyBlock = null;
+            var blockBuffer = [];
 
-            logs.forEach(function(log, index) {
-                if (!log || typeof log !== 'string') return;
+            for (var i = 0; i < logs.length; i++) {
+                var log = logs[i];
+                if (!log || typeof log !== 'string') continue;
 
-                const cleanLog = log.trim();
-                if (!cleanLog) return;
+                var cleanLog = log.trim();
+                if (!cleanLog) continue;
 
-                const logType = detectLogType(cleanLog);
-                const timestamp = extractTimestamp(cleanLog);
-                const message = extractMessage(cleanLog);
-                const strategyInfo = extractStrategyInfo(cleanLog);
+                var logType = detectLogType(cleanLog);
+                var timestamp = extractTimestamp(cleanLog);
+                var message = extractMessage(cleanLog);
+                var strategyInfo = extractStrategyInfo(cleanLog);
 
                 // Check if this is a strategy scanning message
                 if (isStrategyScanning(cleanLog)) {
@@ -1595,7 +1596,7 @@
                     }
 
                     // Format active position as special block
-                    const positionInfo = extractPositionInfo(cleanLog);
+                    var positionInfo = extractPositionInfo(cleanLog);
                     formattedOutput += formatActivePositionBlock(positionInfo, timestamp, message);
                 } else {
                     // Close any strategy block and add regular message
@@ -1607,7 +1608,7 @@
 
                     formattedOutput += formatLogEntry(cleanLog, logType, timestamp, message);
                 }
-            });
+            }
 
             // Close any remaining strategy block
             if (currentStrategyBlock) {
@@ -1618,19 +1619,19 @@
         }
 
         function detectLogType(log) {
-            const logUpper = log.toUpperCase();
+            var logUpper = log.toUpperCase();
 
-            if (logUpper.includes('ERROR') || logUpper.includes('❌') || logUpper.includes('FAILED')) {
+            if (logUpper.indexOf('ERROR') !== -1 || logUpper.indexOf('❌') !== -1 || logUpper.indexOf('FAILED') !== -1) {
                 return 'error';
-            } else if (logUpper.includes('WARNING') || logUpper.includes('⚠️') || logUpper.includes('WARN')) {
+            } else if (logUpper.indexOf('WARNING') !== -1 || logUpper.indexOf('⚠️') !== -1 || logUpper.indexOf('WARN') !== -1) {
                 return 'warning';
-            } else if (logUpper.includes('SUCCESS') || logUpper.includes('✅') || logUpper.includes('COMPLETED')) {
+            } else if (logUpper.indexOf('SUCCESS') !== -1 || logUpper.indexOf('✅') !== -1 || logUpper.indexOf('COMPLETED') !== -1) {
                 return 'success';
-            } else if (logUpper.includes('INFO') || logUpper.includes('ℹ️') || logUpper.includes('📊')) {
+            } else if (logUpper.indexOf('INFO') !== -1 || logUpper.indexOf('ℹ️') !== -1 || logUpper.indexOf('📊') !== -1) {
                 return 'info';
-            } else if (logUpper.includes('TRADE') || logUpper.includes('POSITION') || logUpper.includes('ORDER')) {
+            } else if (logUpper.indexOf('TRADE') !== -1 || logUpper.indexOf('POSITION') !== -1 || logUpper.indexOf('ORDER') !== -1) {
                 return 'trade';
-            } else if (logUpper.includes('STRATEGY') || logUpper.includes('SIGNAL') || logUpper.includes('ANALYSIS')) {
+            } else if (logUpper.indexOf('STRATEGY') !== -1 || logUpper.indexOf('SIGNAL') !== -1 || logUpper.indexOf('ANALYSIS') !== -1) {
                 return 'strategy';
             } else {
                 return 'default';
@@ -1669,13 +1670,13 @@
 
         function extractTimestamp(log) {
             // Try to extract timestamp patterns like [HH:MM:SS] or [YYYY-MM-DD HH:MM:SS]
-            const timestampMatch = log.match(/\[([0-9]{1,4}[-:]?[0-9]{1,2}[-:]?[0-9]{1,2}[\s]?[0-9]{1,2}:[0-9]{2}:[0-9]{2})\]/);
+            var timestampMatch = log.match(/\[([0-9]{1,4}[-:]?[0-9]{1,2}[-:]?[0-9]{1,2}[\s]?[0-9]{1,2}:[0-9]{2}:[0-9]{2})\]/);
             return timestampMatch ? timestampMatch[1] : null;
         }
 
         function extractMessage(log) {
             // Remove timestamp and clean the message
-            let message = log.replace(/\[[0-9-:\s]+\]/, '').trim();
+            var message = log.replace(/\[[0-9-:\s]+\]/, '').trim();
 
             // Remove log level prefixes
             message = message.replace(/^(ERROR|WARNING|INFO|DEBUG|SUCCESS)[\s:-]*/, '');
@@ -1683,19 +1684,18 @@
             return message;
         }
 
-        function formatLogEntry(fullLog, type, timestamp, message, category = 'general') {
-            const timeStr = timestamp ? `<span class="log-timestamp">${timestamp}</span>` : '';
-            const typeIcon = getTypeIcon(type);
+        function formatLogEntry(fullLog, type, timestamp, message, category) {
+            category = category || 'general';
+            var timeStr = timestamp ? '<span class="log-timestamp">' + timestamp + '</span>' : '';
+            var typeIcon = getTypeIcon(type);
 
-            return `
-                <div class="log-entry log-${type}" data-category="${category}">
-                    <div class="log-header">
-                        ${timeStr}
-                        <span class="log-type-icon">${typeIcon}</span>
-                    </div>
-                    <div class="log-message">${escapeHtml(message || fullLog)}</div>
-                </div>
-            `;
+            return '<div class="log-entry log-' + type + '" data-category="' + category + '">' +
+                       '<div class="log-header">' +
+                           timeStr +
+                           '<span class="log-type-icon">' + typeIcon + '</span>' +
+                       '</div>' +
+                       '<div class="log-message">' + escapeHtml(message || fullLog) + '</div>' +
+                   '</div>';
         }
 
         function getTypeIcon(type) {
