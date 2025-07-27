@@ -780,6 +780,7 @@ def get_strategies():
                 config.setdefault('leverage', 5)
                 config.setdefault('stop_loss_pct', 5.0 if 'rsi' in name.lower() else 10.0)  # Stop loss as % of margin
                 config.setdefault('max_loss_pct', 5.0 if 'rsi' in name.lower() else 10.0)   # Alternative naming
+                ```text
                 config.setdefault('assessment_interval', 60 if 'rsi' in name.lower() else 30)
 
                 # Position Management Parameters
@@ -2040,7 +2041,7 @@ def get_trading_environment():
                     'is_testnet': False,
                     'is_futures': global_config.BINANCE_FUTURES,
                     'api_key_configured': bool(global_config.BINANCE_API_KEY),
-                    'secret_key_configured': bool(global_config.BINANCE_SECRET_KEY),
+                    'secret_key_configured': bool(global_config.BINANCE_API_KEY),
                     'mode': 'FUTURES MAINNET'
                 }
             })
