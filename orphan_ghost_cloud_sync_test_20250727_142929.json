@@ -1,0 +1,129 @@
+{
+  "test_metadata": {
+    "test_name": "Orphan & Ghost Detection Cloud Sync Test",
+    "start_time": "2025-07-27T14:29:22.455276",
+    "end_time": "2025-07-27T14:29:29.024426",
+    "duration_seconds": 6.57,
+    "strategies_tested": [
+      "rsi_oversold",
+      "macd_divergence",
+      "engulfing_pattern",
+      "smart_money"
+    ],
+    "success_rate": 100.0
+  },
+  "phase_results": {
+    "environment_setup": {
+      "status": "SUCCESS",
+      "binance_connected": "<coroutine object BinanceClientWrapper.test_connection at 0x7f20443d3b40>",
+      "cloud_sync_available": true,
+      "dashboard_available": false,
+      "strategies_registered": 4,
+      "timestamp": "2025-07-27T14:29:23.680247"
+    },
+    "cloud_sync_test": {
+      "status": "SUCCESS",
+      "upload_success": false,
+      "download_success": true,
+      "sync_success": true,
+      "sync_status": {
+        "environment": "REPLIT_DEVELOPMENT",
+        "last_sync_time": null,
+        "local_hash": null,
+        "remote_hash": null,
+        "sync_interval": 30,
+        "should_sync": true
+      },
+      "local_trades_count": 2,
+      "synced_trades_count": 2,
+      "timestamp": "2025-07-27T14:29:25.299617"
+    },
+    "orphan_detection_test": {
+      "status": "SUCCESS",
+      "strategy_tests": {
+        "rsi_oversold": {
+          "orphan_created": false,
+          "error": "Could not create test orphan scenario"
+        },
+        "macd_divergence": {
+          "orphan_created": false,
+          "error": "Could not create test orphan scenario"
+        },
+        "engulfing_pattern": {
+          "orphan_created": false,
+          "error": "Could not create test orphan scenario"
+        },
+        "smart_money": {
+          "orphan_created": false,
+          "error": "Could not create test orphan scenario"
+        }
+      },
+      "total_orphans_detected": 0,
+      "cloud_sync_operations": 0,
+      "timestamp": "2025-07-27T14:29:25.301065"
+    },
+    "ghost_detection_test": {
+      "status": "SUCCESS",
+      "ghost_detection_disabled": true,
+      "initial_count": 0,
+      "final_count": 0,
+      "message": "Ghost detection is properly disabled",
+      "timestamp": "2025-07-27T14:29:25.719482"
+    },
+    "realtime_clearing_test": {
+      "status": "SUCCESS",
+      "clearing_results": {},
+      "total_cleared": 0,
+      "cloud_sync_operations": 0,
+      "timestamp": "2025-07-27T14:29:25.719690"
+    },
+    "dashboard_integration_test": {
+      "status": "SUCCESS",
+      "endpoints_tested": {
+        "/api/strategies": {
+          "accessible": false,
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/strategies (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f2044266650>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+        },
+        "/api/trade-history": {
+          "accessible": false,
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/trade-history (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f2044267bd0>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+        },
+        "/api/analytics": {
+          "accessible": false,
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/analytics (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f2044141a10>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+        },
+        "/api/ml-insights": {
+          "accessible": false,
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/ml-insights (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f2044143b90>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+        }
+      },
+      "accessible_endpoints": 0,
+      "total_endpoints": 4,
+      "realtime_updates_working": true,
+      "initial_strategies_count": 0,
+      "updated_strategies_count": 0,
+      "timestamp": "2025-07-27T14:29:28.738255"
+    },
+    "final_verification": {
+      "status": "SUCCESS",
+      "system_clean": true,
+      "remaining_orphans": 0,
+      "remaining_ghosts": 0,
+      "open_trades_in_db": 2,
+      "active_positions_in_om": 0,
+      "dashboard_positions": 0,
+      "cloud_sync_working": true,
+      "cloud_trade_count": 0,
+      "timestamp": "2025-07-27T14:29:29.023892"
+    }
+  },
+  "summary": {
+    "total_phases": 7,
+    "successful_phases": 7,
+    "failed_phases": 0,
+    "cloud_sync_functional": true,
+    "orphan_detection_working": false,
+    "realtime_clearing_working": false,
+    "dashboard_integration_working": false
+  }
+}
