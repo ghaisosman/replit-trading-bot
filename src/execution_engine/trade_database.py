@@ -5,6 +5,20 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from .cloud_database_sync import get_cloud_sync, initialize_cloud_sync
 
+class Position:
+    def __init__(self, trade_id: str, strategy_name: str, symbol: str, side: str, 
+                 entry_price: float, quantity: float, stop_loss: float = None, 
+                 take_profit: float = None, created_at: str = None):
+        self.trade_id = trade_id
+        self.strategy_name = strategy_name
+        self.symbol = symbol
+        self.side = side
+        self.entry_price = entry_price
+        self.quantity = quantity
+        self.stop_loss = stop_loss
+        self.take_profit = take_profit
+        self.created_at = created_at or datetime.now().isoformat()
+
 class TradeDatabase:
     """Simplified trade database - mirrors trade logger data only"""
 
@@ -20,7 +34,7 @@ class TradeDatabase:
     def _ensure_directory(self):
         """Ensure the trading_data directory exists"""
         os.makedirs(os.path.dirname(self.db_file), exist_ok=True)
-    
+
     def _initialize_cloud_sync(self):
         """Initialize cloud database synchronization"""
         try:
@@ -55,7 +69,7 @@ class TradeDatabase:
             if os.path.exists(self.db_file):
                 with open(self.db_file, 'r') as f:
                     data = json.load(f)
-                    
+
                     # Handle different data formats with robust error handling
                     if isinstance(data, dict):
                         if 'trades' in data:
@@ -94,12 +108,12 @@ class TradeDatabase:
                     else:
                         self.logger.warning("📊 Unknown data format, starting with empty database")
                         self.trades = {}
-                    
+
                     # Ensure trades is a dict
                     if not isinstance(self.trades, dict):
                         self.logger.warning("📊 Invalid trades format, resetting to empty dict")
                         self.trades = {}
-                    
+
                     self.logger.info(f"📊 Loaded {len(self.trades)} trades from database")
             else:
                 self.logger.info("📊 Trade database file not found, starting with empty database")
@@ -703,12 +717,12 @@ class TradeDatabase:
         """Load existing open trades from database"""
         try:
             import sqlite3
-            
+
             # Check if database file exists
             if not os.path.exists(self.db_path):
                 self.logger.info("Database file doesn't exist yet, returning empty trades")
                 return []
-                
+
             with sqlite3.connect(self.db_path) as conn:
                 # Set row factory to return Row objects
                 conn.row_factory = sqlite3.Row
@@ -719,7 +733,7 @@ class TradeDatabase:
                     SELECT name FROM sqlite_master 
                     WHERE type='table' AND name='trades'
                 """)
-                
+
                 if not cursor.fetchone():
                     self.logger.info("Trades table doesn't exist yet, returning empty trades")
                     return []
@@ -742,10 +756,10 @@ class TradeDatabase:
                         else:
                             # Fallback for old format
                             trade_dict = dict(trade) if trade else {}
-                            
+
                         if trade_dict:  # Only add non-empty trades
                             trade_list.append(trade_dict)
-                            
+
                     except Exception as row_error:
                         self.logger.warning(f"Skipping corrupted trade row: {row_error}")
                         continue
