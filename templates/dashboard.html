@@ -839,6 +839,8 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button>
+                ```text
+
                 </div>
             </div>        </div>
     </div>
@@ -1532,6 +1534,8 @@
                     markRequestEnd('consoleLog', false);
                     return getDefaultResponse('/api/console-log');
                 });
+```text
+
         }
 
         function updateConsoleLogUI(data) {            const consoleLog = document.getElementById('consoleLog');
@@ -2355,75 +2359,82 @@
 
         // Disable strategy
         function disableStrategy(strategyName) {
-            if (confirm('Are you sure you want to disable this strategy?')) {
-                console.log('🔴 Disabling strategy:', strategyName);
+            console.log('🔴 Disabling strategy:', strategyName);
 
-                fetch('/api/strategy/' + strategyName + '/disable', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
+            fetch(`/api/strategies/${strategyName}/disable`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                console.log('Disable response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Disable response data:', data);
+                if (data.success) {
+                    // Update the button and badge in the UI
+                    const button = document.querySelector(`button[onclick="disableStrategy('${strategyName}')"]`);
+                    if (button) {
+                        button.textContent = '▶️ Enable';
+                        button.className = 'btn btn-outline-success btn-sm strategy-toggle-btn';
+                        button.setAttribute('onclick', `enableStrategy('${strategyName}')`);
+                        button.setAttribute('data-state', 'disabled');
                     }
-                })
-                .then(response => {
-                    console.log('Disable response status:', response.status);
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('Disable response data:', data);
-                    if (data.success) {
-                        // Update UI immediately
-                        updateStrategyStatusBadge(strategyName, 'disabled');
-                        updateStrategyToggleButton(strategyName, 'disabled');
 
-                        // Store state in localStorage for persistence
-                        localStorage.setItem(`strategy_${strategyName}_state`, 'disabled');
+                    // Update the badge - FIXED: Use proper method to find strategy card
+                    updateStrategyBadge(strategyName, '⏸️ Disabled', 'badge bg-secondary');
 
-                        showNotification('Strategy ' + strategyName + ' disabled successfully', 'success');
-                        refreshStrategies(); // Refresh the entire strategies display
-                    } else {
-                        showNotification('Failed to disable strategy: ' + (data.error || 'Unknown error'), 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error disabling strategy:', error);
-                    showNotification('Error disabling strategy: ' + error.message, 'error');
-                });
-            }
+                    showNotification(`Strategy "${strategyName}" disabled successfully`, 'success');
+                } else {
+                    showNotification(`Failed to disable strategy: ${data.message}`, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error disabling strategy:', error);
+                showNotification(`Error disabling strategy: ${error.message}`, 'error');
+            });
         }
 
         // Enable strategy
         function enableStrategy(strategyName) {
             console.log('🟢 Enabling strategy:', strategyName);
 
-            fetch('/api/strategy/' + strategyName + '/enable', {
+            fetch(`/api/strategies/${strategyName}/enable`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 }
             })
             .then(response => {
                 console.log('Enable response status:', response.status);
-                return response.json();
+                return```text
+ response.json();
             })
             .then(data => {
                 console.log('Enable response data:', data);
                 if (data.success) {
-                    // Update UI immediately
-                    updateStrategyStatusBadge(strategyName, 'enabled');
-                    updateStrategyToggleButton(strategyName, 'enabled');
+                    // Update the button and badge in the UI
+                    const button = document.querySelector(`button[onclick="enableStrategy('${strategyName}')"]`);
+                    if (button) {
+                        button.textContent = '⏸️ Disable';
+                        button.className = 'btn btn-outline-danger btn-sm strategy-toggle-btn';
+                        button.setAttribute('onclick', `disableStrategy('${strategyName}')`);
+                        button.setAttribute('data-state', 'enabled');
+                    }
 
-                    // Store state in localStorage for persistence
-                    localStorage.setItem(`strategy_${strategyName}_state`, 'enabled');
+                    // Update the badge - FIXED: Use proper method to find strategy card
+                    updateStrategyBadge(strategyName, '▶️ Active', 'badge bg-success');
 
-                    showNotification('Strategy ' + strategyName + ' enabled successfully', 'success');
-                    refreshStrategies(); // Refresh the entire strategies display
+                    showNotification(`Strategy "${strategyName}" enabled successfully`, 'success');
                 } else {
-                    showNotification('Failed to enable strategy: ' + (data.error || 'Unknown error'), 'error');
+                    showNotification(`Failed to enable strategy: ${data.message}`, 'error');
                 }
             })
             .catch(error => {
                 console.error('Error enabling strategy:', error);
-                showNotification('Error enabling strategy: ' + error.message, 'error');
+                showNotification(`Error enabling strategy: ${error.message}`, 'error');
             });
         }
 
@@ -3022,6 +3033,29 @@
 
                 // Show the safety warning as an alert on the page
                 showAlert(warningMessage, 'warning');
+            }
+        }
+
+        // Add a helper function to find strategy card by name
+        function findStrategyCard(strategyName) {
+            const cards = document.querySelectorAll('.card');
+            for (const card of cards) {
+                if (card.innerHTML.includes(strategyName)) {
+                    return card;
+                }
+            }
+            return null;
+        }
+
+        // Add a helper function to update strategy badge in the card
+        function updateStrategyBadge(strategyName, text, className) {
+            const card = findStrategyCard(strategyName);
+            if (card) {
+                const badge = card.querySelector('.badge');
+                if (badge) {
+                    badge.textContent = text;
+                    badge.className = className;
+                }
             }
         }
 </script>
