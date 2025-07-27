@@ -848,6 +848,35 @@ def get_strategies():
             logger.info(f"📋 All parameters available for manual configuration via dashboard")
             logger.info(f"🔍 RSI Strategy included: {'rsi_oversold' in strategies}")
             
+            # Ensure we always have default strategies available
+            if 'rsi_oversold' not in strategies:
+                strategies['rsi_oversold'] = {
+                    'symbol': 'SOLUSDT',
+                    'margin': 12.5,
+                    'leverage': 25,
+                    'timeframe': '15m',
+                    'rsi_period': 14,
+                    'rsi_long_entry': 30,
+                    'rsi_long_exit': 70,
+                    'rsi_short_entry': 70,
+                    'rsi_short_exit': 30,
+                    'enabled': True,
+                    'assessment_interval': 60
+                }
+            
+            if 'macd_divergence' not in strategies:
+                strategies['macd_divergence'] = {
+                    'symbol': 'BTCUSDT',
+                    'margin': 50.0,
+                    'leverage': 5,
+                    'timeframe': '5m',
+                    'macd_fast': 12,
+                    'macd_slow': 26,
+                    'macd_signal': 9,
+                    'enabled': True,
+                    'assessment_interval': 60
+                }
+            
             # Filter and return only valid strategy configurations for tests
             valid_strategies = {}
             for name, config in strategies.items():

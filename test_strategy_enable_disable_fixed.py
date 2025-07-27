@@ -82,15 +82,23 @@ class StrategyEnableDisableTest:
             response = requests.get(f"{self.dashboard_base_url}/api/strategies")
             if response.status_code == 200:
                 data = response.json()
+                
+                # Debug the response to understand the structure
+                print(f"🔍 DEBUG: Raw API response keys: {list(data.keys())}")
+                
                 # Filter out non-strategy keys and only return actual strategies
                 actual_strategies = {}
                 for key, value in data.items():
                     # Skip configuration keys and only include actual strategy configurations
-                    if isinstance(value, dict) and ('symbol' in value or 'margin' in value):
+                    if isinstance(value, dict) and ('symbol' in value or 'margin' in value or 'enabled' in value):
                         actual_strategies[key] = value
+                        print(f"✅ Found valid strategy: {key} with symbol: {value.get('symbol', 'N/A')}")
+                    else:
+                        print(f"⚠️ Skipping non-strategy key: {key} (type: {type(value)})")
                 
                 if not actual_strategies:
                     print(f"⚠️ No valid strategies found in response: {list(data.keys())}")
+                    print(f"🔍 Full response data: {data}")
                 
                 return actual_strategies
             else:

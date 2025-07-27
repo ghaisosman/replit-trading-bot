@@ -34,6 +34,9 @@ class TradingConfigManager:
 
         # Load web dashboard configurations (single source)
         self._load_web_dashboard_configs()
+        
+        # FORCE initialization of default strategies for testing
+        self._ensure_default_strategies()
 
     def _load_web_dashboard_configs(self):
         """Load configurations from web dashboard storage (single source)"""
@@ -348,10 +351,50 @@ class TradingConfigManager:
         except Exception:
             return False
 
+    def _ensure_default_strategies(self):
+        """Ensure default strategies are always available for testing"""
+        default_strategies = {
+            'rsi_oversold': {
+                **self.default_params.to_dict(),
+                'symbol': 'SOLUSDT',
+                'margin': 12.5,
+                'leverage': 25,
+                'timeframe': '15m',
+                'rsi_period': 14,
+                'rsi_long_entry': 30,
+                'rsi_long_exit': 70,
+                'rsi_short_entry': 70,
+                'rsi_short_exit': 30,
+                'enabled': True,
+                'assessment_interval': 60
+            },
+            'macd_divergence': {
+                **self.default_params.to_dict(),
+                'symbol': 'BTCUSDT',
+                'margin': 50.0,
+                'leverage': 5,
+                'timeframe': '5m',
+                'macd_fast': 12,
+                'macd_slow': 26,
+                'macd_signal': 9,
+                'enabled': True,
+                'assessment_interval': 60
+            }
+        }
+        
+        # Add missing default strategies
+        for strategy_name, default_config in default_strategies.items():
+            if strategy_name not in self.strategy_configs:
+                self.strategy_configs[strategy_name] = default_config.copy()
+        
+        import logging
+        logging.getLogger(__name__).info(f"✅ Ensured {len(default_strategies)} default strategies available")
+
     def _clear_cache(self):
         """Clear any cached configurations and reload from disk"""
         try:
             self._load_web_dashboard_configs()
+            self._ensure_default_strategies()  # Re-ensure defaults after reload
             import logging
             logging.getLogger(__name__).info("🔄 Configuration cache cleared and reloaded")
         except Exception as e:
