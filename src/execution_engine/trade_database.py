@@ -3,6 +3,7 @@ import os
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
+from .cloud_database_sync import get_cloud_sync, initialize_cloud_sync
 
 class TradeDatabase:
     """Simplified trade database - mirrors trade logger data only"""
@@ -11,12 +12,42 @@ class TradeDatabase:
         self.logger = logging.getLogger(__name__)
         self.db_file = db_file
         self.trades = {}
+        self.cloud_sync = None
         self._ensure_directory()
         self._load_database()
+        self._initialize_cloud_sync()
 
     def _ensure_directory(self):
         """Ensure the trading_data directory exists"""
         os.makedirs(os.path.dirname(self.db_file), exist_ok=True)
+    
+    def _initialize_cloud_sync(self):
+        """Initialize cloud database synchronization"""
+        try:
+            replit_db_url = os.getenv('REPLIT_DB_URL')
+            if replit_db_url:
+                self.cloud_sync = initialize_cloud_sync(replit_db_url)
+                self.logger.info("🌐 Cloud database sync initialized")
+                # Perform initial sync
+                self._sync_with_cloud()
+            else:
+                self.logger.warning("⚠️ REPLIT_DB_URL not configured - cloud sync disabled")
+        except Exception as e:
+            self.logger.error(f"❌ Failed to initialize cloud sync: {e}")
+            self.cloud_sync = None
+
+    def _sync_with_cloud(self):
+        """Sync local database with cloud"""
+        try:
+            if self.cloud_sync and self.cloud_sync.should_sync():
+                self.logger.info("🔄 Syncing with cloud database...")
+                synced_trades = self.cloud_sync.sync_database(self.trades)
+                if synced_trades != self.trades:
+                    self.trades = synced_trades
+                    self._save_database()
+                    self.logger.info(f"✅ Database synced with cloud: {len(self.trades)} trades")
+        except Exception as e:
+            self.logger.error(f"❌ Cloud sync error: {e}")
 
     def _load_database(self):
         """Load trades from database file"""
@@ -181,6 +212,8 @@ class TradeDatabase:
 
             if save_success:
                 self.logger.info(f"✅ DATABASE SAVE COMPLETED SUCCESSFULLY")
+                # Sync to cloud after successful local save
+                self._sync_to_cloud_async()
                 return True
             else:
                 self.logger.error(f"❌ ALL SAVE STRATEGIES FAILED")
@@ -191,6 +224,27 @@ class TradeDatabase:
             import traceback
             self.logger.error(f"🔍 Save error traceback: {traceback.format_exc()}")
             return False
+
+    def _sync_to_cloud_async(self):
+        """Asynchronously sync to cloud without blocking"""
+        try:
+            if self.cloud_sync:
+                import threading
+                sync_thread = threading.Thread(
+                    target=self._upload_to_cloud_background, 
+                    daemon=True
+                )
+                sync_thread.start()
+        except Exception as e:
+            self.logger.error(f"❌ Failed to start cloud sync thread: {e}")
+
+    def _upload_to_cloud_background(self):
+        """Background upload to cloud"""
+        try:
+            if self.cloud_sync:
+                self.cloud_sync.upload_database_to_cloud(self.trades)
+        except Exception as e:
+            self.logger.error(f"❌ Background cloud upload failed: {e}")
 
     def add_trade(self, trade_id: str, trade_data: Dict[str, Any]) -> bool:
         """Add a trade to the database - simplified version"""
@@ -287,6 +341,9 @@ class TradeDatabase:
                             self.logger.warning(f"Trade {trade_id} updated in database but sync to logger failed")
                     except Exception as sync_error:
                         self.logger.warning(f"Sync error for {trade_id}: {sync_error}")
+
+                    # Periodic cloud sync
+                    self._sync_with_cloud()
 
                     return True
                 else:
