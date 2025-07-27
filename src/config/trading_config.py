@@ -279,16 +279,69 @@ class TradingConfigManager:
 
     def enable_strategy(self, strategy_name):
         """Enable a specific strategy"""
-        return self.update_strategy_config(strategy_name, {'enabled': True})
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Ensure strategy exists in configuration
+            if strategy_name not in self.strategy_configs:
+                # Initialize with default configuration if not exists
+                all_strategies = self.get_all_strategies()
+                if strategy_name in all_strategies:
+                    self.strategy_configs[strategy_name] = all_strategies[strategy_name].copy()
+                else:
+                    self.strategy_configs[strategy_name] = {'enabled': True, 'assessment_interval': 60}
+            
+            success = self.update_strategy_config(strategy_name, {
+                'enabled': True,
+                'assessment_interval': 60  # Restore normal assessment interval
+            })
+            
+            if success:
+                logger.info(f"🟢 Strategy '{strategy_name}' enabled successfully")
+            return success
+            
+        except Exception as e:
+            logger.error(f"Failed to enable strategy '{strategy_name}': {e}")
+            return False
 
     def disable_strategy(self, strategy_name):
         """Disable a specific strategy"""
-        return self.update_strategy_config(strategy_name, {'enabled': False})
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Ensure strategy exists in configuration
+            if strategy_name not in self.strategy_configs:
+                # Initialize with default configuration if not exists
+                all_strategies = self.get_all_strategies()
+                if strategy_name in all_strategies:
+                    self.strategy_configs[strategy_name] = all_strategies[strategy_name].copy()
+                else:
+                    self.strategy_configs[strategy_name] = {'enabled': False, 'assessment_interval': 0}
+            
+            success = self.update_strategy_config(strategy_name, {
+                'enabled': False,
+                'assessment_interval': 0  # Stop all assessments
+            })
+            
+            if success:
+                logger.info(f"🔴 Strategy '{strategy_name}' disabled successfully")
+            return success
+            
+        except Exception as e:
+            logger.error(f"Failed to disable strategy '{strategy_name}': {e}")
+            return False
 
     def is_strategy_enabled(self, strategy_name):
         """Check if a strategy is enabled"""
         try:
-            return self.strategy_configs.get(strategy_name, {}).get('enabled', False)
+            config = self.strategy_configs.get(strategy_name, {})
+            enabled = config.get('enabled', False)
+            assessment_interval = config.get('assessment_interval', 0)
+            
+            # Strategy is enabled if both enabled=True AND assessment_interval > 0
+            return enabled and assessment_interval > 0
         except Exception:
             return False
 
