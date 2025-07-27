@@ -1,40 +1,64 @@
 from typing import Dict, Any
 
-# DEPRECATED: WEB DASHBOARD IS NOW SINGLE SOURCE OF TRUTH
-# This file is kept for backwards compatibility only
-# All configurations are now managed through the web dashboard
-
 class RSIOversoldConfig:
-    """Configuration for RSI Oversold Strategy"""
-
-    _config_file = "src/execution_engine/strategies/rsi_config_data.json"
+    """Configuration for RSI Oversold Strategy - Now syncs with dashboard"""
 
     @staticmethod
     def get_config():
-        """Get RSI strategy configuration"""
+        """Get RSI strategy configuration from dashboard or fallback to proper defaults"""
         import json
         import os
+        import logging
 
+        # Proper RSI oversold/overbought default configuration
         default_config = {
-            'max_loss_pct': 5,   # Maximum loss percentage before stop loss (5% for RSI strategy)
-            'rsi_period': 14,    # RSI calculation period
-            'rsi_long_entry': 40,  # RSI level for long entry
-            'rsi_long_exit': 70,   # RSI level for long exit
-            'rsi_short_entry': 60, # RSI level for short entry  
-            'rsi_short_exit': 30,  # RSI level for short exit
-            'min_volume': 1000000, # Minimum 24h volume
-            'cooldown_period': 300 # Cooldown in seconds between trades
+            'max_loss_pct': 5,      # Maximum loss percentage before stop loss
+            'rsi_period': 14,       # RSI calculation period
+            'rsi_long_entry': 30,   # RSI level for long entry (truly oversold)
+            'rsi_long_exit': 70,    # RSI level for long exit (overbought)
+            'rsi_short_entry': 70,  # RSI level for short entry (truly overbought)  
+            'rsi_short_exit': 30,   # RSI level for short exit (oversold)
+            'min_volume': 1000000,  # Minimum 24h volume
+            'cooldown_period': 300, # Cooldown in seconds between trades
+            'margin': 50.0,         # Default margin
+            'leverage': 5           # Default leverage
         }
 
-        # Try to load from file
+        logger = logging.getLogger(__name__)
+        
+        # First try to get from dashboard API (if running)
         try:
-            if os.path.exists(RSIOversoldConfig._config_file):
-                with open(RSIOversoldConfig._config_file, 'r') as f:
-                    saved_config = json.load(f)
-                    default_config.update(saved_config)
+            import requests
+            response = requests.get('http://localhost:5000/api/strategies', timeout=2)
+            if response.status_code == 200:
+                strategies = response.json().get('strategies', [])
+                for strategy in strategies:
+                    if 'rsi' in strategy.get('name', '').lower() and strategy.get('enabled', False):
+                        # Use dashboard configuration
+                        dashboard_config = strategy.get('config', {})
+                        default_config.update(dashboard_config)
+                        logger.info(f"✅ RSI config loaded from dashboard: {dashboard_config}")
+                        return default_config
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(f"Could not load RSI config from file: {e}")
+            logger.debug(f"Dashboard not available, using file config: {e}")
+
+        # Fallback to file-based config
+        config_file = "src/execution_engine/strategies/rsi_config_data.json"
+        try:
+            if os.path.exists(config_file):
+                with open(config_file, 'r') as f:
+                    saved_config = json.load(f)
+                    # Validate RSI levels make sense
+                    if saved_config.get('rsi_long_entry', 0) > 50:
+                        logger.warning("⚠️  RSI long entry > 50, this is not oversold! Using defaults.")
+                        return default_config
+                    if saved_config.get('rsi_short_entry', 0) < 50:
+                        logger.warning("⚠️  RSI short entry < 50, this is not overbought! Using defaults.")
+                        return default_config
+                    default_config.update(saved_config)
+                    logger.info(f"✅ RSI config loaded from file: {saved_config}")
+        except Exception as e:
+            logger.warning(f"Could not load RSI config from file: {e}")
 
         return default_config
 

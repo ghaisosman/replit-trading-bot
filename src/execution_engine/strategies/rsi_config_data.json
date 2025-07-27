@@ -1,10 +1,12 @@
 {
   "max_loss_pct": 5,
   "rsi_period": 14,
-  "rsi_long_entry": 45,
-  "rsi_long_exit": 60,
-  "rsi_short_entry": 55,
-  "rsi_short_exit": 40,
+  "rsi_long_entry": 30,
+  "rsi_long_exit": 70,
+  "rsi_short_entry": 70,
+  "rsi_short_exit": 30,
   "min_volume": 1000000,
-  "cooldown_period": 300
+  "cooldown_period": 300,
+  "margin": 50.0,
+  "leverage": 5
 }

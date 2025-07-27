@@ -95,27 +95,49 @@ class SignalProcessor:
         """RSI strategy evaluation for both long and short signals"""
         try:
             if 'rsi' not in df.columns:
+                self.logger.warning("❌ RSI column not found in dataframe")
                 return None
 
             rsi_current = df['rsi'].iloc[-1]
             margin = config.get('margin', 50.0)
             leverage = config.get('leverage', 5)
-            max_loss_pct = config.get('max_loss_pct', 10)  # 10% of margin
+            max_loss_pct = config.get('max_loss_pct', 5)
 
-            # Get configurable RSI levels
-            rsi_long_entry = config.get('rsi_long_entry', 40)
-            rsi_short_entry = config.get('rsi_short_entry', 60)
+            # Get configurable RSI levels with validation
+            rsi_long_entry = config.get('rsi_long_entry', 30)
+            rsi_short_entry = config.get('rsi_short_entry', 70)
+            rsi_long_exit = config.get('rsi_long_exit', 70)
+            rsi_short_exit = config.get('rsi_short_exit', 30)
 
-            # Calculate stop loss based on PnL (10% of margin)
+            # Log current configuration for debugging
+            self.logger.info(f"🔍 RSI SIGNAL EVALUATION:")
+            self.logger.info(f"   Current RSI: {rsi_current:.2f}")
+            self.logger.info(f"   Long Entry: {rsi_long_entry} | Long Exit: {rsi_long_exit}")
+            self.logger.info(f"   Short Entry: {rsi_short_entry} | Short Exit: {rsi_short_exit}")
+            self.logger.info(f"   Margin: {margin} | Leverage: {leverage} | Max Loss: {max_loss_pct}%")
+
+            # Validate configuration logic
+            if rsi_long_entry >= 50:
+                self.logger.error(f"❌ INVALID CONFIG: RSI Long Entry ({rsi_long_entry}) should be < 50 for oversold")
+                return None
+                
+            if rsi_short_entry <= 50:
+                self.logger.error(f"❌ INVALID CONFIG: RSI Short Entry ({rsi_short_entry}) should be > 50 for overbought")
+                return None
+
+            # Calculate stop loss based on margin percentage
             max_loss_amount = margin * (max_loss_pct / 100)
             notional_value = margin * leverage
             stop_loss_pct = (max_loss_amount / notional_value) * 100
 
-            # Long signal: RSI reaches configured entry level
+            # Long signal: RSI reaches oversold level (truly oversold)
             if rsi_current <= rsi_long_entry:
                 stop_loss = current_price * (1 - stop_loss_pct / 100)
-                # Take profit will be determined by RSI level in exit conditions
                 take_profit = current_price * 1.05  # Placeholder, real TP is RSI-based
+
+                self.logger.info(f"✅ RSI LONG SIGNAL GENERATED:")
+                self.logger.info(f"   RSI {rsi_current:.2f} <= {rsi_long_entry} (OVERSOLD)")
+                self.logger.info(f"   Entry: ${current_price:.4f} | SL: ${stop_loss:.4f} | SL%: {stop_loss_pct:.2f}%")
 
                 return TradingSignal(
                     signal_type=SignalType.BUY,
@@ -123,16 +145,17 @@ class SignalProcessor:
                     entry_price=current_price,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
-                    reason=f"RSI LONG ENTRY at {rsi_current:.2f} (RSI <= {rsi_long_entry})"
+                    reason=f"RSI OVERSOLD ENTRY at {rsi_current:.2f} (RSI <= {rsi_long_entry})"
                 )
 
-            # Short signal: RSI reaches configured entry level
+            # Short signal: RSI reaches overbought level (truly overbought)
             elif rsi_current >= rsi_short_entry:
                 stop_loss = current_price * (1 + stop_loss_pct / 100)
-                # Take profit will be determined by RSI level in exit conditions
                 take_profit = current_price * 0.95  # Placeholder, real TP is RSI-based
 
-                self.logger.info(f"🔍 RSI SHORT SIGNAL CALC | Entry: ${current_price:.4f} | SL%: {stop_loss_pct:.2f}% | SL: ${stop_loss:.4f}")
+                self.logger.info(f"✅ RSI SHORT SIGNAL GENERATED:")
+                self.logger.info(f"   RSI {rsi_current:.2f} >= {rsi_short_entry} (OVERBOUGHT)")
+                self.logger.info(f"   Entry: ${current_price:.4f} | SL: ${stop_loss:.4f} | SL%: {stop_loss_pct:.2f}%")
 
                 return TradingSignal(
                     signal_type=SignalType.SELL,
@@ -140,8 +163,12 @@ class SignalProcessor:
                     entry_price=current_price,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
-                    reason=f"RSI SHORT ENTRY at {rsi_current:.2f} (RSI >= {rsi_short_entry})"
+                    reason=f"RSI OVERBOUGHT ENTRY at {rsi_current:.2f} (RSI >= {rsi_short_entry})"
                 )
+
+            else:
+                # Log why no signal was generated
+                self.logger.debug(f"🔍 RSI NO SIGNAL: {rsi_current:.2f} (between {rsi_long_entry} and {rsi_short_entry})")
 
             return None
 
