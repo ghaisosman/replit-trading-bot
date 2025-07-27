@@ -1,0 +1,57 @@
+{
+  "dashboard_config_test": {
+    "dashboard_api_accessible": false,
+    "rsi_strategy_found": false,
+    "config_complete": false,
+    "config_values": {},
+    "validation_errors": [
+      "API connection failed: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/strategies (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f5356881a90>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+    ]
+  },
+  "signal_logic_test": {
+    "config_loaded": true,
+    "signal_processor_test": {},
+    "oversold_signal_test": {
+      "signal_generated": true,
+      "signal_type": "BUY",
+      "rsi_value": 25,
+      "expected": true,
+      "correct": true
+    },
+    "overbought_signal_test": {
+      "signal_generated": true,
+      "signal_type": "SELL",
+      "rsi_value": 75,
+      "expected": true,
+      "correct": true
+    },
+    "neutral_signal_test": {
+      "signal_generated": false,
+      "rsi_value": 50.0,
+      "expected": false,
+      "correct": true
+    }
+  },
+  "config_override_test": {
+    "dashboard_priority": false,
+    "file_config_ignored": true,
+    "override_values": {
+      "margin": 50.0,
+      "leverage": 5,
+      "rsi_long_entry": 30,
+      "rsi_short_entry": 70
+    }
+  },
+  "live_update_test": {
+    "update_api_available": false,
+    "config_update_successful": false,
+    "live_change_reflected": false,
+    "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/strategies (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f5356893c50>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+  },
+  "summary": {
+    "total_tests": 3,
+    "passed_tests": 1,
+    "success_rate": 33.33333333333333,
+    "overall_status": "NEEDS_ATTENTION"
+  }
+}

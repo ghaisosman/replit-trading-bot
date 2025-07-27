@@ -1,0 +1,80 @@
+{
+  "dashboard_config_test": {
+    "dashboard_api_accessible": true,
+    "rsi_strategy_found": true,
+    "config_complete": true,
+    "config_values": {
+      "assessment_interval": 60,
+      "confirmation_period": 2,
+      "cooldown_period": 60,
+      "decimals": 2,
+      "enabled": true,
+      "entry_threshold": 0.1,
+      "exit_threshold": 0.05,
+      "leverage": 3,
+      "margin": 10.0,
+      "max_loss_pct": 5.0,
+      "max_position_time": 3600,
+      "min_volume": 1000000,
+      "name": "rsi_oversold",
+      "partial_tp_pnl_threshold": 30.0,
+      "partial_tp_position_percentage": 50.0,
+      "rsi_long_entry": 30,
+      "rsi_long_exit": 60,
+      "rsi_short_entry": 70,
+      "rsi_short_exit": 40,
+      "signal_period": 14,
+      "stop_loss_pct": 5.0,
+      "symbol": "XRPUSDT",
+      "take_profit_pct": 20.0,
+      "timeframe": "15m",
+      "trailing_stop_pct": 2.0
+    },
+    "validation_errors": []
+  },
+  "signal_logic_test": {
+    "config_loaded": true,
+    "signal_processor_test": {},
+    "oversold_signal_test": {
+      "signal_generated": true,
+      "signal_type": "BUY",
+      "rsi_value": 25,
+      "expected": true,
+      "correct": true
+    },
+    "overbought_signal_test": {
+      "signal_generated": true,
+      "signal_type": "SELL",
+      "rsi_value": 75,
+      "expected": true,
+      "correct": true
+    },
+    "neutral_signal_test": {
+      "signal_generated": false,
+      "rsi_value": 50.0,
+      "expected": false,
+      "correct": true
+    }
+  },
+  "config_override_test": {
+    "dashboard_priority": true,
+    "file_config_ignored": true,
+    "override_values": {
+      "margin": 10.0,
+      "leverage": 3,
+      "rsi_long_entry": 30,
+      "rsi_short_entry": 70
+    }
+  },
+  "live_update_test": {
+    "update_api_available": true,
+    "config_update_successful": true,
+    "live_change_reflected": true
+  },
+  "summary": {
+    "total_tests": 3,
+    "passed_tests": 3,
+    "success_rate": 100.0,
+    "overall_status": "PASSED"
+  }
+}
