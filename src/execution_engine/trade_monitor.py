@@ -66,6 +66,9 @@ class TradeMonitor:
         # Track recent bot trades to prevent immediate ghost detection
         self.recent_bot_trades: Dict[str, datetime] = {}  # symbol -> trade_timestamp
 
+        # Track persistent ghost symbols to prevent re-notifications
+        self.persistent_ghost_symbols: Dict[str, datetime] = {}  # symbol -> first_detection_time
+
         # Memory management limits to prevent leaks
         self.max_ghost_trades = 100
         self.max_recently_cleared = 50
