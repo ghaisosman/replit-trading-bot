@@ -1,0 +1,128 @@
+{
+  "test_metadata": {
+    "test_name": "Orphan & Ghost Detection Cloud Sync Test",
+    "start_time": "2025-07-27T14:45:29.602087",
+    "end_time": "2025-07-27T14:45:40.044215",
+    "duration_seconds": 10.44,
+    "strategies_tested": [
+      "rsi_oversold",
+      "macd_divergence",
+      "engulfing_pattern",
+      "smart_money"
+    ],
+    "success_rate": 85.7
+  },
+  "phase_results": {
+    "environment_setup": {
+      "status": "SUCCESS",
+      "binance_connected": "<coroutine object BinanceClientWrapper.test_connection at 0x7f1bcf66ba40>",
+      "cloud_sync_available": true,
+      "dashboard_available": true,
+      "strategies_registered": 4,
+      "timestamp": "2025-07-27T14:45:29.779179"
+    },
+    "cloud_sync_test": {
+      "status": "ERROR",
+      "error": "'CloudDatabaseSync' object has no attribute 'environment'"
+    },
+    "orphan_detection_test": {
+      "status": "SUCCESS",
+      "strategy_tests": {
+        "rsi_oversold": {
+          "orphan_created": true,
+          "orphan_detected": true,
+          "cloud_synced": false,
+          "detection_count": 2
+        },
+        "macd_divergence": {
+          "orphan_created": true,
+          "orphan_detected": false,
+          "cloud_synced": false,
+          "detection_count": -1
+        },
+        "engulfing_pattern": {
+          "orphan_created": true,
+          "orphan_detected": true,
+          "cloud_synced": false,
+          "detection_count": 1
+        },
+        "smart_money": {
+          "orphan_created": true,
+          "orphan_detected": false,
+          "cloud_synced": false,
+          "detection_count": 0
+        }
+      },
+      "total_orphans_detected": 2,
+      "cloud_sync_operations": 0,
+      "timestamp": "2025-07-27T14:45:35.329676"
+    },
+    "ghost_detection_test": {
+      "status": "SUCCESS",
+      "ghost_detection_disabled": true,
+      "initial_count": 0,
+      "final_count": 0,
+      "message": "Ghost detection is properly disabled",
+      "timestamp": "2025-07-27T14:45:37.008454"
+    },
+    "realtime_clearing_test": {
+      "status": "SUCCESS",
+      "clearing_results": {},
+      "total_cleared": 0,
+      "cloud_sync_operations": 0,
+      "timestamp": "2025-07-27T14:45:37.008639"
+    },
+    "dashboard_integration_test": {
+      "status": "SUCCESS",
+      "endpoints_tested": {
+        "/api/strategies": {
+          "status_code": 200,
+          "accessible": true,
+          "response_size": 3107
+        },
+        "/api/trade-history": {
+          "status_code": 404,
+          "accessible": false,
+          "response_size": 207
+        },
+        "/api/analytics": {
+          "status_code": 404,
+          "accessible": false,
+          "response_size": 207
+        },
+        "/api/ml-insights": {
+          "status_code": 404,
+          "accessible": false,
+          "response_size": 207
+        }
+      },
+      "accessible_endpoints": 1,
+      "total_endpoints": 4,
+      "realtime_updates_working": true,
+      "initial_strategies_count": 0,
+      "updated_strategies_count": 0,
+      "timestamp": "2025-07-27T14:45:40.038676"
+    },
+    "final_verification": {
+      "status": "SUCCESS",
+      "system_clean": true,
+      "remaining_orphans": 0,
+      "remaining_ghosts": 0,
+      "open_trades_in_db": 8,
+      "active_positions_in_om": 0,
+      "dashboard_positions": 0,
+      "cloud_sync_working": true,
+      "cloud_trade_count": 0,
+      "timestamp": "2025-07-27T14:45:40.043787"
+    }
+  },
+  "summary": {
+    "total_phases": 7,
+    "successful_phases": 6,
+    "failed_phases": 1,
+    "cloud_sync_functional": false,
+    "orphan_detection_working": true,
+    "realtime_clearing_working": false,
+    "dashboard_integration_working": true
+  }
+}
