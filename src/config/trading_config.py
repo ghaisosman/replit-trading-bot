@@ -173,6 +173,13 @@ class TradingConfigManager:
             interval = int(updates['assessment_interval'])
             validated['assessment_interval'] = max(5, min(3600, interval))  # 5s-1h range
 
+        # Partial Take Profit parameters (allow 0 values for disabling)
+        if 'partial_tp_pnl_threshold' in updates:
+            validated['partial_tp_pnl_threshold'] = float(updates['partial_tp_pnl_threshold'])
+
+        if 'partial_tp_position_percentage' in updates:
+            validated['partial_tp_position_percentage'] = float(updates['partial_tp_position_percentage'])
+
         # Strategy-specific parameters
         strategy_params = [
             'decimals', 'cooldown_period', 'min_volume',

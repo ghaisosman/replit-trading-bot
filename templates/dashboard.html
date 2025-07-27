@@ -2638,9 +2638,9 @@
                 thresholdInput.disabled = true;
                 positionInput.disabled = true;
 
-                // Clear values when disabled to prevent accidental saving
-                thresholdInput.value = '';
-                positionInput.value = '';
+                // Set to 0 instead of clearing when disabled (this explicitly disables partial TP)
+                thresholdInput.value = '0';
+                positionInput.value = '0';
 
                 console.log('❌ Partial TP disabled - configuration locked');
             }
@@ -2655,12 +2655,12 @@
             const position = document.getElementById('partialTpPositionPercentage').value;
             const exampleDiv = document.getElementById('partialTpExample');
 
-            if (toggle.checked && threshold && position) {
+            if (toggle.checked && threshold && position && parseFloat(threshold) > 0 && parseFloat(position) > 0) {
                 exampleDiv.innerHTML = `
                     <small>
                         <strong>Your Configuration:</strong> ${threshold}% PnL threshold, ${position}% position size<br>
                         • When profit reaches ${threshold}% of margin → Close ${position}% of position<br>
-                        • Remaining ${100 - position}% continues until stop loss or manual exit
+                        • Remaining ${100 - parseFloat(position)}% continues until stop loss or manual exit
                     </small>
                 `;
                 exampleDiv.className = 'alert alert-success mt-2';
@@ -2719,13 +2719,9 @@
                             const partialTpToggle = document.getElementById('partialTpEnabled');
                             partialTpToggle.checked = hasPartialTpConfig;
 
-                            if (hasPartialTpConfig) {
-                                document.getElementById('partialTpPnlThreshold').value = config.partial_tp_pnl_threshold;
-                                document.getElementById('partialTpPositionPercentage').value = config.partial_tp_position_percentage;
-                            } else {
-                                document.getElementById('partialTpPnlThreshold').value = '';
-                                document.getElementById('partialTpPositionPercentage').value = '';
-                            }
+                            // Always set the form values based on config (even if 0)
+                            document.getElementById('partialTpPnlThreshold').value = config.partial_tp_pnl_threshold || 0;
+                            document.getElementById('partialTpPositionPercentage').value = config.partial_tp_position_percentage || 0;
 
                             // Apply toggle state
                             togglePartialTpConfig();
@@ -2790,16 +2786,16 @@
                 const threshold = document.getElementById('partialTpPnlThreshold').value;
                 const positionSize = document.getElementById('partialTpPositionPercentage').value;
 
-                if (threshold && positionSize) {
+                if (threshold && positionSize && parseFloat(threshold) > 0 && parseFloat(positionSize) > 0) {
                     updates.partial_tp_pnl_threshold = parseFloat(threshold);
                     updates.partial_tp_position_percentage = parseFloat(positionSize);
                     console.log('✅ Partial TP config saved:', updates.partial_tp_pnl_threshold + '% threshold, ' + updates.partial_tp_position_percentage + '% position');
                 } else {
-                    alert('⚠️ Partial TP is enabled but missing configuration values.\nPlease fill both threshold and position size, or disable partial TP.');
+                    alert('⚠️ Partial TP is enabled but missing valid configuration values.\nPlease fill both threshold and position size with values greater than 0, or disable partial TP.');
                     return;
                 }
             } else {
-                // Explicitly disable partial TP by setting to 0
+                // When disabled, always save as 0 regardless of form values
                 updates.partial_tp_pnl_threshold = 0;
                 updates.partial_tp_position_percentage = 0;
                 console.log('❌ Partial TP disabled - saved as 0');
