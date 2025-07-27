@@ -733,8 +733,7 @@ class BotManager:
             binance_positions = {}
             if self.binance_client.is_futures:
                 try:
-                    positions = self.binance_client.client```python
-.futures_position_information()
+                    positions = self.binance_client.client.futures_position_information()
                     for position in positions:
                         symbol = position.get('symbol')
                         position_amt = float(position.get('positionAmt', 0))
