@@ -844,24 +844,12 @@ def get_strategies():
                     config.setdefault('signal_period', 14)
                     config.setdefault('confirmation_period', 2)
 
-            # Convert to dashboard-compatible format with strategy list structure
-            strategies_list = []
-            for strategy_name, config in strategies.items():
-                strategy_entry = {
-                    'name': strategy_name,
-                    'enabled': config.get('enabled', True),
-                    'config': config
-                }
-                strategies_list.append(strategy_entry)
-
             logger.info(f"🌐 WEB DASHBOARD: Serving COMPLETE configurations for {len(strategies)} strategies")
             logger.info(f"📋 All parameters available for manual configuration via dashboard")
-            logger.info(f"🔍 RSI Strategy included: {'rsi_oversold' in [s['name'] for s in strategies_list]}")
+            logger.info(f"🔍 RSI Strategy included: {'rsi_oversold' in strategies}")
             
-            return jsonify({
-                'strategies': strategies_list,
-                'strategy_configs': strategies  # Also include direct configs for backwards compatibility
-            })
+            # Return the direct strategy dictionary that tests expect
+            return jsonify(strategies)
         else:
             # Return comprehensive default strategies for demo
             return jsonify({
@@ -1077,6 +1065,12 @@ def disable_strategy(strategy_name):
         logger.error(f"Error disabling strategy {strategy_name}: {e}")
         return jsonify({'success': False, 'message': f'Failed to disable strategy: {e}'})
 
+# Add alternative endpoint paths for compatibility
+@app.route('/api/strategy/<strategy_name>/disable', methods=['POST'])
+def disable_strategy_alt(strategy_name):
+    """Alternative endpoint for disabling strategy"""
+    return disable_strategy(strategy_name)
+
 @app.route('/api/strategies/<strategy_name>/enable', methods=['POST'])
 def enable_strategy(strategy_name):
     """Enable a strategy by restoring normal assessment_interval"""
@@ -1096,8 +1090,11 @@ def enable_strategy(strategy_name):
         # Enable by setting appropriate assessment_interval and enabled flag
         current_config = strategies[strategy_name]
 
-        # Restore to default assessment_interval (usually 5 or 10)
-        default_interval = current_config.get('default_assessment_interval', 5)
+        # Restore to default assessment_interval (usually 60 seconds)
+        default_interval = current_config.get('assessment_interval', 60)
+        if default_interval == 0:
+            default_interval = 60  # Force to 60 if currently 0
+
         updates = {
             'assessment_interval': default_interval,
             'enabled': True
@@ -1131,6 +1128,12 @@ def enable_strategy(strategy_name):
     except Exception as e:
         logger.error(f"Error enabling strategy {strategy_name}: {e}")
         return jsonify({'success': False, 'message': f'Failed to enable strategy: {e}'})
+
+# Add alternative endpoint paths for compatibility
+@app.route('/api/strategy/<strategy_name>/enable', methods=['POST'])
+def enable_strategy_alt(strategy_name):
+    """Alternative endpoint for enabling strategy"""
+    return enable_strategy(strategy_name)
 
 @app.route('/api/strategies/<strategy_name>', methods=['POST'])
 def update_strategy(strategy_name):

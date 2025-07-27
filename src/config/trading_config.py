@@ -345,5 +345,15 @@ class TradingConfigManager:
         except Exception:
             return False
 
+    def _clear_cache(self):
+        """Clear any cached configurations and reload from disk"""
+        try:
+            self._load_web_dashboard_configs()
+            import logging
+            logging.getLogger(__name__).info("🔄 Configuration cache cleared and reloaded")
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error clearing cache: {e}")
+
 # Global config manager instance
 trading_config_manager = TradingConfigManager()
