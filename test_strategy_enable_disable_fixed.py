@@ -32,9 +32,16 @@ class StrategyEnableDisableTest:
             
         print(f"🔍 PHASE 1: STRATEGY DISCOVERY")
         print("-" * 50)
-        print(f"✅ Discovered {len(strategies)} strategies:")
-        for strategy_name in strategies.keys():
-            print(f"   🎯 {strategy_name}")
+        
+        if strategies:
+            print(f"✅ Discovered {len(strategies)} valid strategies:")
+            for strategy_name, config in strategies.items():
+                symbol = config.get('symbol', 'N/A')
+                margin = config.get('margin', 'N/A')
+                print(f"   🎯 {strategy_name} (Symbol: {symbol}, Margin: {margin})")
+        else:
+            print("❌ No valid strategies discovered")
+            return False
         print()
         
         # Test each strategy
@@ -75,7 +82,17 @@ class StrategyEnableDisableTest:
             response = requests.get(f"{self.dashboard_base_url}/api/strategies")
             if response.status_code == 200:
                 data = response.json()
-                return data
+                # Filter out non-strategy keys and only return actual strategies
+                actual_strategies = {}
+                for key, value in data.items():
+                    # Skip configuration keys and only include actual strategy configurations
+                    if isinstance(value, dict) and ('symbol' in value or 'margin' in value):
+                        actual_strategies[key] = value
+                
+                if not actual_strategies:
+                    print(f"⚠️ No valid strategies found in response: {list(data.keys())}")
+                
+                return actual_strategies
             else:
                 print(f"❌ Failed to get strategies: HTTP {response.status_code}")
                 return {}

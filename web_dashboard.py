@@ -848,8 +848,15 @@ def get_strategies():
             logger.info(f"📋 All parameters available for manual configuration via dashboard")
             logger.info(f"🔍 RSI Strategy included: {'rsi_oversold' in strategies}")
             
-            # Return the direct strategy dictionary that tests expect
-            return jsonify(strategies)
+            # Filter and return only valid strategy configurations for tests
+            valid_strategies = {}
+            for name, config in strategies.items():
+                # Only include configurations that have trading parameters
+                if isinstance(config, dict) and ('symbol' in config or 'margin' in config):
+                    valid_strategies[name] = config
+            
+            logger.info(f"🔍 API Response: Returning {len(valid_strategies)} valid strategies: {list(valid_strategies.keys())}")
+            return jsonify(valid_strategies)
         else:
             # Return comprehensive default strategies for demo
             return jsonify({

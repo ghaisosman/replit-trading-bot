@@ -241,10 +241,13 @@ class TradingConfigManager:
             }
         }
 
-        # Only add defaults if not configured via web dashboard
+        # Always ensure default strategies are available
         for strategy_name, default_config in default_strategies.items():
             if strategy_name not in strategies:
                 strategies[strategy_name] = default_config
+                # Also initialize in strategy_configs for persistence
+                if strategy_name not in self.strategy_configs:
+                    self.strategy_configs[strategy_name] = default_config.copy()
 
         return strategies
 
