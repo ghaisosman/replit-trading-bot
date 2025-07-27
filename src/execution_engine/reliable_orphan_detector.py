@@ -318,7 +318,7 @@ class ReliableOrphanDetector:
             message_lines.append(f"{total_emoji} Total Impact: ${total_pnl:.2f}")
             message_lines.append("ℹ️ Trades marked as manually closed in database")
 
-            self.telegram_reporter.send_custom_message("\n".join(message_lines))
+            self.telegram_reporter.send_message("\n".join(message_lines))
 
         except Exception as e:
             self.logger.error(f"❌ Error sending orphan summary notification: {e}")
