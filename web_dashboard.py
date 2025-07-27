@@ -776,7 +776,7 @@ def get_strategies():
 
                 # Position Management Parameters
                 config.setdefault('cooldown_period', 300)  # 5 minutes default
-                config.setdefault('min_volume', 1000000 if 'rsi' in name.lower()< 1000.0)
+                config.setdefault('min_volume', 1000000 if 'rsi' in name.lower() else 1000.0)
                 config.setdefault('take_profit_pct', 20.0)  # Take profit as % of margin
                 config.setdefault('trailing_stop_pct', 2.0)
                 config.setdefault('max_position_time', 3600)  # 1 hour max
