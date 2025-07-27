@@ -245,6 +245,10 @@ try:
     from src.data_fetcher.balance_fetcher import BalanceFetcher
     from src.bot_manager import BotManager
     from src.utils.logger import setup_logger
+    from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
+    from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
+    from src.execution_engine.strategies.engulfing_pattern_config import EngulfingPatternConfig
+    from src.execution_engine.strategies.smart_money_config import SmartMoneyConfig
 
     # Setup proper logging
     setup_logger()
@@ -649,13 +653,13 @@ def get_bot_status():
                 if IMPORTS_AVAILABLE:
                     from src.execution_engine.trade_database import TradeDatabase
                     trade_db = TradeDatabase()
-                    
+
                     # Count open trades in database
                     open_count = 0
                     for trade_id, trade_data in trade_db.trades.items():
                         if trade_data.get('trade_status') == 'OPEN':
                             open_count += 1
-                    
+
                     default_response['active_positions'] = open_count
                     logger.debug(f"🔍 DEBUG [{request_id}]: Active positions from database: {open_count}")
                 else:
@@ -774,7 +778,8 @@ def get_strategies():
                     config.setdefault('rsi_long_entry', 30)    # Oversold entry
                     config.setdefault('rsi_long_exit', 70)     # Take profit (overbought)
                     config.setdefault('rsi_short_entry', 70)   # Overbought entry  
-                    config.setdefault('rsi_short_exit', 30)    # Take profit (oversold)
+                    config.setdefault<replit_final_file>
+('rsi_short_exit', 30)    # Take profit (oversold)
 
                 # MACD Strategy Specific Parameters
                 elif 'macd' in name.lower():
@@ -1531,22 +1536,22 @@ def get_positions():
             try:
                 from src.execution_engine.trade_database import TradeDatabase
                 trade_db = TradeDatabase()
-                
+
                 # Get all open trades from database
                 open_trades = []
                 for trade_id, trade_data in trade_db.trades.items():
                     if trade_data.get('trade_status') == 'OPEN':
                         open_trades.append((trade_id, trade_data))
-                
+
                 logger.info(f"🔍 DEBUG: Found {len(open_trades)} open trades in database")
-                
+
                 # Convert database trades to position format
                 for trade_id, trade_data in open_trades:
                     try:
                         symbol = trade_data.get('symbol')
                         if not symbol:
                             continue
-                            
+
                         # Get current price for PnL calculation
                         current_price = None
                         try:
@@ -1559,7 +1564,7 @@ def get_positions():
                         # Calculate PnL
                         pnl = 0.0
                         pnl_percent = 0.0
-                        
+
                         if current_price and trade_data.get('entry_price') and trade_data.get('quantity'):
                             entry_price = float(trade_data['entry_price'])
                             quantity = float(trade_data['quantity'])
@@ -1635,7 +1640,7 @@ def get_positions():
         # Return positions with proper status
         status = 'active' if positions else 'no_positions'
         logger.info(f"🔍 DEBUG: Returning {len(positions)} positions with status: {status}")
-        
+
         return jsonify({
             'success': True,
             'positions': positions,
@@ -1649,7 +1654,7 @@ def get_positions():
         logger.error(f"Positions API error: {e}")
         import traceback
         logger.error(f"Positions API traceback: {traceback.format_exc()}")
-        
+
         default_response.update({
             'success': False,
             'status': 'api_error',
@@ -2195,6 +2200,9 @@ def train_ml_models():
         # Train models
         results = ml_analyzer.train_models()
 
+
+This code adds RSI strategy configuration to the trading bot dashboard.
+```python
         if "error" in results:
             return jsonify({'success': False, 'error': results['error']})
 
