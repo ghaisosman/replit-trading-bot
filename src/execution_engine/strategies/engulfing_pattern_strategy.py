@@ -22,6 +22,9 @@ class EngulfingPatternStrategy:
         self.strategy_name = strategy_name
         self.config = config
         self.logger = logging.getLogger(__name__)
+        
+        # Ensure strategy name is accessible for orphan/ghost detection
+        self.config['name'] = strategy_name
 
         # Extract strategy-specific parameters
         self.rsi_period = config.get('rsi_period', 14)
