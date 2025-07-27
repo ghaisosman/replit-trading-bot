@@ -44,8 +44,13 @@ class CloudDatabaseSync:
             import psycopg2
             from psycopg2.extras import RealDictCursor
             
+            # Clean the database URL - remove any trailing path components
+            clean_url = self.database_url
+            if clean_url.endswith('/trading_database'):
+                clean_url = clean_url.replace('/trading_database', '')
+            
             # Create connection
-            self.conn = psycopg2.connect(self.database_url)
+            self.conn = psycopg2.connect(clean_url)
             self.conn.autocommit = True
             
             # Create trading_database table if it doesn't exist

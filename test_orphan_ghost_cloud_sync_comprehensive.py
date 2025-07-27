@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 Comprehensive Orphan & Ghost Detection Test with Cloud Database Sync
@@ -37,7 +36,7 @@ class OrphanGhostCloudSyncTest:
     def __init__(self):
         self.results = {}
         self.start_time = datetime.now()
-        
+
         # Test strategies
         self.test_strategies = [
             'rsi_oversold',
@@ -45,7 +44,7 @@ class OrphanGhostCloudSyncTest:
             'engulfing_pattern',
             'smart_money'
         ]
-        
+
         # Initialize components
         self.binance_client = None
         self.order_manager = None
@@ -53,7 +52,7 @@ class OrphanGhostCloudSyncTest:
         self.telegram_reporter = None
         self.trade_db = None
         self.cloud_sync = None
-        
+
         print("🧪 ORPHAN & GHOST CLOUD SYNC TEST INITIALIZED")
         print("=" * 60)
 
@@ -62,31 +61,31 @@ class OrphanGhostCloudSyncTest:
         try:
             print(f"⏰ Test started at: {self.start_time}")
             print(f"🎯 Testing strategies: {', '.join(self.test_strategies)}")
-            
+
             # Phase 1: Environment Setup
             self._setup_test_environment()
-            
+
             # Phase 2: Cloud Database Sync Test
             self._test_cloud_database_sync()
-            
+
             # Phase 3: Orphan Detection Test
             self._test_orphan_detection_with_cloud()
-            
+
             # Phase 4: Ghost Detection Test  
             self._test_ghost_detection_with_cloud()
-            
+
             # Phase 5: Real-time Clearing Test
             self._test_realtime_clearing()
-            
+
             # Phase 6: Dashboard Integration Test
             self._test_dashboard_integration()
-            
+
             # Phase 7: Final Verification
             self._verify_final_state()
-            
+
             # Generate comprehensive report
             self._generate_test_report()
-            
+
         except Exception as e:
             print(f"❌ Test suite failed: {e}")
             import traceback
@@ -98,7 +97,7 @@ class OrphanGhostCloudSyncTest:
         try:
             print("\n🔧 PHASE 1: ENVIRONMENT SETUP")
             print("-" * 40)
-            
+
             # Initialize components
             self.binance_client = BinanceClientWrapper()
             self.telegram_reporter = TelegramReporter()
@@ -109,7 +108,7 @@ class OrphanGhostCloudSyncTest:
                 self.telegram_reporter
             )
             self.trade_db = TradeDatabase()
-            
+
             # Test cloud sync initialization
             replit_db_url = os.getenv('REPLIT_DB_URL')
             if replit_db_url:
@@ -117,7 +116,7 @@ class OrphanGhostCloudSyncTest:
                 print("✅ Cloud sync initialized")
             else:
                 print("⚠️ REPLIT_DB_URL not configured - limited cloud testing")
-            
+
             # Register test strategies
             strategy_symbols = {
                 'rsi_oversold': 'SOLUSDT',
@@ -125,16 +124,16 @@ class OrphanGhostCloudSyncTest:
                 'engulfing_pattern': 'ETHUSDT',
                 'smart_money': 'XRPUSDT'
             }
-            
+
             for strategy, symbol in strategy_symbols.items():
                 self.trade_monitor.register_strategy(strategy, symbol)
-            
+
             # Test Binance connection
             connection_test = self.binance_client.test_connection()
-            
+
             # Test dashboard availability
             dashboard_available = self._test_dashboard_connection()
-            
+
             self.results['environment_setup'] = {
                 'status': 'SUCCESS',
                 'binance_connected': connection_test,
@@ -143,12 +142,12 @@ class OrphanGhostCloudSyncTest:
                 'strategies_registered': len(strategy_symbols),
                 'timestamp': datetime.now().isoformat()
             }
-            
+
             print(f"✅ Environment setup completed")
             print(f"   • Binance connected: {connection_test}")
             print(f"   • Cloud sync: {self.cloud_sync is not None}")
             print(f"   • Dashboard: {dashboard_available}")
-            
+
         except Exception as e:
             print(f"❌ Environment setup failed: {e}")
             self.results['environment_setup'] = {'status': 'ERROR', 'error': str(e)}
@@ -166,16 +165,16 @@ class OrphanGhostCloudSyncTest:
         try:
             print("\n☁️ PHASE 2: CLOUD DATABASE SYNC TEST")
             print("-" * 40)
-            
+
             if not self.cloud_sync:
                 print("⚠️ Skipping cloud sync test - not configured")
                 self.results['cloud_sync_test'] = {'status': 'SKIPPED', 'reason': 'REPLIT_DB_URL not configured'}
                 return
-            
+
             # Test sync status
             sync_status = self.cloud_sync.get_sync_status()
             print(f"📊 Sync status: {sync_status}")
-            
+
             # Test upload to cloud
             test_data = {
                 'test_trade_001': {
@@ -188,18 +187,18 @@ class OrphanGhostCloudSyncTest:
                     'created_at': datetime.now().isoformat()
                 }
             }
-            
+
             upload_success = self.cloud_sync.upload_database_to_cloud(test_data)
-            
+
             # Test download from cloud
             download_data = self.cloud_sync.download_database_from_cloud()
             download_success = download_data is not None
-            
+
             # Test bidirectional sync
             local_trades = self.trade_db.get_all_trades()
             synced_trades = self.cloud_sync.sync_database(local_trades)
             sync_success = synced_trades is not None
-            
+
             self.results['cloud_sync_test'] = {
                 'status': 'SUCCESS',
                 'upload_success': upload_success,
@@ -210,12 +209,12 @@ class OrphanGhostCloudSyncTest:
                 'synced_trades_count': len(synced_trades) if synced_trades else 0,
                 'timestamp': datetime.now().isoformat()
             }
-            
+
             print(f"✅ Cloud sync test completed")
             print(f"   • Upload: {upload_success}")
             print(f"   • Download: {download_success}")
             print(f"   • Sync: {sync_success}")
-            
+
         except Exception as e:
             print(f"❌ Cloud sync test failed: {e}")
             self.results['cloud_sync_test'] = {'status': 'ERROR', 'error': str(e)}
@@ -225,23 +224,23 @@ class OrphanGhostCloudSyncTest:
         try:
             print("\n👻 PHASE 3: ORPHAN DETECTION WITH CLOUD TEST")
             print("-" * 40)
-            
+
             orphan_tests = {}
-            
+
             for strategy in self.test_strategies:
                 print(f"\n   🎯 Testing {strategy} orphan detection:")
-                
+
                 # Create test orphan scenario
                 orphan_created = self._create_test_orphan_scenario(strategy)
-                
+
                 if orphan_created:
                     # Test detection
                     initial_count = len(self.trade_monitor.orphan_trades)
                     self.trade_monitor.check_for_anomalies(suppress_notifications=True)
                     final_count = len(self.trade_monitor.orphan_trades)
-                    
+
                     orphan_detected = final_count > initial_count
-                    
+
                     # Test cloud sync of orphan data
                     if self.cloud_sync and orphan_detected:
                         # Sync orphan information to cloud
@@ -254,14 +253,14 @@ class OrphanGhostCloudSyncTest:
                         cloud_sync_success = self.cloud_sync.upload_database_to_cloud(orphan_data)
                     else:
                         cloud_sync_success = False
-                    
+
                     orphan_tests[strategy] = {
                         'orphan_created': orphan_created,
                         'orphan_detected': orphan_detected,
                         'cloud_synced': cloud_sync_success,
                         'detection_count': final_count - initial_count
                     }
-                    
+
                     if orphan_detected:
                         print(f"     ✅ Orphan detected and synced to cloud")
                     else:
@@ -272,7 +271,7 @@ class OrphanGhostCloudSyncTest:
                         'error': 'Could not create test orphan scenario'
                     }
                     print(f"     ⚠️ Could not create test orphan for {strategy}")
-            
+
             self.results['orphan_detection_test'] = {
                 'status': 'SUCCESS',
                 'strategy_tests': orphan_tests,
@@ -282,10 +281,10 @@ class OrphanGhostCloudSyncTest:
                                            if test.get('cloud_synced', False)),
                 'timestamp': datetime.now().isoformat()
             }
-            
+
             detected_count = self.results['orphan_detection_test']['total_orphans_detected']
             print(f"\n✅ Orphan detection test completed: {detected_count}/{len(self.test_strategies)} detected")
-            
+
         except Exception as e:
             print(f"❌ Orphan detection test failed: {e}")
             self.results['orphan_detection_test'] = {'status': 'ERROR', 'error': str(e)}
@@ -300,21 +299,23 @@ class OrphanGhostCloudSyncTest:
                 'engulfing_pattern': 'ETHUSDT', 
                 'smart_money': 'XRPUSDT'
             }
-            
+
             symbol = symbol_map.get(strategy, 'TESTUSDT')
-            
+
             # Create test position
             test_position = Position(
                 strategy_name=strategy,
                 symbol=symbol,
                 side='BUY',
                 quantity=1.0,
-                entry_price=100.0
+                entry_price=100.0,
+                stop_loss=98.0,
+                take_profit=104.0
             )
-            
+
             # Add to order manager (simulating bot thinks it has position)
             self.order_manager.active_positions[strategy] = test_position
-            
+
             # Also add to database
             trade_id = f"TEST_ORPHAN_{strategy}_{int(time.time())}"
             trade_data = {
@@ -330,12 +331,12 @@ class OrphanGhostCloudSyncTest:
                 'margin_used': 100.0,
                 'created_at': datetime.now().isoformat()
             }
-            
+
             self.trade_db.add_trade(trade_id, trade_data)
-            
+
             print(f"     📊 Created test orphan scenario for {strategy}")
             return True
-            
+
         except Exception as e:
             print(f"     ❌ Failed to create test orphan: {e}")
             return False
@@ -345,21 +346,21 @@ class OrphanGhostCloudSyncTest:
         try:
             print("\n👤 PHASE 4: GHOST DETECTION WITH CLOUD TEST")
             print("-" * 40)
-            
+
             # Note: Ghost detection is now disabled in the new system
             # This test verifies that ghost detection is properly disabled
-            
+
             print("ℹ️ Ghost detection is disabled in the current system")
             print("   Testing that ghost detection doesn't interfere with operations...")
-            
+
             # Run anomaly check to ensure no ghost detection occurs
             initial_ghost_count = len(self.trade_monitor.ghost_trades)
             self.trade_monitor.check_for_anomalies(suppress_notifications=True)
             final_ghost_count = len(self.trade_monitor.ghost_trades)
-            
+
             # Verify ghost detection is disabled
             ghost_detection_disabled = (final_ghost_count == initial_ghost_count == 0)
-            
+
             self.results['ghost_detection_test'] = {
                 'status': 'SUCCESS',
                 'ghost_detection_disabled': ghost_detection_disabled,
@@ -368,9 +369,9 @@ class OrphanGhostCloudSyncTest:
                 'message': 'Ghost detection is properly disabled',
                 'timestamp': datetime.now().isoformat()
             }
-            
+
             print(f"✅ Ghost detection test completed - properly disabled")
-            
+
         except Exception as e:
             print(f"❌ Ghost detection test failed: {e}")
             self.results['ghost_detection_test'] = {'status': 'ERROR', 'error': str(e)}
@@ -380,38 +381,38 @@ class OrphanGhostCloudSyncTest:
         try:
             print("\n🧹 PHASE 5: REAL-TIME CLEARING TEST")
             print("-" * 40)
-            
+
             clearing_results = {}
-            
+
             # Test clearing for each detected orphan
             for orphan_id, orphan_trade in list(self.trade_monitor.orphan_trades.items()):
                 strategy = orphan_trade.position.strategy_name
                 symbol = orphan_trade.position.symbol
-                
+
                 print(f"\n   🎯 Testing clearing for {strategy}:")
-                
+
                 # Test database state before clearing
                 db_trades_before = len([t for t in self.trade_db.trades.values() 
                                       if t.get('trade_status') == 'OPEN'])
-                
+
                 # Test dashboard state before clearing  
                 dashboard_before = self._get_dashboard_positions()
-                
+
                 # Force clear the orphan (simulate cycle countdown)
                 orphan_trade.cycles_remaining = 0
                 self.trade_monitor._process_cycle_countdown(suppress_notifications=True)
-                
+
                 # Verify clearing from trade monitor
                 orphan_cleared_from_monitor = orphan_id not in self.trade_monitor.orphan_trades
-                
+
                 # Verify clearing from order manager
                 position_cleared_from_om = strategy not in self.order_manager.active_positions
-                
+
                 # Verify database update
                 db_trades_after = len([t for t in self.trade_db.trades.values() 
                                      if t.get('trade_status') == 'OPEN'])
                 database_updated = db_trades_after < db_trades_before
-                
+
                 # Test cloud sync after clearing
                 if self.cloud_sync:
                     try:
@@ -421,12 +422,12 @@ class OrphanGhostCloudSyncTest:
                         cloud_sync_success = False
                 else:
                     cloud_sync_success = False
-                
+
                 # Test dashboard update
                 time.sleep(2)  # Allow time for dashboard refresh
                 dashboard_after = self._get_dashboard_positions()
                 dashboard_updated = len(dashboard_after) < len(dashboard_before)
-                
+
                 clearing_results[strategy] = {
                     'orphan_cleared_from_monitor': orphan_cleared_from_monitor,
                     'position_cleared_from_om': position_cleared_from_om,
@@ -436,7 +437,7 @@ class OrphanGhostCloudSyncTest:
                     'db_trades_before': db_trades_before,
                     'db_trades_after': db_trades_after
                 }
-                
+
                 if all([orphan_cleared_from_monitor, position_cleared_from_om, database_updated]):
                     print(f"     ✅ {strategy} successfully cleared from all systems")
                 else:
@@ -444,7 +445,7 @@ class OrphanGhostCloudSyncTest:
                     print(f"        Monitor: {orphan_cleared_from_monitor}")
                     print(f"        Order Manager: {position_cleared_from_om}")
                     print(f"        Database: {database_updated}")
-            
+
             self.results['realtime_clearing_test'] = {
                 'status': 'SUCCESS',
                 'clearing_results': clearing_results,
@@ -454,10 +455,10 @@ class OrphanGhostCloudSyncTest:
                                             if r.get('cloud_synced', False)]),
                 'timestamp': datetime.now().isoformat()
             }
-            
+
             cleared_count = self.results['realtime_clearing_test']['total_cleared']
             print(f"\n✅ Real-time clearing test completed: {cleared_count} orphans cleared")
-            
+
         except Exception as e:
             print(f"❌ Real-time clearing test failed: {e}")
             self.results['realtime_clearing_test'] = {'status': 'ERROR', 'error': str(e)}
@@ -478,17 +479,17 @@ class OrphanGhostCloudSyncTest:
         try:
             print("\n📊 PHASE 6: DASHBOARD INTEGRATION TEST")
             print("-" * 40)
-            
+
             # Test dashboard API endpoints
             endpoints_tested = {}
-            
+
             test_endpoints = [
                 '/api/strategies',
                 '/api/trade-history', 
                 '/api/analytics',
                 '/api/ml-insights'
             ]
-            
+
             for endpoint in test_endpoints:
                 try:
                     response = requests.get(f'http://localhost:5000{endpoint}', timeout=5)
@@ -504,16 +505,16 @@ class OrphanGhostCloudSyncTest:
                         'error': str(e)
                     }
                     print(f"   ❌ {endpoint}: Error - {e}")
-            
+
             # Test real-time updates
             initial_strategies = self._get_dashboard_positions()
-            
+
             # Wait for dashboard refresh cycle
             time.sleep(3)
-            
+
             updated_strategies = self._get_dashboard_positions()
             realtime_working = True  # Dashboard should reflect cleared positions
-            
+
             self.results['dashboard_integration_test'] = {
                 'status': 'SUCCESS',
                 'endpoints_tested': endpoints_tested,
@@ -525,10 +526,10 @@ class OrphanGhostCloudSyncTest:
                 'updated_strategies_count': len(updated_strategies),
                 'timestamp': datetime.now().isoformat()
             }
-            
+
             accessible_count = self.results['dashboard_integration_test']['accessible_endpoints']
             print(f"\n✅ Dashboard integration test completed: {accessible_count}/{len(test_endpoints)} endpoints accessible")
-            
+
         except Exception as e:
             print(f"❌ Dashboard integration test failed: {e}")
             self.results['dashboard_integration_test'] = {'status': 'ERROR', 'error': str(e)}
@@ -538,23 +539,23 @@ class OrphanGhostCloudSyncTest:
         try:
             print("\n✅ PHASE 7: FINAL VERIFICATION")
             print("-" * 40)
-            
+
             # Verify no orphan trades remain
             remaining_orphans = len(self.trade_monitor.orphan_trades)
-            
+
             # Verify no ghost trades (should always be 0 since disabled)
             remaining_ghosts = len(self.trade_monitor.ghost_trades)
-            
+
             # Verify database consistency
             open_trades = len([t for t in self.trade_db.trades.values() 
                               if t.get('trade_status') == 'OPEN'])
-            
+
             # Verify order manager state
             active_positions = len(self.order_manager.active_positions)
-            
+
             # Verify dashboard state
             dashboard_positions = len(self._get_dashboard_positions())
-            
+
             # Test cloud sync final state
             if self.cloud_sync:
                 try:
@@ -567,9 +568,9 @@ class OrphanGhostCloudSyncTest:
             else:
                 cloud_sync_working = False
                 cloud_trade_count = 0
-            
+
             system_clean = (remaining_orphans == 0 and remaining_ghosts == 0)
-            
+
             self.results['final_verification'] = {
                 'status': 'SUCCESS',
                 'system_clean': system_clean,
@@ -582,7 +583,7 @@ class OrphanGhostCloudSyncTest:
                 'cloud_trade_count': cloud_trade_count,
                 'timestamp': datetime.now().isoformat()
             }
-            
+
             print(f"📊 Final System State:")
             print(f"   • Orphan trades: {remaining_orphans}")
             print(f"   • Ghost trades: {remaining_ghosts} (disabled)")
@@ -590,12 +591,12 @@ class OrphanGhostCloudSyncTest:
             print(f"   • Active positions: {active_positions}")
             print(f"   • Dashboard positions: {dashboard_positions}")
             print(f"   • Cloud sync: {cloud_sync_working}")
-            
+
             if system_clean:
                 print("✅ System is clean - all anomalies cleared")
             else:
                 print("⚠️ System may still have active anomalies")
-                
+
         except Exception as e:
             print(f"❌ Final verification failed: {e}")
             self.results['final_verification'] = {'status': 'ERROR', 'error': str(e)}
@@ -605,13 +606,13 @@ class OrphanGhostCloudSyncTest:
         try:
             end_time = datetime.now()
             duration = (end_time - self.start_time).total_seconds()
-            
+
             # Calculate overall success rate
             successful_phases = sum(1 for result in self.results.values() 
                                   if result.get('status') == 'SUCCESS')
             total_phases = len(self.results)
             success_rate = (successful_phases / total_phases * 100) if total_phases > 0 else 0
-            
+
             # Generate summary
             report = {
                 'test_metadata': {
@@ -633,14 +634,14 @@ class OrphanGhostCloudSyncTest:
                     'dashboard_integration_working': self.results.get('dashboard_integration_test', {}).get('accessible_endpoints', 0) > 0
                 }
             }
-            
+
             # Save report
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             report_filename = f"orphan_ghost_cloud_sync_test_{timestamp}.json"
-            
+
             with open(report_filename, 'w') as f:
                 json.dump(report, f, indent=2, default=str)
-            
+
             # Print summary
             print(f"\n📋 TEST REPORT SUMMARY")
             print("=" * 60)
@@ -651,12 +652,12 @@ class OrphanGhostCloudSyncTest:
             print(f"🧹 Real-time Clearing: {'✅ Working' if report['summary']['realtime_clearing_working'] else '❌ Failed'}")
             print(f"📊 Dashboard Integration: {'✅ Working' if report['summary']['dashboard_integration_working'] else '❌ Failed'}")
             print(f"📄 Report saved: {report_filename}")
-            
+
             if success_rate >= 80:
                 print("\n🎉 TEST SUITE PASSED - System is functioning correctly!")
             else:
                 print("\n⚠️ TEST SUITE NEEDS ATTENTION - Some components need fixes")
-                
+
         except Exception as e:
             print(f"❌ Report generation failed: {e}")
 
