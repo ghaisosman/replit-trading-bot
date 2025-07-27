@@ -1,0 +1,82 @@
+{
+  "timestamp": "2025-07-27T14:05:22.214080",
+  "dashboard_config": {
+    "symbol": "BTCUSDT",
+    "margin": 10.0,
+    "leverage": 3,
+    "timeframe": "5m",
+    "max_loss_pct": 5.0,
+    "assessment_interval": 5,
+    "name": "macd_divergence",
+    "enabled": true,
+    "decimals": 2,
+    "cooldown_period": 60,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "min_histogram_threshold": 0.0001,
+    "min_distance_threshold": 0.005,
+    "confirmation_candles": 2,
+    "min_volume": 1000000,
+    "histogram_divergence_lookback": 10,
+    "price_divergence_lookback": 10,
+    "divergence_strength_min": 0.1,
+    "macd_entry_threshold": 0.0015,
+    "macd_exit_threshold": 0.002,
+    "partial_tp_pnl_threshold": 20.0,
+    "partial_tp_position_percentage": 50.0
+  },
+  "strategy_config": {
+    "strategy_name": "macd_divergence",
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "min_histogram_threshold": 0.0001,
+    "entry_threshold": 0.0015,
+    "exit_threshold": 0.002,
+    "confirmation_candles": 2
+  },
+  "adherence_check": {
+    "macd_fast": {
+      "dashboard_value": 12,
+      "strategy_value": 12,
+      "matches": true
+    },
+    "macd_slow": {
+      "dashboard_value": 26,
+      "strategy_value": 26,
+      "matches": true
+    },
+    "macd_signal": {
+      "dashboard_value": 9,
+      "strategy_value": 9,
+      "matches": true
+    },
+    "min_histogram_threshold": {
+      "dashboard_value": 0.0001,
+      "strategy_value": 0.0001,
+      "matches": true
+    },
+    "macd_entry_threshold": {
+      "dashboard_value": 0.0015,
+      "strategy_value": 0.0015,
+      "matches": true
+    },
+    "macd_exit_threshold": {
+      "dashboard_value": 0.002,
+      "strategy_value": 0.002,
+      "matches": true
+    },
+    "confirmation_candles": {
+      "dashboard_value": 2,
+      "strategy_value": 2,
+      "matches": true
+    }
+  },
+  "issues_found": [
+    "Market data test error: 100"
+  ],
+  "recommendations": [
+    "No issues found - strategy is properly adhering to dashboard configurations"
+  ]
+}
