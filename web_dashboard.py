@@ -992,52 +992,55 @@ def create_strategy():
         }
 
         # Add strategy-specific parameters with validation
-        if 'rsi' in strategy_name.lower():
-            new_config.update({
-                'rsi_period': 14,
-                'rsi_long_entry': int(data.get('rsi_long_entry', 30)),
-                'rsi_long_exit': int(data.get('rsi_long_exit', 70)),
-                'rsi_short_entry': int(data.get('rsi_short_entry', 70)),
-                'rsi_short_exit': int(data.get('rsi_short_exit', 30))
-            })
+        try:
+            if 'rsi' in strategy_name.lower():
+                new_config.update({
+                    'rsi_period': 14,
+                    'rsi_long_entry': int(data.get('rsi_long_entry', 30)),
+                    'rsi_long_exit': int(data.get('rsi_long_exit', 70)),
+                    'rsi_short_entry': int(data.get('rsi_short_entry', 70)),
+                    'rsi_short_exit': int(data.get('rsi_short_exit', 30))
+                })
 
-            # Validate RSI parameters
-            if not (10 <= new_config['rsi_long_entry'] <= 50):
-                return jsonify({'success': False, 'message': 'RSI Long Entry must be between 10 and 50'})
-            if not (50 <= new_config['rsi_long_exit'] <= 90):
-                return jsonify({'success': False, 'message': 'RSI Long Exit must be between 50 and 90'})
+                # Validate RSI parameters
+                if not (10 <= new_config['rsi_long_entry'] <= 50):
+                    return jsonify({'success': False, 'message': 'RSI Long Entry must be between 10 and 50'})
+                if not (50 <= new_config['rsi_long_exit'] <= 90):
+                    return jsonify({'success': False, 'message': 'RSI Long Exit must be between 50 and 90'})
 
-        elif 'macd' in strategy_name.lower():
-            new_config.update({
-                'macd_fast': int(data.get('macd_fast', 12)),
-                'macd_slow': int(data.get('macd_slow', 26)),
-                'macd_signal': int(data.get('macd_signal', 9)),
-                'min_histogram_threshold': float(data.get('min_histogram_threshold', 0.0001)),
-                'min_distance_threshold': float(data.get('min_distance_threshold', 0.005)),
-                'confirmation_candles': int(data.get('confirmation_candles', 2))
-            })
+            elif 'macd' in strategy_name.lower():
+                new_config.update({
+                    'macd_fast': int(data.get('macd_fast', 12)),
+                    'macd_slow': int(data.get('macd_slow', 26)),
+                    'macd_signal': int(data.get('macd_signal', 9)),
+                    'min_histogram_threshold': float(data.get('min_histogram_threshold', 0.0001)),
+                    'min_distance_threshold': float(data.get('min_distance_threshold', 0.005)),
+                    'confirmation_candles': int(data.get('confirmation_candles', 2))
+                })
 
-            # Validate MACD parameters
-            if new_config['macd_fast'] >= new_config['macd_slow']:
-                return jsonify({'success': False, 'message': 'MACD Fast must be less than MACD Slow'})
+                # Validate MACD parameters
+                if new_config['macd_fast'] >= new_config['macd_slow']:
+                    return jsonify({'success': False, 'message': 'MACD Fast must be less than MACD Slow'})
 
-        elif 'engulfing' in strategy_name.lower():
-            new_config.update({
-                'rsi_period': int(data.get('rsi_period', 14)),
-                'rsi_threshold': float(data.get('rsi_threshold', 50)),
-                'rsi_long_exit': int(data.get('rsi_long_exit', 70)),
-                'rsi_short_exit': int(data.get('rsi_short_exit', 30)),
-                'stable_candle_ratio': float(data.get('stable_candle_ratio', 0.5)),
-                'price_lookback_bars': int(data.get('price_lookback_bars', 5)),
-                'partial_tp_pnl_threshold': float(data.get('partial_tp_pnl_threshold', 0.0)),
-                'partial_tp_position_percentage': float(data.get('partial_tp_position_percentage', 0.0))
-            })
+            elif 'engulfing' in strategy_name.lower():
+                new_config.update({
+                    'rsi_period': int(data.get('rsi_period', 14)),
+                    'rsi_threshold': float(data.get('rsi_threshold', 50)),
+                    'rsi_long_exit': int(data.get('rsi_long_exit', 70)),
+                    'rsi_short_exit': int(data.get('rsi_short_exit', 30)),
+                    'stable_candle_ratio': float(data.get('stable_candle_ratio', 0.5)),
+                    'price_lookback_bars': int(data.get('price_lookback_bars', 5)),
+                    'partial_tp_pnl_threshold': float(data.get('partial_tp_pnl_threshold', 0.0)),
+                    'partial_tp_position_percentage': float(data.get('partial_tp_position_percentage', 0.0))
+                })
 
-            # Validate Engulfing Pattern parameters
-            if not (30 <= new_config['rsi_threshold'] <= 70):
-                return jsonify({'success': False, 'message': 'RSI Threshold must be between 30 and 70'})
-            if not (0.1 <= new_config['stable_candle_ratio'] <= 1.0):
-                return jsonify({'success': False, 'message': 'Stable Candle Ratio must be between 0.1 and 1.0'})
+                # Validate Engulfing Pattern parameters
+                if not (30 <= new_config['rsi_threshold'] <= 70):
+                    return jsonify({'success': False, 'message': 'RSI Threshold must be between 30 and 70'})
+                if not (0.1 <= new_config['stable_candle_ratio'] <= 1.0):
+                    return jsonify({'success': False, 'message': 'Stable Candle Ratio must be between 0.1 and 1.0'})
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Invalid parameter value: {e}'})
 
         # 🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Save to persistent config
         trading_config_manager.update_strategy_params(strategy_name, new_config)
