@@ -710,7 +710,8 @@ class OrderManager:
             self.logger.error(f"Error checking position on symbol: {e}")
             return False
 
-    def get_position_on_symbol(self, symbol: str) -> Optional[Position]:
+    def get_position_on_symbol(```python
+self, symbol: str) -> Optional[Position]:
         """Get existing position on symbol if any"""
         try:
             for position in self.active_positions.values():
@@ -1342,3 +1343,56 @@ Remaining Position: {position.remaining_quantity} {position.symbol.replace('USDT
         except Exception as e:
             self.logger.error(f"Error validating position details: {e}")
             return False
+
+    def _recover_active_positions(self):
+        """Recover active positions from database on startup"""
+        try:
+            # Get open trades from database
+            all_trades = self.trade_db.get_all_trades()
+            open_trades = {trade_id: trade_data for trade_id, trade_data in all_trades.items() 
+                          if trade_data.get('trade_status') == 'OPEN'}
+
+            self.logger.info(f"🔍 Found {len(open_trades)} open trades in database for recovery")
+
+            recovered_count = 0
+            for trade_id, trade_data in open_trades.items():
+                try:
+                    # Restore to active positions with full trade data
+                    position_data = {
+                        'trade_id': trade_id,
+                        'strategy_name': trade_data.get('strategy_name'),
+                        'symbol': trade_data.get('symbol'),
+                        'side': trade_data.get('side'),
+                        'quantity': float(trade_data.get('quantity', 0)),
+                        'entry_price': float(trade_data.get('entry_price', 0)),
+                        'stop_loss': trade_data.get('stop_loss'),
+                        'take_profit': trade_data.get('take_profit'),
+                        'margin_used': float(trade_data.get('margin_used', 0)),
+                        'leverage': trade_data.get('leverage', 1),
+                        'status': 'OPEN',
+                        'created_at': trade_data.get('created_at'),
+                        'original_trade_data': trade_data  # Keep full original data
+                    }
+
+                    # Add to active positions tracking
+                    self.active_positions[trade_id] = position_data
+                    recovered_count += 1
+
+                    self.logger.info(f"✅ Recovered position: {trade_id} | {trade_data.get('symbol')} | {trade_data.get('side')}")
+
+                except Exception as pos_error:
+                    self.logger.error(f"❌ Failed to recover position {trade_id}: {pos_error}")
+                    continue
+
+            self.logger.info(f"✅ Successfully recovered {recovered_count}/{len(open_trades)} active positions to memory")
+
+            # Verify recovery
+            if len(self.active_positions) > 0:
+                self.logger.info(f"📊 Active positions in memory: {list(self.active_positions.keys())}")
+            else:
+                self.logger.warning("⚠️ No active positions in memory after recovery")
+
+        except Exception as e:
+            self.logger.error(f"❌ Position recovery failed: {e}")
+            import traceback
+            self.logger.error(f"🔍 Recovery error traceback: {traceback.format_exc()}")
