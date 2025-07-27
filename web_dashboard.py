@@ -1381,7 +1381,8 @@ def update_strategy(strategy_name):
                 logger.error(f"❌ VALIDATION FAILED: {key} = {saved_config.get(key)} (expected {value})")
 
         if validation_passed:
-            logger.info(f"✅ VALIDATION PASSED: All {len(data)} parameters correctly saved")        else:
+            logger.info(f"✅ VALIDATION PASSED: All {len(data)} parameters correctly saved")
+        else:
             logger.error(f"❌ VALIDATION FAILED: Some parameters not saved correctly")
 
         logger.info(f"🌐 WEB DASHBOARD: SINGLE SOURCE OF TRUTH UPDATE for {strategy_name}")
