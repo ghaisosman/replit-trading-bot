@@ -55,7 +55,6 @@ class AllStrategiesOrphanGhostTest:
                 'side': 'BUY',
                 'quantity': 15.0,
                 'entry_price': 0.85,
-                'margin': 25.0,
                 'leverage': 10
             },
             'macd_divergence': {
@@ -63,7 +62,6 @@ class AllStrategiesOrphanGhostTest:
                 'side': 'BUY',
                 'quantity': 0.002,
                 'entry_price': 45000.0,
-                'margin': 50.0,
                 'leverage': 5
             },
             'engulfing_pattern': {
@@ -71,7 +69,6 @@ class AllStrategiesOrphanGhostTest:
                 'side': 'SELL',
                 'quantity': 0.05,
                 'entry_price': 3200.0,
-                'margin': 40.0,
                 'leverage': 8
             },
             'smart_money': {
@@ -79,7 +76,6 @@ class AllStrategiesOrphanGhostTest:
                 'side': 'BUY',
                 'quantity': 0.25,
                 'entry_price': 180.0,
-                'margin': 30.0,
                 'leverage': 6
             }
         }
@@ -115,13 +111,13 @@ class AllStrategiesOrphanGhostTest:
         config = self.strategy_test_configs.get(strategy_type, self.strategy_test_configs['rsi_oversold'])
         
         return Position(
+            strategy_name=strategy_name,
             symbol=config['symbol'],
             side=config['side'],
-            quantity=config['quantity'],
             entry_price=config['entry_price'],
-            margin=config['margin'],
-            leverage=config['leverage'],
-            strategy_name=strategy_name
+            quantity=config['quantity'],
+            stop_loss=config['entry_price'] * 0.98 if config['side'] == 'BUY' else config['entry_price'] * 1.02,
+            take_profit=config['entry_price'] * 1.04 if config['side'] == 'BUY' else config['entry_price'] * 0.96
         )
 
     def test_orphan_detection_all_strategies(self):
@@ -333,8 +329,11 @@ class AllStrategiesOrphanGhostTest:
                                          if r.get('orphan_detected', False))
         
         clearing_results = self.test_results.get('clearing_results', {})
-        successful_clearings = sum(1 for r in clearing_results.values() 
-                                 if r.get('success', False))
+        successful_clearings = 0
+        if isinstance(clearing_results, dict):
+            for r in clearing_results.values():
+                if isinstance(r, dict) and r.get('success', False):
+                    successful_clearings += 1
         
         ghost_results = self.test_results.get('ghost_detection_results', {})
         registered_strategies = sum(1 for r in ghost_results.values() 
