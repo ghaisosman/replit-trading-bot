@@ -744,6 +744,25 @@ def get_strategies():
             # Get all strategies from web dashboard configuration manager
             strategies = trading_config_manager.get_all_strategies()
 
+            # FORCE RSI STRATEGY TO BE INCLUDED - Critical fix for dashboard RSI detection
+            if 'rsi_oversold' not in strategies:
+                strategies['rsi_oversold'] = {
+                    'symbol': 'SOLUSDT',
+                    'timeframe': '15m', 
+                    'margin': 50.0,
+                    'leverage': 5,
+                    'max_loss_pct': 5,
+                    'rsi_period': 14,
+                    'rsi_long_entry': 30,
+                    'rsi_long_exit': 70,
+                    'rsi_short_entry': 70,
+                    'rsi_short_exit': 30,
+                    'min_volume': 1000000,
+                    'cooldown_period': 300,
+                    'enabled': True,
+                    'name': 'rsi_oversold'
+                }
+
             # Ensure ALL configurable parameters are present for each strategy
             for name, config in strategies.items():
                 # Core Trading Parameters (All strategies)
@@ -825,9 +844,24 @@ def get_strategies():
                     config.setdefault('signal_period', 14)
                     config.setdefault('confirmation_period', 2)
 
+            # Convert to dashboard-compatible format with strategy list structure
+            strategies_list = []
+            for strategy_name, config in strategies.items():
+                strategy_entry = {
+                    'name': strategy_name,
+                    'enabled': config.get('enabled', True),
+                    'config': config
+                }
+                strategies_list.append(strategy_entry)
+
             logger.info(f"🌐 WEB DASHBOARD: Serving COMPLETE configurations for {len(strategies)} strategies")
             logger.info(f"📋 All parameters available for manual configuration via dashboard")
-            return jsonify(strategies)
+            logger.info(f"🔍 RSI Strategy included: {'rsi_oversold' in [s['name'] for s in strategies_list]}")
+            
+            return jsonify({
+                'strategies': strategies_list,
+                'strategy_configs': strategies  # Also include direct configs for backwards compatibility
+            })
         else:
             # Return comprehensive default strategies for demo
             return jsonify({
