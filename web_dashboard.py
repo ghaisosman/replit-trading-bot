@@ -1043,7 +1043,10 @@ def create_strategy():
             return jsonify({'success': False, 'message': f'Invalid parameter value: {e}'})
 
         # 🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Save to persistent config
-        trading_config_manager.update_strategy_params(strategy_name, new_config)
+        try:
+            trading_config_manager.update_strategy_params(strategy_name, new_config)
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Failed to save strategy configuration: {e}'})
 
         logger.info(f"🆕 NEW STRATEGY CREATED: {strategy_name} via web dashboard")
         logger.info(f"🌐 WEB DASHBOARD: New strategy config saved as single source of truth")
