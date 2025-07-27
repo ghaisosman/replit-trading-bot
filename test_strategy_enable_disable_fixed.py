@@ -86,19 +86,38 @@ class StrategyEnableDisableTest:
                 # Debug the response to understand the structure
                 print(f"🔍 DEBUG: Raw API response keys: {list(data.keys())}")
                 
-                # Filter out non-strategy keys and only return actual strategies
                 actual_strategies = {}
-                for key, value in data.items():
-                    # Skip configuration keys and only include actual strategy configurations
-                    if isinstance(value, dict) and ('symbol' in value or 'margin' in value or 'enabled' in value):
-                        actual_strategies[key] = value
-                        print(f"✅ Found valid strategy: {key} with symbol: {value.get('symbol', 'N/A')}")
-                    else:
-                        print(f"⚠️ Skipping non-strategy key: {key} (type: {type(value)})")
                 
-                if not actual_strategies:
-                    print(f"⚠️ No valid strategies found in response: {list(data.keys())}")
-                    print(f"🔍 Full response data: {data}")
+                # Check if we have strategy_configs (preferred source)
+                if 'strategy_configs' in data and isinstance(data['strategy_configs'], dict):
+                    print(f"✅ Found strategy_configs with {len(data['strategy_configs'])} strategies")
+                    actual_strategies = data['strategy_configs']
+                
+                # Also check strategies list format
+                elif 'strategies' in data and isinstance(data['strategies'], list):
+                    print(f"✅ Found strategies list with {len(data['strategies'])} strategies")
+                    for strategy in data['strategies']:
+                        if isinstance(strategy, dict) and 'name' in strategy:
+                            strategy_name = strategy['name']
+                            strategy_config = strategy.get('config', strategy)
+                            actual_strategies[strategy_name] = strategy_config
+                
+                # Fallback: treat top-level keys as strategies
+                else:
+                    for key, value in data.items():
+                        if isinstance(value, dict) and ('symbol' in value or 'margin' in value or 'enabled' in value):
+                            actual_strategies[key] = value
+                
+                # Validate we found strategies
+                if actual_strategies:
+                    print(f"✅ Successfully parsed {len(actual_strategies)} strategies:")
+                    for name, config in actual_strategies.items():
+                        symbol = config.get('symbol', 'N/A')
+                        enabled = config.get('enabled', 'N/A')
+                        print(f"   🎯 {name}: {symbol} (enabled: {enabled})")
+                else:
+                    print(f"❌ No valid strategies found in response")
+                    print(f"🔍 Full response structure: {data}")
                 
                 return actual_strategies
             else:
