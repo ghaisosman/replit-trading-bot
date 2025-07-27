@@ -803,7 +803,8 @@ def get_strategies():
                     else:
                         config['decimals'] = 2
 
-                # RSI Strategy Specific Parameters                if 'rsi' in name.lower():
+                # RSI Strategy Specific Parameters
+                if 'rsi' in name.lower():
                     config.setdefault('rsi_period', 14)
                     config.setdefault('rsi_long_entry', 30)    # Oversold entry
                     config.setdefault('rsi_long_exit', 70)     # Take profit (overbought)
