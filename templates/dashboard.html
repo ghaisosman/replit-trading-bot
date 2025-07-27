@@ -838,7 +838,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button>
+                    <button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button>
                 ```text
 
                 </div>
@@ -2438,19 +2438,31 @@
 
         // Helper functions to update UI elements after enable/disable actions
         function updateStrategyStatusBadge(strategyName, state) {
-            const badge = document.querySelector(`.card:contains("${strategyName}") .badge`);
-            if (badge) {
-                badge.textContent = state === 'enabled' ? 'Active' : 'Disabled';
-                badge.className = `badge bg-${state === 'enabled' ? 'success' : 'secondary'}`;
+            const cards = document.querySelectorAll('.card');
+            for (let card of cards) {
+                if (card.innerHTML.includes(strategyName)) {
+                    const badge = card.querySelector('.badge');
+                    if (badge) {
+                        badge.textContent = state === 'enabled' ? 'Active' : 'Disabled';
+                        badge.className = `badge bg-${state === 'enabled' ? 'success' : 'secondary'}`;
+                    }
+                    break;
+                }
             }
         }
 
         function updateStrategyToggleButton(strategyName, state) {
-            const button = document.querySelector(`.card:contains("${strategyName}") .strategy-toggle-btn`);
-            if (button) {
-                button.textContent = state === 'enabled' ? 'Disable' : 'Enable';
-                button.className = `btn btn-outline-${state === 'enabled' ? 'danger' : 'success'} btn-sm strategy-toggle-btn`;
-                button.setAttribute('onclick', `${state === 'enabled' ? 'disableStrategy' : 'enableStrategy'}('${strategyName}')`);
+            const cards = document.querySelectorAll('.card');
+            for (let card of cards) {
+                if (card.innerHTML.includes(strategyName)) {
+                    const button = card.querySelector('.strategy-toggle-btn');
+                    if (button) {
+                        button.textContent = state === 'enabled' ? 'Disable' : 'Enable';
+                        button.className = `btn btn-outline-${state === 'enabled' ? 'danger' : 'success'} btn-sm strategy-toggle-btn`;
+                        button.setAttribute('onclick', `${state === 'enabled' ? 'disableStrategy' : 'enableStrategy'}('${strategyName}')`);
+                    }
+                    break;
+                }
             }
         }
 
@@ -3047,12 +3059,15 @@
 
         // Add a helper function to update strategy badge in the card
         function updateStrategyBadge(strategyName, text, className) {
-            var card = findStrategyCard(strategyName);
-            if (card) {
-                var badge = card.querySelector('.badge');
-                if (badge) {
-                    badge.textContent = text;
-                    badge.className = className;
+            const cards = document.querySelectorAll('.card');
+            for (let card of cards) {
+                if (card.innerHTML.includes(strategyName)) {
+                    const badge = card.querySelector('.badge');
+                    if (badge) {
+                        badge.textContent = text;
+                        badge.className = className;
+                    }
+                    break;
                 }
             }
         }
