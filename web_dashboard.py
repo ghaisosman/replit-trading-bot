@@ -776,7 +776,7 @@ def get_strategies():
 
                 # Position Management Parameters
                 config.setdefault('cooldown_period', 300)  # 5 minutes default
-                config.setdefault('min_volume', 1000000 if 'rsi' in name.lower() else 1000.0)
+                config.setdefault('min_volume', 1000000 if 'rsi' in name.lower()< 1000.0)
                 config.setdefault('take_profit_pct', 20.0)  # Take profit as % of margin
                 config.setdefault('trailing_stop_pct', 2.0)
                 config.setdefault('max_position_time', 3600)  # 1 hour max
@@ -799,7 +799,7 @@ def get_strategies():
                     config.setdefault('rsi_period', 14)
                     config.setdefault('rsi_long_entry', 30)    # Oversold entry
                     config.setdefault('rsi_long_exit', 70)     # Take profit (overbought)
-                    config.setdefault('rsi_short_entry', 70)   # Overbought entry  
+                    config.setdefault('rsi_short_entry', 70)   # Overbought entry
                     config.setdefault('rsi_short_exit', 30)    # Take profit (oversold)
 
                 # MACD Strategy Specific Parameters
@@ -847,7 +847,7 @@ def get_strategies():
             logger.info(f"🌐 WEB DASHBOARD: Serving COMPLETE configurations for {len(strategies)} strategies")
             logger.info(f"📋 All parameters available for manual configuration via dashboard")
             logger.info(f"🔍 RSI Strategy included: {'rsi_oversold' in strategies}")
-            
+
             # Ensure we always have default strategies available
             if 'rsi_oversold' not in strategies:
                 strategies['rsi_oversold'] = {
@@ -863,7 +863,7 @@ def get_strategies():
                     'enabled': True,
                     'assessment_interval': 60
                 }
-            
+
             if 'macd_divergence' not in strategies:
                 strategies['macd_divergence'] = {
                     'symbol': 'BTCUSDT',
@@ -876,14 +876,14 @@ def get_strategies():
                     'enabled': True,
                     'assessment_interval': 60
                 }
-            
+
             # Filter and return only valid strategy configurations for tests
             valid_strategies = {}
             for name, config in strategies.items():
                 # Only include configurations that have trading parameters
                 if isinstance(config, dict) and ('symbol' in config or 'margin' in config):
                     valid_strategies[name] = config
-            
+
             logger.info(f"🔍 API Response: Returning {len(valid_strategies)} valid strategies: {list(valid_strategies.keys())}")
             return jsonify(valid_strategies)
         else:
@@ -1588,154 +1588,165 @@ def get_balance():
 
         return jsonify(error_balance), 200
 
+
 @app.route('/api/positions')
-@rate_limit('positions', max_requests=15, window_seconds=60)
 def get_positions():
-    """Get active positions - reads from database as primary source"""
-    current_time = datetime.now().strftime('%H:%M:%S')
-
-    # FIXED: Always return complete JSON structure
-    default_response = {
-        'success': True,
-        'positions': [],
-        'status': 'checking',
-        'count': 0,
-        'timestamp': current_time
-    }
-
+    """Get current trading positions from unified system"""
     try:
-        positions = []
+        # Get bot manager instance
+        import sys
+        bot_manager = sys.modules.get('__main__', {}).bot_manager or globals().get('bot_manager')
 
-        # PRIMARY SOURCE: Read from trade database
-        if IMPORTS_AVAILABLE:
+        if not bot_manager:
+            return jsonify({
+                'status': 'error',
+                'message': 'Bot not running',
+                'positions': []
+            })
+
+        # Use unified position system if available
+        if hasattr(bot_manager, 'unified_positions'):
             try:
-                from src.execution_engine.trade_database import TradeDatabase
-                trade_db = TradeDatabase()
+                # Refresh from database to ensure latest state
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Schedule refresh for next iteration
+                    asyncio.create_task(bot_manager.unified_positions.refresh_from_database())
+                else:
+                    loop.run_until_complete(bot_manager.unified_positions.refresh_from_database())
 
-                # Get all open trades from database
-                open_trades = []
-                for trade_id, trade_data in trade_db.trades.items():
-                    if trade_data.get('trade_status') == 'OPEN':
-                        open_trades.append((trade_id, trade_data))
+                positions = []
 
-                logger.info(f"🔍 DEBUG: Found {len(open_trades)} open trades in database")
-
-                # Convert database trades to position format
-                for trade_id, trade_data in open_trades:
+                for trade_id, unified_pos in bot_manager.unified_positions.get_all_positions().items():
                     try:
-                        symbol = trade_data.get('symbol')
-                        if not symbol:
-                            continue
-
-                        # Get current price for PnL calculation
+                        # Get current price
                         current_price = None
                         try:
-                            if price_fetcher:
-                                current_price = price_fetcher.get_current_price(symbol)
-                        except Exception as price_error:
-                            logger.debug(f"Could not get current price for {symbol}: {price_error}")
-                            current_price = trade_data.get('entry_price', 0)
+                            ticker = bot_manager.binance_client.client.get_symbol_ticker(symbol=unified_pos.symbol)
+                            current_price = float(ticker['price'])
+                        except:
+                            current_price = unified_pos.entry_price  # Fallback
 
                         # Calculate PnL
-                        pnl = 0.0
-                        pnl_percent = 0.0
+                        if unified_pos.side == 'BUY':
+                            pnl = (current_price - unified_pos.entry_price) * unified_pos.quantity
+                        else:
+                            pnl = (unified_pos.entry_price - current_price) * unified_pos.quantity
 
-                        if current_price and trade_data.get('entry_price') and trade_data.get('quantity'):
-                            entry_price = float(trade_data['entry_price'])
-                            quantity = float(trade_data['quantity'])
-                            side = trade_data.get('side', 'BUY')
-
-                            if side == 'BUY':
-                                pnl = (current_price - entry_price) * quantity
-                            else:
-                                pnl = (entry_price - current_price) * quantity
-
-                            # Calculate PnL percentage against margin invested
-                            margin_invested = trade_data.get('margin_used', 0)
-                            if margin_invested > 0:
-                                pnl_percent = (pnl / margin_invested) * 100
+                        pnl_percent = (pnl / unified_pos.margin_used) * 100 if unified_pos.margin_used > 0 else 0
 
                         position_data = {
-                            'strategy': trade_data.get('strategy_name', 'unknown'),
-                            'symbol': symbol,
-                            'side': trade_data.get('side', 'BUY'),
-                            'entry_price': trade_data.get('entry_price', 0),
-                            'quantity': trade_data.get('quantity', 0),
-                            'position_value_usdt': trade_data.get('position_value_usdt', 0),
-                            'margin_invested': trade_data.get('margin_used', 0),
-                            'current_price': current_price or 0,
+                            'trade_id': unified_pos.trade_id,
+                            'strategy_name': unified_pos.strategy_name,
+                            'symbol': unified_pos.symbol,
+                            'side': unified_pos.side,
+                            'entry_price': unified_pos.entry_price,
+                            'current_price': current_price,
+                            'quantity': unified_pos.quantity,
                             'pnl': pnl,
                             'pnl_percent': pnl_percent,
-                            'trade_id': trade_id
+                            'margin_invested': unified_pos.margin_used,
+                            'leverage': unified_pos.leverage,
+                            'stop_loss': unified_pos.stop_loss,
+                            'take_profit': unified_pos.take_profit,
+                            'entry_time': unified_pos.created_at,
+                            'status': unified_pos.status,
+                            'has_binance_position': abs(unified_pos.binance_position_amt) > 0.001,
+                            'source': 'unified_system'
                         }
 
                         positions.append(position_data)
-                        logger.debug(f"✅ Added position: {symbol} | {trade_data.get('strategy_name')} | PnL: ${pnl:.2f}")
 
-                    except Exception as pos_error:
-                        logger.error(f"Error processing database trade {trade_id}: {pos_error}")
+                    except Exception as e:
+                        logging.error(f"Error processing unified position {trade_id}: {e}")
                         continue
 
-            except Exception as db_error:
-                logger.error(f"Database read error: {db_error}")
-                # Fallback to bot manager positions if database fails
-                current_bot = get_bot_manager()
-                if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
-                    active_positions = getattr(current_bot.order_manager, 'active_positions', {})
-                    for strategy_name, position in active_positions.items():
-                        try:
-                            if not position or not hasattr(position, 'symbol'):
-                                continue
+                return jsonify({
+                    'status': 'success',
+                    'positions': positions,
+                    'count': len(positions),
+                    'source': 'unified_position_system',
+                    'synchronized': True
+                })
 
-                            # Get current price
-                            current_price = None
-                            try:
-                                if IMPORTS_AVAILABLE and price_fetcher:
-                                    current_price = price_fetcher.get_current_price(position.symbol)
-                            except:
-                                pass
+            except Exception as e:
+                logging.error(f"Error with unified positions: {e}")
+                # Fallback to legacy system
 
-                            position_data = {
-                                'strategy': strategy_name,
-                                'symbol': position.symbol,
-                                'side': position.side,
-                                'entry_price': position.entry_price,
-                                'quantity': position.quantity,
-                                'position_value_usdt': float(position.entry_price) * float(position.quantity),
-                                'margin_invested': getattr(position, 'actual_margin_used', 50.0),
-                                'current_price': current_price or 0,
-                                'pnl': 0,
-                                'pnl_percent': 0
-                            }
-                            positions.append(position_data)
-                        except Exception as pos_error:
-                            logger.error(f"Error processing bot position {strategy_name}: {pos_error}")
-                            continue
+        # Fallback to legacy order manager system
+        if not hasattr(bot_manager, 'order_manager'):
+            return jsonify({
+                'status': 'error',
+                'message': 'Position system not available',
+                'positions': []
+            })
 
-        # Return positions with proper status
-        status = 'active' if positions else 'no_positions'
-        logger.info(f"🔍 DEBUG: Returning {len(positions)} positions with status: {status}")
+        positions = []
+
+        # Get positions from order manager (legacy fallback)
+        for strategy_name, position in bot_manager.order_manager.active_positions.items():
+            try:
+                # Get current price
+                current_price = None
+                try:
+                    ticker = bot_manager.binance_client.client.get_symbol_ticker(symbol=position.symbol)
+                    current_price = float(ticker['price'])
+                except:
+                    current_price = position.entry_price  # Fallback
+
+                # Calculate PnL
+                if position.side == 'BUY':
+                    pnl = (current_price - position.entry_price) * position.quantity
+                else:
+                    pnl = (position.entry_price - current_price) * position.quantity
+
+                # Get margin from strategy config
+                strategy_config = bot_manager.strategies.get(strategy_name, {})
+                margin_invested = getattr(position, 'actual_margin_used', None) or strategy_config.get('margin', 50.0)
+
+                pnl_percent = (pnl / margin_invested) * 100 if margin_invested > 0 else 0
+
+                position_data = {
+                    'strategy_name': strategy_name,
+                    'symbol': position.symbol,
+                    'side': position.side,
+                    'entry_price': position.entry_price,
+                    'current_price': current_price,
+                    'quantity': position.quantity,
+                    'pnl': pnl,
+                    'pnl_percent': pnl_percent,
+                    'margin_invested': margin_invested,
+                    'leverage': strategy_config.get('leverage', 1),
+                    'stop_loss': position.stop_loss,
+                    'take_profit': position.take_profit,
+                    'trade_id': getattr(position, 'trade_id', 'N/A'),
+                    'entry_time': getattr(position, 'entry_time', datetime.now()).isoformat() if hasattr(getattr(position, 'entry_time', None), 'isoformat') else str(getattr(position, 'entry_time', 'N/A')),
+                    'status': getattr(position, 'status', 'OPEN'),
+                    'source': 'legacy_system'
+                }
+
+                positions.append(position_data)
+
+            except Exception as e:
+                logging.error(f"Error processing position {strategy_name}: {e}")
+                continue
 
         return jsonify({
-            'success': True,
+            'status': 'success',
             'positions': positions,
-            'status': status,
             'count': len(positions),
-            'timestamp': current_time,
-            'source': 'database'
+            'source': 'legacy_order_manager',
+            'synchronized': False
         })
 
     except Exception as e:
-        logger.error(f"Positions API error: {e}")
-        import traceback
-        logger.error(f"Positions API traceback: {traceback.format_exc()}")
-
-        default_response.update({
-            'success': False,
-            'status': 'api_error',
-            'error': str(e)
+        logging.error(f"Error getting positions: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'positions': []
         })
-        return jsonify(default_response)
 
 @app.route('/api/rsi/<symbol>')
 def get_rsi(symbol):
@@ -1965,7 +1976,7 @@ def get_current_price(symbol):
     """Get current price for a symbol with error handling"""
     try:
         if IMPORTS_AVAILABLE and price_fetcher:
-            ticker = price_fetcher.binance_client.get_symbol_ticker(symbol)
+            ticker = price_fetcher.binance_client.client.get_symbol_ticker(symbol)
             if ticker and 'price' in ticker:
                 price = float(ticker['price'])
                 logger.debug(f"Price fetch successful for {symbol}: ${price}")
