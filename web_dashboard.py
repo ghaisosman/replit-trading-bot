@@ -847,7 +847,7 @@ def get_strategies():
             logger.info(f"🌐 WEB DASHBOARD: Serving COMPLETE configurations for {len(strategies)} strategies")
             logger.info(f"📋 All parameters available for manual configuration via dashboard")
             logger.info(f"🔍 RSI Strategy included: {'rsi_oversold' in strategies}")
-            
+
             # Ensure we always have default strategies available
             if 'rsi_oversold' not in strategies:
                 strategies['rsi_oversold'] = {
@@ -863,7 +863,7 @@ def get_strategies():
                     'enabled': True,
                     'assessment_interval': 60
                 }
-            
+
             if 'macd_divergence' not in strategies:
                 strategies['macd_divergence'] = {
                     'symbol': 'BTCUSDT',
@@ -876,14 +876,14 @@ def get_strategies():
                     'enabled': True,
                     'assessment_interval': 60
                 }
-            
+
             # Filter and return only valid strategy configurations for tests
             valid_strategies = {}
             for name, config in strategies.items():
                 # Only include configurations that have trading parameters
                 if isinstance(config, dict) and ('symbol' in config or 'margin' in config):
                     valid_strategies[name] = config
-            
+
             logger.info(f"🔍 API Response: Returning {len(valid_strategies)} valid strategies: {list(valid_strategies.keys())}")
             return jsonify(valid_strategies)
         else:
@@ -1378,7 +1378,8 @@ def update_strategy(strategy_name):
 
         logger.info(f"🌐 WEB DASHBOARD: SINGLE SOURCE OF TRUTH UPDATE for {strategy_name}")
         logger.info(f"📝 ALL PARAMETERS UPDATED: {list(data.keys())}")
-        logger.info(f"🔄 VALUES: {data}")
+        logger.info(```text
+f"🔄 VALUES: {data}")
         logger.info(f"📁 FILE CONFIGS WILL BE OVERRIDDEN - Web dashboard has authority")
 
         # Always try to get the latest shared bot manager
@@ -2182,6 +2183,7 @@ def get_ml_system_status():
                 'status': {
                     'data_available': False,
                     'models_trained': False,
+                    ```text
                     'total_trades': 0,
                     'closed_trades': 0,
                     'ml_ready': False
@@ -2658,3 +2660,48 @@ def start_web_dashboard(debug=False, use_reloader=False):
 if __name__ == '__main__':
     # Set debug to True only during development - NEVER in production
     start_web_dashboard(debug=False, use_reloader=False)
+
+@app.route('/api/force_balance_refresh', methods=['POST'])
+def force_balance_refresh():
+    """Force balance refresh"""
+    try:
+        if bot_manager and bot_manager.balance_fetcher:
+            bot_manager.balance_fetcher.force_refresh()
+            return jsonify({
+                'success': True,
+                'message': 'Balance refresh triggered'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Balance fetcher not available'
+            }), 500
+    except Exception as e:
+        logger.error(f"Error forcing balance refresh: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/force_orphan_detection', methods=['POST'])
+def force_orphan_detection():
+    """Force immediate orphan detection"""
+    try:
+        if bot_manager:
+            result = bot_manager.force_orphan_detection()
+            return jsonify({
+                'success': True,
+                'message': 'Orphan detection triggered',
+                'result': result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Bot manager not available'
+            }), 500
+    except Exception as e:
+        logger.error(f"Error forcing orphan detection: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500

@@ -126,24 +126,43 @@ class ReliableOrphanDetector:
     def _get_all_binance_positions(self) -> List[Dict[str, Any]]:
         """Get all active positions from Binance"""
         try:
+            self.logger.debug("🔍 DEBUG: Checking Binance positions...")
+            
             if not self.binance_client.is_futures:
                 self.logger.warning("⚠️ Spot trading mode - position verification limited")
                 return []
 
-            account_info = self.binance_client.client.futures_account()
+            # Test Binance connectivity first
+            try:
+                account_info = self.binance_client.client.futures_account()
+                self.logger.debug("🔍 DEBUG: Successfully retrieved Binance account info")
+            except Exception as api_error:
+                self.logger.error(f"❌ Binance API error: {api_error}")
+                # Check if it's a geographic restriction
+                if "IP" in str(api_error) or "geo" in str(api_error).lower() or "restricted" in str(api_error).lower():
+                    self.logger.error("🌍 Geographic restriction detected - orphan detection may not work in deployment")
+                return []
+            
             all_positions = account_info.get('positions', [])
+            self.logger.debug(f"🔍 DEBUG: Retrieved {len(all_positions)} total positions from Binance")
 
             # Filter for positions with meaningful amounts
             active_positions = []
             for pos in all_positions:
                 position_amt = float(pos.get('positionAmt', 0))
+                symbol = pos.get('symbol', 'UNKNOWN')
+                
                 if abs(position_amt) >= self.position_threshold:
                     active_positions.append(pos)
+                    self.logger.debug(f"🔍 DEBUG: Active position found: {symbol} = {position_amt}")
 
+            self.logger.info(f"📊 Found {len(active_positions)} active positions on Binance (threshold: {self.position_threshold})")
             return active_positions
 
         except Exception as e:
             self.logger.error(f"❌ Error getting Binance positions: {e}")
+            import traceback
+            self.logger.error(f"🔍 Binance position error traceback: {traceback.format_exc()}")
             return []
 
     def _verify_trade_against_binance(self, trade: Dict[str, Any], binance_positions: List[Dict[str, Any]]) -> bool:
@@ -315,5 +334,45 @@ class ReliableOrphanDetector:
 
     def force_verification(self) -> Dict[str, Any]:
         """Force immediate verification regardless of interval"""
+        self.logger.info("🔧 FORCING IMMEDIATE ORPHAN VERIFICATION")
         self.last_verification = datetime.now() - timedelta(seconds=self.verification_interval + 1)
         return self.run_verification_cycle()
+
+    def debug_verification_status(self) -> Dict[str, Any]:
+        """Debug current verification status"""
+        try:
+            self.logger.info("🔍 DEBUG: Starting verification status check")
+            
+            # Check database trades
+            open_trades = self._get_open_trades_from_db()
+            self.logger.info(f"🔍 DEBUG: Found {len(open_trades)} open trades in database:")
+            for trade in open_trades:
+                self.logger.info(f"   - {trade['trade_id']}: {trade['symbol']} {trade['side']} {trade['quantity']}")
+            
+            # Check Binance positions
+            binance_positions = self._get_all_binance_positions()
+            self.logger.info(f"🔍 DEBUG: Found {len(binance_positions)} active Binance positions:")
+            for pos in binance_positions:
+                symbol = pos.get('symbol', 'UNKNOWN')
+                amt = pos.get('positionAmt', 0)
+                self.logger.info(f"   - {symbol}: {amt}")
+            
+            # Check verification timing
+            time_since_last = (datetime.now() - self.last_verification).total_seconds()
+            should_run = self.should_run_verification()
+            
+            status = {
+                'open_trades_count': len(open_trades),
+                'binance_positions_count': len(binance_positions),
+                'time_since_last_verification': time_since_last,
+                'should_run_verification': should_run,
+                'verification_interval': self.verification_interval,
+                'last_verification': self.last_verification.isoformat()
+            }
+            
+            self.logger.info(f"🔍 DEBUG: Verification status: {status}")
+            return status
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error in debug verification: {e}")
+            return {'error': str(e)}

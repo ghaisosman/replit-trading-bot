@@ -734,7 +734,7 @@ class BotManager:
             if self.binance_client.is_futures:
                 try:
                     positions = self.binance_client.client.futures_position_information()
-                    for position in positions:
+                    for position in positions:```python
                         symbol = position.get('symbol')
                         position_amt = float(position.get('positionAmt', 0))
                         if abs(position_amt) > 0.001:  # Has actual position
@@ -1193,3 +1193,57 @@ class BotManager:
 
         except Exception as e:
             self.logger.error(f"Error logging WebSocket status: {e}")
+
+    def get_debug_info(self) -> Dict[str, Any]:
+        """Get comprehensive debug information"""
+        try:
+            info = {
+                'bot_status': self.status,
+                'strategies_loaded': len(self.strategies),
+                'active_positions': len(self.order_manager.active_positions) if self.order_manager else 0,
+                'database_trades': len(self.trade_db.trades) if self.trade_db else 0,
+                'websocket_connected': self.websocket_manager.is_connected() if self.websocket_manager else False,
+                'last_update': datetime.now().isoformat()
+            }
+
+            # Add strategy info
+            if self.strategies:
+                info['strategy_details'] = {}
+                for name, strategy in self.strategies.items():
+                    info['strategy_details'][name] = {
+                        'enabled': getattr(strategy, 'enabled', False),
+                        'last_signal': getattr(strategy, 'last_signal_time', None)
+                    }
+
+            return info
+
+        except Exception as e:
+            self.logger.error(f"Error getting debug info: {e}")
+            return {'error': str(e)}
+
+    def force_orphan_detection(self) -> Dict[str, Any]:
+        """Force immediate orphan detection"""
+        try:
+            self.logger.info("🔧 MANUAL ORPHAN DETECTION TRIGGERED")
+
+            if not self.orphan_detector:
+                return {'error': 'Orphan detector not initialized'}
+
+            # Debug current status first
+            debug_status = self.orphan_detector.debug_verification_status()
+            self.logger.info(f"📊 Pre-detection status: {debug_status}")
+
+            # Force verification
+            result = self.orphan_detector.force_verification()
+            self.logger.info(f"🔧 Force verification result: {result}")
+
+            return {
+                'status': 'completed',
+                'debug_status': debug_status,
+                'verification_result': result,
+                'timestamp': datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            self.logger.error(f"❌ Error forcing orphan detection: {e}")
+            return {'error': str(e)}
