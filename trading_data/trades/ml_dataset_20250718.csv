@@ -1,0 +1,3 @@
+strategy,symbol,side,leverage,position_size_usdt,rsi_entry,macd_entry,sma_20_entry,sma_50_entry,volume_entry,signal_strength,market_trend,volatility_score,market_phase,hour_of_day,day_of_week,month,pnl_usdt,pnl_percentage,duration_minutes,was_profitable,risk_reward_ratio,max_drawdown,exit_reason
+rsi_oversold,SOLUSDT,SELL,25,313.2622,0,0,0,0,0,0,UNKNOWN,0,UNKNOWN,22,3,7,-1.2103999999999615,-9.683199999999692,10,0,-0.07386783339962244,0,Stop Loss (PnL vs Margin: -10.40%)
+rsi_oversold,SOLUSDT,SELL,5,62.30500000000001,0,0,0,0,0,0,UNKNOWN,0,UNKNOWN,5,4,7,1.462000000000004,11.696000000000032,210,1,0.4125511596180086,0,Take Profit (RSI 40-)

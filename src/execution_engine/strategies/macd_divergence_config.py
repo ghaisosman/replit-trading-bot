@@ -10,7 +10,10 @@ class MACDDivergenceConfig:
     @staticmethod
     def get_config():
         """DEPRECATED: Use web dashboard for configuration"""
-        # Removed warning to prevent test interference
+        logging.getLogger(__name__).warning(
+            "DEPRECATED: MACDDivergenceConfig.get_config() is deprecated. "
+            "Use web dashboard for strategy configuration."
+        )
 
         return {
             'max_loss_pct': 10,
@@ -27,5 +30,8 @@ class MACDDivergenceConfig:
     @staticmethod
     def update_config(updates):
         """DEPRECATED: Use web dashboard for configuration updates"""
-        # Removed warning to prevent test interference
+        logging.getLogger(__name__).warning(
+            "DEPRECATED: MACDDivergenceConfig.update_config() is deprecated. "
+            "Use web dashboard for strategy configuration updates."
+        )
         return False

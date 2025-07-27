@@ -729,42 +729,27 @@ class OrderManager:
         except Exception as e:
             self.logger.error(f"Error setting anomaly detector: {e}")
 
-    
-    
     def clear_orphan_position(self, strategy_name: str) -> bool:
         """Clear an orphan position (bot opened, manually closed)"""
         try:
-            # Handle both direct strategy names and composite IDs (strategy_symbol format)
-            position_cleared = False
+            if strategy_name not in self.active_positions:
+                self.logger.warning(f"No active position to clear for strategy {strategy_name}")
+                return False
 
-            # Try direct strategy name first
-            if strategy_name in self.active_positions:
-                position = self.active_positions[strategy_name]
-                self.logger.info(f"🧹 CLEARING ORPHAN POSITION | {strategy_name} | {position.symbol} | Removed from tracking")
-                del self.active_positions[strategy_name]
-                position_cleared = True
+            position = self.active_positions[strategy_name]
 
-            # If not found, try to find by prefix (for composite IDs like rsi_oversold_SOLUSDT)
-            if not position_cleared:
-                matching_keys = []
-                base_strategy = strategy_name.split('_')[0] + '_' + strategy_name.split('_')[1] if '_' in strategy_name else strategy_name
+            # Mark as orphan and move to history
+            position.status = "ORPHAN_CLEARED"
+            self._add_to_history(position)
 
-                for key in list(self.active_positions.keys()):
-                    if key.startswith(base_strategy) or strategy_name.startswith(key):
-                        matching_keys.append(key)
+            # Remove from active positions
+            del self.active_positions[strategy_name]
 
-                for key in matching_keys:
-                    position = self.active_positions[key]
-                    self.logger.info(f"🧹 CLEARING ORPHAN POSITION | {key} | {position.symbol} | Removed from tracking (matched by prefix)")
-                    del self.active_positions[key]
-                    position_cleared = True
-
-            if not position_cleared:
-                # This is normal during testing - don't log as warning
-                self.logger.debug(f"🔍 No active position found to clear for strategy {strategy_name} (this is normal during testing)")
+            self.logger.info(f"Orphan position cleared for {strategy_name}")
+            return True
 
         except Exception as e:
-            self.logger.error(f"Error clearing orphan position for {strategy_name}: {e}")
+            self.logger.error(f"Error clearing orphan position: {e}")
             return False
 
     def is_legitimate_bot_position(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float) -> Tuple[bool, Optional[str]]:

@@ -116,15 +116,16 @@ class TelegramReporter:
             margin_used = position_value / leverage
 
             message = f"""
-🟢 <b>POSITION OPENED</b>
+🔴 <b>POSITION OPENED</b>
 ⏰ <b>Time:</b> {timestamp}
 
 🎯 <b>Strategy:</b> {strategy}
 💱 <b>Symbol:</b> {symbol}
 📊 <b>Side:</b> {side}
 💵 <b>Entry Price:</b> ${entry_price:,.4f}
-💸 <b>Margin:</b> ${margin_used:,.2f} USDT
+📦 <b>Quantity:</b> {quantity:,.6f}
 ⚡ <b>Leverage:</b> {leverage}x
+💸 <b>Margin Used:</b> ${margin_used:,.2f} USDT
 💰 <b>Position Value:</b> ${position_value:,.2f} USDT
 
 ✅ <b>Status:</b> Monitoring for exit conditions
@@ -136,7 +137,7 @@ class TelegramReporter:
             self.logger.error(f"❌ TELEGRAM: Error sending position opened notification: {e}")
             return False
 
-    def report_position_closed(self, position_data: Dict, exit_reason: str, pnl: float, current_balance: float = None, open_trades_count: int = None) -> bool:
+    def report_position_closed(self, position_data: Dict, exit_reason: str, pnl: float) -> bool:
         """Send position closed notification"""
         try:
             timestamp = datetime.now().strftime('%H:%M:%S')
@@ -157,26 +158,6 @@ class TelegramReporter:
             status_emoji = "💚" if pnl >= 0 else "❌"
             status_text = "PROFIT" if pnl >= 0 else "LOSS"
 
-            # Get current balance and open trades if not provided
-            if current_balance is None:
-                try:
-                    from src.data_fetcher.balance_fetcher import BalanceFetcher
-                    from src.binance_client.client import BinanceClientWrapper
-                    binance_client = BinanceClientWrapper()
-                    balance_fetcher = BalanceFetcher(binance_client)
-                    current_balance = balance_fetcher.get_usdt_balance()
-                except:
-                    current_balance = 0.0
-
-            if open_trades_count is None:
-                try:
-                    from src.execution_engine.trade_database import TradeDatabase
-                    trade_db = TradeDatabase()
-                    open_trades = trade_db.get_open_trades()
-                    open_trades_count = len(open_trades)
-                except:
-                    open_trades_count = 0
-
             message = f"""
 🔴 <b>POSITION CLOSED</b>
 ⏰ <b>Time:</b> {timestamp}
@@ -190,9 +171,6 @@ class TelegramReporter:
 📝 <b>Exit Reason:</b> {exit_reason}
 
 {status_emoji} <b>Result:</b> {status_text}
-
-💰 <b>Current Balance:</b> ${current_balance:,.2f} USDT
-📈 <b>Open Trades:</b> {open_trades_count}
 """
 
             return self.send_message(message)

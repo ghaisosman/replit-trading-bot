@@ -141,10 +141,9 @@ class TradeMonitor:
     def _check_orphan_trades(self, suppress_notifications: bool = False) -> None:
         """Check for orphan trades (bot opened, manually closed)"""
         try:
-            # Skip orphan detection only during production startup (when notifications aren't suppressed)
-            # This allows testing during startup when suppress_notifications=True
-            if not self.startup_scan_complete and not suppress_notifications:
-                self.logger.debug("🔍 ORPHAN CHECK: Skipping during startup scan (production mode)")
+            # Skip orphan trade detection during startup scan to prevent false positives
+            if not self.startup_scan_complete:
+                self.logger.debug("🔍 ORPHAN CHECK: Skipping during startup scan")
                 return
 
             # Get bot's active positions
@@ -154,71 +153,8 @@ class TradeMonitor:
             for strategy_name, position in bot_positions.items():
                 symbol = position.symbol
 
-                # Enhanced logging for RSI strategy
-                if 'rsi' in strategy_name.lower():
-                    self.logger.info(f"🔍 RSI ORPHAN CHECK START: {strategy_name} | {symbol} | "
-                                   f"Bot position: {position.quantity}")
-
                 # Get open positions from Binance
                 binance_positions = self._get_binance_positions(symbol)
-
-                # Enhanced logging for RSI strategy  
-                if 'rsi' in strategy_name.lower():
-                    self.logger.info(f"🔍 RSI ORPHAN CHECK: Found {len(binance_positions)} Binance positions for {symbol}")
-
-                # Find matching Binance position
-                binance_position = None
-                for pos in binance_positions:
-                    pos_amt = float(pos['positionAmt'])
-                    if pos['symbol'] == symbol and abs(pos_amt) > 0.001:  # Use absolute value and tolerance
-                        binance_position = pos
-                        if 'rsi' in strategy_name.lower():
-                            self.logger.info(f"🔍 RSI ORPHAN CHECK: Found matching Binance position: {pos_amt}")
-                        break
-
-                # Enhanced logging for RSI strategy
-                if 'rsi' in strategy_name.lower():
-                    self.logger.info(f"🔍 RSI ORPHAN CHECK: Binance position found: {binance_position is not None}")
-
-                # Check if orphan (bot has position but Binance doesn't)
-                if binance_position is None:
-                    # This is an orphan trade
-                    orphan_id = f"{strategy_name}_{symbol}"
-
-                    if 'rsi' in strategy_name.lower():
-                        self.logger.info(f"🔍 RSI ORPHAN DETECTED: Creating orphan trade {orphan_id}")
-
-                    if orphan_id not in self.orphan_trades:
-                        orphan_trade = OrphanTrade(
-                            position=position,
-                            detected_at=datetime.now(),
-                            cycles_remaining=2
-                        )
-
-                        self.orphan_trades[orphan_id] = orphan_trade
-
-                        if 'rsi' in strategy_name.lower():
-                            self.logger.info(f"🔍 RSI ORPHAN SUCCESS: Added {orphan_id} to orphan_trades")
-
-                        # Send notification if not suppressed
-                        if not suppress_notifications and self.startup_scan_complete:
-                            self.logger.warning(f"👻 ORPHAN TRADE DETECTED | {strategy_name} | {symbol} | "
-                                              f"Bot position exists but not on Binance")
-                            self.telegram_reporter.report_orphan_trade_detected(
-                                strategy_name=strategy_name,
-                                symbol=symbol,
-                                quantity=position.quantity,
-                                side=position.side
-                            )
-                else:
-                    if 'rsi' in strategy_name.lower():
-                        self.logger.info(f"🔍 RSI ORPHAN CHECK: Position exists on Binance, no orphan")
-
-                    # Remove any existing orphan trade since position exists
-                    orphan_id = f"{strategy_name}_{symbol}"
-                    if orphan_id in self.orphan_trades:
-                        del self.orphan_trades[orphan_id]
-                        self.logger.debug(f"🔍 Removed orphan trade {orphan_id} - position exists on Binance")
 
                 # Check if bot position exists on Binance
                 position_exists = False
@@ -516,55 +452,8 @@ class TradeMonitor:
                     )
                     orphan_trade.clearing_notified = True
 
-        # Remove cleared orphan trades and update database
+        # Remove cleared orphan trades
         for strategy_name in orphans_to_remove:
-            orphan_trade = self.orphan_trades[strategy_name]
-
-            # Update database to mark trade as manually closed
-            try:
-                from src.execution_engine.trade_database import TradeDatabase
-                trade_db = TradeDatabase()
-
-                # Find the trade in database by position details
-                symbol = orphan_trade.position.symbol
-                side = orphan_trade.position.side
-                quantity = orphan_trade.position.quantity
-                entry_price = orphan_trade.position.entry_price
-
-                trade_id = trade_db.find_trade_by_position(strategy_name, symbol, side, quantity, entry_price)
-
-                if trade_id:
-                    # Get current price for exit price
-                    try:
-                        ticker = self.binance_client.get_symbol_ticker(symbol)
-                        current_price = float(ticker['price']) if ticker else entry_price
-                    except:
-                        current_price = entry_price
-
-                    # Calculate duration
-                    duration_minutes = (datetime.now() - orphan_trade.detected_at).total_seconds() / 60
-
-                    # Update database with manual closure
-                    update_data = {
-                        'trade_status': 'CLOSED',
-                        'exit_price': current_price,
-                        'exit_reason': 'Manual Closure (Orphan Cleared)',
-                        'pnl_usdt': 0.0,  # Unknown PnL since manually closed
-                        'pnl_percentage': 0.0,
-                        'duration_minutes': duration_minutes,
-                        'manually_closed': True,
-                        'orphan_cleared': True
-                    }
-
-                    success = trade_db.update_trade(trade_id, update_data)
-                    if success:
-                        self.logger.info(f"✅ Database updated for orphan clear: {trade_id}")
-                    else:
-                        self.logger.error(f"❌ Failed to update database for orphan clear: {trade_id}")
-
-            except Exception as db_error:
-                self.logger.error(f"❌ Database update error during orphan clear: {db_error}")
-
             del self.orphan_trades[strategy_name]
 
         # Process ghost trades - NEVER close them on Binance, only clear from internal tracking
@@ -1027,164 +916,3 @@ class TradeMonitor:
             return True
 
         return False
-
-    def clear_orphan_by_cycles(self, orphan_id: str, reason: str = "Cycle limit reached") -> bool:
-        """Clear orphan trade after countdown cycles with enhanced database sync"""
-        if orphan_id not in self.orphan_trades:
-            self.logger.warning(f"🧹 Orphan {orphan_id} not found for clearing")
-            return False
-
-        orphan = self.orphan_trades[orphan_id]
-
-        try:
-            self.logger.info(f"🧹 CLEARING ORPHAN | {orphan_id} | Reason: {reason}")
-
-            # Clear from order manager with improved strategy matching
-            if self.order_manager:
-                # Try multiple strategy name variations for clearing
-                strategy_variations = [
-                    orphan.position.strategy_name,
-                    orphan_id,
-                    f"{orphan.position.strategy_name}_{orphan.position.symbol}",
-                    orphan.position.strategy_name.split('_')[0] + '_' + orphan.position.strategy_name.split('_')[1] if '_' in orphan.position.strategy_name else orphan.position.strategy_name
-                ]
-
-                cleared = False
-                for strategy_name in strategy_variations:
-                    try:
-                        result = self.order_manager.clear_orphan_position(strategy_name)
-                        if result:
-                            cleared = True
-                            self.logger.info(f"✅ Cleared from order manager: {strategy_name}")
-                            break
-                    except Exception as e:
-                        self.logger.debug(f"Could not clear {strategy_name}: {e}")
-
-                if not cleared:
-                    self.logger.warning(f"⚠️ Could not clear from order manager, continuing with database update")
-
-            # Update database record to CLOSED with enhanced error handling
-            database_updated = self._update_database_for_cleared_orphan(orphan, reason)
-
-            if not database_updated:
-                self.logger.error(f"❌ Failed to update database for orphan {orphan_id}")
-                # Continue with clearing from memory even if database update fails
-
-            # Remove from orphan trades
-            del self.orphan_trades[orphan_id]
-
-            # Send clearing notification
-            try:
-                self._send_orphan_clearing_notification(orphan, reason)
-            except Exception as e:
-                self.logger.warning(f"⚠️ Could not send clearing notification: {e}")
-
-            self.logger.info(f"✅ ORPHAN CLEARED SUCCESSFULLY | {orphan_id}")
-            return True
-
-        except Exception as e:
-            self.logger.error(f"❌ Error clearing orphan {orphan_id}: {e}")
-            import traceback
-            self.logger.error(f"🔍 Clearing traceback: {traceback.format_exc()}")
-            return False
-
-    def _update_database_for_cleared_orphan(self, orphan: OrphanTrade, reason: str) -> bool:
-        """Update database record for cleared orphan trade with improved matching"""
-        try:
-            from src.execution_engine.trade_database import TradeDatabase
-            trade_db = TradeDatabase()
-
-            # Find the trade record with multiple matching strategies
-            trade_record = None
-
-            # Strategy 1: Exact match
-            for trade_id, trade_data in trade_db.trades.items():
-                if (trade_data.get('symbol') == orphan.position.symbol and
-                    trade_data.get('strategy_name') == orphan.position.strategy_name and
-                    trade_data.get('trade_status') == 'OPEN'):
-                    trade_record = (trade_id, trade_data)
-                    self.logger.info(f"Found exact match for orphan: {trade_id}")
-                    break
-
-            # Strategy 2: Symbol and position details match (for test orphans)
-            if not trade_record:
-                for trade_id, trade_data in trade_db.trades.items():
-                    if (trade_data.get('symbol') == orphan.position.symbol and
-                        trade_data.get('side') == orphan.position.side and
-                        abs(float(trade_data.get('quantity', 0)) - orphan.position.quantity) < 0.01 and
-                        trade_data.get('trade_status') == 'OPEN'):
-                        trade_record = (trade_id, trade_data)
-                        self.logger.info(f"Found position match for orphan: {trade_id}")
-                        break
-
-            # Strategy 3: Any open trade with matching symbol (last resort)
-            if not trade_record:
-                for trade_id, trade_data in trade_db.trades.items():
-                    if (trade_data.get('symbol') == orphan.position.symbol and
-                        trade_data.get('trade_status') == 'OPEN'):
-                        trade_record = (trade_id, trade_data)
-                        self.logger.info(f"Found symbol match for orphan: {trade_id}")
-                        break
-
-            if trade_record:
-                trade_id, trade_data = trade_record
-
-                # Get current price for PnL calculation
-                current_price = orphan.position.entry_price  # Fallback to entry price
-                try:
-                    if self.binance_client:
-                        ticker = self.binance_client.get_symbol_ticker(orphan.position.symbol)
-                        if ticker and 'price' in ticker:
-                            current_price = float(ticker['price'])
-                except Exception as e:
-                    self.logger.warning(f"Could not get current price for {orphan.position.symbol}: {e}")
-
-                # Calculate simplified PnL based on position
-                entry_price = float(trade_data.get('entry_price', orphan.position.entry_price))
-                quantity = float(trade_data.get('quantity', orphan.position.quantity))
-                side = trade_data.get('side', orphan.position.side)
-
-                if side == 'BUY':
-                    pnl_usdt = (current_price - entry_price) * quantity
-                else:
-                    pnl_usdt = (entry_price - current_price) * quantity
-
-                # Calculate PnL percentage against margin used
-                margin_used = float(trade_data.get('margin_used', 50.0))
-                pnl_percentage = (pnl_usdt / margin_used) * 100 if margin_used > 0 else 0.0
-
-                updates = {
-                    'trade_status': 'CLOSED',
-                    'exit_price': current_price,
-                    'exit_reason': f'Orphan cleared: {reason}',
-                    'pnl_usdt': round(pnl_usdt, 2),
-                    'pnl_percentage': round(pnl_percentage, 2),
-                    'duration_minutes': 0,
-                    'orphan_cleared': True,
-                    'last_updated': datetime.now().isoformat()
-                }
-
-                success = trade_db.update_trade(trade_id, updates)
-                if success:
-                    self.logger.info(f"✅ Database updated for orphan: {trade_id} | PnL: ${pnl_usdt:.2f}")
-                    return True
-                else:
-                    self.logger.error(f"❌ Failed to update database for orphan: {trade_id}")
-                    return False
-
-            else:
-                self.logger.warning(f"⚠️ No database record found for orphan {orphan.position.strategy_name} ({orphan.position.symbol})")
-                return False
-
-        except Exception as e:
-            self.logger.error(f"❌ Error updating database for orphan: {e}")
-            import traceback
-            self.logger.error(f"🔍 Database update traceback: {traceback.format_exc()}")
-            return False
-
-    def _send_orphan_clearing_notification(self, orphan: OrphanTrade, reason: str):
-        """Send Telegram notification when orphan trade is cleared."""
-        self.telegram_reporter.report_orphan_trade_cleared(
-            strategy_name=orphan.position.strategy_name,
-            symbol=orphan.position.symbol,
-        )

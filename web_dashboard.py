@@ -246,11 +246,6 @@ try:
     from src.bot_manager import BotManager
     from src.utils.logger import setup_logger
 
-    # Import required shared database modules
-    from src.execution_engine.trade_database import TradeDatabase
-    from src.execution_engine.shared_database import shared_db
-    from src.analytics.trade_logger import trade_logger
-
     # Setup proper logging
     setup_logger()
     logger = logging.getLogger(__name__)
@@ -402,20 +397,11 @@ def dashboard():
                     'pnl_percent': pnl_percent
                 })
 
-        # Get shared database status
-        shared_db_status = "Unavailable"
-        try:
-            db_status = shared_db.get_sync_status()
-            shared_db_status = db_status.get("status", "Unavailable")
-        except:
-            pass
-
         return render_template('dashboard.html', 
                              status=status,
                              balance=balance,
                              strategies=strategies,
-                             active_positions=active_positions,
-                             shared_db_status=shared_db_status)
+                             active_positions=active_positions)
     except Exception as e:
         return f"Error loading dashboard: {e}"
 
@@ -663,13 +649,13 @@ def get_bot_status():
                 if IMPORTS_AVAILABLE:
                     from src.execution_engine.trade_database import TradeDatabase
                     trade_db = TradeDatabase()
-
+                    
                     # Count open trades in database
                     open_count = 0
                     for trade_id, trade_data in trade_db.trades.items():
                         if trade_data.get('trade_status') == 'OPEN':
                             open_count += 1
-
+                    
                     default_response['active_positions'] = open_count
                     logger.debug(f"🔍 DEBUG [{request_id}]: Active positions from database: {open_count}")
                 else:
@@ -1545,22 +1531,22 @@ def get_positions():
             try:
                 from src.execution_engine.trade_database import TradeDatabase
                 trade_db = TradeDatabase()
-
+                
                 # Get all open trades from database
                 open_trades = []
                 for trade_id, trade_data in trade_db.trades.items():
                     if trade_data.get('trade_status') == 'OPEN':
                         open_trades.append((trade_id, trade_data))
-
+                
                 logger.info(f"🔍 DEBUG: Found {len(open_trades)} open trades in database")
-
+                
                 # Convert database trades to position format
                 for trade_id, trade_data in open_trades:
                     try:
                         symbol = trade_data.get('symbol')
                         if not symbol:
                             continue
-
+                            
                         # Get current price for PnL calculation
                         current_price = None
                         try:
@@ -1573,7 +1559,7 @@ def get_positions():
                         # Calculate PnL
                         pnl = 0.0
                         pnl_percent = 0.0
-
+                        
                         if current_price and trade_data.get('entry_price') and trade_data.get('quantity'):
                             entry_price = float(trade_data['entry_price'])
                             quantity = float(trade_data['quantity'])
@@ -1649,7 +1635,7 @@ def get_positions():
         # Return positions with proper status
         status = 'active' if positions else 'no_positions'
         logger.info(f"🔍 DEBUG: Returning {len(positions)} positions with status: {status}")
-
+        
         return jsonify({
             'success': True,
             'positions': positions,
@@ -1663,7 +1649,7 @@ def get_positions():
         logger.error(f"Positions API error: {e}")
         import traceback
         logger.error(f"Positions API traceback: {traceback.format_exc()}")
-
+        
         default_response.update({
             'success': False,
             'status': 'api_error',
@@ -2588,61 +2574,6 @@ def start_web_dashboard(debug=False, use_reloader=False):
 
     except Exception as e:
         logger.critical(f"Failed to start web dashboard: {e}")
-
-@app.route('/api/sync_trades_from_logger', methods=['POST'])
-def sync_trades_from_logger():
-    """Sync trades from logger to database"""
-    from src.execution_engine.trade_database import TradeDatabase
-    from src.analytics.trade_logger import trade_logger
-
-    try:
-        trade_db = TradeDatabase()
-        sync_count = trade_db.sync_trades_from_logger(trade_logger)
-        return jsonify({
-        'status': 'success',
-        'message': f'Synced {sync_count} trades from logger to database'
-    })
-    except Exception as e:
-        logger.error(f"Error syncing trades from logger: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': f'Error syncing trades: {str(e)}'
-        })
-
-    return jsonify({
-        'status': 'success',
-        'message': f'Synced {sync_count} trades from logger to database'
-    })
-
-@app.route('/api/sync_shared_database', methods=['POST'])
-def sync_shared_database():
-    """Sync with shared database"""
-    try:
-        trade_db = TradeDatabase()
-        sync_results = trade_db.sync_with_shared_database("both")
-
-        return jsonify({
-            'status': 'success',
-            'sync_results': sync_results,
-            'message': f'Synced: {sync_results.get("to_shared", 0)} to shared, {sync_results.get("from_shared", 0)} from shared'
-        })
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Sync failed: {str(e)}'
-        })
-
-@app.route('/api/shared_database_status')
-def get_shared_database_status():
-    """Get shared database status"""
-    try:
-        status = shared_db.get_sync_status()
-        return jsonify(status)
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Error getting shared database status: {str(e)}'
-        })
 
 if __name__ == '__main__':
     # Set debug to True only during development - NEVER in production

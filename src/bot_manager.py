@@ -15,7 +15,6 @@ from src.reporting.telegram_reporter import TelegramReporter
 from src.config.trading_config import trading_config_manager
 from src.execution_engine.trade_monitor import TradeMonitor
 from src.execution_engine.anomaly_detector import AnomalyDetector
-from src.data_fetcher.websocket_manager import websocket_manager
 import schedule
 import threading
 from collections import deque
@@ -257,9 +256,6 @@ class BotManager:
             # Start daily reporter scheduler
             self.daily_reporter.start_scheduler()
 
-            # Initialize WebSocket connections for all strategy symbols
-            self._initialize_websocket_streams()
-
             # Clear any ghost anomalies for symbols where we have legitimate positions
             self._cleanup_misidentified_positions()
 
@@ -311,13 +307,6 @@ class BotManager:
             except Exception as e:
                 self.logger.warning(f"Could not send Telegram notification: {e}")
 
-            # Stop WebSocket manager
-            try:
-                websocket_manager.stop()
-                self.logger.info("📡 WebSocket manager stopped")
-            except Exception as e:
-                self.logger.warning(f"Could not stop WebSocket manager: {e}")
-
             # Close database connections safely
             if hasattr(self, 'anomaly_detector') and hasattr(self.anomaly_detector, 'db'):
                 try:
@@ -349,15 +338,6 @@ class BotManager:
             try:
                 # Display current PnL for all active positions (throttled)
                 await self._display_active_positions_pnl_throttled()
-
-            # Log WebSocket status periodically (every 50 iterations ~= 5 minutes)
-                if hasattr(self, '_websocket_status_counter'):
-                    self._websocket_status_counter += 1
-                else:
-                    self._websocket_status_counter = 1
-
-                if self._websocket_status_counter % 50 == 0:
-                    self._log_websocket_status()
 
                 # Check each strategy
                 for strategy_name, strategy_config in self.strategies.items():
@@ -525,70 +505,26 @@ class BotManager:
                                 # Calculate indicators
                                 df = self.price_fetcher.calculate_indicators(df)
 
-                                # Display strategy-specific indicators with enhanced error handling
-                                indicator_text = "Indicators loading..."
-
-                                if 'rsi' in strategy_name.lower() and 'engulfing' not in strategy_name.lower():
+                                # Display strategy-specific indicators
+                                if 'rsi' in strategy_name.lower():
                                     # RSI Strategy - show current RSI
-                                    if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
+                                    if 'rsi' in df.columns:
                                         current_rsi = df['rsi'].iloc[-1]
                                         if not pd.isna(current_rsi):
                                             indicator_text = f"RSI: {current_rsi:.1f}"
-                                        else:
-                                            indicator_text = "RSI: Calculating..."
-                                    else:
-                                        indicator_text = "RSI: Waiting for data..."
-
                                 elif 'macd' in strategy_name.lower():
                                     # MACD Strategy - show MACD line and signal
-                                    if ('macd' in df.columns and 'macd_signal' in df.columns and 
-                                        len(df['macd'].dropna()) > 0 and len(df['macd_signal'].dropna()) > 0):
+                                    if 'macd' in df.columns and 'macd_signal' in df.columns:
                                         macd_line = df['macd'].iloc[-1]
                                         macd_signal = df['macd_signal'].iloc[-1]
                                         if not pd.isna(macd_line) and not pd.isna(macd_signal):
-                                            indicator_text = f"MACD: {macd_line:.4f}/{macd_signal:.4f}"
-                                        else:
-                                            indicator_text = "MACD: Calculating..."
-                                    else:
-                                        indicator_text = "MACD: Waiting for data..."
-
-                                elif 'engulfing' in strategy_name.lower():
-                                    # Engulfing Pattern - show RSI + pattern status
-                                    pattern_status = "No Pattern"
-                                    rsi_value = "N/A"
-
-                                    if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
-                                        current_rsi = df['rsi'].iloc[-1]
-                                        if not pd.isna(current_rsi):
-                                            rsi_value = f"{current_rsi:.1f}"
-
-                                    # Check for patterns
-                                    if len(df) >= 2:
-                                        if 'bullish_engulfing' in df.columns and df['bullish_engulfing'].iloc[-1]:
-                                            pattern_status = "Bullish Engulfing"
-                                        elif 'bearish_engulfing' in df.columns and df['bearish_engulfing'].iloc[-1]:
-                                            pattern_status = "Bearish Engulfing"
-
-                                    indicator_text = f"RSI: {rsi_value} | Pattern: {pattern_status}"
-
-                                elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
-                                    # Smart Money - show custom analysis
-                                    indicator_text = "Smart Money Analysis"
-                                    if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
-                                        current_rsi = df['rsi'].iloc[-1]
-                                        if not pd.isna(current_rsi):
-                                            indicator_text += f" | RSI: {current_rsi:.1f}"
-
+                                            indicator_text = f"MACD: {macd_line:.2f}/{macd_signal:.2f}"
                                 else:
                                     # Other strategies - try to show RSI as fallback
-                                    if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
+                                    if 'rsi' in df.columns:
                                         current_rsi = df['rsi'].iloc[-1]
                                         if not pd.isna(current_rsi):
                                             indicator_text = f"RSI: {current_rsi:.1f}"
-                                        else:
-                                            indicator_text = "RSI: Calculating..."
-                                    else:
-                                        indicator_text = "Indicators: Waiting for data..."
                         except Exception as e:
                             self.logger.debug(f"Could not fetch indicators for {symbol}: {e}")
 
@@ -700,22 +636,22 @@ class BotManager:
     async def _recover_active_positions(self):
         """Simplified single-source position recovery with comprehensive debugging"""
         self.logger.info("🔍 DEBUG: Position recovery started")
-
+        
         try:
             self.logger.info("🛡️ POSITION RECOVERY: Starting simplified recovery process...")
-
+            
             # Step 1: Get all open trades from database
             from src.execution_engine.trade_database import TradeDatabase
             trade_db = TradeDatabase()
-
+            
             open_trades = {}
             for trade_id, trade_data in trade_db.trades.items():
                 if trade_data.get('trade_status') == 'OPEN':
                     open_trades[trade_id] = trade_data
                     self.logger.info(f"🔍 DEBUG: Found open trade in DB: {trade_id} | {trade_data.get('symbol')} | {trade_data.get('side')}")
-
+            
             self.logger.info(f"🔍 DEBUG: Found {len(open_trades)} open trades in database")
-
+            
             # Step 2: Get current Binance positions
             binance_positions = {}
             if self.binance_client.is_futures:
@@ -728,7 +664,7 @@ class BotManager:
                             entry_price = float(position.get('entryPrice', 0))
                             side = 'BUY' if position_amt > 0 else 'SELL'
                             quantity = abs(position_amt)
-
+                            
                             binance_positions[symbol] = {
                                 'symbol': symbol,
                                 'side': side,
@@ -740,20 +676,20 @@ class BotManager:
                 except Exception as e:
                     self.logger.error(f"❌ Error fetching Binance positions: {e}")
                     binance_positions = {}
-
+            
             self.logger.info(f"🔍 DEBUG: Found {len(binance_positions)} active positions on Binance")
-
+            
             # Step 3: Match database trades with Binance positions
             recovered_positions = []
-
+            
             for trade_id, trade_data in open_trades.items():
                 symbol = trade_data.get('symbol')
                 db_side = trade_data.get('side')
                 db_quantity = float(trade_data.get('quantity', 0))
                 db_entry_price = float(trade_data.get('entry_price', 0))
-
+                
                 self.logger.info(f"🔍 DEBUG: Matching trade {trade_id} - {symbol} {db_side} Qty:{db_quantity} Entry:${db_entry_price}")
-
+                
                 # Check if corresponding Binance position exists
                 binance_pos = binance_positions.get(symbol)
                 if binance_pos:
@@ -761,18 +697,18 @@ class BotManager:
                     side_match = binance_pos['side'] == db_side
                     qty_tolerance = max(db_quantity * 0.05, 0.001)  # 5% tolerance
                     price_tolerance = max(db_entry_price * 0.05, 0.01)  # 5% tolerance
-
+                    
                     qty_match = abs(binance_pos['quantity'] - db_quantity) <= qty_tolerance
                     price_match = abs(binance_pos['entry_price'] - db_entry_price) <= price_tolerance
-
+                    
                     self.logger.info(f"🔍 DEBUG: Match check - Side:{side_match} Qty:{qty_match} Price:{price_match}")
-
+                    
                     if side_match and qty_match and price_match:
                         # Perfect match - recover this position
                         strategy_name = trade_data.get('strategy_name', 'RECOVERED')
-
+                        
                         self.logger.info(f"✅ RECOVERY MATCH: {trade_id} | {strategy_name} | {symbol}")
-
+                        
                         from src.execution_engine.order_manager import Position
                         position = Position(
                             strategy_name=strategy_name,
@@ -787,13 +723,13 @@ class BotManager:
                             entry_time=datetime.now(),  # Use current time for recovery
                             status="OPEN"
                         )
-
+                        
                         # Set strategy config reference if possible
                         if strategy_name in self.strategies:
                             position.strategy_config = self.strategies[strategy_name]
-
+                        
                         recovered_positions.append((strategy_name, position))
-
+                        
                         # Register with anomaly detector IMMEDIATELY to prevent interference
                         if hasattr(self, 'anomaly_detector') and self.anomaly_detector:
                             self.anomaly_detector.register_bot_trade(symbol, strategy_name)
@@ -802,11 +738,11 @@ class BotManager:
                         self.logger.warning(f"⚠️ POSITION MISMATCH: {trade_id} | DB vs Binance data doesn't match closely enough")
                 else:
                     self.logger.warning(f"⚠️ ORPHAN TRADE: {trade_id} | Database shows open but no Binance position")
-
+            
             # Step 4: Load recovered positions into order manager
             if recovered_positions:
                 self.logger.info(f"🛡️ LOADING {len(recovered_positions)} RECOVERED POSITIONS...")
-
+                
                 for strategy_name, position in recovered_positions:
                     # Avoid conflicts - only one position per strategy
                     if strategy_name not in self.order_manager.active_positions:
@@ -814,15 +750,15 @@ class BotManager:
                         self.logger.info(f"✅ LOADED RECOVERED POSITION: {strategy_name} | {position.symbol} | {position.side} | Entry: ${position.entry_price}")
                     else:
                         self.logger.warning(f"⚠️ RECOVERY CONFLICT: Strategy {strategy_name} already has position, skipping recovery")
-
+                
                 self.logger.info(f"🛡️ RECOVERY COMPLETE: {len(self.order_manager.active_positions)} active positions loaded")
-
+            
             else:
                 self.logger.info("🛡️ POSITION RECOVERY: No matching positions to recover - starting fresh")
-
+            
             # Step 5: Log final recovery summary
             self.logger.info(f"🔍 DEBUG: Recovery summary - DB Open: {len(open_trades)}, Binance: {len(binance_positions)}, Recovered: {len(recovered_positions)}")
-
+            
         except Exception as e:
             self.logger.error(f"❌ POSITION RECOVERY ERROR: {e}")
             import traceback
@@ -986,68 +922,27 @@ class BotManager:
                         except Exception as e:
                             self.logger.debug(f"RSI recalculation failed for {strategy_config['symbol']}: {e}")
 
-                # Enhanced strategy-specific market assessment with prominent price and indicators
+                # Strategy-specific consolidated market assessment - single message
                 if 'macd' in strategy_name.lower():
                     # Get MACD values for display
                     macd_line = df['macd'].iloc[-1] if 'macd' in df.columns else 0.0
                     macd_signal = df['macd_signal'].iloc[-1] if 'macd_signal' in df.columns else 0.0
                     macd_histogram = df['macd_histogram'].iloc[-1] if 'macd_histogram' in df.columns else 0.0
 
-                    # Enhanced MACD scanning display with clear price and indicators
-                    self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
-                    self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
-                    self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
-                    self.logger.info(f"📊 MACD Line: {macd_line:.6f} | Signal: {macd_signal:.6f} | Histogram: {macd_histogram:.6f}")
+                    # Consolidated MACD market assessment - single line for dashboard display
+                    assessment_message = f"📈 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | ${margin:.1f}@{leverage}x | Price: ${current_price:,.1f} | MACD: {macd_line:.2f}/{macd_signal:.2f} | H: {macd_histogram:.2f} | Every {assessment_interval}s"
+                    self.logger.info(assessment_message)
 
-                elif 'rsi' in strategy_name.lower() and 'engulfing' not in strategy_name.lower():
-                    # Enhanced RSI scanning display
-                    rsi_long_entry = strategy_config.get('rsi_long_entry', 40)
-                    rsi_short_entry = strategy_config.get('rsi_short_entry', 60)
+                elif 'rsi' in strategy_name.lower():
+                    # Consolidated RSI market assessment - single line for dashboard display
+                    rsi_text = f"{current_rsi:.1f}" if current_rsi is not None else "N/A"
+                    assessment_message = f"📈 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | ${margin:.1f}@{leverage}x | Price: ${current_price:,.1f} | RSI: {rsi_text} | Every {assessment_interval}s"
+                    self.logger.info(assessment_message)
 
-                    self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
-                    self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
-                    self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
-                    self.logger.info(f"📊 RSI: {current_rsi:.2f} | Long Entry: ≤{rsi_long_entry} | Short Entry: ≥{rsi_short_entry}")
-
-                elif 'engulfing' in strategy_name.lower():
-                    # Enhanced Engulfing pattern scanning display
-                    pattern_status = "No Pattern"
-                    stable_candle = False
-                    price_momentum = "Neutral"
-
-                    try:
-                        if len(df) >= 2:
-                            if 'bullish_engulfing' in df.columns and df['bullish_engulfing'].iloc[-1]:
-                                pattern_status = "🟢 Bullish Engulfing"
-                            elif 'bearish_engulfing' in df.columns and df['bearish_engulfing'].iloc[-1]:
-                                pattern_status = "🔴 Bearish Engulfing"
-
-                            if 'stable_candle' in df.columns:
-                                stable_candle = df['stable_candle'].iloc[-1]
-
-                            # Check price momentum over lookback period
-                            lookback_bars = strategy_config.get('price_lookback_bars', 5)
-                            if f'close_{lookback_bars}_ago' in df.columns:
-                                close_ago = df[f'close_{lookback_bars}_ago'].iloc[-1]
-                                if not pd.isna(close_ago):
-                                    if current_price > close_ago:
-                                        price_momentum = f"📈 Up ({((current_price/close_ago - 1) * 100):+.2f}%)"
-                                    elif current_price < close_ago:
-                                        price_momentum = f"📉 Down ({((current_price/close_ago - 1) * 100):+.2f}%)"
-                    except Exception as e:
-                        self.logger.debug(f"Pattern detection error: {e}")
-
-                    self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
-                    self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
-                    self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
-                    self.logger.info(f"📊 RSI: {current_rsi:.2f} | Pattern: {pattern_status} | Stable: {'✅' if stable_candle else '❌'}")
-                    self.logger.info(f"📈 Momentum: {price_momentum}")
-
-                else:
-                    # Generic strategy scanning display
-                    self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
-                    self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
-                    self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
+                elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
+                    # Consolidated Smart Money market assessment - single line for dashboard display
+                    assessment_message = f"📈 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | ${margin:.1f}@{leverage}x | Price: ${current_price:,.1f} | Smart Money Analysis | Every {assessment_interval}s"
+                    self.logger.info(assessment_message)
 
         except Exception as e:
             self.logger.error(f"Error processing strategy {strategy_name}: {e}")
@@ -1093,48 +988,6 @@ class BotManager:
         except Exception as e:
             self.logger.debug(f"Error getting current price for {symbol}: {e}")
             return None
-
-    def _initialize_websocket_streams(self):
-        """Initialize WebSocket streams for all configured strategies"""
-        try:
-            self.logger.info("📡 INITIALIZING WEBSOCKET STREAMS...")
-
-            # Add all strategy symbols and intervals to WebSocket manager
-            for strategy_name, strategy_config in self.strategies.items():
-                symbol = strategy_config.get('symbol')
-                interval = strategy_config.get('timeframe', '15m')
-
-                if symbol:
-                    websocket_manager.add_symbol_interval(symbol, interval)
-                    self.logger.info(f"   📡 Added WebSocket stream: {symbol} @ {interval}")
-
-            # Also add 1m streams for current price updates
-            for strategy_name, strategy_config in self.strategies.items():
-                symbol = strategy_config.get('symbol')
-                if symbol:
-                    websocket_manager.add_symbol_interval(symbol, '1m')
-
-            # Start WebSocket manager
-            if websocket_manager.subscribed_streams:
-                websocket_manager.start()
-                self.logger.info(f"🚀 WEBSOCKET MANAGER STARTED with {len(websocket_manager.subscribed_streams)} streams")
-
-                # Wait a moment for initial connection
-                import time
-                time.sleep(2)
-
-                # Log connection status
-                stats = websocket_manager.get_statistics()
-                if stats['is_connected']:
-                    self.logger.info("✅ WEBSOCKET CONNECTION ESTABLISHED")
-                else:
-                    self.logger.warning("⚠️ WEBSOCKET CONNECTION PENDING...")
-            else:
-                self.logger.warning("⚠️ No WebSocket streams to initialize")
-
-        except Exception as e:
-            self.logger.error(f"❌ WEBSOCKET INITIALIZATION ERROR: {e}")
-            self.logger.warning("🔄 Continuing with REST API fallback...")
 
     def _cleanup_misidentified_positions(self):
         """Clean up any misidentified ghost positions where we have legitimate trades"""
@@ -1196,31 +1049,3 @@ class BotManager:
 
         except Exception as e:
             self.logger.error(f"Error in exit conditions check: {e}")
-
-    def _log_websocket_status(self):
-        """Logs the current status of the WebSocket connection."""
-        try:
-            stats = websocket_manager.get_statistics()
-
-            if stats['is_connected']:
-                uptime_minutes = stats['uptime_seconds'] / 60
-                self.logger.info(f"✅ WebSocket: Connected | Uptime: {uptime_minutes:.1f}m | Messages: {stats['messages_received']} | Klines: {stats['klines_processed']}")
-            else:
-                self.logger.warning("⚠️ WebSocket: Disconnected - Using REST API fallback")
-
-            # Log cache status for key symbols
-            cache_status = websocket_manager.get_cache_status()
-            fresh_count = 0
-            total_count = 0
-
-            for symbol in cache_status:
-                for interval in cache_status[symbol]:
-                    total_count += 1
-                    if cache_status[symbol][interval]['is_fresh']:
-                        fresh_count += 1
-
-            if total_count > 0:
-                self.logger.info(f"📊 WebSocket Cache: {fresh_count}/{total_count} streams fresh")
-
-        except Exception as e:
-            self.logger.error(f"Error logging WebSocket status: {e}")

@@ -367,11 +367,6 @@ class AnomalyDetector:
                 if existing_anomaly:
                     continue  # Already tracking this orphan
 
-                # Enhanced validation for RSI strategy
-                if 'rsi' in strategy_name.lower():
-                    self.logger.info(f"🔍 RSI ORPHAN VALIDATION: {strategy_name} | {symbol} | "
-                                   f"Bot qty: {bot_position.quantity} | Binance position: None")
-
                 # Create new orphan anomaly
                 anomaly = TradeAnomaly(
                     id=anomaly_id,

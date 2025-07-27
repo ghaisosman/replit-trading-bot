@@ -608,26 +608,26 @@ class TradeLogger:
         """Sync trade record to database - simplified approach"""
         try:
             self.logger.info(f"🔍 DEBUG: Starting sync for trade {trade_id}")
-
+            
             from src.execution_engine.trade_database import TradeDatabase
             trade_db = TradeDatabase()
-
+            
             self.logger.info(f"🔍 DEBUG: Database loaded with {len(trade_db.trades)} existing trades")
-
+            
             # Convert trade record to dict
             trade_dict = trade_record.to_dict()
             self.logger.info(f"🔍 DEBUG: Trade dict keys: {list(trade_dict.keys())}")
-
+            
             # Ensure proper formatting for database
             if 'timestamp' in trade_dict and hasattr(trade_dict['timestamp'], 'isoformat'):
                 original_timestamp = trade_dict['timestamp']
                 trade_dict['timestamp'] = trade_dict['timestamp'].isoformat()
                 self.logger.info(f"🔍 DEBUG: Converted timestamp from {original_timestamp} to {trade_dict['timestamp']}")
-
+            
             # Check if trade already exists
             exists_before = trade_id in trade_db.trades
             self.logger.info(f"🔍 DEBUG: Trade exists before sync: {exists_before}")
-
+            
             # Add or update in database
             if trade_id in trade_db.trades:
                 self.logger.info(f"🔍 DEBUG: Updating existing trade {trade_id}")
@@ -637,15 +637,15 @@ class TradeLogger:
                 self.logger.info(f"🔍 DEBUG: Adding new trade {trade_id}")
                 success = trade_db.add_trade(trade_id, trade_dict)
                 self.logger.info(f"➕ Added new trade {trade_id} to database - Result: {success}")
-
+            
             # Verify the trade was actually stored
             exists_after = trade_id in trade_db.trades
             self.logger.info(f"🔍 DEBUG: Trade exists after sync: {exists_after}")
-
+            
             if exists_after:
                 stored_trade = trade_db.get_trade(trade_id)
                 self.logger.info(f"🔍 DEBUG: Stored trade data keys: {list(stored_trade.keys()) if stored_trade else 'None'}")
-
+            
             # Check database file size and modification
             import os
             if os.path.exists(trade_db.db_file):
@@ -653,14 +653,14 @@ class TradeLogger:
                 self.logger.info(f"🔍 DEBUG: Database file size: {file_size} bytes")
             else:
                 self.logger.error(f"🔍 DEBUG: Database file does not exist: {trade_db.db_file}")
-
+            
             if success and exists_after:
                 self.logger.debug(f"✅ Trade {trade_id} synced to database successfully")
                 return True
             else:
                 self.logger.error(f"❌ Failed to sync trade {trade_id} to database - Success: {success}, Exists: {exists_after}")
                 return False
-
+                
         except Exception as e:
             self.logger.error(f"❌ Error syncing trade {trade_id} to database: {e}")
             import traceback
@@ -669,3 +669,4 @@ class TradeLogger:
 
 # Global trade logger instance
 trade_logger = TradeLogger()
+

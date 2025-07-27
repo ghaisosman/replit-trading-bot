@@ -6,31 +6,6 @@ import logging
 from datetime import datetime, time
 import pytz
 
-class SmartMoneyConfig:
-    """Configuration class for Smart Money Strategy - kept for compatibility"""
-    
-    @staticmethod
-    def get_config():
-        """Get default configuration - web dashboard is source of truth"""
-        return {
-            'swing_lookback_period': 25,
-            'sweep_threshold_pct': 0.1,
-            'reversion_candles': 3,
-            'volume_spike_multiplier': 2.0,
-            'min_swing_distance_pct': 1.0,
-            'session_filter_enabled': True,
-            'allowed_sessions': ['LONDON', 'NEW_YORK'],
-            'max_daily_trades': 3,
-            'trend_filter_enabled': True
-        }
-    
-    @staticmethod
-    def update_config(updates):
-        """Deprecated - use web dashboard"""
-        import logging
-        logging.getLogger(__name__).warning("Use web dashboard for configuration updates")
-        return False
-
 class SmartMoneyStrategy:
     """
     Smart Money Liquidity Hunt Strategy
