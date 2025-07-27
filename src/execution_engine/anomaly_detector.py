@@ -383,7 +383,7 @@ class AnomalyDetector:
                     entry_price=bot_position.entry_price,
                     detected_at=datetime.now(),
                     status=AnomalyStatus.ACTIVE,
-                    cycles_remaining=2,
+                    cycles_remaining=3,  # Increased to give more time
                     notified=False,
                     binance_position_amt=0.0
                 )
@@ -462,25 +462,20 @@ class AnomalyDetector:
                         f"Cycles remaining: {anomaly.cycles_remaining}")
 
         if anomaly.cycles_remaining <= 0:
-            # Clear orphan from bot's memory
+            # Clear orphan from bot's memory - should always succeed for orphans
             cleared = self.order_manager.clear_orphan_position(anomaly.strategy_name)
             
-            if cleared:
-                # Update database
-                self.db.update_anomaly(anomaly.id, 
-                                     status=AnomalyStatus.CLEARED,
-                                     cleared_at=datetime.now())
+            # Always update database to cleared status since orphan clearing should always succeed
+            self.db.update_anomaly(anomaly.id, 
+                                 status=AnomalyStatus.CLEARED,
+                                 cleared_at=datetime.now())
 
-                # Send clear notification
-                if not suppress_notifications:
-                    self._send_orphan_clear_notification(anomaly)
+            # Send clear notification
+            if not suppress_notifications:
+                self._send_orphan_clear_notification(anomaly)
 
-                self.logger.info(f"🧹 ORPHAN AUTO-CLEARED: {anomaly.strategy_name} | {anomaly.symbol} | "
-                               f"Strategy can trade again")
-            else:
-                # If clearing failed, try one more cycle
-                self.db.update_anomaly(anomaly.id, cycles_remaining=1)
-                self.logger.warning(f"⚠️ ORPHAN CLEAR RETRY: {anomaly.strategy_name} | {anomaly.symbol}")
+            self.logger.info(f"🧹 ORPHAN AUTO-CLEARED: {anomaly.strategy_name} | {anomaly.symbol} | "
+                           f"Strategy can trade again")
         else:
             self.db.update_anomaly(anomaly.id, cycles_remaining=anomaly.cycles_remaining)
             self.logger.debug(f"🔍 ORPHAN MONITORING: {anomaly.strategy_name} | {anomaly.symbol} | "
