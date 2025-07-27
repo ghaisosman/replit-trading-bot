@@ -1,0 +1,56 @@
+{
+  "timestamp": "2025-07-25T08:30:27.168318",
+  "websocket_validation": {
+    "connection_status": "ERROR",
+    "data_reception": "UNKNOWN",
+    "stream_count": 0,
+    "symbols_tracked": [],
+    "data_freshness": {},
+    "message_processing": "UNKNOWN",
+    "statistics": {},
+    "error": "name 'websocket_manager' is not defined"
+  },
+  "strategy_validation": {
+    "rsi_strategy": {
+      "error": "No data available"
+    },
+    "macd_strategy": {
+      "error": "No data available"
+    },
+    "engulfing_strategy": {
+      "error": "No data available"
+    },
+    "signal_generation_accuracy": {}
+  },
+  "price_data_validation": {
+    "data_availability": {
+      "BTCUSDT": {
+        "market_data_available": false,
+        "indicators_calculated": false,
+        "data_points": 0,
+        "websocket_data": false,
+        "rest_fallback": false
+      },
+      "ETHUSDT": {
+        "market_data_available": false,
+        "indicators_calculated": false,
+        "data_points": 0,
+        "websocket_data": false,
+        "rest_fallback": false
+      },
+      "XRPUSDT": {
+        "market_data_available": false,
+        "indicators_calculated": false,
+        "data_points": 0,
+        "websocket_data": false,
+        "rest_fallback": false
+      }
+    },
+    "indicator_calculation": {},
+    "data_quality": {},
+    "websocket_vs_rest": {}
+  },
+  "indicator_validation": {},
+  "signal_generation_validation": {},
+  "overall_status": "PARTIAL"
+}

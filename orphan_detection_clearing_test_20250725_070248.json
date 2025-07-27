@@ -1,0 +1,127 @@
+{
+  "environment_setup": {
+    "status": "SUCCESS",
+    "dashboard_available": false,
+    "orphan_trades_cleared": 0,
+    "positions_cleared": 0,
+    "strategies_registered": 4,
+    "timestamp": "2025-07-25T07:02:38.650635"
+  },
+  "orphan_creation": {
+    "status": "SUCCESS",
+    "created_count": 4,
+    "expected_count": 4,
+    "created_orphans": [
+      "rsi_oversold",
+      "macd_divergence",
+      "engulfing_pattern",
+      "smart_money"
+    ],
+    "timestamp": "2025-07-25T07:02:38.705565"
+  },
+  "orphan_detection": {
+    "status": "SUCCESS",
+    "initial_orphan_count": 0,
+    "final_orphan_count": 8,
+    "expected_orphans": [
+      "rsi_oversold_SOLUSDT",
+      "macd_divergence_BTCUSDT",
+      "engulfing_pattern_ETHUSDT",
+      "smart_money_XRPUSDT"
+    ],
+    "detected_orphans": [
+      "rsi_oversold_SOLUSDT",
+      "rsi_oversold",
+      "macd_divergence_BTCUSDT",
+      "macd_divergence",
+      "engulfing_pattern_ETHUSDT",
+      "engulfing_pattern",
+      "smart_money_XRPUSDT",
+      "smart_money"
+    ],
+    "detection_success": true,
+    "timestamp": "2025-07-25T07:02:41.728685"
+  },
+  "orphan_clearing": {
+    "status": "FAILED",
+    "cleared_count": 0,
+    "expected_count": 4,
+    "clearing_results": {
+      "rsi_oversold": {
+        "status": "FAILED",
+        "orphan_cleared": true,
+        "position_cleared": true,
+        "database_updated": false,
+        "final_db_trade": {
+          "trade_id": "TEST_ORPHAN_rsi_oversold_1753426958",
+          "strategy_name": "rsi_oversold",
+          "symbol": "SOLUSDT",
+          "side": "BUY",
+          "quantity": 0.05,
+          "entry_price": 150.25,
+          "trade_status": "OPEN",
+          "position_value_usdt": 7.5125,
+          "leverage": 1,
+          "margin_used": 7.5125,
+          "stop_loss": 142.73749999999998,
+          "take_profit": 165.275,
+          "created_at": "2025-07-25T07:02:38.651141",
+          "last_updated": "2025-07-25T07:02:38.651145",
+          "test_orphan": true
+        }
+      },
+      "macd_divergence": {
+        "status": "NOT_FOUND"
+      },
+      "engulfing_pattern": {
+        "status": "NOT_FOUND"
+      },
+      "smart_money": {
+        "status": "NOT_FOUND"
+      }
+    },
+    "overall_success": false,
+    "timestamp": "2025-07-25T07:02:48.145061"
+  },
+  "database_verification": {
+    "status": "FAILED",
+    "updated_count": 0,
+    "expected_count": 4,
+    "database_results": {
+      "rsi_oversold": {
+        "status": "OPEN",
+        "exit_reason": null,
+        "orphan_cleared": false,
+        "manually_closed": false,
+        "properly_updated": false
+      },
+      "macd_divergence": {
+        "status": "OPEN",
+        "exit_reason": null,
+        "orphan_cleared": false,
+        "manually_closed": false,
+        "properly_updated": false
+      },
+      "engulfing_pattern": {
+        "status": "OPEN",
+        "exit_reason": null,
+        "orphan_cleared": false,
+        "manually_closed": false,
+        "properly_updated": false
+      },
+      "smart_money": {
+        "status": "OPEN",
+        "exit_reason": null,
+        "orphan_cleared": false,
+        "manually_closed": false,
+        "properly_updated": false
+      }
+    },
+    "overall_success": false,
+    "timestamp": "2025-07-25T07:02:48.146010"
+  },
+  "dashboard_verification": {
+    "status": "SKIPPED",
+    "reason": "Dashboard not available"
+  }
+}

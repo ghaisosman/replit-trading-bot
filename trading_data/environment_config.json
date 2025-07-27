@@ -1,8 +1,4 @@
-
 {
   "BINANCE_TESTNET": "false",
-  "BINANCE_FUTURES": "true",
-  "last_updated": "2025-01-17T20:55:00Z",
-  "forced_mainnet": true,
-  "note": "Mainnet mode is now permanently enabled"
+  "BINANCE_FUTURES": "true"
 }

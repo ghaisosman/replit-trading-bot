@@ -1,0 +1,143 @@
+{
+  "test_timestamp": "2025-07-25T06:18:49.559683",
+  "test_duration": 10.371292114257812,
+  "overall_status": "SUCCESS",
+  "test_results": {
+    "websocket_connection": {
+      "websocket_connected": true,
+      "data_received": {
+        "BTCUSDT": {
+          "1m": {
+            "klines_count": 2,
+            "first_data_time": 1.1444091796875e-05
+          },
+          "5m": {
+            "klines_count": 2,
+            "first_data_time": 0.00019931793212890625
+          },
+          "1h": {
+            "klines_count": 2,
+            "first_data_time": 0.0003676414489746094
+          }
+        },
+        "ETHUSDT": {
+          "1m": {
+            "klines_count": 1,
+            "first_data_time": 0.0005652904510498047
+          },
+          "5m": {
+            "klines_count": 1,
+            "first_data_time": 0.0008246898651123047
+          },
+          "1h": {
+            "klines_count": 1,
+            "first_data_time": 0.0010128021240234375
+          }
+        },
+        "SOLUSDT": {
+          "1m": {
+            "klines_count": 1,
+            "first_data_time": 0.0012204647064208984
+          },
+          "5m": {
+            "klines_count": 1,
+            "first_data_time": 0.0014147758483886719
+          },
+          "1h": {
+            "klines_count": 1,
+            "first_data_time": 0.0016438961029052734
+          }
+        }
+      },
+      "connection_time": 1.0035483837127686,
+      "initial_data_time": 0.0018494129180908203
+    },
+    "price_fetcher": {
+      "rest_calls_made": 0,
+      "successful_websocket_calls": 12,
+      "failed_calls_handled_properly": 0,
+      "symbols_tested": 3
+    },
+    "data_gap_handling": {
+      "websocket_stopped": true,
+      "data_requests_during_gap": 4,
+      "rest_calls_during_gap": 0,
+      "proper_error_handling": 0,
+      "websocket_reconnected": true
+    },
+    "performance_metrics": {
+      "websocket_messages_received": 150,
+      "total_rest_calls": 0,
+      "websocket_stats": {
+        "messages_received": 150,
+        "klines_processed": 150,
+        "connection_uptime": 1753424326.9571474,
+        "last_message_time": "2025-07-25 06:18:49.468004",
+        "reconnections": 2,
+        "is_connected": true,
+        "subscribed_streams": 9,
+        "cached_symbols": 3,
+        "uptime_seconds": 2.6016039848327637
+      },
+      "cache_status": {
+        "BTCUSDT": {
+          "1m": {
+            "cached_klines": 18,
+            "last_update": "2025-07-25T06:18:49.468206",
+            "is_fresh": true
+          },
+          "5m": {
+            "cached_klines": 18,
+            "last_update": "2025-07-25T06:18:49.466976",
+            "is_fresh": true
+          },
+          "1h": {
+            "cached_klines": 18,
+            "last_update": "2025-07-25T06:18:49.467612",
+            "is_fresh": true
+          }
+        },
+        "ETHUSDT": {
+          "1m": {
+            "cached_klines": 16,
+            "last_update": "2025-07-25T06:18:49.300801",
+            "is_fresh": true
+          },
+          "5m": {
+            "cached_klines": 16,
+            "last_update": "2025-07-25T06:18:49.302162",
+            "is_fresh": true
+          },
+          "1h": {
+            "cached_klines": 16,
+            "last_update": "2025-07-25T06:18:49.301582",
+            "is_fresh": true
+          }
+        },
+        "SOLUSDT": {
+          "1m": {
+            "cached_klines": 16,
+            "last_update": "2025-07-25T06:18:49.449743",
+            "is_fresh": true
+          },
+          "5m": {
+            "cached_klines": 16,
+            "last_update": "2025-07-25T06:18:49.451197",
+            "is_fresh": true
+          },
+          "1h": {
+            "cached_klines": 16,
+            "last_update": "2025-07-25T06:18:49.450400",
+            "is_fresh": true
+          }
+        }
+      },
+      "efficiency_rating": "PERFECT"
+    }
+  },
+  "api_calls_intercepted": [],
+  "websocket_messages": 150,
+  "recommendations": [
+    "\u2705 Implementation is working perfectly - no REST API fallbacks detected"
+  ]
+}

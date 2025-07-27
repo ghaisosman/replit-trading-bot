@@ -1,0 +1,99 @@
+{
+  "test_timestamp": "2025-07-24T16:37:31.687777",
+  "test_configuration": {
+    "symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "ADAUSDT",
+      "SOLUSDT"
+    ],
+    "rate_limit_window": 60,
+    "max_calls_per_minute": 1200
+  },
+  "results": {
+    "api_only": {
+      "test_type": "API_ONLY",
+      "duration": 60,
+      "api_calls": 252,
+      "errors": 0,
+      "calls_per_second": 4.2,
+      "error_rate": 0.0,
+      "rate_limit_stats": {
+        "calls_last_minute": 251,
+        "max_calls_per_minute": 1200,
+        "usage_percentage": 20.916666666666668,
+        "remaining_calls": 949
+      }
+    },
+    "hybrid": {
+      "test_type": "HYBRID_WEBSOCKET",
+      "duration": 60,
+      "api_calls": 1,
+      "websocket_messages": 187,
+      "errors": 0,
+      "calls_per_second": 0.016666666666666666,
+      "error_rate": 0.0,
+      "rate_limit_stats": {
+        "calls_last_minute": 0,
+        "max_calls_per_minute": 1200,
+        "usage_percentage": 0.0,
+        "remaining_calls": 1200
+      },
+      "websocket_efficiency": {
+        "messages_per_second": 3.1166666666666667,
+        "api_reduction_percentage": 75
+      }
+    },
+    "data_quality": {
+      "test_type": "WEBSOCKET_QUALITY",
+      "duration": 30,
+      "data_quality": {
+        "total_messages": 68,
+        "messages_per_second": 2.2666666666666666,
+        "data_completeness": 100.0,
+        "price_continuity": true,
+        "timestamp_consistency": true
+      },
+      "sample_data": [
+        {
+          "symbol": "BTCUSDT",
+          "open_time": 1753375140000,
+          "close_time": 1753375199999,
+          "open_price": 118315.7,
+          "high_price": 118500.0,
+          "low_price": 118315.7,
+          "close_price": 118467.9,
+          "volume": 126.157,
+          "is_closed": false
+        },
+        {
+          "symbol": "BTCUSDT",
+          "open_time": 1753375140000,
+          "close_time": 1753375199999,
+          "open_price": 118315.7,
+          "high_price": 118500.0,
+          "low_price": 118315.7,
+          "close_price": 118467.8,
+          "volume": 127.195,
+          "is_closed": false
+        },
+        {
+          "symbol": "BTCUSDT",
+          "open_time": 1753375140000,
+          "close_time": 1753375199999,
+          "open_price": 118315.7,
+          "high_price": 118500.0,
+          "low_price": 118315.7,
+          "close_price": 118467.9,
+          "volume": 128.282,
+          "is_closed": false
+        }
+      ]
+    }
+  },
+  "efficiency_analysis": {
+    "api_calls_reduction_percentage": 99.60317460317461,
+    "rate_limit_usage_reduction": 99.60317460317461,
+    "recommended_approach": "HYBRID"
+  }
+}

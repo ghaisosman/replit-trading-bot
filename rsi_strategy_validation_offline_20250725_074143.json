@@ -1,0 +1,40 @@
+{
+  "timestamp": "2025-07-25T07:41:43.232794",
+  "test_type": "rsi_strategy_validation_offline",
+  "results": {
+    "OVERSOLD_SCENARIO": {
+      "final_rsi": 0.0,
+      "final_price": 16.756561106696147,
+      "expected_signal": "BUY",
+      "actual_signal": "BUY",
+      "validation_result": "CORRECT",
+      "config_used": {
+        "long_entry": 45,
+        "short_entry": 55
+      }
+    },
+    "OVERBOUGHT_SCENARIO": {
+      "final_rsi": 100.0,
+      "final_price": 78837283.62381373,
+      "expected_signal": "SELL",
+      "actual_signal": "SELL",
+      "validation_result": "CORRECT",
+      "config_used": {
+        "long_entry": 45,
+        "short_entry": 55
+      }
+    },
+    "NEUTRAL_SCENARIO": {
+      "final_rsi": 55.168741015594414,
+      "final_price": 50905.81571501006,
+      "expected_signal": "NONE",
+      "actual_signal": "SELL",
+      "validation_result": "UNEXPECTED_SIGNAL",
+      "config_used": {
+        "long_entry": 45,
+        "short_entry": 55
+      }
+    }
+  },
+  "summary": "RSI strategy logic validation completed using synthetic data"
+}

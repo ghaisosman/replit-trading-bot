@@ -1,0 +1,17 @@
+{
+  "phase1_connectivity": {
+    "dashboard_home": {
+      "accessible": false,
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=5000): Max retries exceeded with url: / (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7fcb5b94d5d0>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+    },
+    "strategies_api": {
+      "accessible": false,
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=5000): Max retries exceeded with url: /api/strategies (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7fcb5b94fa50>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+    },
+    "bot_status_api": {
+      "accessible": false,
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=5000): Max retries exceeded with url: /api/bot/status (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7fcb5b95dd50>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+    }
+  },
+  "critical_error": "Critical dashboard APIs not accessible - cannot proceed with test"
+}

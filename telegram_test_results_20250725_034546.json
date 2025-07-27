@@ -1,0 +1,281 @@
+{
+  "timestamp": "2025-07-25T03:45:46.991752",
+  "telegram_configured": true,
+  "total_tests": 19,
+  "passed_tests": 19,
+  "failed_tests": 0,
+  "success_rate": 100.0,
+  "results_by_type": {
+    "connection": [
+      {
+        "message_type": "connection",
+        "test_name": "Telegram Connection Test",
+        "success": true,
+        "message_content": "Connection test completed",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:27.199073"
+      }
+    ],
+    "startup": [
+      {
+        "message_type": "startup",
+        "test_name": "Bot Startup Notification",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:27.753776"
+      }
+    ],
+    "shutdown": [
+      {
+        "message_type": "shutdown",
+        "test_name": "Bot Shutdown Notification",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:29.332068"
+      }
+    ],
+    "position_opened": [
+      {
+        "message_type": "position_opened",
+        "test_name": "RSI Oversold Position Opened",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:29.974887"
+      },
+      {
+        "message_type": "position_opened",
+        "test_name": "MACD Divergence Position Opened",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:30.603974"
+      },
+      {
+        "message_type": "position_opened",
+        "test_name": "Engulfing Pattern Position Opened",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:31.289650"
+      },
+      {
+        "message_type": "position_opened",
+        "test_name": "Smart Money Position Opened",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:31.862362"
+      }
+    ],
+    "position_closed": [
+      {
+        "message_type": "position_closed",
+        "test_name": "RSI Oversold Position Closed (Profit)",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:34.442765"
+      },
+      {
+        "message_type": "position_closed",
+        "test_name": "MACD Divergence Position Closed (Profit)",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:35.028952"
+      },
+      {
+        "message_type": "position_closed",
+        "test_name": "Engulfing Pattern Position Closed (Loss)",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:35.608863"
+      },
+      {
+        "message_type": "position_closed",
+        "test_name": "Smart Money Position Closed (Profit)",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:36.221497"
+      }
+    ],
+    "error": [
+      {
+        "message_type": "error",
+        "test_name": "Strategy-Specific Error",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:38.817968"
+      },
+      {
+        "message_type": "error",
+        "test_name": "General System Error",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:39.410800"
+      },
+      {
+        "message_type": "error",
+        "test_name": "Order Execution Error",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:39.987497"
+      }
+    ],
+    "balance_warning": [
+      {
+        "message_type": "balance_warning",
+        "test_name": "Low Balance Warning",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:42.084940"
+      }
+    ],
+    "anomaly_orphan": [
+      {
+        "message_type": "anomaly_orphan",
+        "test_name": "Orphan Trade Detection",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:42.668085"
+      }
+    ],
+    "anomaly_orphan_cleared": [
+      {
+        "message_type": "anomaly_orphan_cleared",
+        "test_name": "Orphan Trade Cleared",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:43.246208"
+      }
+    ],
+    "anomaly_ghost": [
+      {
+        "message_type": "anomaly_ghost",
+        "test_name": "Ghost Trade Detection",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:43.826093"
+      }
+    ],
+    "anomaly_ghost_cleared": [
+      {
+        "message_type": "anomaly_ghost_cleared",
+        "test_name": "Ghost Trade Cleared",
+        "success": true,
+        "message_content": "No message content captured",
+        "error": null,
+        "timestamp": "2025-07-25T03:45:44.404107"
+      }
+    ]
+  },
+  "all_messages": [
+    {
+      "timestamp": "2025-07-25T03:45:27.754163",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:29.332552",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:29.975252",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:30.604339",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:31.289964",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:31.862731",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:34.443204",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:35.029331",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:35.609189",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:36.221889",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:38.818394",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:39.411089",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:39.987816",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:42.085372",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:42.668420",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:43.246539",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:43.826443",
+      "content": "No message content captured",
+      "method": "send_message"
+    },
+    {
+      "timestamp": "2025-07-25T03:45:44.404461",
+      "content": "No message content captured",
+      "method": "send_message"
+    }
+  ],
+  "configuration_status": {
+    "bot_token_configured": true,
+    "chat_id_configured": true,
+    "reporter_enabled": true
+  }
+}
