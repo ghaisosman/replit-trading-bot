@@ -14,7 +14,7 @@
     "rsi_short_exit": 40,
     "partial_tp_pnl_threshold": 30.0,
     "partial_tp_position_percentage": 50.0,
-    "enabled": false
+    "enabled": true
   },
   "macd_divergence": {
     "symbol": "ADAUSDT",
