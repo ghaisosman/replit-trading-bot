@@ -9,10 +9,10 @@
       "side": "SELL",
       "entry_price": 118090.4,
       "detected_at": "2025-07-27T10:41:40.901552",
-      "status": "active",
-      "cycles_remaining": 1,
+      "status": "cleared",
+      "cycles_remaining": 0,
       "notified": true,
-      "cleared_at": null,
+      "cleared_at": "2025-07-27T16:15:49.295972",
       "binance_position_amt": 0.0
     },
     "orphan_RSI_ETH_ETHUSDT": {
@@ -24,12 +24,12 @@
       "side": "SELL",
       "entry_price": 3803.22,
       "detected_at": "2025-07-27T10:41:41.511757",
-      "status": "active",
-      "cycles_remaining": 1,
+      "status": "cleared",
+      "cycles_remaining": 0,
       "notified": true,
-      "cleared_at": null,
+      "cleared_at": "2025-07-27T16:15:49.994691",
       "binance_position_amt": 0.0
     }
   },
-  "last_updated": "2025-07-27T14:35:31.666863"
+  "last_updated": "2025-07-27T16:15:49.994848"
 }
