@@ -634,11 +634,11 @@
                                 </div>
                                 {% set is_disabled = config.get('assessment_interval', 60) == 0 or config.get('enabled', True) == False %}
                                 {% if is_disabled %}
-                                <span class="badge bg-secondary">
+                                <span class="badge bg-secondary" id="badge-{{ strategy_name }}">
                                     <i class="fas fa-pause"></i> Disabled
                                 </span>
                                 {% else %}
-                                <span class="badge bg-success">
+                                <span class="badge bg-success" id="badge-{{ strategy_name }}">
                                     <i class="fas fa-play"></i> Active
                                 </span>
                                 {% endif %}
@@ -708,11 +708,11 @@
                             </button>
                             {% set is_disabled = config.get('assessment_interval', 60) == 0 or config.get('enabled', True) == False %}
                             {% if is_disabled %}
-                            <button class="btn btn-outline-success btn-sm strategy-toggle-btn" data-strategy="{{ strategy_name|e }}" data-state="disabled" onclick="enableStrategy('{{ strategy_name|e }}')">
+                            <button class="btn btn-outline-success btn-sm strategy-toggle-btn" id="toggle-{{ strategy_name }}" data-strategy="{{ strategy_name|e }}" data-state="disabled" onclick="enableStrategy('{{ strategy_name|e }}')">
                                 <i class="fas fa-play"></i> Enable
                             </button>
                             {% else %}
-                            <button class="btn btn-outline-danger btn-sm strategy-toggle-btn" data-strategy="{{ strategy_name|e }}" data-state="enabled" onclick="disableStrategy('{{ strategy_name|e }}')">
+                            <button class="btn btn-outline-danger btn-sm strategy-toggle-btn" id="toggle-{{ strategy_name }}" data-strategy="{{ strategy_name|e }}" data-state="enabled" onclick="disableStrategy('{{ strategy_name|e }}')">
                                 <i class="fas fa-pause"></i> Disable
                             </button>
                             {% endif %}
@@ -2438,41 +2438,22 @@
 
         // Helper functions to update UI elements after enable/disable actions
         function updateStrategyStatusBadge(strategyName, enabled) {
-            // Find strategy card using vanilla JS instead of :contains()
-            const cards = document.querySelectorAll('.card');
-            for (let card of cards) {
-                const cardText = card.textContent || card.innerText || '';
-                if (cardText.includes(strategyName)) {
-                    const badge = card.querySelector('.badge');
-                    if (badge) {
-                        if (enabled) {
-                            badge.className = 'badge bg-success';
-                            badge.textContent = 'ENABLED';
-                        } else {
-                            badge.className = 'badge bg-secondary';
-                            badge.textContent = 'DISABLED';
-                        }
-                    }
-                    break;
+            // Use predictable ID to find badge directly
+            const badge = document.getElementById(`badge-${strategyName}`);
+            if (badge) {
+                if (enabled) {
+                    badge.className = 'badge bg-success';
+                    badge.innerHTML = '<i class="fas fa-play"></i> Active';
+                } else {
+                    badge.className = 'badge bg-secondary';
+                    badge.innerHTML = '<i class="fas fa-pause"></i> Disabled';
                 }
             }
         }
 
         function updateStrategyToggleButton(strategyName, enabled) {
-            // Find button using data-strategy attribute or fallback to text search
-            let button = document.querySelector(`[data-strategy="${strategyName}"]`);
-            
-            if (!button) {
-                // Fallback: search by onclick attribute content
-                const buttons = document.querySelectorAll('button[onclick*="Strategy"]');
-                for (let btn of buttons) {
-                    const onclickAttr = btn.getAttribute('onclick') || '';
-                    if (onclickAttr.includes(strategyName)) {
-                        button = btn;
-                        break;
-                    }
-                }
-            }
+            // Use predictable ID to find button directly
+            const button = document.getElementById(`toggle-${strategyName}`);
             
             if (button) {
                 if (enabled) {
@@ -3076,19 +3057,12 @@
             return null;
         }
 
-        // Add a helper function to update strategy badge in the card - Fixed vanilla JS version
+        // Add a helper function to update strategy badge in the card - Using predictable IDs
         function updateStrategyBadge(strategyName, text, className) {
-            const cards = document.querySelectorAll('.card');
-            for (let card of cards) {
-                const cardText = card.textContent || card.innerText || '';
-                if (cardText.includes(strategyName)) {
-                    const badge = card.querySelector('.badge');
-                    if (badge) {
-                        badge.textContent = text;
-                        badge.className = className;
-                    }
-                    break;
-                }
+            const badge = document.getElementById(`badge-${strategyName}`);
+            if (badge) {
+                badge.innerHTML = text;
+                badge.className = className;
             }
         }
 </script>
