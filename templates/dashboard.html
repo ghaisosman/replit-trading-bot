@@ -1967,18 +1967,37 @@
 
 
         function fetchRSI(symbol, index) {
-            fetch('/api/rsi/' + symbol)
+            fetch('/api/rsi/' + symbol, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            })
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('HTTP ' + response.status);
                     }
+                    
+                    // Check content type
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        throw new Error('Invalid response format');
+                    }
+                    
                     return response.json();
                 })
                 .then(data => {
-                    if (data.success && data.rsi !== undefined) {
-                        let rsiValue = data.rsi;
+                    const rsiElement = document.getElementById('rsi-' + index);
+                    if (!rsiElement) return;
+
+                    if (data && data.success && data.rsi !== undefined) {
+                        let rsiValue = parseFloat(data.rsi);
+                        if (isNaN(rsiValue)) {
+                            throw new Error('Invalid RSI value');
+                        }
+
                         let rsiClass = 'bg-secondary';
-                        let rsiText = 'RSI: ' + rsiValue;
+                        let rsiText = 'RSI: ' + rsiValue.toFixed(1);
 
                         // Add note indicator if it's estimated/fallback
                         if (data.note) {
@@ -1996,22 +2015,17 @@
                             rsiClass = 'bg-warning'; // High - yellow
                         }
 
-                        const rsiElement = document.getElementById('rsi-' + index);
-                        if (rsiElement) {
-                            rsiElement.className = `badge ${rsiClass}`;
-                            rsiElement.textContent = rsiText;
-                        }
+                        rsiElement.className = `badge ${rsiClass}`;
+                        rsiElement.textContent = rsiText;
+                        rsiElement.title = '';
                     } else {
-                        const rsiElement = document.getElementById('rsi-' + index);
-                        if (rsiElement) {
-                            rsiElement.className = 'badge bg-danger';
-                            rsiElement.textContent = 'RSI: Error';
-                            rsiElement.title = data.error || 'Failed to calculate RSI';
-                        }
+                        rsiElement.className = 'badge bg-danger';
+                        rsiElement.textContent = 'RSI: Error';
+                        rsiElement.title = data?.error || 'Failed to calculate RSI';
                     }
                 })
                 .catch(error => {
-                    console.debug('RSI fetch error for ' + symbol + ':', error);
+                    console.warn('RSI fetch error for ' + symbol + ':', error.message);
                     const rsiElement = document.getElementById('rsi-' + index);
                     if (rsiElement) {
                         rsiElement.className = 'badge bg-secondary';
@@ -2025,18 +2039,32 @@
         let updateTimeouts = {};
         let pollingActive = true;
 
-         // Simple API request function without complex error handling
+         // Enhanced API request function with proper error handling
         function apiRequest(url) {
-            return fetch(url)
+            return fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                timeout: 10000
+            })
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('HTTP ' + response.status);
                     }
+                    
+                    // Check content type before parsing
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        throw new Error('Invalid response format');
+                    }
+                    
                     return response.json();
                 })
                 .catch(error => {
-                    console.error('API request failed:', error);
-                    return { success: false, error: error.message };
+                    console.warn('API request failed for ' + url + ':', error.message);
+                    return getDefaultResponse(url);
                 });
         }
 
@@ -2356,38 +2384,41 @@
                   '• Risk metrics');
         }
 
-        // Disable strategy
+        // Disable strategy with enhanced error handling
         function disableStrategy(strategyName) {
             console.log('🔴 Disabling strategy:', strategyName);
 
             fetch(`/api/strategies/${strategyName}/disable`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
                 }
             })
             .then(response => {
                 console.log('Disable response status:', response.status);
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                
+                // Check content type
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Invalid response format');
+                }
+                
                 return response.json();
             })
             .then(data => {
                 console.log('Disable response data:', data);
-                if (data.success) {
-                    // Update the button and badge in the UI
-                    const button = document.querySelector(`button[onclick="disableStrategy('${strategyName}')"]`);
-                    if (button) {
-                        button.textContent = '▶️ Enable';
-                        button.className = 'btn btn-outline-success btn-sm strategy-toggle-btn';
-                        button.setAttribute('onclick', `enableStrategy('${strategyName}')`);
-                        button.setAttribute('data-state', 'disabled');
-                    }
-
-                    // Update the badge - FIXED: Use proper method to find strategy card
-                    updateStrategyBadge(strategyName, '⏸️ Disabled', 'badge bg-secondary');
-
+                if (data && data.success) {
+                    // Update UI elements using reliable selectors
+                    updateStrategyStatusBadge(strategyName, false);
+                    updateStrategyToggleButton(strategyName, false);
                     showNotification(`Strategy "${strategyName}" disabled successfully`, 'success');
                 } else {
-                    showNotification(`Failed to disable strategy: ${data.message}`, 'error');
+                    const errorMsg = data?.message || 'Unknown error';
+                    showNotification(`Failed to disable strategy: ${errorMsg}`, 'error');
                 }
             })
             .catch(error => {
@@ -2396,38 +2427,41 @@
             });
         }
 
-        // Enable strategy
+        // Enable strategy with enhanced error handling
         function enableStrategy(strategyName) {
             console.log('🟢 Enabling strategy:', strategyName);
 
             fetch(`/api/strategies/${strategyName}/enable`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
                 }
             })
             .then(response => {
                 console.log('Enable response status:', response.status);
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                
+                // Check content type
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Invalid response format');
+                }
+                
                 return response.json();
             })
             .then(data => {
                 console.log('Enable response data:', data);
-                if (data.success) {
-                    // Update the button and badge in the UI
-                    const button = document.querySelector(`button[onclick="enableStrategy('${strategyName}')"]`);
-                    if (button) {
-                        button.textContent = '⏸️ Disable';
-                        button.className = 'btn btn-outline-danger btn-sm strategy-toggle-btn';
-                        button.setAttribute('onclick', `disableStrategy('${strategyName}')`);
-                        button.setAttribute('data-state', 'enabled');
-                    }
-
-                    // Update the badge - FIXED: Use proper method to find strategy card
-                    updateStrategyBadge(strategyName, '▶️ Active', 'badge bg-success');
-
+                if (data && data.success) {
+                    // Update UI elements using reliable selectors
+                    updateStrategyStatusBadge(strategyName, true);
+                    updateStrategyToggleButton(strategyName, true);
                     showNotification(`Strategy "${strategyName}" enabled successfully`, 'success');
                 } else {
-                    showNotification(`Failed to enable strategy: ${data.message}`, 'error');
+                    const errorMsg = data?.message || 'Unknown error';
+                    showNotification(`Failed to enable strategy: ${errorMsg}`, 'error');
                 }
             })
             .catch(error => {
@@ -2476,10 +2510,28 @@
             console.log('🔄 Refreshing strategies list (not fully implemented)');
         }
 
-        // Show a notification message
+        // Show a notification message with proper UI feedback
         function showNotification(message, type) {
-            // Implement notification logic here, e.g., display a toast or alert message
             console.log(`📣 Notification: ${message} (Type: ${type})`);
+            
+            // Show visual alert
+            showAlert(message, type);
+        }
+
+        // Add a helper function to update strategy badge in the card - Fixed vanilla JS version
+        function updateStrategyBadge(strategyName, text, className) {
+            const cards = document.querySelectorAll('.card');
+            for (let card of cards) {
+                const cardText = card.textContent || card.innerText || '';
+                if (cardText.includes(strategyName)) {
+                    const badge = card.querySelector('.badge');
+                    if (badge) {
+                        badge.className = className;
+                        badge.innerHTML = text;
+                    }
+                    break;
+                }
+            }
         }
 
         // Strategy management functions
