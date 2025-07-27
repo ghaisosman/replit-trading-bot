@@ -28,15 +28,15 @@ def run_web_dashboard():
         # Get port from environment, with fallback ports
         primary_port = int(os.environ.get('PORT', 5000))
         fallback_ports = [5000, 5001, 5002, 5003, 8000, 8080, 3000]
-        
+
         # Ensure primary port is in fallback list
         if primary_port not in fallback_ports:
             fallback_ports.insert(0, primary_port)
 
         logger = logging.getLogger(__name__)
-        
+
         import socket
-        
+
         for port in fallback_ports:
             try:
                 # Test if port is available before trying to bind
@@ -44,11 +44,11 @@ def run_web_dashboard():
                 sock.settimeout(1)
                 result = sock.connect_ex(('localhost', port))
                 sock.close()
-                
+
                 if result == 0:
                     logger.warning(f"⚠️ Port {port} is already in use, trying next port...")
                     continue
-                
+
                 logger.info(f"🌐 Starting web dashboard on port {port}")
                 app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
                 break
@@ -81,7 +81,7 @@ async def main():
 
     # Check if running on Render (or any deployment)
     is_deployment = os.environ.get('RENDER') == 'true' or os.environ.get('REPLIT_DEPLOYMENT') == '1'
-    
+
     # Check for potential dual deployment situation
     if not is_deployment:
         try:
@@ -90,7 +90,7 @@ async def main():
             sock.settimeout(1)
             result = sock.connect_ex(('localhost', 5000))
             sock.close()
-            
+
             if result == 0:
                 logger.warning("⚠️ DUAL DEPLOYMENT DETECTED!")
                 logger.warning("💡 Port 5000 is occupied - likely by your live Render deployment")

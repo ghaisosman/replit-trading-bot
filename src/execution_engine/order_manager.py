@@ -710,7 +710,7 @@ class OrderManager:
             self.logger.error(f"Error checking position on symbol: {e}")
             return False
 
-    def get_position_on_symbol(self, symbol: str) -> Optional[Position]:
+    def get_position_onsymbol(self, symbol: str) -> Optional[Position]:
         """Get existing position on symbol if any"""
         try:
             for position in self.active_positions.values():
@@ -730,21 +730,6 @@ class OrderManager:
             self.logger.error(f"Error setting anomaly detector: {e}")
 
 
-
-    def clear_orphan_position(self, strategy_name: str) -> bool:
-        """Clear orphan position for a strategy - always succeeds for orphan clearing"""
-        try:
-            if strategy_name in self.active_positions:
-                del self.active_positions[strategy_name]
-                self.logger.info(f"🧹 Cleared orphan position: {strategy_name}")
-                return True
-            else:
-                # For orphan trades, not having a position is expected - clear should succeed
-                self.logger.info(f"🧹 Orphan clearing successful: {strategy_name} (position already removed)")
-                return True
-        except Exception as e:
-            self.logger.error(f"Error clearing orphan position {strategy_name}: {e}")
-            return False
 
     def is_legitimate_bot_position(self, strategy_name: str, symbol: str, side: str, quantity: float, entry_price: float) -> Tuple[bool, Optional[str]]:
         """

@@ -20,6 +20,8 @@ import schedule
 import threading
 from collections import deque
 import logging
+from src.execution_engine.reliable_orphan_detector import ReliableOrphanDetector  # Import the new class
+from src.execution_engine.trade_database import TradeDatabase # Import TradeDatabase
 
 
 # WebLogHandler moved to src/utils/logger.py to prevent circular imports
@@ -147,6 +149,16 @@ class BotManager:
         except Exception as e:
             self.logger.warning(f"⚠️ Web log handler initialization failed (non-critical): {e}")
             # Continue without web logging - bot can still function
+
+        # Initialize TradeDatabase
+        self.trade_db = TradeDatabase()
+
+        # Initialize reliable orphan detection system
+        self.orphan_detector = ReliableOrphanDetector(
+            binance_client=self.binance_client,
+            trade_db=self.trade_db,
+            telegram_reporter=self.telegram_reporter
+        )
 
     def _initialize_web_logging(self):
         """Initialize web logging handler safely after basic setup"""
@@ -369,13 +381,14 @@ class BotManager:
                 # Check exit conditions for open positions
                 await self._check_exit_conditions()
 
-                # Run anomaly detection continuously for automatic orphan/ghost trade management
-                if hasattr(self, 'anomaly_detector') and self.anomaly_detector:
-                    try:
-                        self.anomaly_detector.run_detection(suppress_notifications=False)
-                    except Exception as e:
-                        self.logger.error(f"❌ Anomaly detection error: {e}")
-                        # Continue running despite anomaly detection errors
+                # Run reliable orphan detection
+                try:
+                    if self.orphan_detector.should_run_verification():
+                        verification_result = self.orphan_detector.run_verification_cycle()
+                        if verification_result.get('orphans_detected', 0) > 0:
+                            self.logger.warning(f"🔍 Orphan detection found {verification_result['orphans_detected']} manually closed trades")
+                except Exception as e:
+                    self.logger.error(f"Error in orphan detection: {e}")
 
                 # Reset error counter on successful iteration
                 consecutive_errors = 0
@@ -527,7 +540,7 @@ class BotManager:
 
                                 # Display strategy-specific indicators with enhanced error handling
                                 indicator_text = "Indicators loading..."
-                                
+
                                 if 'rsi' in strategy_name.lower() and 'engulfing' not in strategy_name.lower():
                                     # RSI Strategy - show current RSI
                                     if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
@@ -538,7 +551,7 @@ class BotManager:
                                             indicator_text = "RSI: Calculating..."
                                     else:
                                         indicator_text = "RSI: Waiting for data..."
-                                        
+
                                 elif 'macd' in strategy_name.lower():
                                     # MACD Strategy - show MACD line and signal
                                     if ('macd' in df.columns and 'macd_signal' in df.columns and 
@@ -551,26 +564,26 @@ class BotManager:
                                             indicator_text = "MACD: Calculating..."
                                     else:
                                         indicator_text = "MACD: Waiting for data..."
-                                        
+
                                 elif 'engulfing' in strategy_name.lower():
                                     # Engulfing Pattern - show RSI + pattern status
                                     pattern_status = "No Pattern"
                                     rsi_value = "N/A"
-                                    
+
                                     if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
                                         current_rsi = df['rsi'].iloc[-1]
                                         if not pd.isna(current_rsi):
                                             rsi_value = f"{current_rsi:.1f}"
-                                    
+
                                     # Check for patterns
                                     if len(df) >= 2:
                                         if 'bullish_engulfing' in df.columns and df['bullish_engulfing'].iloc[-1]:
                                             pattern_status = "Bullish Engulfing"
                                         elif 'bearish_engulfing' in df.columns and df['bearish_engulfing'].iloc[-1]:
                                             pattern_status = "Bearish Engulfing"
-                                    
+
                                     indicator_text = f"RSI: {rsi_value} | Pattern: {pattern_status}"
-                                    
+
                                 elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
                                     # Smart Money - show custom analysis
                                     indicator_text = "Smart Money Analysis"
@@ -578,7 +591,7 @@ class BotManager:
                                         current_rsi = df['rsi'].iloc[-1]
                                         if not pd.isna(current_rsi):
                                             indicator_text += f" | RSI: {current_rsi:.1f}"
-                                            
+
                                 else:
                                     # Other strategies - try to show RSI as fallback
                                     if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
@@ -720,7 +733,8 @@ class BotManager:
             binance_positions = {}
             if self.binance_client.is_futures:
                 try:
-                    positions = self.binance_client.client.futures_position_information()
+                    positions = self.binance_client.client```python
+.futures_position_information()
                     for position in positions:
                         symbol = position.get('symbol')
                         position_amt = float(position.get('positionAmt', 0))
@@ -839,11 +853,8 @@ class BotManager:
             # Update last assessment time
             self.strategy_last_assessment[strategy_name] = datetime.now()
 
-            # Check if strategy has blocking anomaly
-            if self.anomaly_detector.has_blocking_anomaly(strategy_name):
-                anomaly_status = self.anomaly_detector.get_anomaly_status(strategy_name)
-                self.logger.info(f"⚠️ STRATEGY BLOCKED | {strategy_name.upper()} | {strategy_config['symbol']} | Status: {anomaly_status}")
-                return
+            # No need to check blocking anomalies - reliable system marks trades as closed in DB
+            # Strategies will naturally avoid conflicts through position checking
 
             # Check if strategy already has an active position
             if strategy_name in self.order_manager.active_positions:
@@ -1057,31 +1068,31 @@ class BotManager:
         """Initialize WebSocket streams for all configured strategies"""
         try:
             self.logger.info("📡 INITIALIZING WEBSOCKET STREAMS...")
-            
+
             # Add all strategy symbols and intervals to WebSocket manager
             for strategy_name, strategy_config in self.strategies.items():
                 symbol = strategy_config.get('symbol')
                 interval = strategy_config.get('timeframe', '15m')
-                
+
                 if symbol:
                     websocket_manager.add_symbol_interval(symbol, interval)
                     self.logger.info(f"   📡 Added WebSocket stream: {symbol} @ {interval}")
-            
+
             # Also add 1m streams for current price updates
             for strategy_name, strategy_config in self.strategies.items():
                 symbol = strategy_config.get('symbol')
                 if symbol:
                     websocket_manager.add_symbol_interval(symbol, '1m')
-            
+
             # Start WebSocket manager
             if websocket_manager.subscribed_streams:
                 websocket_manager.start()
                 self.logger.info(f"🚀 WEBSOCKET MANAGER STARTED with {len(websocket_manager.subscribed_streams)} streams")
-                
+
                 # Wait a moment for initial connection
                 import time
                 time.sleep(2)
-                
+
                 # Log connection status
                 stats = websocket_manager.get_statistics()
                 if stats['is_connected']:
@@ -1090,7 +1101,7 @@ class BotManager:
                     self.logger.warning("⚠️ WEBSOCKET CONNECTION PENDING...")
             else:
                 self.logger.warning("⚠️ No WebSocket streams to initialize")
-                
+
         except Exception as e:
             self.logger.error(f"❌ WEBSOCKET INITIALIZATION ERROR: {e}")
             self.logger.warning("🔄 Continuing with REST API fallback...")
@@ -1160,26 +1171,26 @@ class BotManager:
         """Logs the current status of the WebSocket connection."""
         try:
             stats = websocket_manager.get_statistics()
-            
+
             if stats['is_connected']:
                 uptime_minutes = stats['uptime_seconds'] / 60
                 self.logger.info(f"✅ WebSocket: Connected | Uptime: {uptime_minutes:.1f}m | Messages: {stats['messages_received']} | Klines: {stats['klines_processed']}")
             else:
                 self.logger.warning("⚠️ WebSocket: Disconnected - Using REST API fallback")
-                
+
             # Log cache status for key symbols
             cache_status = websocket_manager.get_cache_status()
             fresh_count = 0
             total_count = 0
-            
+
             for symbol in cache_status:
                 for interval in cache_status[symbol]:
                     total_count += 1
                     if cache_status[symbol][interval]['is_fresh']:
                         fresh_count += 1
-            
+
             if total_count > 0:
                 self.logger.info(f"📊 WebSocket Cache: {fresh_count}/{total_count} streams fresh")
-                
+
         except Exception as e:
             self.logger.error(f"Error logging WebSocket status: {e}")
