@@ -13,7 +13,7 @@ from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfi
 from src.execution_engine.strategies.macd_divergence_config import MACDDivergenceConfig
 from src.reporting.telegram_reporter import TelegramReporter
 from src.config.trading_config import trading_config_manager
-from src.execution_engine.trade_monitor import TradeMonitor
+
 from src.execution_engine.anomaly_detector import AnomalyDetector
 from src.data_fetcher.websocket_manager import websocket_manager
 import schedule
