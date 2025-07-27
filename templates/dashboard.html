@@ -700,19 +700,19 @@
                             {% endif %}
                         </div>
                         <div class="card-footer text-center">
-                            <button class="btn btn-primary btn-sm me-2" onclick="editStrategyConfig('{{ strategy_name }}')">
-                                <i class="fas fa-edit"></i> Configure Strategy
+                            <button class="btn btn-primary btn-sm me-2" onclick="editStrategyConfig('{{ strategy_name|e }}')">
+                                <i class="fas fa-cog"></i> Configure Strategy
                             </button>
-                            <button class="btn btn-outline-warning btn-sm me-2" onclick="viewStrategyStats('{{ strategy_name }}')">
+                            <button class="btn btn-outline-warning btn-sm me-2" onclick="viewStrategyStats('{{ strategy_name|e }}')">
                                 <i class="fas fa-chart-bar"></i> View Stats
                             </button>
                             {% set is_disabled = config.get('assessment_interval', 60) == 0 or config.get('enabled', True) == False %}
                             {% if is_disabled %}
-                            <button class="btn btn-outline-success btn-sm strategy-toggle-btn" data-strategy="{{ strategy_name }}" data-state="disabled" onclick="enableStrategy('{{ strategy_name }}')">
+                            <button class="btn btn-outline-success btn-sm strategy-toggle-btn" data-strategy="{{ strategy_name|e }}" data-state="disabled" onclick="enableStrategy('{{ strategy_name|e }}')">
                                 <i class="fas fa-play"></i> Enable
                             </button>
                             {% else %}
-                            <button class="btn btn-outline-danger btn-sm strategy-toggle-btn" data-strategy="{{ strategy_name }}" data-state="enabled" onclick="disableStrategy('{{ strategy_name }}')">
+                            <button class="btn btn-outline-danger btn-sm strategy-toggle-btn" data-strategy="{{ strategy_name|e }}" data-state="enabled" onclick="disableStrategy('{{ strategy_name|e }}')">
                                 <i class="fas fa-pause"></i> Disable
                             </button>
                             {% endif %}
@@ -2437,33 +2437,36 @@
         }
 
         // Helper functions to update UI elements after enable/disable actions
-        function updateStrategyStatusBadge(strategyName, state) {
-            const cards = document.querySelectorAll('.card');
-            for (let card of cards) {
-                const cardText = card.textContent || card.innerText || '';
-                if (cardText.includes(strategyName)) {
-                    const badge = card.querySelector('.badge');
-                    if (badge) {
-                        badge.textContent = state === 'enabled' ? 'Active' : 'Disabled';
-                        badge.className = `badge bg-${state === 'enabled' ? 'success' : 'secondary'}`;
+        function updateStrategyStatusBadge(strategyName, enabled) {
+            // Use data attribute selector instead of :contains() which is not valid in querySelector
+            const card = document.querySelector(`[data-strategy="${strategyName}"]`).closest('.card');
+            if (card) {
+                const badge = card.querySelector('.badge');
+                if (badge) {
+                    if (enabled) {
+                        badge.className = 'badge bg-success';
+                        badge.textContent = 'ENABLED';
+                    } else {
+                        badge.className = 'badge bg-secondary';
+                        badge.textContent = 'DISABLED';
                     }
-                    break;
                 }
             }
         }
 
-        function updateStrategyToggleButton(strategyName, state) {
-            const cards = document.querySelectorAll('.card');
-            for (let card of cards) {
-                const cardText = card.textContent || card.innerText || '';
-                if (cardText.includes(strategyName)) {
-                    const button = card.querySelector('.strategy-toggle-btn');
-                    if (button) {
-                        button.textContent = state === 'enabled' ? 'Disable' : 'Enable';
-                        button.className = `btn btn-outline-${state === 'enabled' ? 'danger' : 'success'} btn-sm strategy-toggle-btn`;
-                        button.setAttribute('onclick', `${state === 'enabled' ? 'disableStrategy' : 'enableStrategy'}('${strategyName}')`);
-                    }
-                    break;
+        function updateStrategyToggleButton(strategyName, enabled) {
+            const button = document.querySelector(`[data-strategy="${strategyName}"]`);
+            if (button) {
+                if (enabled) {
+                    button.className = 'btn btn-outline-danger btn-sm strategy-toggle-btn';
+                    button.setAttribute('data-state', 'enabled');
+                    button.innerHTML = '<i class="fas fa-pause"></i> Disable';
+                    button.setAttribute('onclick', `disableStrategy('${strategyName.replace(/'/g, "\\\'")}')`);
+                } else {
+                    button.className = 'btn btn-outline-success btn-sm strategy-toggle-btn';
+                    button.setAttribute('data-state', 'disabled');
+                    button.innerHTML = '<i class="fas fa-play"></i> Enable';
+                    button.setAttribute('onclick', `enableStrategy('${strategyName.replace(/'/g, "\\\'")}')`);
                 }
             }
         }
@@ -2748,26 +2751,22 @@
 
         // Save new strategy
         function saveNewStrategy() {
-            const name = document.getElementById('newStrategyName').value.trim();
-
-            if (!name) {
-                alert('Strategy name is required');
-                return;
-            }
-
-            if (!name.toLowerCase().includes('rsi') && !name.toLowerCase().includes('macd')) {
-                alert('Strategy name must contain "rsi" or "macd" to determine strategy type');
-                return;
-            }
-
+            const strategyName = document.getElementById('newStrategyName').value.trim();
             const symbol = document.getElementById('newStrategySymbol').value.trim();
-            if (!symbol) {
-                alert('Symbol is required');
+
+            if (!strategyName || !symbol) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            // Validate strategy name (alphanumeric and underscore only)
+            if (!/^[a-zA-Z0-9_]+$/.test(strategyName)) {
+                alert('Strategy name can only contain letters, numbers, and underscores');
                 return;
             }
 
             const newStrategy = {
-                name: name,
+                name: strategyName,
                 symbol: symbol.toUpperCase(),
                 margin: parseFloat(document.getElementById('newStrategyMargin').value),
                 leverage: parseInt(document.getElementById('newStrategyLeverage').value),
@@ -2778,12 +2777,12 @@
             };
 
             // Add strategy-specific parameters
-            if (name.toLowerCase().includes('rsi')) {
+            if (strategyName.toLowerCase().includes('rsi')) {
                 newStrategy.rsi_long_entry = 30;
                 newStrategy.rsi_long_exit = 70;
                 newStrategy.rsi_short_entry = 70;
                 newStrategy.rsi_short_exit = 30;
-            } else if (name.toLowerCase().includes('macd')) {
+            } else if (strategyName.toLowerCase().includes('macd')) {
                 newStrategy.macd_fast = 12;
                 newStrategy.macd_slow = 26;
                 newStrategy.macd_signal = 9;
