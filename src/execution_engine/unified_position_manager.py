@@ -128,12 +128,20 @@ class UnifiedPositionManager:
                         'position_amt': position_amt,
                         'entry_price': float(position.get('entryPrice', 0)),
                         'side': 'BUY' if position_amt > 0 else 'SELL',
-                        'quantity': abs(position_amt)
+                        'quantity': abs(position_amt),
+                        'unrealized_pnl': float(position.get('unrealizedPnl', 0))
                     }
 
             self.logger.info(f"🔄 FOUND {len(binance_positions)} BINANCE POSITIONS")
+            
+            # Log all Binance positions for debugging
+            for symbol, pos_data in binance_positions.items():
+                self.logger.info(f"📊 BINANCE POSITION: {symbol} | {pos_data['side']} | Qty: {pos_data['quantity']} | Entry: ${pos_data['entry_price']:.4f}")
 
-            # Update positions with Binance data
+            # Check for untracked legitimate positions (like ADAUSDT)
+            await self._recover_untracked_positions(binance_positions)
+
+            # Update existing positions with Binance data
             positions_to_remove = []
 
             for trade_id, position in self._positions.items():
@@ -158,6 +166,67 @@ class UnifiedPositionManager:
 
         except Exception as e:
             self.logger.error(f"❌ Error syncing with Binance: {e}")
+
+    async def _recover_untracked_positions(self, binance_positions: dict):
+        """Recover legitimate positions that exist on Binance but not in database"""
+        try:
+            tracked_symbols = {pos.symbol for pos in self._positions.values()}
+            
+            for symbol, binance_pos in binance_positions.items():
+                if symbol not in tracked_symbols:
+                    self.logger.info(f"🔍 UNTRACKED POSITION DETECTED: {symbol} | {binance_pos['side']} | Qty: {binance_pos['quantity']}")
+                    
+                    # Check if this might be a legitimate bot position
+                    trade_id = await self._attempt_position_recovery(symbol, binance_pos)
+                    
+                    if trade_id:
+                        self.logger.info(f"✅ RECOVERED LEGITIMATE POSITION: {trade_id} | {symbol}")
+                    else:
+                        self.logger.warning(f"⚠️ UNTRACKED POSITION: {symbol} | Manual position or orphaned trade")
+
+        except Exception as e:
+            self.logger.error(f"❌ Error recovering untracked positions: {e}")
+
+    async def _attempt_position_recovery(self, symbol: str, binance_pos: dict) -> str:
+        """Attempt to recover a position by finding it in the database"""
+        try:
+            # Search database for matching trade
+            for trade_id, trade_data in self.trade_db.trades.items():
+                if (trade_data.get('trade_status') == 'OPEN' and 
+                    trade_data.get('symbol') == symbol and
+                    trade_data.get('side') == binance_pos['side']):
+                    
+                    # Check quantity match with tolerance
+                    db_quantity = float(trade_data.get('quantity', 0))
+                    if abs(db_quantity - binance_pos['quantity']) < 0.1:
+                        
+                        # Create unified position from database data
+                        position = UnifiedPosition(
+                            trade_id=trade_id,
+                            strategy_name=trade_data.get('strategy_name', 'RECOVERED'),
+                            symbol=symbol,
+                            side=binance_pos['side'],
+                            entry_price=float(trade_data.get('entry_price', binance_pos['entry_price'])),
+                            quantity=binance_pos['quantity'],
+                            stop_loss=trade_data.get('stop_loss'),
+                            take_profit=trade_data.get('take_profit'),
+                            margin_used=float(trade_data.get('margin_used', 0)),
+                            leverage=int(trade_data.get('leverage', 1)),
+                            status='OPEN',
+                            created_at=trade_data.get('created_at', ''),
+                            binance_position_amt=binance_pos['position_amt']
+                        )
+                        
+                        self._positions[trade_id] = position
+                        
+                        self.logger.info(f"✅ POSITION RECOVERED: {trade_id} | {symbol} | Strategy: {position.strategy_name}")
+                        return trade_id
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error attempting position recovery for {symbol}: {e}")
+            return None
 
     async def _cleanup_orphan_positions(self):
         """Clean up positions that don't have corresponding Binance positions"""
