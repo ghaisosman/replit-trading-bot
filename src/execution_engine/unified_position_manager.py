@@ -188,9 +188,9 @@ class UnifiedPositionManager:
             self.logger.error(f"❌ Error recovering untracked positions: {e}")
 
     async def _attempt_position_recovery(self, symbol: str, binance_pos: dict) -> str:
-        """Attempt to recover a position by finding it in the database"""
+        """Attempt to recover a position by finding it in the database or create cross-deployment record"""
         try:
-            # Search database for matching trade
+            # First, search database for matching trade
             for trade_id, trade_data in self.trade_db.trades.items():
                 if (trade_data.get('trade_status') == 'OPEN' and 
                     trade_data.get('symbol') == symbol and
@@ -221,6 +221,71 @@ class UnifiedPositionManager:
                         
                         self.logger.info(f"✅ POSITION RECOVERED: {trade_id} | {symbol} | Strategy: {position.strategy_name}")
                         return trade_id
+            
+            # If not found in database, create cross-deployment recovery record
+            # This handles legitimate positions from other bot deployments (like Render)
+            self.logger.info(f"🔄 CREATING CROSS-DEPLOYMENT RECOVERY RECORD FOR {symbol}")
+            
+            # Generate recovery trade ID
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            recovery_trade_id = f"RENDER_RECOVERY_{symbol}_{timestamp}"
+            
+            # Estimate strategy based on symbol
+            estimated_strategy = "cross_deployment"
+            if "ADA" in symbol:
+                estimated_strategy = "render_ada_position"
+            elif "BTC" in symbol:
+                estimated_strategy = "render_btc_position"
+            elif "ETH" in symbol:
+                estimated_strategy = "render_eth_position"
+            
+            # Calculate estimated margin (conservative estimate)
+            position_value = binance_pos['entry_price'] * binance_pos['quantity']
+            estimated_leverage = 5  # Conservative estimate
+            estimated_margin = position_value / estimated_leverage
+            
+            # Create recovery trade record
+            recovery_data = {
+                'trade_id': recovery_trade_id,
+                'strategy_name': estimated_strategy,
+                'symbol': symbol,
+                'side': binance_pos['side'],
+                'quantity': binance_pos['quantity'],
+                'entry_price': binance_pos['entry_price'],
+                'trade_status': 'OPEN',
+                'position_value_usdt': position_value,
+                'leverage': estimated_leverage,
+                'margin_used': estimated_margin,
+                'created_at': datetime.now().isoformat(),
+                'last_updated': datetime.now().isoformat(),
+                'cross_deployment_recovery': True,
+                'recovery_source': 'render_deployment',
+                'original_binance_data': binance_pos
+            }
+            
+            # Add to database
+            success = self.trade_db.add_trade(recovery_trade_id, recovery_data)
+            
+            if success:
+                # Create unified position
+                position = UnifiedPosition(
+                    trade_id=recovery_trade_id,
+                    strategy_name=estimated_strategy,
+                    symbol=symbol,
+                    side=binance_pos['side'],
+                    entry_price=binance_pos['entry_price'],
+                    quantity=binance_pos['quantity'],
+                    margin_used=estimated_margin,
+                    leverage=estimated_leverage,
+                    status='OPEN',
+                    created_at=datetime.now().isoformat(),
+                    binance_position_amt=binance_pos['position_amt']
+                )
+                
+                self._positions[recovery_trade_id] = position
+                
+                self.logger.info(f"✅ CROSS-DEPLOYMENT POSITION RECOVERED: {recovery_trade_id} | {symbol} | From Render deployment")
+                return recovery_trade_id
             
             return None
             

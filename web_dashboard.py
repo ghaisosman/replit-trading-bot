@@ -1380,8 +1380,7 @@ def update_strategy(strategy_name):
                 logger.error(f"❌ VALIDATION FAILED: {key} = {saved_config.get(key)} (expected {value})")
 
         if validation_passed:
-            logger.info(f"✅ VALIDATION PASSED: All {len(data)} parameters correctly saved")
-        else:
+            logger.info(f"✅ VALIDATION PASSED: All {len(data)} parameters correctly saved")        else:
             logger.error(f"❌ VALIDATION FAILED: Some parameters not saved correctly")
 
         logger.info(f"🌐 WEB DASHBOARD: SINGLE SOURCE OF TRUTH UPDATE for {strategy_name}")
@@ -1617,7 +1616,7 @@ def get_positions():
             try:
                 # Avoid event loop issues in web threads - use direct database access
                 positions = []
-                
+
                 # Get positions directly from unified_positions without async calls
                 for trade_id, unified_pos in bot_manager.unified_positions.get_all_positions().items():
                     try:
@@ -1763,80 +1762,42 @@ def get_positions():
 
 @app.route('/api/rsi/<symbol>')
 def get_rsi(symbol):
-    """Get RSI value for a symbol with comprehensive error handling"""
+    """Get RSI value for a symbol with error handling"""
     try:
-        if not IMPORTS_AVAILABLE:
-            return jsonify({'success': False, 'error': 'Binance client not available'})
+        # Get recent klines for RSI calculation
+        klines = bot_manager.binance_client.client.futures_klines(
+            symbol=symbol,
+            interval='15m',
+            limit=50
+        )
 
-        # Validate symbol
-        if not symbol or len(symbol) < 6:
-            return jsonify({'success': False, 'error': 'Invalid symbol'})
-
-        # Try to get klines with proper error handling and timeout
-        try:
-            # Add timeout and retry logic
-            import time
-            for attempt in range(3):
-                try:
-                    klines = binance_client.get_klines(symbol=symbol, interval='15m', limit=100)
-                    if klines and len(klines) >= 15:
-                        break
-                    
-                    # Fallback: Try different timeframe
-                    klines = binance_client.get_klines(symbol=symbol, interval='5m', limit=100)
-                    if klines and len(klines) >= 15:
-                        break
-                        
-                    if attempt < 2:
-                        time.sleep(1)  # Brief delay before retry
-                except Exception as retry_error:
-                    if attempt == 2:  # Last attempt
-                        raise retry_error
-                    time.sleep(1)
-
-            if not klines or len(klines) < 15:
-                return jsonify({'success': False, 'error': f'Insufficient market data for {symbol}'})
-
-        except Exception as e:
-            logger.error(f"Error fetching klines for {symbol}: {e}")
-            # Return a more informative fallback response
-            return jsonify({
-                'success': True, 
-                'rsi': 50.0, 
-                'note': f'API temporarily unavailable for {symbol}',
-                'fallback': True
-            })
+        if not klines or len(klines) < 14:
+            return jsonify({'success': False, 'error': 'Insufficient data for RSI calculation'})
 
         # Convert to closes
         closes = []
         for kline in klines:
-            try:
-                close_price = float(kline[4])
-                closes.append(close_price)
-            except (ValueError, IndexError):
-                continue
+            closes.append(float(kline[4]))  # Close price
 
-        if len(closes) < 14:
-            return jsonify({'success': False, 'error': f'Not enough valid price data for RSI calculation for {symbol}'})
+        # Calculate RSI
+        rsi_value = calculate_rsi(closes)
 
-        # Calculate RSI using the same method as the bot
-        try:
-            rsi = calculate_rsi(closes, period=14)
-
-            # Validate RSI value
-            if rsi < 0 or rsi > 100:
-                rsi = 50.0  # Default to neutral if calculation is invalid
-
-            return jsonify({'success': True, 'rsi': round(rsi, 2)})
-
-        except Exception as calc_error:
-            logger.error(f"RSI calculation error for {symbol}: {calc_error}")
-            return jsonify({'success': False, 'error': f'RSI calculation failed for {symbol}'})
+        return jsonify({
+            'success': True,
+            'rsi': rsi_value,
+            'symbol': symbol,
+            'timestamp': datetime.now().isoformat()
+        })
 
     except Exception as e:
-        logger.error(f"Error in get_rsi endpoint for {symbol}: {e}")
-        # Return a fallback RSI instead of error to prevent infinite loading
-        return jsonify({'success': False, 'error': f'Failed to get RSI for {symbol}'})
+        logger.error(f"Error fetching klines for {symbol}: {e}")
+        # Return a more informative fallback response
+        return jsonify({
+            'success': True, 
+            'rsi': 50.0, 
+            'note': f'API temporarily unavailable for {symbol}',
+            'fallback': True
+        })
 
 def calculate_rsi(prices, period=14):
     """Calculate RSI indicator with enhanced validation"""
