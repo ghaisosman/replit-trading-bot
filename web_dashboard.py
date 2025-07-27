@@ -2181,7 +2181,8 @@ def get_ml_system_status():
                 'success': False, 
                 'error': 'ML features not available in demo mode',
                 'status': {
-                    'data_available                    'models_trained': False,
+                    'data_available': False,
+                    'models_trained': False,
                     'total_trades': 0,
                     'closed_trades': 0,
                     'ml_ready': False
