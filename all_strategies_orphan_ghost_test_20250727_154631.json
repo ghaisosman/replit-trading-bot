@@ -1,0 +1,99 @@
+{
+  "timestamp": "2025-07-27T15:46:22.713258",
+  "strategies_tested": [
+    "rsi_oversold",
+    "macd_divergence",
+    "RSI_ETH",
+    "smart_money_reversal",
+    "engulfing_pattern_btc"
+  ],
+  "orphan_detection_results": {
+    "rsi_oversold": {
+      "strategy_type": "rsi_oversold",
+      "symbol": "XRPUSDT",
+      "orphan_detected": true,
+      "orphan_id": "rsi_oversold_XRPUSDT",
+      "cycles_remaining": 1
+    },
+    "macd_divergence": {
+      "strategy_type": "macd_divergence",
+      "symbol": "BTCUSDT",
+      "orphan_detected": true,
+      "orphan_id": "macd_divergence_BTCUSDT",
+      "cycles_remaining": 1
+    },
+    "RSI_ETH": {
+      "strategy_type": "rsi_oversold",
+      "symbol": "XRPUSDT",
+      "orphan_detected": true,
+      "orphan_id": "RSI_ETH_XRPUSDT",
+      "cycles_remaining": 1
+    },
+    "smart_money_reversal": {
+      "strategy_type": "smart_money",
+      "symbol": "SOLUSDT",
+      "orphan_detected": true,
+      "orphan_id": "smart_money_reversal_SOLUSDT",
+      "cycles_remaining": 1
+    },
+    "engulfing_pattern_btc": {
+      "strategy_type": "engulfing_pattern",
+      "symbol": "ETHUSDT",
+      "orphan_detected": true,
+      "orphan_id": "engulfing_pattern_btc_ETHUSDT",
+      "cycles_remaining": 1
+    }
+  },
+  "ghost_detection_results": {
+    "rsi_oversold": {
+      "strategy_type": "rsi_oversold",
+      "symbol": "XRPUSDT",
+      "is_registered": true,
+      "registered_symbol": "XRPUSDT"
+    },
+    "macd_divergence": {
+      "strategy_type": "macd_divergence",
+      "symbol": "BTCUSDT",
+      "is_registered": true,
+      "registered_symbol": "BTCUSDT"
+    },
+    "RSI_ETH": {
+      "strategy_type": "rsi_oversold",
+      "symbol": "XRPUSDT",
+      "is_registered": true,
+      "registered_symbol": "XRPUSDT"
+    },
+    "smart_money_reversal": {
+      "strategy_type": "smart_money",
+      "symbol": "SOLUSDT",
+      "is_registered": true,
+      "registered_symbol": "SOLUSDT"
+    },
+    "engulfing_pattern_btc": {
+      "strategy_type": "engulfing_pattern",
+      "symbol": "ETHUSDT",
+      "is_registered": true,
+      "registered_symbol": "ETHUSDT"
+    }
+  },
+  "clearing_results": {
+    "engulfing_pattern_btc": {
+      "orphan_id": "engulfing_pattern_btc_ETHUSDT",
+      "symbol": "ETHUSDT",
+      "monitor_cleared": true,
+      "position_cleared": true,
+      "db_updated": true,
+      "success": true
+    }
+  },
+  "overall_summary": {
+    "total_strategies": 5,
+    "tested_strategies": 5,
+    "orphan_success_rate": 100.0,
+    "registration_success_rate": 100.0,
+    "overall_status": "\ud83d\udfe2 EXCELLENT",
+    "successful_orphan_detections": 5,
+    "successful_clearings": 1,
+    "registered_strategies": 5
+  }
+}
