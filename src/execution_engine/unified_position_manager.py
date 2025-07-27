@@ -1,4 +1,3 @@
-
 import logging
 import asyncio
 from datetime import datetime
@@ -24,7 +23,7 @@ class UnifiedPosition:
     created_at: str = ""
     last_updated: str = ""
     binance_position_amt: float = 0.0  # Track actual Binance position
-    
+
     def __post_init__(self):
         if not self.created_at:
             self.created_at = datetime.now().isoformat()
@@ -33,52 +32,52 @@ class UnifiedPosition:
 class UnifiedPositionManager:
     """
     Unified Position Manager - Single Source of Truth
-    
+
     This system ensures both local development and Render deployment
     maintain identical position states by using the cloud database
     as the authoritative source.
     """
-    
+
     def __init__(self, binance_client, telegram_reporter):
         self.logger = logging.getLogger(__name__)
         self.binance_client = binance_client
         self.telegram_reporter = telegram_reporter
         self.trade_db = TradeDatabase()
-        
+
         # Single source of truth - positions are ALWAYS loaded from database
         self._positions: Dict[str, UnifiedPosition] = {}
-        
+
         self.logger.info("🔗 UNIFIED POSITION MANAGER INITIALIZED")
         self.logger.info("📊 Single source of truth: PostgreSQL Cloud Database")
-        
+
     async def initialize(self):
         """Initialize positions from database and sync with Binance"""
         try:
             self.logger.info("🔄 INITIALIZING UNIFIED POSITION SYSTEM...")
-            
+
             # Step 1: Load all positions from database
             await self._load_positions_from_database()
-            
+
             # Step 2: Sync with actual Binance positions
             await self._sync_with_binance_positions()
-            
+
             # Step 3: Clean up orphan/ghost positions
             await self._cleanup_orphan_positions()
-            
+
             self.logger.info(f"✅ UNIFIED SYSTEM READY: {len(self._positions)} active positions")
-            
+
         except Exception as e:
             self.logger.error(f"❌ Failed to initialize unified position system: {e}")
             raise
-    
+
     async def _load_positions_from_database(self):
         """Load all open positions from database"""
         try:
             self.logger.info("📊 LOADING POSITIONS FROM DATABASE...")
-            
+
             # Always start fresh from database
             self._positions.clear()
-            
+
             # Get all open trades from database
             for trade_id, trade_data in self.trade_db.trades.items():
                 if trade_data.get('trade_status') == 'OPEN':
@@ -97,32 +96,32 @@ class UnifiedPositionManager:
                         created_at=trade_data.get('created_at', ''),
                         last_updated=trade_data.get('last_updated', '')
                     )
-                    
+
                     self._positions[trade_id] = position
                     self.logger.info(f"📊 LOADED: {trade_id} | {position.symbol} | {position.side}")
-            
+
             self.logger.info(f"📊 LOADED {len(self._positions)} POSITIONS FROM DATABASE")
-            
+
         except Exception as e:
             self.logger.error(f"❌ Error loading positions from database: {e}")
-    
+
     async def _sync_with_binance_positions(self):
         """Sync database positions with actual Binance positions"""
         try:
             if not self.binance_client.is_futures:
                 self.logger.info("📊 Not using futures - skipping Binance sync")
                 return
-            
+
             self.logger.info("🔄 SYNCING WITH BINANCE POSITIONS...")
-            
+
             # Get actual Binance positions
             positions = self.binance_client.client.futures_position_information()
             binance_positions = {}
-            
+
             for position in positions:
                 symbol = position.get('symbol')
                 position_amt = float(position.get('positionAmt', 0))
-                
+
                 if abs(position_amt) > 0.001:  # Has actual position
                     binance_positions[symbol] = {
                         'symbol': symbol,
@@ -131,19 +130,19 @@ class UnifiedPositionManager:
                         'side': 'BUY' if position_amt > 0 else 'SELL',
                         'quantity': abs(position_amt)
                     }
-            
+
             self.logger.info(f"🔄 FOUND {len(binance_positions)} BINANCE POSITIONS")
-            
+
             # Update positions with Binance data
             positions_to_remove = []
-            
+
             for trade_id, position in self._positions.items():
                 binance_pos = binance_positions.get(position.symbol)
-                
+
                 if binance_pos:
                     # Position exists on Binance - update with actual data
                     position.binance_position_amt = binance_pos['position_amt']
-                    
+
                     # Verify position matches (with tolerance)
                     expected_amt = position.quantity if position.side == 'BUY' else -position.quantity
                     if abs(binance_pos['position_amt'] - expected_amt) > 0.1:
@@ -152,51 +151,51 @@ class UnifiedPositionManager:
                     # Position doesn't exist on Binance - mark for cleanup
                     self.logger.warning(f"👻 ORPHAN POSITION: {trade_id} | {position.symbol} | No Binance position")
                     positions_to_remove.append(trade_id)
-            
+
             # Remove orphan positions
             for trade_id in positions_to_remove:
                 await self._close_position(trade_id, "ORPHAN_CLEANUP")
-            
+
         except Exception as e:
             self.logger.error(f"❌ Error syncing with Binance: {e}")
-    
+
     async def _cleanup_orphan_positions(self):
         """Clean up positions that don't have corresponding Binance positions"""
         try:
             cleanup_count = 0
-            
+
             for trade_id, position in list(self._positions.items()):
                 if abs(position.binance_position_amt) < 0.001:
                     # No actual Binance position - close this orphan
                     await self._close_position(trade_id, "ORPHAN_CLEANUP")
                     cleanup_count += 1
-            
+
             if cleanup_count > 0:
                 self.logger.info(f"🧹 CLEANED UP {cleanup_count} ORPHAN POSITIONS")
-            
+
         except Exception as e:
             self.logger.error(f"❌ Error cleaning up orphans: {e}")
-    
+
     async def _close_position(self, trade_id: str, reason: str):
         """Close a position and update database"""
         try:
             if trade_id not in self._positions:
                 return False
-            
+
             position = self._positions[trade_id]
-            
+
             # Update database
             self.trade_db.update_trade(trade_id, {
                 'trade_status': 'CLOSED',
                 'close_reason': reason,
                 'close_time': datetime.now().isoformat()
             })
-            
+
             # Remove from memory
             del self._positions[trade_id]
-            
+
             self.logger.info(f"✅ POSITION CLOSED: {trade_id} | {position.symbol} | Reason: {reason}")
-            
+
             # Send notification
             try:
                 self.telegram_reporter.report_position_closed({
@@ -207,41 +206,41 @@ class UnifiedPositionManager:
                 })
             except Exception as e:
                 self.logger.warning(f"Failed to send close notification: {e}")
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.error(f"❌ Error closing position {trade_id}: {e}")
             return False
-    
+
     def get_all_positions(self) -> Dict[str, UnifiedPosition]:
         """Get all active positions"""
         return self._positions.copy()
-    
+
     def get_position_by_strategy(self, strategy_name: str) -> Optional[UnifiedPosition]:
         """Get position for a specific strategy"""
         for position in self._positions.values():
             if position.strategy_name == strategy_name:
                 return position
         return None
-    
+
     def get_position_by_symbol(self, symbol: str) -> Optional[UnifiedPosition]:
         """Get position for a specific symbol"""
         for position in self._positions.values():
             if position.symbol == symbol:
                 return position
         return None
-    
+
     async def add_position(self, trade_data: Dict[str, Any]) -> bool:
         """Add new position to unified system"""
         try:
             trade_id = trade_data['trade_id']
-            
+
             # Add to database first
             success = self.trade_db.add_trade(trade_id, trade_data)
             if not success:
                 return False
-            
+
             # Add to memory
             position = UnifiedPosition(
                 trade_id=trade_id,
@@ -255,40 +254,40 @@ class UnifiedPositionManager:
                 margin_used=float(trade_data.get('margin_used', 0)),
                 leverage=int(trade_data.get('leverage', 1))
             )
-            
+
             self._positions[trade_id] = position
-            
+
             self.logger.info(f"✅ POSITION ADDED: {trade_id} | {position.symbol} | {position.side}")
             return True
-            
+
         except Exception as e:
             self.logger.error(f"❌ Error adding position: {e}")
             return False
-    
+
     async def refresh_from_database(self):
         """Refresh in-memory positions from database - ensures sync between environments"""
         try:
             self.logger.info("🔄 REFRESHING POSITIONS FROM DATABASE...")
-            
+
             # Reload database
             self.trade_db._load_database()
-            
+
             # Reload positions
             await self._load_positions_from_database()
-            
+
             self.logger.info(f"✅ REFRESHED: {len(self._positions)} ACTIVE POSITIONS")
-            
+
         except Exception as e:
             self.logger.error(f"❌ Error refreshing from database: {e}")
-    
+
     def get_position_count(self) -> int:
         """Get count of active positions"""
         return len(self._positions)
-    
+
     def get_positions_summary(self) -> List[Dict[str, Any]]:
         """Get summary of all positions for dashboard"""
         summary = []
-        
+
         for position in self._positions.values():
             summary.append({
                 'trade_id': position.trade_id,
@@ -303,5 +302,21 @@ class UnifiedPositionManager:
                 'created_at': position.created_at,
                 'has_binance_position': abs(position.binance_position_amt) > 0.001
             })
-        
+
         return summary
+    def get_unified_positions(self):
+        """Get unified view of all positions from all sources"""
+        try:
+            # Handle different event loop scenarios
+            try:
+                loop = asyncio.get_running_loop()
+                # If we're in an async context, create a task
+                return asyncio.run_coroutine_threadsafe(
+                    self._get_unified_positions_async(), loop
+                ).result(timeout=10)
+            except RuntimeError:
+                # No running loop, create new one
+                return asyncio.run(self._get_unified_positions_async())
+        except Exception as e:
+            self.logger.error(f"Error getting unified positions: {e}")
+            return []

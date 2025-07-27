@@ -776,7 +776,7 @@ def get_strategies():
 
                 # Position Management Parameters
                 config.setdefault('cooldown_period', 300)  # 5 minutes default
-                config.setdefault('min_volume', 1000000 if 'rsi' in name.lower() else 1000.0)
+                config.setdefault('min_volume', 100000 if 'rsi' in name.lower() else 1000.0)
                 config.setdefault('take_profit_pct', 20.0)  # Take profit as % of margin
                 config.setdefault('trailing_stop_pct', 2.0)
                 config.setdefault('max_position_time', 3600)  # 1 hour max
@@ -2180,8 +2180,7 @@ def get_ml_insights():
 
     except Exception as e:
         logger.error(f"Error getting ML insights: {e}")
-        return jsonify({'success': False, 'error': str(e)})
-
+        return jsonify({'success': False, 'error': str(e)})```python
 @app.route('/api/ml_system_status')
 def get_ml_system_status():
     """Get ML system status"""
@@ -2669,3 +2668,47 @@ def start_web_dashboard(debug=False, use_reloader=False):
 if __name__ == '__main__':
     # Set debug to True only during development - NEVER in production
     start_web_dashboard(debug=False, use_reloader=False)
+
+@app.route('/api/rsi/<symbol>')
+def get_rsi_data(symbol):
+    """Get RSI data for a symbol"""
+    try:
+        from src.data_fetcher.price_fetcher import PriceFetcher
+        price_fetcher = PriceFetcher()
+
+        # Get recent candles with error handling
+        try:
+            candles = price_fetcher.get_candles(symbol.upper(), '1h', limit=100)
+        except Exception as fetch_error:
+            logger.error(f"Failed to fetch candles for {symbol}: {fetch_error}")
+            return jsonify({'error': 'Failed to fetch price data', 'symbol': symbol.upper()}), 500
+
+        if not candles or len(candles) < 14:
+            return jsonify({'error': 'Insufficient data', 'symbol': symbol.upper()}), 404
+
+        # Calculate RSI
+        import pandas as pd
+        df = pd.DataFrame(candles)
+        df['close'] = df['close'].astype(float)
+
+        # Calculate RSI using the same method as strategies
+        delta = df['close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+
+        current_rsi = float(rsi.iloc[-1]) if not pd.isna(rsi.iloc[-1]) else None
+
+        if current_rsi is None:
+            return jsonify({'error': 'Could not calculate RSI', 'symbol': symbol.upper()}), 500
+
+        return jsonify({
+            'rsi': current_rsi,
+            'symbol': symbol.upper(),
+            'timestamp': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f"RSI calculation error for {symbol}: {e}")
+        return jsonify({'error': f'RSI calculation failed: {str(e)}', 'symbol': symbol.upper()}), 500
