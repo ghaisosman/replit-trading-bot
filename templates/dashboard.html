@@ -2438,24 +2438,42 @@
 
         // Helper functions to update UI elements after enable/disable actions
         function updateStrategyStatusBadge(strategyName, enabled) {
-            // Use data attribute selector instead of :contains() which is not valid in querySelector
-            const card = document.querySelector(`[data-strategy="${strategyName}"]`).closest('.card');
-            if (card) {
-                const badge = card.querySelector('.badge');
-                if (badge) {
-                    if (enabled) {
-                        badge.className = 'badge bg-success';
-                        badge.textContent = 'ENABLED';
-                    } else {
-                        badge.className = 'badge bg-secondary';
-                        badge.textContent = 'DISABLED';
+            // Find strategy card using vanilla JS instead of :contains()
+            const cards = document.querySelectorAll('.card');
+            for (let card of cards) {
+                const cardText = card.textContent || card.innerText || '';
+                if (cardText.includes(strategyName)) {
+                    const badge = card.querySelector('.badge');
+                    if (badge) {
+                        if (enabled) {
+                            badge.className = 'badge bg-success';
+                            badge.textContent = 'ENABLED';
+                        } else {
+                            badge.className = 'badge bg-secondary';
+                            badge.textContent = 'DISABLED';
+                        }
                     }
+                    break;
                 }
             }
         }
 
         function updateStrategyToggleButton(strategyName, enabled) {
-            const button = document.querySelector(`[data-strategy="${strategyName}"]`);
+            // Find button using data-strategy attribute or fallback to text search
+            let button = document.querySelector(`[data-strategy="${strategyName}"]`);
+            
+            if (!button) {
+                // Fallback: search by onclick attribute content
+                const buttons = document.querySelectorAll('button[onclick*="Strategy"]');
+                for (let btn of buttons) {
+                    const onclickAttr = btn.getAttribute('onclick') || '';
+                    if (onclickAttr.includes(strategyName)) {
+                        button = btn;
+                        break;
+                    }
+                }
+            }
+            
             if (button) {
                 if (enabled) {
                     button.className = 'btn btn-outline-danger btn-sm strategy-toggle-btn';
@@ -3058,7 +3076,7 @@
             return null;
         }
 
-        // Add a helper function to update strategy badge in the card
+        // Add a helper function to update strategy badge in the card - Fixed vanilla JS version
         function updateStrategyBadge(strategyName, text, className) {
             const cards = document.querySelectorAll('.card');
             for (let card of cards) {
