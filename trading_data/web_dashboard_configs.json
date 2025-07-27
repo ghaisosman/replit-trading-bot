@@ -5,7 +5,7 @@
     "leverage": 3,
     "timeframe": "15m",
     "max_loss_pct": 5.0,
-    "assessment_interval": 5,
+    "assessment_interval": 0,
     "decimals": 2,
     "cooldown_period": 60,
     "rsi_long_entry": 30,
@@ -14,14 +14,14 @@
     "rsi_short_exit": 40,
     "partial_tp_pnl_threshold": 30.0,
     "partial_tp_position_percentage": 50.0,
-    "enabled": true
+    "enabled": false
   },
   "macd_divergence": {
     "symbol": "BTCUSDT",
     "margin": 10.0,
     "leverage": 3,
     "timeframe": "5m",
-    "assessment_interval": 5,
+    "assessment_interval": 0,
     "decimals": 2,
     "cooldown_period": 60,
     "macd_fast": 12,
@@ -39,7 +39,7 @@
     "macd_exit_threshold": 0.002,
     "partial_tp_pnl_threshold": 20.0,
     "partial_tp_position_percentage": 50.0,
-    "enabled": true
+    "enabled": false
   },
   "RSI_ETH": {
     "symbol": "ETHUSDT",
@@ -47,7 +47,7 @@
     "leverage": 3,
     "timeframe": "15m",
     "max_loss_pct": 5.0,
-    "assessment_interval": 5,
+    "assessment_interval": 0,
     "decimals": 2,
     "cooldown_period": 60,
     "min_volume": 1000000.0,
@@ -58,7 +58,7 @@
     "rsi_short_exit": 40,
     "partial_tp_pnl_threshold": 20.0,
     "partial_tp_position_percentage": 50.0,
-    "enabled": true
+    "enabled": false
   },
   "smart_money_reversal": {
     "symbol": "SOLUSDT",
@@ -66,12 +66,12 @@
     "leverage": 3,
     "timeframe": "5m",
     "max_loss_pct": 5.0,
-    "assessment_interval": 5,
+    "assessment_interval": 0,
     "decimals": 2,
     "cooldown_period": 60,
     "partial_tp_pnl_threshold": 20.0,
     "partial_tp_position_percentage": 50.0,
-    "enabled": true
+    "enabled": false
   },
   "engulfing_pattern_btc": {
     "symbol": "BCHUSDT",
@@ -79,11 +79,11 @@
     "leverage": 3,
     "timeframe": "1h",
     "max_loss_pct": 5.0,
-    "assessment_interval": 5,
+    "assessment_interval": 0,
     "decimals": 3,
     "cooldown_period": 60,
     "partial_tp_pnl_threshold": 20.0,
     "partial_tp_position_percentage": 50.0,
-    "enabled": true
+    "enabled": false
   }
 }
