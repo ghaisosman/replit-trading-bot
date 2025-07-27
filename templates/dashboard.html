@@ -1147,6 +1147,12 @@
         // Add autoRefresh variable
         let autoRefresh = true;
 
+        // Add global unhandled promise rejection handler
+        window.addEventListener("unhandledrejection", function(event) {
+            console.error("Unhandled promise rejection:", event.reason);
+            event.preventDefault(); // Prevent the default browser behavior
+        });
+
         // Bot control functions
         document.getElementById('botToggle').addEventListener('click', function() {
             const isRunning = this.textContent.includes('Stop');
@@ -1158,7 +1164,12 @@
                     'Content-Type': 'application/json',
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     location.reload();
@@ -1167,8 +1178,8 @@
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('Connection error');
+                console.error('Error in bot toggle:', error);
+                alert('Connection error: ' + error.message);
             });
         });
 
@@ -1417,6 +1428,7 @@
                 })
                 .catch(error => {
                     console.error('Error updating bot status:', error);
+                    updateBotStatusErrorUI({status: 'api_error', error: error.message});
                 });
         }
 
@@ -1503,6 +1515,10 @@
                 })
                 .catch(error => {
                     console.error('Error updating balance:', error);
+                    const balance = document.getElementById('balance');
+                    if (balance) {
+                        balance.textContent = '--';
+                    }
                 });
         }
 
@@ -1916,14 +1932,22 @@
             markRequestStart('positions');
 
             fetch('/api/positions')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     setCachedData('positions', data);
                     updatePositionsUI(data);
                 })
                 .catch(error => {
                     console.error('Error updating positions:', error);
-                    document.getElementById('positionsTableBody').innerHTML = '<tr><td colspan="9" class="text-warning text-center">Error loading positions</td></tr>';
+                    const positionsTableBody = document.getElementById('positionsTableBody');
+                    if (positionsTableBody) {
+                        positionsTableBody.innerHTML = '<tr><td colspan="9" class="text-warning text-center">Error loading positions: ' + error.message + '</td></tr>';
+                    }
                 })
                 .finally(() => {
                     markRequestEnd('positions');
@@ -1975,13 +1999,13 @@
             })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('HTTP ' + response.status);
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     
                     // Check content type
                     const contentType = response.headers.get('content-type');
                     if (!contentType || !contentType.includes('application/json')) {
-                        throw new Error('Invalid response format');
+                        throw new Error('Invalid response format - expected JSON');
                     }
                     
                     return response.json();
@@ -2398,13 +2422,13 @@
             .then(response => {
                 console.log('Disable response status:', response.status);
                 if (!response.ok) {
-                    throw new Error('HTTP ' + response.status);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
                 // Check content type
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
-                    throw new Error('Invalid response format');
+                    throw new Error('Invalid response format - expected JSON');
                 }
                 
                 return response.json();
@@ -2424,6 +2448,53 @@
             .catch(error => {
                 console.error('Error disabling strategy:', error);
                 showNotification(`Error disabling strategy: ${error.message}`, 'error');
+                // Reset button state on error
+                updateStrategyToggleButton(strategyName, true);
+            });
+        }
+
+        // Enable strategy with enhanced error handling
+        function enableStrategy(strategyName) {
+            console.log('🟢 Enabling strategy:', strategyName);
+
+            fetch(`/api/strategies/${strategyName}/enable`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => {
+                console.log('Enable response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                // Check content type
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Invalid response format - expected JSON');
+                }
+                
+                return response.json();
+            })
+            .then(data => {
+                console.log('Enable response data:', data);
+                if (data && data.success) {
+                    // Update UI elements using reliable selectors
+                    updateStrategyStatusBadge(strategyName, true);
+                    updateStrategyToggleButton(strategyName, true);
+                    showNotification(`Strategy "${strategyName}" enabled successfully`, 'success');
+                } else {
+                    const errorMsg = data?.message || 'Unknown error';
+                    showNotification(`Failed to enable strategy: ${errorMsg}`, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error enabling strategy:', error);
+                showNotification(`Error enabling strategy: ${error.message}`, 'error');
+                // Reset button state on error
+                updateStrategyToggleButton(strategyName, false);
             });
         }
 
@@ -2617,7 +2688,12 @@
             currentStrategyName = strategyName;
 
             fetch('/api/strategies')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     const config = data[strategyName];
                     if (config) {
@@ -2763,7 +2839,12 @@
                 },
                 body: JSON.stringify(updates)
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     // Always show success message first
@@ -2853,7 +2934,12 @@
                 },
                 body: JSON.stringify(newStrategy)
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     // Close modal
