@@ -747,20 +747,24 @@ def get_strategies():
             # Ensure ALL configurable parameters are present for each strategy
             for name, config in strategies.items():
                 # Core Trading Parameters (All strategies)
-                config.setdefault('symbol', 'BTCUSDT')
+                config.setdefault('symbol', 'SOLUSDT' if 'rsi' in name.lower() else 'BTCUSDT')
                 config.setdefault('timeframe', '15m')
                 config.setdefault('margin', 50.0)
                 config.setdefault('leverage', 5)
-                config.setdefault('stop_loss_pct', 10.0)  # Stop loss as % of margin
-                config.setdefault('max_loss_pct', 10.0)   # Alternative naming
+                config.setdefault('stop_loss_pct', 5.0 if 'rsi' in name.lower() else 10.0)  # Stop loss as % of margin
+                config.setdefault('max_loss_pct', 5.0 if 'rsi' in name.lower() else 10.0)   # Alternative naming
                 config.setdefault('assessment_interval', 60 if 'rsi' in name.lower() else 30)
 
                 # Position Management Parameters
                 config.setdefault('cooldown_period', 300)  # 5 minutes default
-                config.setdefault('min_volume', 1000.0)
+                config.setdefault('min_volume', 1000000 if 'rsi' in name.lower() else 1000.0)
                 config.setdefault('take_profit_pct', 20.0)  # Take profit as % of margin
                 config.setdefault('trailing_stop_pct', 2.0)
                 config.setdefault('max_position_time', 3600)  # 1 hour max
+
+                # Strategy Status
+                config.setdefault('enabled', True)
+                config.setdefault('name', name)
 
                 # Set default decimals based on symbol
                 if 'decimals' not in config:
@@ -772,14 +776,12 @@ def get_strategies():
                     else:
                         config['decimals'] = 2
 
-                # RSI Strategy Specific Parameters
-                if 'rsi' in name.lower():
+                # RSI Strategy Specific Parameters                if 'rsi' in name.lower():
                     config.setdefault('rsi_period', 14)
                     config.setdefault('rsi_long_entry', 30)    # Oversold entry
                     config.setdefault('rsi_long_exit', 70)     # Take profit (overbought)
                     config.setdefault('rsi_short_entry', 70)   # Overbought entry  
-                    config.setdefault<replit_final_file>
-('rsi_short_exit', 30)    # Take profit (oversold)
+                    config.setdefault('rsi_short_exit', 30)    # Take profit (oversold)
 
                 # MACD Strategy Specific Parameters
                 elif 'macd' in name.lower():
@@ -2200,9 +2202,6 @@ def train_ml_models():
         # Train models
         results = ml_analyzer.train_models()
 
-
-This code adds RSI strategy configuration to the trading bot dashboard.
-```python
         if "error" in results:
             return jsonify({'success': False, 'error': results['error']})
 
