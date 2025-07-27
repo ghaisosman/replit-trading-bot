@@ -710,7 +710,7 @@ class OrderManager:
             self.logger.error(f"Error checking position on symbol: {e}")
             return False
 
-    def get_position_onsymbol(self, symbol: str) -> Optional[Position]:
+    def get_position_on_symbol(self, symbol: str) -> Optional[Position]:
         """Get existing position on symbol if any"""
         try:
             for position in self.active_positions.values():
