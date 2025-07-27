@@ -2082,18 +2082,20 @@ def ml_reports():
                 total_trades = len(trade_logger.trades)
                 closed_trades = len([t for t in trade_logger.trades if getattr(t, 'trade_status', None) == "CLOSED"])
 
-            ml_status.update({
-                'total_trades': total_trades,
-                'closed_trades': closed_trades,
-                'data_available': closed_trades >= 3,
-                'models_trained': closed_trades >= 3,
-                'ml_ready': closed_trades >= 3
-            })
-        except Exception as e:
-            logger.error(f"Error getting ML status: {e}")
+                ml_status.update({
+                    'total_trades': total_trades,
+                    'closed_trades': closed_trades,
+                    'data_available': closed_trades >= 3,
+                    'models_trained': closed_trades >= 3,
+                    'ml_ready': closed_trades >= 3
+                })
+            except Exception as e:
+                logger.error(f"Error getting ML status: {e}")
 
         return render_template('ml_reports.html', ml_status=ml_status)
     except Exception as e:
+        logger.error(f"Error loading ML reports page: {e}")
+        return f"Error loading ML reports: {e}"
         logger.error(f"Error loading ML reports page: {e}")
         return f"Error loading ML reports: {e}"
 
