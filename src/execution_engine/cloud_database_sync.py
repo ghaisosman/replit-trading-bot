@@ -12,15 +12,14 @@ class CloudDatabaseSync:
     def __init__(self, database_url: str = None):
         self.logger = logging.getLogger(__name__)
 
-        # PostgreSQL Database URL - only use actual PostgreSQL URLs
+        # PostgreSQL Database URL - use DATABASE_URL from Replit PostgreSQL
         self.database_url = database_url or os.getenv('DATABASE_URL')
 
-        # Check if REPLIT_DB_URL exists but is not PostgreSQL format 
-        replit_db_url = os.getenv('REPLIT_DB_URL')
-        if replit_db_url and replit_db_url.startswith('https://kv.replit.com'):
-            self.logger.warning("REPLIT_DB_URL detected but it's a KV store, not PostgreSQL - cloud sync disabled")
-            self.enabled = False
-            return
+        # Also check for legacy REPLIT_DB_URL if DATABASE_URL not found
+        if not self.database_url:
+            legacy_url = os.getenv('REPLIT_DB_URL')
+            if legacy_url and not legacy_url.startswith('https://kv.replit.com'):
+                self.database_url = legacy_url
 
         if not self.database_url:
             self.logger.warning("No PostgreSQL DATABASE_URL found - cloud sync disabled")

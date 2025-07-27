@@ -38,14 +38,15 @@ class TradeDatabase:
     def _initialize_cloud_sync(self):
         """Initialize cloud database synchronization"""
         try:
-            replit_db_url = os.getenv('REPLIT_DB_URL')
-            if replit_db_url:
-                self.cloud_sync = initialize_cloud_sync(replit_db_url)
-                self.logger.info("🌐 Cloud database sync initialized")
+            # Use DATABASE_URL from Replit PostgreSQL
+            database_url = os.getenv('DATABASE_URL') or os.getenv('REPLIT_DB_URL')
+            if database_url:
+                self.cloud_sync = initialize_cloud_sync(database_url)
+                self.logger.info("🌐 PostgreSQL cloud database sync initialized")
                 # Perform initial sync
                 self._sync_with_cloud()
             else:
-                self.logger.warning("⚠️ REPLIT_DB_URL not configured - cloud sync disabled")
+                self.logger.warning("⚠️ DATABASE_URL not configured - cloud sync disabled")
         except Exception as e:
             self.logger.error(f"❌ Failed to initialize cloud sync: {e}")
             self.cloud_sync = None
