@@ -2181,5 +2181,12 @@ def get_ml_insights():
     except Exception as e:
         logger.error(f"Error getting ML insights: {e}")
         return jsonify({'success': False, 'error': str(e)})
-```python
-@app.route('/api/ml_
+
+if __name__ == '__main__':
+    """Run the web dashboard"""
+    try:
+        logger.info("🌐 Starting web dashboard on port 5000")
+        app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+    except Exception as e:
+        logger.error(f"Failed to start web dashboard: {e}")
+        raise
