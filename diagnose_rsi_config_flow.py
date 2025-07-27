@@ -17,118 +17,136 @@ from datetime import datetime
 sys.path.append('src')
 
 def check_dashboard_config():
-    """Check RSI configuration from dashboard API"""
+    """Check RSI configuration from dashboard API - checks both local and live"""
     print("📊 CHECKING DASHBOARD RSI CONFIGURATION")
     print("-" * 50)
     
-    try:
-        response = requests.get('http://localhost:5000/api/strategies', timeout=5)
-        if response.status_code == 200:
-            strategies = response.json().get('strategies', [])
+    # Try live dashboard first (Render deployment)
+    live_dashboard_urls = [
+        "https://your-app-name.onrender.com/api/strategies",  # Replace with your actual Render URL
+        "http://localhost:5000/api/strategies"  # Fallback to local
+    ]
+    
+    dashboard_found = False
+    
+    for url in live_dashboard_urls:
+        try:
+            print(f"🔍 Checking dashboard: {url}")
+            response = requests.get(url, timeout=10)
             
-            rsi_strategies = [s for s in strategies if 'rsi' in s.get('name', '').lower()]
-            
-            if rsi_strategies:
-                for strategy in rsi_strategies:
-                    print(f"✅ Found RSI Strategy: {strategy.get('name')}")
-                    print(f"   Enabled: {strategy.get('enabled', False)}")
-                    config = strategy.get('config', {})
-                    print(f"   Config: {json.dumps(config, indent=4)}")
+            if response.status_code == 200:
+                strategies = response.json().get('strategies', [])
+                
+                rsi_strategies = [s for s in strategies if 'rsi' in s.get('name', '').lower()]
+                
+                if rsi_strategies:
+                    dashboard_found = True
+                    print(f"✅ Connected to dashboard: {url}")
                     
-                    # Validate RSI levels
-                    long_entry = config.get('rsi_long_entry', 0)
-                    short_entry = config.get('rsi_short_entry', 0)
+                    for strategy in rsi_strategies:
+                        print(f"✅ Found RSI Strategy: {strategy.get('name')}")
+                        print(f"   Symbol: {strategy.get('symbol', 'N/A')}")
+                        print(f"   Enabled: {strategy.get('enabled', False)}")
+                        config = strategy.get('config', {})
+                        print(f"   Config: {json.dumps(config, indent=4)}")
+                        
+                        # Validate RSI levels
+                        long_entry = config.get('rsi_long_entry', 0)
+                        short_entry = config.get('rsi_short_entry', 0)
+                        
+                        if long_entry >= 50:
+                            print(f"   ❌ WARNING: Long entry ({long_entry}) should be < 50 for oversold")
+                        else:
+                            print(f"   ✅ Long entry ({long_entry}) is properly oversold")
+                            
+                        if short_entry <= 50:
+                            print(f"   ❌ WARNING: Short entry ({short_entry}) should be > 50 for overbought")
+                        else:
+                            print(f"   ✅ Short entry ({short_entry}) is properly overbought")
                     
-                    if long_entry >= 50:
-                        print(f"   ❌ WARNING: Long entry ({long_entry}) should be < 50 for oversold")
-                    else:
-                        print(f"   ✅ Long entry ({long_entry}) is properly oversold")
-                        
-                    if short_entry <= 50:
-                        print(f"   ❌ WARNING: Short entry ({short_entry}) should be > 50 for overbought")
-                    else:
-                        print(f"   ✅ Short entry ({short_entry}) is properly overbought")
-                        
-                return True
+                    return True
+                else:
+                    print(f"ℹ️  No RSI strategies found in {url}")
             else:
-                print("❌ No RSI strategies found in dashboard")
-                return False
-        else:
-            print(f"❌ Dashboard API error: {response.status_code}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Failed to connect to dashboard: {e}")
-        return False
+                print(f"❌ Dashboard API error ({url}): {response.status_code}")
+                
+        except Exception as e:
+            print(f"ℹ️  Could not connect to {url}: {e}")
+    
+    if not dashboard_found:
+        print("❌ No RSI strategies found in any dashboard")
+        print("💡 TIP: Make sure your live dashboard URL is correct")
+        
+    return dashboard_found
 
 def check_file_config():
     """Check RSI configuration from file"""
     print("\n📁 CHECKING FILE RSI CONFIGURATION")
     print("-" * 50)
     
-    config_file = "src/execution_engine/strategies/rsi_config_data.json"
+    file_path = "src/execution_engine/strategies/rsi_config_data.json"
     
-    try:
-        if os.path.exists(config_file):
-            with open(config_file, 'r') as f:
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, 'r') as f:
                 config = json.load(f)
-                
-            print(f"✅ Found RSI config file: {config_file}")
+            
+            print(f"✅ Found RSI config file: {file_path}")
             print(f"   Config: {json.dumps(config, indent=4)}")
             
-            # Validate RSI levels
+            # Validate configuration logic
             long_entry = config.get('rsi_long_entry', 0)
             short_entry = config.get('rsi_short_entry', 0)
             
-            if long_entry >= 50:
-                print(f"   ❌ WARNING: Long entry ({long_entry}) should be < 50 for oversold")
-            else:
+            if long_entry < 50:
                 print(f"   ✅ Long entry ({long_entry}) is properly oversold")
-                
-            if short_entry <= 50:
-                print(f"   ❌ WARNING: Short entry ({short_entry}) should be > 50 for overbought")
             else:
-                print(f"   ✅ Short entry ({short_entry}) is properly overbought")
+                print(f"   ❌ Long entry ({long_entry}) should be < 50 for oversold")
                 
-            return True
-        else:
-            print(f"❌ Config file not found: {config_file}")
-            return False
+            if short_entry > 50:
+                print(f"   ✅ Short entry ({short_entry}) is properly overbought")
+            else:
+                print(f"   ❌ Short entry ({short_entry}) should be > 50 for overbought")
             
-    except Exception as e:
-        print(f"❌ Failed to read config file: {e}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error reading config file: {e}")
+            return False
+    else:
+        print(f"❌ RSI config file not found: {file_path}")
         return False
 
 def check_config_class():
-    """Check RSI configuration class"""
+    """Check RSI config class loading"""
     print("\n🏗️  CHECKING RSI CONFIG CLASS")
     print("-" * 50)
     
     try:
-        from execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
+        from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
         
         config = RSIOversoldConfig.get_config()
         print(f"✅ RSI Config Class loaded successfully")
         print(f"   Config: {json.dumps(config, indent=4)}")
         
-        # Validate RSI levels
+        # Validate configuration logic
         long_entry = config.get('rsi_long_entry', 0)
         short_entry = config.get('rsi_short_entry', 0)
         
-        if long_entry >= 50:
-            print(f"   ❌ WARNING: Long entry ({long_entry}) should be < 50 for oversold")
-        else:
+        if long_entry < 50:
             print(f"   ✅ Long entry ({long_entry}) is properly oversold")
-            
-        if short_entry <= 50:
-            print(f"   ❌ WARNING: Short entry ({short_entry}) should be > 50 for overbought")
         else:
-            print(f"   ✅ Short entry ({short_entry}) is properly overbought")
+            print(f"   ❌ Long entry ({long_entry}) should be < 50 for oversold")
             
+        if short_entry > 50:
+            print(f"   ✅ Short entry ({short_entry}) is properly overbought")
+        else:
+            print(f"   ❌ Short entry ({short_entry}) should be > 50 for overbought")
+        
         return True
         
     except Exception as e:
-        print(f"❌ Failed to load RSI config class: {e}")
+        print(f"❌ Error loading RSI Config Class: {e}")
         return False
 
 def check_signal_processor():
@@ -137,55 +155,49 @@ def check_signal_processor():
     print("-" * 50)
     
     try:
-        from strategy_processor.signal_processor import SignalProcessor
         import pandas as pd
-        import numpy as np
+        from src.strategy_processor.signal_processor import SignalProcessor
+        from src.execution_engine.strategies.rsi_oversold_config import RSIOversoldConfig
         
         processor = SignalProcessor()
+        config = RSIOversoldConfig.get_config()
+        config['name'] = 'rsi_test'
         
-        # Create test data with RSI = 25 (oversold)
+        # Create test dataframe with RSI values
         test_data = {
-            'close': [100] * 50,
-            'rsi': [25.0] * 50
+            'close': [100.0] * 50,
+            'rsi': [50.0] * 47 + [25.0, 75.0, 50.0]  # oversold, overbought, neutral
         }
         df = pd.DataFrame(test_data)
         
-        # Test config with proper oversold levels
-        config = {
-            'name': 'rsi_oversold',
-            'rsi_long_entry': 30,
-            'rsi_short_entry': 70,
-            'margin': 50.0,
-            'leverage': 5,
-            'max_loss_pct': 5
-        }
+        # Test oversold signal (RSI 25)
+        df_oversold = df.copy()
+        df_oversold['rsi'].iloc[-1] = 25.0
+        signal_oversold = processor._evaluate_rsi_oversold(df_oversold, 100.0, config)
         
-        signal = processor._evaluate_rsi_oversold(df, 100.0, config)
-        
-        if signal:
+        if signal_oversold:
             print(f"✅ Signal generated for RSI 25 (oversold)")
-            print(f"   Signal Type: {signal.signal_type}")
-            print(f"   Reason: {signal.reason}")
+            print(f"   Signal Type: {signal_oversold.signal_type.value}")
+            print(f"   Reason: {signal_oversold.reason}")
         else:
-            print(f"❌ No signal generated for RSI 25 (should be oversold)")
-            
-        # Test with RSI = 75 (overbought)
-        test_data['rsi'] = [75.0] * 50
-        df = pd.DataFrame(test_data)
+            print(f"❌ No signal generated for RSI 25 (oversold)")
         
-        signal = processor._evaluate_rsi_oversold(df, 100.0, config)
+        # Test overbought signal (RSI 75)
+        df_overbought = df.copy()
+        df_overbought['rsi'].iloc[-1] = 75.0
+        signal_overbought = processor._evaluate_rsi_oversold(df_overbought, 100.0, config)
         
-        if signal:
+        if signal_overbought:
             print(f"✅ Signal generated for RSI 75 (overbought)")
-            print(f"   Signal Type: {signal.signal_type}")
-            print(f"   Reason: {signal.reason}")
+            print(f"   Signal Type: {signal_overbought.signal_type.value}")
+            print(f"   Reason: {signal_overbought.reason}")
         else:
-            print(f"❌ No signal generated for RSI 75 (should be overbought)")
-            
+            print(f"❌ No signal generated for RSI 75 (overbought)")
+        
         return True
         
     except Exception as e:
-        print(f"❌ Failed to test signal processor: {e}")
+        print(f"❌ Error testing signal processor: {e}")
         return False
 
 def main():
@@ -193,54 +205,37 @@ def main():
     print("🧪 RSI CONFIGURATION FLOW DIAGNOSTIC")
     print("=" * 60)
     print(f"⏰ Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print()
-    
-    results = {
-        'dashboard_config': False,
-        'file_config': False,
-        'config_class': False,
-        'signal_processor': False
-    }
     
     # Run all checks
-    results['dashboard_config'] = check_dashboard_config()
-    results['file_config'] = check_file_config()
-    results['config_class'] = check_config_class()
-    results['signal_processor'] = check_signal_processor()
+    dashboard_ok = check_dashboard_config()
+    file_ok = check_file_config()
+    class_ok = check_config_class()
+    processor_ok = check_signal_processor()
     
     # Summary
     print("\n📋 DIAGNOSTIC SUMMARY")
     print("=" * 60)
+    print(f"{'✅' if dashboard_ok else '❌'} Dashboard Config: {'PASS' if dashboard_ok else 'FAIL'}")
+    print(f"{'✅' if file_ok else '❌'} File Config: {'PASS' if file_ok else 'FAIL'}")
+    print(f"{'✅' if class_ok else '❌'} Config Class: {'PASS' if class_ok else 'FAIL'}")
+    print(f"{'✅' if processor_ok else '❌'} Signal Processor: {'PASS' if processor_ok else 'FAIL'}")
     
-    passed = sum(results.values())
-    total = len(results)
+    passed_checks = sum([dashboard_ok, file_ok, class_ok, processor_ok])
+    print(f"\n🎯 Overall Result: {passed_checks}/4 checks passed")
     
-    for check, status in results.items():
-        status_icon = "✅" if status else "❌"
-        print(f"{status_icon} {check.replace('_', ' ').title()}: {'PASS' if status else 'FAIL'}")
-    
-    print(f"\n🎯 Overall Result: {passed}/{total} checks passed")
-    
-    if passed == total:
-        print("✅ RSI configuration flow is working correctly")
+    if passed_checks == 4:
+        print("✅ RSI configuration flow is working perfectly!")
     else:
         print("❌ RSI configuration flow has issues - check failed items above")
-        
-    # Recommendations
+    
     print("\n💡 RECOMMENDATIONS")
     print("-" * 50)
-    
-    if not results['dashboard_config']:
-        print("• Start the dashboard to enable API-based configuration")
-        
-    if not results['file_config']:
-        print("• Fix or create the RSI config file with proper oversold/overbought levels")
-        
-    if not results['config_class']:
-        print("• Check RSI config class implementation for errors")
-        
-    if not results['signal_processor']:
-        print("• Fix signal processor RSI evaluation logic")
+    if not dashboard_ok:
+        print("• Update the live dashboard URL in this diagnostic")
+        print("• Verify your RSI strategy exists in the live dashboard")
+        print("• Check that the live dashboard API is accessible")
+    if passed_checks >= 3:
+        print("• Configuration flow is mostly working - strategy will use file config as fallback")
 
 if __name__ == "__main__":
     main()
