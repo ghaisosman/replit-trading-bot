@@ -838,7 +838,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button>
+                    <button type="button type="button" class="btn btn-primary" onclick="saveNewStrategy()">Create Strategy</button>
                 ```text
 
                 </div>
@@ -1534,7 +1534,6 @@
                     markRequestEnd('consoleLog', false);
                     return getDefaultResponse('/api/console-log');
                 });
-```text
 
         }
 
@@ -2409,8 +2408,7 @@
             })
             .then(response => {
                 console.log('Enable response status:', response.status);
-                return```text
- response.json();
+                return response.json();
             })
             .then(data => {
                 console.log('Enable response data:', data);
@@ -3039,7 +3037,7 @@
         // Add a helper function to find strategy card by name
         function findStrategyCard(strategyName) {
             const cards = document.querySelectorAll('.card');
-            for (const card of cards) {
+            for (let card of cards) {
                 if (card.innerHTML.includes(strategyName)) {
                     return card;
                 }
@@ -3049,9 +3047,9 @@
 
         // Add a helper function to update strategy badge in the card
         function updateStrategyBadge(strategyName, text, className) {
-            const card = findStrategyCard(strategyName);
+            var card = findStrategyCard(strategyName);
             if (card) {
-                const badge = card.querySelector('.badge');
+                var badge = card.querySelector('.badge');
                 if (badge) {
                     badge.textContent = text;
                     badge.className = className;
