@@ -1,0 +1,101 @@
+{
+  "phase1_discovery": {
+    "total_strategies": 2,
+    "strategy_names": [
+      "strategies",
+      "strategy_configs"
+    ],
+    "discovery_time": "2025-07-27T10:33:01.422328"
+  },
+  "phase2_baseline": {
+    "strategies": {
+      "error": "'list' object has no attribute 'get'"
+    },
+    "strategy_configs": {
+      "current_state": "ENABLED",
+      "assessment_interval": 60,
+      "enabled_flag": true,
+      "config": {}
+    }
+  },
+  "phase3_disable": {
+    "strategies": {
+      "status": "FAILED",
+      "api_call_success": false,
+      "state_verification": {
+        "verified": false,
+        "current_state": "UNKNOWN",
+        "expected_state": "DISABLED",
+        "assessment_interval": null,
+        "enabled_flag": null,
+        "reason": "Expected DISABLED, got UNKNOWN"
+      },
+      "response_data": {
+        "message": "Strategy \"strategies\" not found",
+        "success": false
+      }
+    },
+    "strategy_configs": {
+      "status": "FAILED",
+      "api_call_success": false,
+      "state_verification": {
+        "verified": false,
+        "current_state": "ENABLED",
+        "expected_state": "DISABLED",
+        "assessment_interval": 60,
+        "enabled_flag": true,
+        "reason": "Expected DISABLED, got ENABLED"
+      },
+      "response_data": {
+        "message": "Strategy \"strategy_configs\" not found",
+        "success": false
+      }
+    }
+  },
+  "phase4_enable": {
+    "strategies": {
+      "status": "FAILED",
+      "api_call_success": false,
+      "state_verification": {
+        "verified": false,
+        "current_state": "UNKNOWN",
+        "expected_state": "ENABLED",
+        "assessment_interval": null,
+        "enabled_flag": null,
+        "reason": "Expected ENABLED, got UNKNOWN"
+      },
+      "response_data": {
+        "message": "Strategy \"strategies\" not found",
+        "success": false
+      }
+    },
+    "strategy_configs": {
+      "status": "SKIPPED",
+      "reason": "Already enabled"
+    }
+  },
+  "phase5_final_verification": {
+    "strategies": {
+      "error": "'list' object has no attribute 'get'"
+    },
+    "strategy_configs": {
+      "current_state": "ENABLED",
+      "assessment_interval": 60,
+      "enabled_flag": true,
+      "config": {}
+    }
+  },
+  "summary": {
+    "total_strategies": 2,
+    "disable_stats": {
+      "successful": 0,
+      "failed": 2
+    },
+    "enable_stats": {
+      "successful": 0,
+      "failed": 1
+    },
+    "overall_success_rate": 0.0,
+    "test_completion_time": "2025-07-27T10:33:04.563038"
+  }
+}
