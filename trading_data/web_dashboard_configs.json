@@ -5,15 +5,15 @@
     "leverage": 3,
     "timeframe": "15m",
     "max_loss_pct": 5.0,
-    "assessment_interval": 0,
+    "assessment_interval": 300,
     "decimals": 2,
     "cooldown_period": 60,
     "rsi_long_entry": 45,
     "rsi_long_exit": 60,
     "rsi_short_entry": 52,
     "rsi_short_exit": 40,
-    "partial_tp_pnl_threshold": 30.0,
-    "partial_tp_position_percentage": 50.0,
+    "partial_tp_pnl_threshold": 0.0,
+    "partial_tp_position_percentage": 0.0,
     "enabled": false
   },
   "macd_divergence": {
@@ -21,7 +21,7 @@
     "margin": 5.0,
     "leverage": 3,
     "timeframe": "5m",
-    "assessment_interval": 0,
+    "assessment_interval": 300,
     "decimals": 2,
     "cooldown_period": 60,
     "macd_fast": 12,
@@ -37,8 +37,8 @@
     "divergence_strength_min": 0.1,
     "macd_entry_threshold": 0.0011,
     "macd_exit_threshold": 0.0017,
-    "partial_tp_pnl_threshold": 20.0,
-    "partial_tp_position_percentage": 50.0,
+    "partial_tp_pnl_threshold": 0.0,
+    "partial_tp_position_percentage": 0.0,
     "enabled": false
   },
   "RSI_ETH": {
