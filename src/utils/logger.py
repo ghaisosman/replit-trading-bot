@@ -533,7 +533,7 @@ class WebLogHandler(logging.Handler):
                     if any(pattern in msg_lower for pattern in skip_patterns):
                         return  # Skip these messages entirely
                     
-                    # PRIORITIZE important trading activity messages
+                    # PRIORITIZE important trading activity messages with enhanced patterns
                     priority_patterns = [
                         'scanning',
                         'active position', 
@@ -548,7 +548,14 @@ class WebLogHandler(logging.Handler):
                         'price:',
                         'pnl',
                         'margin:',
-                        'leverage:'
+                        'leverage:',
+                        'indicator:',
+                        'current price:',
+                        'symbol:',
+                        'timeframe:',
+                        'pattern:',
+                        'momentum:',
+                        'exit at'
                     ]
                     
                     is_priority_msg = any(pattern in msg_lower for pattern in priority_patterns)
@@ -562,8 +569,7 @@ class WebLogHandler(logging.Handler):
                     # Preserve the original message format as much as possible
                     clean_msg = str(original_msg).strip()
                     
-                    # Only remove specific box drawing characters that break web display
-                    # but preserve structure and content
+                    # Enhanced cleaning for trading information display
                     box_chars_to_remove = ['┌', '┐', '└', '┘', '├', '┤', '─', '╔', '╗', '╚', '╝', '═']
                     for char in box_chars_to_remove:
                         clean_msg = clean_msg.replace(char, '')
@@ -578,20 +584,39 @@ class WebLogHandler(logging.Handler):
                     for line in lines:
                         stripped_line = line.strip()
                         if stripped_line and stripped_line not in ['ℹ️  INFO', 'INFO', 'ERROR', 'WARNING', '']:
-                            cleaned_lines.append(stripped_line)
+                            # Enhance trading info display by highlighting key data
+                            if any(pattern in stripped_line.lower() for pattern in ['scanning', 'active position', 'price:', 'rsi:', 'macd:']):
+                                # Keep important trading lines intact
+                                cleaned_lines.append(stripped_line)
+                            elif stripped_line and len(stripped_line) > 3:
+                                cleaned_lines.append(stripped_line)
                     
                     if cleaned_lines:
-                        # Join multiple lines with proper separation
+                        # Enhanced formatting for trading information
                         if len(cleaned_lines) == 1:
                             formatted_log = f'[{timestamp}] {cleaned_lines[0]}'
                         else:
-                            # Multi-line message - preserve structure
+                            # Multi-line message - group related trading info
                             main_line = cleaned_lines[0]
-                            additional_info = ' | '.join(cleaned_lines[1:]) if len(cleaned_lines) > 1 else ''
-                            if additional_info:
-                                formatted_log = f'[{timestamp}] {main_line} | {additional_info}'
+                            
+                            # Group trading indicators together
+                            trading_info = []
+                            other_info = []
+                            
+                            for line in cleaned_lines[1:]:
+                                if any(pattern in line.lower() for pattern in ['price:', 'rsi:', 'macd:', 'pnl:', 'indicator:', 'exit at']):
+                                    trading_info.append(line)
+                                else:
+                                    other_info.append(line)
+                            
+                            # Prioritize trading info display
+                            if trading_info:
+                                formatted_log = f'[{timestamp}] {main_line} | {" | ".join(trading_info)}'
+                                if other_info:
+                                    formatted_log += f' | {" | ".join(other_info)}'
                             else:
-                                formatted_log = f'[{timestamp}] {main_line}'
+                                additional_info = ' | '.join(cleaned_lines[1:])
+                                formatted_log = f'[{timestamp}] {main_line} | {additional_info}'
                         
                         self.logs.append(formatted_log)
         except Exception:

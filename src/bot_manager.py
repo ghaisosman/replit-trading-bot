@@ -527,7 +527,7 @@ class BotManager:
 
                                 # Display strategy-specific indicators with enhanced error handling
                                 indicator_text = "Indicators loading..."
-                                
+
                                 if 'rsi' in strategy_name.lower() and 'engulfing' not in strategy_name.lower():
                                     # RSI Strategy - show current RSI
                                     if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
@@ -538,7 +538,7 @@ class BotManager:
                                             indicator_text = "RSI: Calculating..."
                                     else:
                                         indicator_text = "RSI: Waiting for data..."
-                                        
+
                                 elif 'macd' in strategy_name.lower():
                                     # MACD Strategy - show MACD line and signal
                                     if ('macd' in df.columns and 'macd_signal' in df.columns and 
@@ -551,26 +551,26 @@ class BotManager:
                                             indicator_text = "MACD: Calculating..."
                                     else:
                                         indicator_text = "MACD: Waiting for data..."
-                                        
+
                                 elif 'engulfing' in strategy_name.lower():
                                     # Engulfing Pattern - show RSI + pattern status
                                     pattern_status = "No Pattern"
                                     rsi_value = "N/A"
-                                    
+
                                     if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
                                         current_rsi = df['rsi'].iloc[-1]
                                         if not pd.isna(current_rsi):
                                             rsi_value = f"{current_rsi:.1f}"
-                                    
+
                                     # Check for patterns
                                     if len(df) >= 2:
                                         if 'bullish_engulfing' in df.columns and df['bullish_engulfing'].iloc[-1]:
                                             pattern_status = "Bullish Engulfing"
                                         elif 'bearish_engulfing' in df.columns and df['bearish_engulfing'].iloc[-1]:
                                             pattern_status = "Bearish Engulfing"
-                                    
+
                                     indicator_text = f"RSI: {rsi_value} | Pattern: {pattern_status}"
-                                    
+
                                 elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
                                     # Smart Money - show custom analysis
                                     indicator_text = "Smart Money Analysis"
@@ -578,7 +578,7 @@ class BotManager:
                                         current_rsi = df['rsi'].iloc[-1]
                                         if not pd.isna(current_rsi):
                                             indicator_text += f" | RSI: {current_rsi:.1f}"
-                                            
+
                                 else:
                                     # Other strategies - try to show RSI as fallback
                                     if 'rsi' in df.columns and len(df['rsi'].dropna()) > 0:
@@ -986,27 +986,68 @@ class BotManager:
                         except Exception as e:
                             self.logger.debug(f"RSI recalculation failed for {strategy_config['symbol']}: {e}")
 
-                # Strategy-specific consolidated market assessment - single message
+                # Enhanced strategy-specific market assessment with prominent price and indicators
                 if 'macd' in strategy_name.lower():
                     # Get MACD values for display
                     macd_line = df['macd'].iloc[-1] if 'macd' in df.columns else 0.0
                     macd_signal = df['macd_signal'].iloc[-1] if 'macd_signal' in df.columns else 0.0
                     macd_histogram = df['macd_histogram'].iloc[-1] if 'macd_histogram' in df.columns else 0.0
 
-                    # Consolidated MACD market assessment - single line for dashboard display
-                    assessment_message = f"📈 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | ${margin:.1f}@{leverage}x | Price: ${current_price:,.1f} | MACD: {macd_line:.2f}/{macd_signal:.2f} | H: {macd_histogram:.2f} | Every {assessment_interval}s"
-                    self.logger.info(assessment_message)
+                    # Enhanced MACD scanning display with clear price and indicators
+                    self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
+                    self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
+                    self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
+                    self.logger.info(f"📊 MACD Line: {macd_line:.6f} | Signal: {macd_signal:.6f} | Histogram: {macd_histogram:.6f}")
 
-                elif 'rsi' in strategy_name.lower():
-                    # Consolidated RSI market assessment - single line for dashboard display
-                    rsi_text = f"{current_rsi:.1f}" if current_rsi is not None else "N/A"
-                    assessment_message = f"📈 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | ${margin:.1f}@{leverage}x | Price: ${current_price:,.1f} | RSI: {rsi_text} | Every {assessment_interval}s"
-                    self.logger.info(assessment_message)
+                elif 'rsi' in strategy_name.lower() and 'engulfing' not in strategy_name.lower():
+                    # Enhanced RSI scanning display
+                    rsi_long_entry = strategy_config.get('rsi_long_entry', 40)
+                    rsi_short_entry = strategy_config.get('rsi_short_entry', 60)
 
-                elif 'smart' in strategy_name.lower() and 'money' in strategy_name.lower():
-                    # Consolidated Smart Money market assessment - single line for dashboard display
-                    assessment_message = f"📈 SCANNING {strategy_config['symbol']} | {strategy_name.upper()} | {strategy_config['timeframe']} | ${margin:.1f}@{leverage}x | Price: ${current_price:,.1f} | Smart Money Analysis | Every {assessment_interval}s"
-                    self.logger.info(assessment_message)
+                    self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
+                    self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
+                    self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
+                    self.logger.info(f"📊 RSI: {current_rsi:.2f} | Long Entry: ≤{rsi_long_entry} | Short Entry: ≥{rsi_short_entry}")
+
+                elif 'engulfing' in strategy_name.lower():
+                    # Enhanced Engulfing pattern scanning display
+                    pattern_status = "No Pattern"
+                    stable_candle = False
+                    price_momentum = "Neutral"
+
+                    try:
+                        if len(df) >= 2:
+                            if 'bullish_engulfing' in df.columns and df['bullish_engulfing'].iloc[-1]:
+                                pattern_status = "🟢 Bullish Engulfing"
+                            elif 'bearish_engulfing' in df.columns and df['bearish_engulfing'].iloc[-1]:
+                                pattern_status = "🔴 Bearish Engulfing"
+
+                            if 'stable_candle' in df.columns:
+                                stable_candle = df['stable_candle'].iloc[-1]
+
+                            # Check price momentum over lookback period
+                            lookback_bars = strategy_config.get('price_lookback_bars', 5)
+                            if f'close_{lookback_bars}_ago' in df.columns:
+                                close_ago = df[f'close_{lookback_bars}_ago'].iloc[-1]
+                                if not pd.isna(close_ago):
+                                    if current_price > close_ago:
+                                        price_momentum = f"📈 Up ({((current_price/close_ago - 1) * 100):+.2f}%)"
+                                    elif current_price < close_ago:
+                                        price_momentum = f"📉 Down ({((current_price/close_ago - 1) * 100):+.2f}%)"
+                    except Exception as e:
+                        self.logger.debug(f"Pattern detection error: {e}")
+
+                    self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
+                    self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
+                    self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
+                    self.logger.info(f"📊 RSI: {current_rsi:.2f} | Pattern: {pattern_status} | Stable: {'✅' if stable_candle else '❌'}")
+                    self.logger.info(f"📈 Momentum: {price_momentum}")
+
+                else:
+                    # Generic strategy scanning display
+                    self.logger.info(f"🔍 SCANNING | {strategy_name.upper()}")
+                    self.logger.info(f"💱 Symbol: {strategy_config['symbol']} | ⏱️ Timeframe: {strategy_config['timeframe']}")
+                    self.logger.info(f"💰 Price: ${current_price:,.4f} | 💵 Margin: ${margin:.1f} @ {leverage}x")
 
         except Exception as e:
             self.logger.error(f"Error processing strategy {strategy_name}: {e}")
@@ -1057,31 +1098,31 @@ class BotManager:
         """Initialize WebSocket streams for all configured strategies"""
         try:
             self.logger.info("📡 INITIALIZING WEBSOCKET STREAMS...")
-            
+
             # Add all strategy symbols and intervals to WebSocket manager
             for strategy_name, strategy_config in self.strategies.items():
                 symbol = strategy_config.get('symbol')
                 interval = strategy_config.get('timeframe', '15m')
-                
+
                 if symbol:
                     websocket_manager.add_symbol_interval(symbol, interval)
                     self.logger.info(f"   📡 Added WebSocket stream: {symbol} @ {interval}")
-            
+
             # Also add 1m streams for current price updates
             for strategy_name, strategy_config in self.strategies.items():
                 symbol = strategy_config.get('symbol')
                 if symbol:
                     websocket_manager.add_symbol_interval(symbol, '1m')
-            
+
             # Start WebSocket manager
             if websocket_manager.subscribed_streams:
                 websocket_manager.start()
                 self.logger.info(f"🚀 WEBSOCKET MANAGER STARTED with {len(websocket_manager.subscribed_streams)} streams")
-                
+
                 # Wait a moment for initial connection
                 import time
                 time.sleep(2)
-                
+
                 # Log connection status
                 stats = websocket_manager.get_statistics()
                 if stats['is_connected']:
@@ -1090,7 +1131,7 @@ class BotManager:
                     self.logger.warning("⚠️ WEBSOCKET CONNECTION PENDING...")
             else:
                 self.logger.warning("⚠️ No WebSocket streams to initialize")
-                
+
         except Exception as e:
             self.logger.error(f"❌ WEBSOCKET INITIALIZATION ERROR: {e}")
             self.logger.warning("🔄 Continuing with REST API fallback...")
@@ -1160,26 +1201,26 @@ class BotManager:
         """Logs the current status of the WebSocket connection."""
         try:
             stats = websocket_manager.get_statistics()
-            
+
             if stats['is_connected']:
                 uptime_minutes = stats['uptime_seconds'] / 60
                 self.logger.info(f"✅ WebSocket: Connected | Uptime: {uptime_minutes:.1f}m | Messages: {stats['messages_received']} | Klines: {stats['klines_processed']}")
             else:
                 self.logger.warning("⚠️ WebSocket: Disconnected - Using REST API fallback")
-                
+
             # Log cache status for key symbols
             cache_status = websocket_manager.get_cache_status()
             fresh_count = 0
             total_count = 0
-            
+
             for symbol in cache_status:
                 for interval in cache_status[symbol]:
                     total_count += 1
                     if cache_status[symbol][interval]['is_fresh']:
                         fresh_count += 1
-            
+
             if total_count > 0:
                 self.logger.info(f"📊 WebSocket Cache: {fresh_count}/{total_count} streams fresh")
-                
+
         except Exception as e:
             self.logger.error(f"Error logging WebSocket status: {e}")
