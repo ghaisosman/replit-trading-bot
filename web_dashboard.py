@@ -1661,3 +1661,8 @@ def get_positions():
                             'has_binance_position': abs(unified_pos.binance_position_amt) > 0.001,
                             'source': 'unified_system'
                         }
+
+                        positions.append(position_data)
+                    except Exception as e:
+                        logging.error(f"Error processing unified position {trade_id}: {e}")
+                        continue
