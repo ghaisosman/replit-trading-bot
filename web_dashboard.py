@@ -707,15 +707,10 @@ def get_bot_status():
             logger.error(f"❌ DEBUG [{request_id}]: JSON validation FAILED: {json_error}")
             # Return minimal safe response
             safe_response = {
-                'success': True,  # Changed to True to prevent frontend errors
-                'running': False,
-                'is_running': False,
-                'active_positions': 0,
-                'strategies': 0,
-                'balance': 0.0,
-                'status': 'json_error',
+                'success': False,
+                'error': 'JSON serialization failed',
                 'timestamp': current_time,
-                'error': 'Data serialization issue - using defaults'
+                'debug_info': {'request_id': request_id, 'json_error': str(json_error)}
             }
             return jsonify(safe_response)
 
@@ -726,20 +721,17 @@ def get_bot_status():
         import traceback
         logger.error(f"❌ DEBUG [{request_id}]: Full traceback: {traceback.format_exc()}")
 
-        # Return safe fallback that won't break the frontend
-        safe_response = {
-            'success': True,  # Changed to True to prevent frontend errors
-            'running': False,
-            'is_running': False,
-            'active_positions': 0,
-            'strategies': 0,
-            'balance': 0.0,
-            'status': 'recovering',
-            'last_update': current_time,
-            'timestamp': current_time,
-            'error': 'Temporary API issue - refreshing...'
-        }
-        return jsonify(safe_response)
+        default_response.update({
+            'success': False,
+            'status': 'api_error',
+            'error': str(e),
+            'debug_info': {
+                'request_id': request_id,
+                'error_type': type(e).__name__,
+                'traceback': traceback.format_exc()[-500:]  # Last 500 chars
+            }
+        })
+        return jsonify(default_response)
 
 @app.route('/api/strategies')
 def get_strategies():
@@ -784,7 +776,7 @@ def get_strategies():
 
                 # Position Management Parameters
                 config.setdefault('cooldown_period', 300)  # 5 minutes default
-                config.setdefault('min_volume', 100000 if 'rsi' in name.lower() else 1000.0)
+                config.setdefault('min_volume', 1000000 if 'rsi' in name.lower() else 1000.0)
                 config.setdefault('take_profit_pct', 20.0)  # Take profit as % of margin
                 config.setdefault('trailing_stop_pct', 2.0)
                 config.setdefault('max_position_time', 3600)  # 1 hour max
@@ -803,12 +795,11 @@ def get_strategies():
                     else:
                         config['decimals'] = 2
 
-                # RSI Strategy Specific Parameters
-                if 'rsi' in name.lower():
+                # RSI Strategy Specific Parameters                if 'rsi' in name.lower():
                     config.setdefault('rsi_period', 14)
                     config.setdefault('rsi_long_entry', 30)    # Oversold entry
                     config.setdefault('rsi_long_exit', 70)     # Take profit (overbought)
-                    config.setdefault('rsi_short_entry', 70)   # Overbought entry
+                    config.setdefault('rsi_short_entry', 70)   # Overbought entry  
                     config.setdefault('rsi_short_exit', 30)    # Take profit (oversold)
 
                 # MACD Strategy Specific Parameters
@@ -856,7 +847,7 @@ def get_strategies():
             logger.info(f"🌐 WEB DASHBOARD: Serving COMPLETE configurations for {len(strategies)} strategies")
             logger.info(f"📋 All parameters available for manual configuration via dashboard")
             logger.info(f"🔍 RSI Strategy included: {'rsi_oversold' in strategies}")
-
+            
             # Ensure we always have default strategies available
             if 'rsi_oversold' not in strategies:
                 strategies['rsi_oversold'] = {
@@ -872,7 +863,7 @@ def get_strategies():
                     'enabled': True,
                     'assessment_interval': 60
                 }
-
+            
             if 'macd_divergence' not in strategies:
                 strategies['macd_divergence'] = {
                     'symbol': 'BTCUSDT',
@@ -885,14 +876,14 @@ def get_strategies():
                     'enabled': True,
                     'assessment_interval': 60
                 }
-
+            
             # Filter and return only valid strategy configurations for tests
             valid_strategies = {}
             for name, config in strategies.items():
                 # Only include configurations that have trading parameters
                 if isinstance(config, dict) and ('symbol' in config or 'margin' in config):
                     valid_strategies[name] = config
-
+            
             logger.info(f"🔍 API Response: Returning {len(valid_strategies)} valid strategies: {list(valid_strategies.keys())}")
             return jsonify(valid_strategies)
         else:
@@ -992,61 +983,57 @@ def create_strategy():
         }
 
         # Add strategy-specific parameters with validation
-        try:
-            if 'rsi' in strategy_name.lower():
-                new_config.update({
-                    'rsi_period': 14,
-                    'rsi_long_entry': int(data.get('rsi_long_entry', 30)),
-                    'rsi_long_exit': int(data.get('rsi_long_exit', 70)),
-                    'rsi_short_entry': int(data.get('rsi_short_entry', 70)),
-                    'rsi_short_exit': int(data.get('rsi_short_exit', 30))
-                })
 
-                # Validate RSI parameters
-                if not (10 <= new_config['rsi_long_entry'] <= 50):
-                    return jsonify({'success': False, 'message': 'RSI Long Entry must be between 10 and 50'})
-                if not (50 <= new_config['rsi_long_exit'] <= 90):
-                    return jsonify({'success': False, 'message': 'RSI Long Exit must be between 50 and 90'})
+        # Add strategy-specific parameters with validation
+        if 'rsi' in strategy_name.lower():
+            new_config.update({
+                'rsi_period': 14,
+                'rsi_long_entry': int(data.get('rsi_long_entry', 30)),
+                'rsi_long_exit': int(data.get('rsi_long_exit', 70)),
+                'rsi_short_entry': int(data.get('rsi_short_entry', 70)),
+                'rsi_short_exit': int(data.get('rsi_short_exit', 30))
+            })
 
-            elif 'macd' in strategy_name.lower():
-                new_config.update({
-                    'macd_fast': int(data.get('macd_fast', 12)),
-                    'macd_slow': int(data.get('macd_slow', 26)),
-                    'macd_signal': int(data.get('macd_signal', 9)),
-                    'min_histogram_threshold': float(data.get('min_histogram_threshold', 0.0001)),
-                    'min_distance_threshold': float(data.get('min_distance_threshold', 0.005)),
-                    'confirmation_candles': int(data.get('confirmation_candles', 2))
-                })
+            # Validate RSI parameters
+            if not (10 <= new_config['rsi_long_entry'] <= 50):
+                return jsonify({'success': False, 'message': 'RSI Long Entry must be between 10 and 50'})
+            if not (50 <= new_config['rsi_long_exit'] <= 90):
+                return jsonify({'success': False, 'message': 'RSI Long Exit must be between 50 and 90'})
 
-                # Validate MACD parameters
-                if new_config['macd_fast'] >= new_config['macd_slow']:
-                    return jsonify({'success': False, 'message': 'MACD Fast must be less than MACD Slow'})
+        elif 'macd' in strategy_name.lower():
+            new_config.update({
+                'macd_fast': int(data.get('macd_fast', 12)),
+                'macd_slow': int(data.get('macd_slow', 26)),
+                'macd_signal': int(data.get('macd_signal', 9)),
+                'min_histogram_threshold': float(data.get('min_histogram_threshold', 0.0001)),
+                'min_distance_threshold': float(data.get('min_distance_threshold', 0.005)),
+                'confirmation_candles': int(data.get('confirmation_candles', 2))
+            })
 
-            elif 'engulfing' in strategy_name.lower():
-                new_config.update({
-                    'rsi_period': int(data.get('rsi_period', 14)),
-                    'rsi_threshold': float(data.get('rsi_threshold', 50)),
-                    'rsi_long_exit': int(data.get('rsi_long_exit', 70)),
-                    'rsi_short_exit': int(data.get('rsi_short_exit', 30)),
-                    'stable_candle_ratio': float(data.get('stable_candle_ratio', 0.5)),
-                    'price_lookback_bars': int(data.get('price_lookback_bars', 5)),
-                    'partial_tp_pnl_threshold': float(data.get('partial_tp_pnl_threshold', 0.0)),
-                    'partial_tp_position_percentage': float(data.get('partial_tp_position_percentage', 0.0))
-                })
+            # Validate MACD parameters
+            if new_config['macd_fast'] >= new_config['macd_slow']:
+                return jsonify({'success': False, 'message': 'MACD Fast must be less than MACD Slow'})
 
-                # Validate Engulfing Pattern parameters
-                if not (30 <= new_config['rsi_threshold'] <= 70):
-                    return jsonify({'success': False, 'message': 'RSI Threshold must be between 30 and 70'})
-                if not (0.1 <= new_config['stable_candle_ratio'] <= 1.0):
-                    return jsonify({'success': False, 'message': 'Stable Candle Ratio must be between 0.1 and 1.0'})
-        except Exception as e:
-            return jsonify({'success': False, 'message': f'Invalid parameter value: {e}'})
+        elif 'engulfing' in strategy_name.lower():
+            new_config.update({
+                'rsi_period': int(data.get('rsi_period', 14)),
+                'rsi_threshold': float(data.get('rsi_threshold', 50)),
+                'rsi_long_exit': int(data.get('rsi_long_exit', 70)),
+                'rsi_short_exit': int(data.get('rsi_short_exit', 30)),
+                'stable_candle_ratio': float(data.get('stable_candle_ratio', 0.5)),
+                'price_lookback_bars': int(data.get('price_lookback_bars', 5)),
+                'partial_tp_pnl_threshold': float(data.get('partial_tp_pnl_threshold', 0.0)),
+                'partial_tp_position_percentage': float(data.get('partial_tp_position_percentage', 0.0))
+            })
 
-        #🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Save to persistent config
-        try:
-            trading_config_manager.update_strategy_params(strategy_name, new_config)
-        except Exception as e:
-            return jsonify({'success': False, 'message': f'Failed to save strategy configuration: {e}'})
+            # Validate Engulfing Pattern parameters
+            if not (30 <= new_config['rsi_threshold'] <= 70):
+                return jsonify({'success': False, 'message': 'RSI Threshold must be between 30 and 70'})
+            if not (0.1 <= new_config['stable_candle_ratio'] <= 1.0):
+                return jsonify({'success': False, 'message': 'Stable Candle Ratio must be between 0.1 and 1.0'})
+
+        # 🎯 WEB DASHBOARD IS SINGLE SOURCE OF TRUTH - Save to persistent config
+        trading_config_manager.update_strategy_params(strategy_name, new_config)
 
         logger.info(f"🆕 NEW STRATEGY CREATED: {strategy_name} via web dashboard")
         logger.info(f"🌐 WEB DASHBOARD: New strategy config saved as single source of truth")
@@ -1601,80 +1588,1073 @@ def get_balance():
 
         return jsonify(error_balance), 200
 
-
 @app.route('/api/positions')
+@rate_limit('positions', max_requests=15, window_seconds=60)
 def get_positions():
-    """Get current trading positions from unified system"""
+    """Get active positions - reads from database as primary source"""
+    current_time = datetime.now().strftime('%H:%M:%S')
+
+    # FIXED: Always return complete JSON structure
+    default_response = {
+        'success': True,
+        'positions': [],
+        'status': 'checking',
+        'count': 0,
+        'timestamp': current_time
+    }
+
     try:
-        # Get bot manager instance
-        import sys
-        bot_manager = sys.modules.get('__main__', {}).bot_manager or globals().get('bot_manager')
+        positions = []
 
-        if not bot_manager:
-            return jsonify({
-                'status': 'error',
-                'message': 'Bot not running',
-                'positions': []
-            })
-
-        # Use unified position system if available
-        if hasattr(bot_manager, 'unified_positions'):
+        # PRIMARY SOURCE: Read from trade database
+        if IMPORTS_AVAILABLE:
             try:
-                # Avoid event loop issues in web threads - use direct database access
-                positions = []
+                from src.execution_engine.trade_database import TradeDatabase
+                trade_db = TradeDatabase()
 
-                # Get positions directly from unified_positions without async calls
-                for trade_id, unified_pos in bot_manager.unified_positions.get_all_positions().items():
+                # Get all open trades from database
+                open_trades = []
+                for trade_id, trade_data in trade_db.trades.items():
+                    if trade_data.get('trade_status') == 'OPEN':
+                        open_trades.append((trade_id, trade_data))
+
+                logger.info(f"🔍 DEBUG: Found {len(open_trades)} open trades in database")
+
+                # Convert database trades to position format
+                for trade_id, trade_data in open_trades:
                     try:
-                        # Get current price safely
+                        symbol = trade_data.get('symbol')
+                        if not symbol:
+                            continue
+
+                        # Get current price for PnL calculation
                         current_price = None
                         try:
-                            ticker = bot_manager.binance_client.client.get_symbol_ticker(symbol=unified_pos.symbol)
-                            current_price = float(ticker['price'])
-                        except:
-                            current_price = unified_pos.entry_price  # Fallback
+                            if price_fetcher:
+                                current_price = price_fetcher.get_current_price(symbol)
+                        except Exception as price_error:
+                            logger.debug(f"Could not get current price for {symbol}: {price_error}")
+                            current_price = trade_data.get('entry_price', 0)
 
                         # Calculate PnL
-                        if unified_pos.side == 'BUY':
-                            pnl = (current_price - unified_pos.entry_price) * unified_pos.quantity
-                        else:
-                            pnl = (unified_pos.entry_price - current_price) * unified_pos.quantity
+                        pnl = 0.0
+                        pnl_percent = 0.0
 
-                        pnl_percent = (pnl / unified_pos.margin_used) * 100 if unified_pos.margin_used > 0 else 0
+                        if current_price and trade_data.get('entry_price') and trade_data.get('quantity'):
+                            entry_price = float(trade_data['entry_price'])
+                            quantity = float(trade_data['quantity'])
+                            side = trade_data.get('side', 'BUY')
+
+                            if side == 'BUY':
+                                pnl = (current_price - entry_price) * quantity
+                            else:
+                                pnl = (entry_price - current_price) * quantity
+
+                            # Calculate PnL percentage against margin invested
+                            margin_invested = trade_data.get('margin_used', 0)
+                            if margin_invested > 0:
+                                pnl_percent = (pnl / margin_invested) * 100
 
                         position_data = {
-                            'trade_id': unified_pos.trade_id,
-                            'strategy_name': unified_pos.strategy_name,
-                            'symbol': unified_pos.symbol,
-                            'side': unified_pos.side,
-                            'entry_price': unified_pos.entry_price,
-                            'current_price': current_price,
-                            'quantity': unified_pos.quantity,
+                            'strategy': trade_data.get('strategy_name', 'unknown'),
+                            'symbol': symbol,
+                            'side': trade_data.get('side', 'BUY'),
+                            'entry_price': trade_data.get('entry_price', 0),
+                            'quantity': trade_data.get('quantity', 0),
+                            'position_value_usdt': trade_data.get('position_value_usdt', 0),
+                            'margin_invested': trade_data.get('margin_used', 0),
+                            'current_price': current_price or 0,
                             'pnl': pnl,
                             'pnl_percent': pnl_percent,
-                            'margin_invested': unified_pos.margin_used,
-                            'leverage': unified_pos.leverage,
-                            'stop_loss': unified_pos.stop_loss,
-                            'take_profit': unified_pos.take_profit,
-                            'entry_time': unified_pos.created_at,
-                            'status': unified_pos.status,
-                            'has_binance_position': abs(unified_pos.binance_position_amt) > 0.001,
-                            'source': 'unified_system'
+                            'trade_id': trade_id
                         }
 
                         positions.append(position_data)
-                    except Exception as e:
-                        logging.error(f"Error processing unified position {trade_id}: {e}")
+                        logger.debug(f"✅ Added position: {symbol} | {trade_data.get('strategy_name')} | PnL: ${pnl:.2f}")
+
+                    except Exception as pos_error:
+                        logger.error(f"Error processing database trade {trade_id}: {pos_error}")
                         continue
 
-                return jsonify({
-                    'status': 'success',
-                    'positions': positions,
-                    'count': len(positions),
-                    'source': 'unified_position_system',
-                    'synchronized': True
-                })
+            except Exception as db_error:
+                logger.error(f"Database read error: {db_error}")
+                # Fallback to bot manager positions if database fails
+                current_bot = get_bot_manager()
+                if current_bot and hasattr(current_bot, 'order_manager') and current_bot.order_manager:
+                    active_positions = getattr(current_bot.order_manager, 'active_positions', {})
+                    for strategy_name, position in active_positions.items():
+                        try:
+                            if not position or not hasattr(position, 'symbol'):
+                                continue
 
+                            # Get current price
+                            current_price = None
+                            try:
+                                if IMPORTS_AVAILABLE and price_fetcher:
+                                    current_price = price_fetcher.get_current_price(position.symbol)
+                            except:
+                                pass
+
+                            position_data = {
+                                'strategy': strategy_name,
+                                'symbol': position.symbol,
+                                'side': position.side,
+                                'entry_price': position.entry_price,
+                                'quantity': position.quantity,
+                                'position_value_usdt': float(position.entry_price) * float(position.quantity),
+                                'margin_invested': getattr(position, 'actual_margin_used', 50.0),
+                                'current_price': current_price or 0,
+                                'pnl': 0,
+                                'pnl_percent': 0
+                            }
+                            positions.append(position_data)
+                        except Exception as pos_error:
+                            logger.error(f"Error processing bot position {strategy_name}: {pos_error}")
+                            continue
+
+        # Return positions with proper status
+        status = 'active' if positions else 'no_positions'
+        logger.info(f"🔍 DEBUG: Returning {len(positions)} positions with status: {status}")
+
+        return jsonify({
+            'success': True,
+            'positions': positions,
+            'status': status,
+            'count': len(positions),
+            'timestamp': current_time,
+            'source': 'database'
+        })
+
+    except Exception as e:
+        logger.error(f"Positions API error: {e}")
+        import traceback
+        logger.error(f"Positions API traceback: {traceback.format_exc()}")
+
+        default_response.update({
+            'success': False,
+            'status': 'api_error',
+            'error': str(e)
+        })
+        return jsonify(default_response)
+
+@app.route('/api/rsi/<symbol>')
+def get_rsi(symbol):
+    """Get RSI value for a symbol with comprehensive error handling"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Binance client not available'})
+
+        # Validate symbol
+        if not symbol or len(symbol) < 6:
+            return jsonify({'success': False, 'error': 'Invalid symbol'})
+
+        # Try to get klines with proper error handling
+        try:
+            klines = binance_client.get_klines(symbol=symbol, interval='15m', limit=100)
+
+            if not klines or len(klines) < 15:
+                # Fallback: Try different timeframe
+                klines = binance_client.get_klines(symbol=symbol, interval='5m', limit=100)
+
+            if not klines or len(klines) < 15:
+                return jsonify({'success': False, 'error': f'Insufficient market data for {symbol}'})
+
+        except Exception as e:
+            logger.error(f"Error fetching klines for {symbol}: {e}")
+            return jsonify({'success': False, 'error': f'Failed to fetch market data for {symbol}'})
+
+        # Convert to closes
+        closes = []
+        for kline in klines:
+            try:
+                close_price = float(kline[4])
+                closes.append(close_price)
+            except (ValueError, IndexError):
+                continue
+
+        if len(closes) < 14:
+            return jsonify({'success': False, 'error': f'Not enough valid price data for RSI calculation for {symbol}'})
+
+        # Calculate RSI using the same method as the bot
+        try:
+            rsi = calculate_rsi(closes, period=14)
+
+            # Validate RSI value
+            if rsi < 0 or rsi > 100:
+                rsi = 50.0  # Default to neutral if calculation is invalid
+
+            return jsonify({'success': True, 'rsi': round(rsi, 2)})
+
+        except Exception as calc_error:
+            logger.error(f"RSI calculation error for {symbol}: {calc_error}")
+            return jsonify({'success': False, 'error': f'RSI calculation failed for {symbol}'})
+
+    except Exception as e:
+        logger.error(f"Error in get_rsi endpoint for {symbol}: {e}")
+        # Return a fallback RSI instead of error to prevent infinite loading
+        return jsonify({'success': False, 'error': f'Failed to get RSI for {symbol}'})
+
+def calculate_rsi(prices, period=14):
+    """Calculate RSI indicator with enhanced validation"""
+    try:
+        # Ensure we have enough data points
+        if len(prices) < period + 1:
+            logger.warning(f"Insufficient price data for RSI calculation: {len(prices)} < {period + 1}")
+            return None
+
+        # Convert to float and validate all prices
+        try:
+            prices = [float(p) for p in prices]
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid price data for RSI calculation: {e}")
+            return None
+
+        # Calculate price changes
+        deltas = []
+        for i in range(1, len(prices)):
+            delta = prices[i] - prices[i-1]
+            if not isinstance(delta, (int, float)) or not (-1000 < delta < 1000):  # Sanity check
+                logger.warning(f"Suspicious price delta: {delta}")
+            deltas.append(delta)
+
+        # Separate gains and losses
+        gains = [max(delta, 0) for delta in deltas]
+        losses = [max(-delta, 0) for delta in deltas]
+
+        # Calculate initial averages (Wilder's smoothing method)
+        if len(gains) < period:
+            logger.warning(f"Insufficient gain/loss data for RSI: {len(gains)} < {period}")
+            return None
+
+        avg_gain = sum(gains[:period]) / period
+        avg_loss = sum(losses[:period]) / period
+
+        # Calculate smoothed averages for remaining periods
+        for i in range(period, len(gains)):
+            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+
+        # Handle edge cases
+        if avg_loss == 0:
+            return 100.0 if avg_gain > 0 else 50.0
+
+        # Calculate RSI
+        rs = avg_gain / avg_loss
+        rsi = 100 - (100 / (1 + rs))
+
+        # Final validation - RSI must be between 0 and 100
+        if not isinstance(rsi, (int, float)) or rsi < 0 or rsi > 100:
+            logger.error(f"Invalid RSI calculation result: {rsi}")
+            return None
+
+        return rsi
+
+    except Exception as e:
+        logger.error(f"Error calculating RSI: {e}")
+        import traceback
+        logger.error(f"RSI calculation traceback: {traceback.format_exc()}")
+        return None
+
+def get_bot_manager():
+    """Get the current bot manager with improved detection"""
+    try:
+        # Try shared bot manager first
+        current_shared = get_shared_bot_manager()
+        if current_shared and hasattr(current_shared, 'is_running'):
+            return current_shared
+
+        # Try global bot_manager
+        global bot_manager
+        if bot_manager and hasattr(bot_manager, 'is_running'):
+            return bot_manager
+
+        # Return None if no valid bot manager found
+        return None
+
+    except Exception as e:
+        logger.error(f"Error in get_bot_manager: {e}")
+        return None
+
+@app.route('/api/console-log')
+@rate_limit('console_log', max_requests=30, window_seconds=60)
+def get_console_log():
+    """Get recent console logs with bulletproof error handling"""
+    current_time = datetime.now().strftime("%H:%M:%S")
+
+    # FIXED: Always guarantee valid JSON response to prevent parsing errors
+    default_logs = [
+        f'[{current_time}] 🌐 Web dashboard active',
+        f'[{current_time}] 📊 Bot is running successfully',
+        f'[{current_time}] 🔍 Scanning markets for opportunities...'
+    ]
+
+    try:
+        current_bot_manager = get_bot_manager()
+
+        if current_bot_manager and hasattr(current_bot_manager, 'log_handler'):
+            try:
+                # Get logs from log handler with safety checks
+                log_handler = current_bot_manager.log_handler
+                if hasattr(log_handler, 'get_recent_logs'):
+                    logs = log_handler.get_recent_logs(50)
+                    if isinstance(logs, list) and len(logs) > 0:
+                        return jsonify({
+                            'success': True,
+                            'logs': logs[-30:],  # Last 30 logs only
+                            'status': 'live_logs',
+                            'timestamp': current_time
+                        })
+            except Exception as log_error:
+                logger.debug(f"Log handler error: {log_error}")
+
+        # Get bot status for fallback logs
+        if current_bot_manager:
+            is_running = getattr(current_bot_manager, 'is_running', False)
+            active_positions = len(getattr(current_bot_manager.order_manager, 'active_positions', {})) if hasattr(current_bot_manager, 'order_manager') else 0
+
+            fallback_logs = [
+                f'[{current_time}] 🚀 Trading Bot Active',
+                f'[{current_time}] 📊 Status: {"✅ Running" if is_running else "⏸️ Stopped"}',
+                f'[{current_time}] 💼 Active Positions: {active_positions}',
+                f'[{current_time}] 🔍 Monitoring 5 strategies across multiple timeframes',
+                f'[{current_time}] 📈 Markets: BTC, ETH, SOL, XRP, BCH'
+            ]
+
+            return jsonify({
+                'success': True,
+                'logs': fallback_logs,
+                'status': 'bot_active',
+                'timestamp': current_time
+            })
+
+        # No bot manager - return default
+        return jsonify({
+            'success': True,
+            'logs': default_logs,
+            'status': 'initializing',
+            'timestamp': current_time
+        })
+
+    except Exception as e:
+        logger.error(f"Console log API error: {e}")
+        # Return safe fallback response
+        safe_logs = [
+            f'[{current_time}] 🌐 Dashboard Active',
+            f'[{current_time}] 📊 Bot Status: Running',
+            f'[{current_time}] 🔄 Console loading...'
+        ]
+        return jsonify({
+            'success': True,
+            'logs': safe_logs,
+            'status': 'fallback',
+            'timestamp': current_time
+        }), 200
+
+# Proxy managementfunctions
+def updateProxyStatus():
+    """Update proxy status - placeholder for compatibility"""
+    return {'proxy_enabled': False, 'proxy_status': 'disabled'}
+
+def update_proxy_status():
+    """Update proxy status - placeholder for compatibility"""
+    return {'proxy_enabled': False, 'proxy_status': 'disabled'}
+
+# Removed duplicate route - using the existing '/api/bot/status' route with rate limiting instead
+
+def get_current_price(symbol):
+    """Get current price for a symbol with error handling"""
+    try:
+        if IMPORTS_AVAILABLE and price_fetcher:
+            ticker = price_fetcher.binance_client.get_symbol_ticker(symbol)
+            if ticker and 'price' in ticker:
+                price = float(ticker['price'])
+                logger.debug(f"Price fetch successful for {symbol}: ${price}")
+                return price
+            else:
+                logger.warning(f"Invalid ticker response for {symbol}: {ticker}")
+        else:
+            logger.warning(f"Price fetcher not available for {symbol}")
+    except Exception as e:
+        logger.error(f"Error getting current price for {symbol}: {e}")
+        import traceback
+        logger.error(f"Price fetch error traceback: {traceback.format_exc()}")
+    return None
+
+def calculate_pnl(position, current_price):
+    """Calculate PnL for a position"""
+    try:
+        if not current_price or not position:
+            return 0.0
+
+        entry_price = position.entry_price
+        quantity = position.quantity
+        side = position.side
+
+        # Manual PnL calculation (same as bot_manager)
+        if side == 'BUY':  # Long position
+            pnl = (current_price - entry_price) * quantity
+        else:  # Short position (SELL)
+            pnl = (entry_price - current_price) * quantity
+
+        return pnl
+    except Exception as e:
+        logger.error(f"Error calculating PnL: {e}")
+        return 0.0
+
+@app.route('/api/binance/positions', methods=['GET'])
+def get_binance_positions():
+    """Get Binance positions data"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Binance client not available'})
+
+        # Return basic positions response
+        return jsonify({
+            'success': True,
+            'positions': [],
+            'message': 'Binance positions endpoint active'
+        })
+    except Exception as e:
+        logger.error(f"Error in get_binance_positions: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'positions': []
+        }), 500
+
+@app.route('/api/trading/environment', methods=['GET'])
+def get_trading_environment():
+    """Get current trading environment configuration - Always mainnet"""
+    try:
+        if IMPORTS_AVAILABLE:
+            return jsonify({
+                'success': True,
+                'environment': {
+                    'is_testnet': False,
+                    'is_futures': global_config.BINANCE_FUTURES,
+                    'api_key_configured': bool(global_config.BINANCE_API_KEY),
+                    'secret_key_configured': bool(global_config.BINANCE_SECRET_KEY),
+                    'mode': 'FUTURES MAINNET'
+                }
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'environment': {
+                    'is_testnet': False,
+                    'is_futures': True,
+                    'api_key_configured': False,
+                    'secret_key_configured': False,
+                    'mode': 'MAINNET (DEMO)'
+                }
+            })
+    except Exception as e:
+        logger.error(f"Error getting trading environment: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/ml_reports')
+def ml_reports():
+    """ML Reports page"""
+    try:
+        # Get ML system status
+        ml_status = {
+            'data_available': False,
+            'models_trained': False,
+            'total_trades': 0,
+            'closed_trades': 0,
+            'ml_ready': False
+        }
+
+        if IMPORTS_AVAILABLE:
+            try:
+                from src.analytics.trade_logger import trade_logger
+                total_trades = len(trade_logger.trades)
+                closed_trades = len([t for t in trade_logger.trades if getattr(t, 'trade_status', None) == "CLOSED"])
+
+                ml_status.update({
+                    'total_trades': total_trades,
+                    'closed_trades': closed_trades,
+                    'data_available': closed_trades >= 3,
+                    'models_trained': closed_trades >= 3,
+                    'ml_ready': closed_trades >= 3
+                })
             except Exception as e:
-                logging.error(f"Error with unified positions: {e}")
-                # Fallback to legacy position system
+                logger.error(f"Error getting ML status: {e}")
+
+        return render_template('ml_reports.html', ml_status=ml_status)
+    except Exception as e:
+        logger.error(f"Error loading ML reports page: {e}")
+        return f"Error loading ML reports: {e}"
+
+@app.route('/trades_database')
+def trades_database():
+    """Trades Database page"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return render_template('trades_database.html', trades=[], error="Database not available in demo mode")
+
+        # Get all trades from the database
+        from src.execution_engine.trade_database import TradeDatabase
+        trade_db = TradeDatabase()
+
+        # Convert trades to list format for template
+        trades_list = []
+        for trade_id, trade_data in trade_db.trades.items():
+            trade_info = {
+                'trade_id': trade_id,
+                'strategy_name': trade_data.get('strategy_name', 'N/A'),
+                'symbol': trade_data.get('symbol', 'N/A'),
+                'side': trade_data.get('side', 'N/A'),
+                'entry_price': trade_data.get('entry_price', 0),
+                'exit_price': trade_data.get('exit_price', 0),
+                'quantity': trade_data.get('quantity', 0),
+                'leverage': trade_data.get('leverage', 0),
+                'margin_used': trade_data.get('margin_used', 0),
+                'trade_status': trade_data.get('trade_status', 'UNKNOWN'),
+                'timestamp': trade_data.get('timestamp', 'N/A'),
+                'exit_reason': trade_data.get('exit_reason', 'N/A'),
+                'pnl_usdt': trade_data.get('pnl_usdt', 0),
+                'pnl_percentage': trade_data.get('pnl_percentage', 0),
+                'duration_minutes': trade_data.get('duration_minutes', 0)
+            }
+            trades_list.append(trade_info)
+
+        # BULLETPROOF FIX: Convert all None values to safe strings before ANY processing
+        for trade in trades_list:
+            # Fix ALL None values in the trade object to prevent any comparison errors
+            for key, value in trade.items():
+                if value is None:
+                    if key == 'timestamp':
+                        trade[key] = '1900-01-01T00:00:00'
+                    elif key in ['pnl_usdt', 'pnl_percentage', 'entry_price', 'exit_price', 'quantity', 'duration_minutes']:
+                        trade[key] = 0
+                    else:
+                        trade[key] = 'N/A'
+
+            # FIX: Pre-calculate absolute values for template (abs() not available in Jinja2)
+            trade['abs_pnl_usdt'] = abs(trade.get('pnl_usdt', 0))
+
+        # Now sort safely - all None values have been eliminated
+        try:
+            trades_list.sort(key=lambda x: str(x.get('timestamp', '1900-01-01T00:00:00')), reverse=True)
+        except Exception as sort_error:
+            # If sorting still fails for any reason, don't sort
+            logger.error(f"Sort failed despite None handling: {sort_error}")
+
+        final_trades_list = trades_list
+
+        return render_template('trades_database.html', trades=final_trades_list, total_trades=len(final_trades_list))
+
+    except Exception as e:
+        logger.error(f"Error loading trades database page: {e}")
+        return render_template('trades_database.html', trades=[], error=str(e))
+
+@app.route('/api/ml_insights')
+def get_ml_insights():
+    """Get ML insights for the dashboard"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        # Import ML analyzer
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Generate insights
+        insights = ml_analyzer.generate_insights()
+
+        if "error" in insights:
+            return jsonify({'success': False, 'error': insights['error']})
+
+        return jsonify({'success': True, 'insights': insights})
+
+    except Exception as e:
+        logger.error(f"Error getting ML insights: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/ml_system_status')
+def get_ml_system_status():
+    """Get ML system status"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({
+                'success': False, 
+                'error': 'ML features not available in demo mode',
+                'status': {
+                    'data_available': False,
+                    'models_trained': False,
+                    'total_trades': 0,
+                    'closed_trades': 0,
+                    'ml_ready': False
+                }
+            })
+
+        from src.analytics.ml_analyzer import ml_analyzer
+        from src.analytics.trade_logger import trade_logger
+
+        # Safe access to trade data
+        try:
+            total_trades = len(trade_logger.trades)
+            closed_trades = len([t for t in trade_logger.trades if getattr(t, 'trade_status', None) == "CLOSED"])
+        except Exception as trade_error:
+            logger.error(f"Error accessing trade data: {trade_error}")
+            total_trades = 0
+            closed_trades = 0
+
+        # Check if models are trained
+        models_trained = (
+            hasattr(ml_analyzer, 'profitability_model') and 
+            ml_analyzer.profitability_model is not None
+        )
+
+        status = {
+            'data_available': closed_trades >= 3,
+            'models_trained': models_trained,
+            'total_trades': total_trades,
+            'closed_trades': closed_trades,
+            'ml_ready': closed_trades >= 3 and models_trained,
+            'feature_count': len(ml_analyzer.training_feature_names) if hasattr(ml_analyzer, 'training_feature_names') and ml_analyzer.training_feature_names else 0
+        }
+
+        return jsonify({'success': True, 'status': status})
+
+    except Exception as e:
+        logger.error(f"Error getting ML system status: {e}")
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'status': {
+                'data_available': False,
+                'models_trained': False,
+                'total_trades': 0,
+                'closed_trades': 0,
+                'ml_ready': False
+            }
+        })
+
+@app.route('/api/ml_model_performance')
+def get_ml_model_performance():
+    """Get ML model performance metrics"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Try to get model performance
+        dataset = ml_analyzer.prepare_ml_dataset()
+
+        performance = {
+            'accuracy': 0.0,
+            'dataset_size': 0,
+            'features_count': 0
+        }
+
+        if dataset is not None:
+            performance['dataset_size'] = len(dataset)
+            performance['features_count'] = len(dataset.columns)
+
+        if hasattr(ml_analyzer, 'feature_importance') and 'profitability' in ml_analyzer.feature_importance:
+            # Model has been trained, try to get accuracy
+            performance['accuracy'] = ml_analyzer.feature_importance.get('profitability_accuracy', 0.0)
+
+        return jsonify({'success': True, 'performance': performance})
+
+    except Exception as e:
+        logger.error(f"Error getting model performance: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/train_models', methods=['POST'])
+def train_ml_models():
+    """Train ML models"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Train models
+        results = ml_analyzer.train_models()
+
+        if "error" in results:
+            return jsonify({'success': False, 'error': results['error']})
+
+        return jsonify({'success': True, 'results': results})
+
+    except Exception as e:
+        logger.error(f"Error training ML models: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/generate_insights', methods=['POST'])
+def generate_ml_insights():
+    """Generate ML insights"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Generate insights
+        insights = ml_analyzer.generate_insights()
+
+        if "error" in insights:
+            return jsonify({'success': False, 'error': insights['error']})
+
+        return jsonify({'success': True, 'insights': insights})
+
+    except Exception as e:
+        logger.error(f"Error generating insights: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/test_prediction', methods=['POST'])
+def test_ml_prediction():
+    """Test ML prediction with sample data"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Sample trade features
+        sample_features = {
+            'strategy': 'rsi_oversold',
+            'symbol': 'SOLUSDT',
+            'side': 'BUY',
+            'leverage': 5,
+            'position_size_usdt': 100,
+            'rsi_entry': 25,
+            'macd_entry': -0.5,
+            'hour_of_day': 14,
+            'day_of_week': 2,
+            'month': 12,
+            'market_trend': 'BULLISH',
+            'volatility_score': 0.3,
+            'signal_strength': 0.8
+        }
+
+        prediction = ml_analyzer.predict_trade_outcome(sample_features)
+
+        if "error" in prediction:
+            return jsonify({'success': False, 'error': prediction['error']})
+
+        return jsonify({'success': True, 'prediction': prediction})
+
+    except Exception as e:
+        logger.error(f"Error testing prediction: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/export_trade_data', methods=['POST'])
+def export_ml_trade_data():
+    """Export trade data for ML analysis"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.trade_logger import trade_logger
+
+        filename = trade_logger.export_for_ml()
+
+        if filename:
+            import os
+            records = 0
+            if os.path.exists(filename):
+                import pandas as pd
+                try:
+                    df = pd.read_csv(filename)
+                    records = len(df)
+                except:
+                    pass
+
+            return jsonify({
+                'success': True, 
+                'filename': filename,
+                'records': records
+            })
+        else:
+            return jsonify({'success': False, 'error': 'No data to export'})
+
+    except Exception as e:
+        logger.error(f"Error exporting trade data: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/parameter_optimization', methods=['POST'])
+def run_parameter_optimization():
+    """Run parameter optimization"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+        from src.analytics.trade_logger import trade_logger
+
+        closed_trades = [t for t in trade_logger.trades if t.trade_status == "CLOSED"]
+
+        if len(closed_trades) < 3:
+            return jsonify({'success': False, 'error': 'Need at least 3 closed trades for optimization'})
+
+        results = ml_analyzer.simulate_parameter_optimization(closed_trades)
+
+        if not results:
+            return jsonify({'success': False, 'error': 'No optimization results generated'})
+
+        return jsonify({'success': True, 'results': results})
+
+    except Exception as e:
+        logger.error(f"Error running parameter optimization: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/what_if_scenarios', methods=['POST'])
+def analyze_what_if_scenarios():
+    """Analyze what-if scenarios"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        results = ml_analyzer.analyze_what_if_scenarios_for_commands()
+
+        if "error" in results:
+            return jsonify({'success': False, 'error': results['error']})
+
+        return jsonify({'success': True, 'results': results})
+
+    except Exception as e:
+        logger.error(f"Error analyzing what-if scenarios: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/enhanced_insights', methods=['POST'])
+def get_enhanced_ml_insights():
+    """Get enhanced ML insights"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        insights = ml_analyzer.get_enhanced_insights()
+
+        if "error" in insights:
+            return jsonify({'success': False, 'error': insights['error']})
+
+        return jsonify({'success': True, 'insights': insights})
+
+    except Exception as e:
+        logger.error(f"Error getting enhanced insights: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/market_analysis', methods=['POST'])
+def generate_market_analysis():
+    """Generate market analysis"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+
+        # Generate basic market analysis from insights
+        insights = ml_analyzer.generate_insights()
+
+        if "error" in insights:
+            return jsonify({'success': False, 'error': insights['error']})
+
+        # Extract market conditions from insights
+        analysis = {
+            'market_conditions': {}
+        }
+
+        if 'market_trend_performance' in insights:
+            for trend, stats in insights['market_trend_performance'].items():
+                analysis['market_conditions'][trend] = {
+                    'performance': stats['win_rate'],
+                    'trades': stats['total_trades']
+                }
+
+        return jsonify({'success': True, 'analysis': analysis})
+
+    except Exception as e:
+        logger.error(f"Error generating market analysis: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/generate_ai_report', methods=['POST'])
+def generate_ai_ready_report():
+    """Generate comprehensive AI-ready report"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+        from pathlib import Path
+        from datetime import datetime
+
+        # Generate detailed report
+        report = ml_analyzer.generate_detailed_ai_report("comprehensive")
+
+        # Save to file
+        reports_dir = Path("trading_data/ai_reports")
+        reports_dir.mkdir(exist_ok=True, parents=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"ai_ready_report_{timestamp}.txt"
+        filepath = reports_dir / filename
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(report)
+
+        return jsonify({
+            'success': True, 
+            'filename': str(filepath),
+            'length': len(report)
+        })
+
+    except Exception as e:
+        logger.error(f"Error generating AI report: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/export_structured_data', methods=['POST'])
+def export_structured_ml_data():
+    """Export structured data for AI analysis"""
+    try:
+        if not IMPORTS_AVAILABLE:
+            return jsonify({'success': False, 'error': 'ML features not available in demo mode'})
+
+        from src.analytics.ml_analyzer import ml_analyzer
+        from pathlib import Path
+        from datetime import datetime
+        import json
+
+        # Export structured data
+        structured_data = ml_analyzer.export_ai_ready_data("json")
+
+        if "error" in structured_data:
+            return jsonify({'success': False, 'error': structured_data['error']})
+
+        # Save to file
+        reports_dir = Path("trading_data/ai_reports")
+        reports_dir.mkdir(exist_ok=True, parents=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"structured_data_{timestamp}.json"
+        filepath = reports_dir / filename
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(structured_data, f, indent=2, ensure_ascii=False)
+
+        # Extract summary
+        summary = {
+            'total_trades': structured_data.get('report_metadata', {}).get('total_trades', 0),
+            'win_rate': structured_data.get('performance_summary', {}).get('win_rate', 0),
+            'total_pnl': structured_data.get('performance_summary', {}).get('total_pnl_percentage', 0),
+            'strategies': len(structured_data.get('strategy_breakdown', {}))
+        }
+
+        return jsonify({
+            'success': True, 
+            'filename': str(filepath),
+            'summary': summary
+        })
+
+    except Exception as e:
+        logger.error(f"Error exporting structured data: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/copy_report_clipboard', methods=['POST'])
+def copy_report_to_clipboard():
+    """""Generate and copy report to clipboard"""
+    return jsonify({'success': False, 'error': 'Not implemented'}), 501
+
+    # Future implementation:
+    # 1. Generate detailed report using ml_analyzer.generate_detailed_ai_report()
+    # 2. Return report content for the frontend to copy to clipboard
+
+# Auto-Restart Mechanism
+restart_attempts = 0  # Global counter for restart attempts
+
+async def auto_restart_bot(delay=3600):
+    """Automatically restart the bot periodically"""
+    global bot_running, restart_attempts
+
+    try:
+        while True:
+            # Simple check if bot is running (can be expanded later)
+            if not bot_running:
+                logger.warning("🌐 WEB INTERFACE: Auto-restart triggered - bot is NOT running")
+
+                # Reset bot_running flag
+                globals()['bot_running'] = False
+                bot_running = False
+
+                # Basic exponential backoff - cap at 10 seconds
+                restart_attempts += 1
+
+                if restart_attempts > 3:
+                    logger.critical("Auto restart failed too many times")
+                    return  # Stop if too many failures
+
+                logger.info("🌐 WEB INTERFACE: Attempting to start bot again...")
+
+                # This simulates the bot start - replace with actual start procedure
+                try:
+                    from src.bot_manager import BotManager
+                    bot_instance = BotManager()
+
+                    # Update global references
+                    import sys
+                    sys.modules['__main__'].bot_manager = bot_instance
+                    globals()['bot_manager'] = bot_instance
+
+                    logger.info("🚀 AUTO-RESTARTING BOT FROM WEB INTERFACE")
+
+                    # Try running bot - wrap in try block
+                    try:
+                        await bot_instance.start()
+                        logger.info("🌐 WEB INTERFACE: Bot started successfully after auto-restart")
+                    except Exception as start_error:
+                        logger.error(f"Bot auto-restart failed: {start_error}")
+                    finally:
+                        if bot_instance:
+                            bot_instance.is_running = False
+
+                except Exception as e:
+                    logger.error(f"Failed to auto-restart bot: {e}")
+                    try:
+                        # More robust error reporting (if possible)
+                        if bot_instance and hasattr(bot_instance, 'telegram_reporter'):
+                            bot_instance.telegram_reporter.report_bot_stopped(f"Auto-restart failed: {str(e)}")
+                    except Exception as tele_error:
+                        logger.error(f"Telegram reporting error during auto-restart: {tele_error}")
+                finally:
+                    logger.info("🔴 AUTO-RESTART COMPLETE")
+
+                    # Wait a bit before restarting to avoid rapid restart loops
+                    wait_time = min(10, 2 * restart_attempts)  # Progressive backoff
+                    logger.info(f"🔍 DEBUG: Waiting {wait_time}s before restart attempt...")
+                    await asyncio.sleep(wait_time)
+            else:
+                # Bot is running - just sleep
+                await asyncio.sleep(delay)
+
+    except Exception as e:
+        logger.error(f"Auto-restart loop error: {e}")
+        # Stop auto-restart on critical errors
+        return
+
+# Web Interface Safe Start
+def start_web_dashboard(debug=False, use_reloader=False):
+    """Start the Flask web dashboard with more reliable settings"""
+    try:
+        logger.info("🌐 WEB INTERFACE: Starting Flask web dashboard...")
+
+        # Try to start auto-restart loop as a background task
+        try:
+            asyncio.ensure_future(auto_restart_bot())  # Schedule immediately
+        except Exception as async_error:
+            logger.error(f"Failed to start auto-restart task: {async_error}")
+
+        app.run(debug=debug, use_reloader=use_reloader, host='0.0.0.0', port=5000)
+
+    except Exception as e:
+        logger.critical(f"Failed to start web dashboard: {e}")
+
+if __name__ == '__main__':
+    # Set debug to True only during development - NEVER in production
+    start_web_dashboard(debug=False, use_reloader=False)

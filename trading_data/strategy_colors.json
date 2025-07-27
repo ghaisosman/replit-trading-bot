@@ -40,9 +40,7 @@
     "DATABASE": "\u001b[95m",
     "SUCCESS": "\u001b[95m",
     "BALANCE": "\u001b[95m",
-    "ADAUSDT": "\u001b[95m",
-    "LOGGER": "\u001b[95m",
-    "LOG_TRADE": "\u001b[95m"
+    "ADAUSDT": "\u001b[95m"
   },
   "active_position_colors": {
     "LOADED": "\u001b[1;95m",
@@ -85,8 +83,6 @@
     "DATABASE": "\u001b[1;95m",
     "SUCCESS": "\u001b[1;95m",
     "BALANCE": "\u001b[1;95m",
-    "ADAUSDT": "\u001b[1;95m",
-    "LOGGER": "\u001b[1;95m",
-    "LOG_TRADE": "\u001b[1;95m"
+    "ADAUSDT": "\u001b[1;95m"
   }
 }

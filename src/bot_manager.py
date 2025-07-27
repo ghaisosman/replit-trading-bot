@@ -698,64 +698,136 @@ class BotManager:
             # Don't crash the bot for untracked position errors
 
     async def _recover_active_positions(self):
-        """Initialize unified position management system"""
+        """Simplified single-source position recovery with comprehensive debugging"""
+        self.logger.info("🔍 DEBUG: Position recovery started")
+
         try:
-            self.logger.info("🔗 INITIALIZING UNIFIED POSITION MANAGEMENT...")
-            
-            # Import and initialize unified position manager
-            from src.execution_engine.unified_position_manager import UnifiedPositionManager
-            
-            self.unified_positions = UnifiedPositionManager(
-                binance_client=self.binance_client,
-                telegram_reporter=self.telegram_reporter
-            )
-            
-            # Initialize the unified system
-            await self.unified_positions.initialize()
-            
-            # Update order manager with unified positions
-            self.order_manager.active_positions.clear()
-            
-            for trade_id, unified_pos in self.unified_positions.get_all_positions().items():
-                # Convert to order manager format for compatibility
-                from src.execution_engine.order_manager import Position
-                position = Position(
-                    strategy_name=unified_pos.strategy_name,
-                    symbol=unified_pos.symbol,
-                    side=unified_pos.side,
-                    entry_price=unified_pos.entry_price,
-                    quantity=unified_pos.quantity,
-                    stop_loss=unified_pos.stop_loss,
-                    take_profit=unified_pos.take_profit,
-                    actual_margin_used=unified_pos.margin_used,
-                    trade_id=unified_pos.trade_id,
-                    entry_time=datetime.now(),
-                    status=unified_pos.status
-                )
-                
-                # Set strategy config reference
-                if unified_pos.strategy_name in self.strategies:
-                    position.strategy_config = self.strategies[unified_pos.strategy_name]
-                
-                self.order_manager.active_positions[unified_pos.strategy_name] = position
-                
-                # Register with anomaly detector
-                if hasattr(self, 'anomaly_detector') and self.anomaly_detector:
-                    self.anomaly_detector.register_bot_trade(unified_pos.symbol, unified_pos.strategy_name)
-            
-            position_count = self.unified_positions.get_position_count()
-            self.logger.info(f"🔗 UNIFIED SYSTEM READY: {position_count} active positions")
-            
-            if position_count > 0:
-                self.logger.info("📊 ACTIVE POSITIONS LOADED:")
-                for trade_id, pos in self.unified_positions.get_all_positions().items():
-                    self.logger.info(f"   ✅ {pos.strategy_name} | {pos.symbol} | {pos.side} | Entry: ${pos.entry_price}")
-            
+            self.logger.info("🛡️ POSITION RECOVERY: Starting simplified recovery process...")
+
+            # Step 1: Get all open trades from database
+            from src.execution_engine.trade_database import TradeDatabase
+            trade_db = TradeDatabase()
+
+            open_trades = {}
+            for trade_id, trade_data in trade_db.trades.items():
+                if trade_data.get('trade_status') == 'OPEN':
+                    open_trades[trade_id] = trade_data
+                    self.logger.info(f"🔍 DEBUG: Found open trade in DB: {trade_id} | {trade_data.get('symbol')} | {trade_data.get('side')}")
+
+            self.logger.info(f"🔍 DEBUG: Found {len(open_trades)} open trades in database")
+
+            # Step 2: Get current Binance positions
+            binance_positions = {}
+            if self.binance_client.is_futures:
+                try:
+                    positions = self.binance_client.client.futures_position_information()
+                    for position in positions:
+                        symbol = position.get('symbol')
+                        position_amt = float(position.get('positionAmt', 0))
+                        if abs(position_amt) > 0.001:  # Has actual position
+                            entry_price = float(position.get('entryPrice', 0))
+                            side = 'BUY' if position_amt > 0 else 'SELL'
+                            quantity = abs(position_amt)
+
+                            binance_positions[symbol] = {
+                                'symbol': symbol,
+                                'side': side,
+                                'quantity': quantity,
+                                'entry_price': entry_price,
+                                'position_amt': position_amt
+                            }
+                            self.logger.info(f"🔍 DEBUG: Found Binance position: {symbol} | {side} | Qty: {quantity} | Entry: ${entry_price}")
+                except Exception as e:
+                    self.logger.error(f"❌ Error fetching Binance positions: {e}")
+                    binance_positions = {}
+
+            self.logger.info(f"🔍 DEBUG: Found {len(binance_positions)} active positions on Binance")
+
+            # Step 3: Match database trades with Binance positions
+            recovered_positions = []
+
+            for trade_id, trade_data in open_trades.items():
+                symbol = trade_data.get('symbol')
+                db_side = trade_data.get('side')
+                db_quantity = float(trade_data.get('quantity', 0))
+                db_entry_price = float(trade_data.get('entry_price', 0))
+
+                self.logger.info(f"🔍 DEBUG: Matching trade {trade_id} - {symbol} {db_side} Qty:{db_quantity} Entry:${db_entry_price}")
+
+                # Check if corresponding Binance position exists
+                binance_pos = binance_positions.get(symbol)
+                if binance_pos:
+                    # Check if trade matches Binance position (with tolerance)
+                    side_match = binance_pos['side'] == db_side
+                    qty_tolerance = max(db_quantity * 0.05, 0.001)  # 5% tolerance
+                    price_tolerance = max(db_entry_price * 0.05, 0.01)  # 5% tolerance
+
+                    qty_match = abs(binance_pos['quantity'] - db_quantity) <= qty_tolerance
+                    price_match = abs(binance_pos['entry_price'] - db_entry_price) <= price_tolerance
+
+                    self.logger.info(f"🔍 DEBUG: Match check - Side:{side_match} Qty:{qty_match} Price:{price_match}")
+
+                    if side_match and qty_match and price_match:
+                        # Perfect match - recover this position
+                        strategy_name = trade_data.get('strategy_name', 'RECOVERED')
+
+                        self.logger.info(f"✅ RECOVERY MATCH: {trade_id} | {strategy_name} | {symbol}")
+
+                        from src.execution_engine.order_manager import Position
+                        position = Position(
+                            strategy_name=strategy_name,
+                            symbol=symbol,
+                            side=db_side,
+                            entry_price=db_entry_price,
+                            quantity=db_quantity,
+                            stop_loss=trade_data.get('stop_loss'),
+                            take_profit=trade_data.get('take_profit'),
+                            actual_margin_used=trade_data.get('margin_used', 50.0),
+                            trade_id=trade_id,
+                            entry_time=datetime.now(),  # Use current time for recovery
+                            status="OPEN"
+                        )
+
+                        # Set strategy config reference if possible
+                        if strategy_name in self.strategies:
+                            position.strategy_config = self.strategies[strategy_name]
+
+                        recovered_positions.append((strategy_name, position))
+
+                        # Register with anomaly detector IMMEDIATELY to prevent interference
+                        if hasattr(self, 'anomaly_detector') and self.anomaly_detector:
+                            self.anomaly_detector.register_bot_trade(symbol, strategy_name)
+                            self.logger.info(f"🔍 DEBUG: Registered recovered position with anomaly detector: {symbol}")
+                    else:
+                        self.logger.warning(f"⚠️ POSITION MISMATCH: {trade_id} | DB vs Binance data doesn't match closely enough")
+                else:
+                    self.logger.warning(f"⚠️ ORPHAN TRADE: {trade_id} | Database shows open but no Binance position")
+
+            # Step 4: Load recovered positions into order manager
+            if recovered_positions:
+                self.logger.info(f"🛡️ LOADING {len(recovered_positions)} RECOVERED POSITIONS...")
+
+                for strategy_name, position in recovered_positions:
+                    # Avoid conflicts - only one position per strategy
+                    if strategy_name not in self.order_manager.active_positions:
+                        self.order_manager.active_positions[strategy_name] = position
+                        self.logger.info(f"✅ LOADED RECOVERED POSITION: {strategy_name} | {position.symbol} | {position.side} | Entry: ${position.entry_price}")
+                    else:
+                        self.logger.warning(f"⚠️ RECOVERY CONFLICT: Strategy {strategy_name} already has position, skipping recovery")
+
+                self.logger.info(f"🛡️ RECOVERY COMPLETE: {len(self.order_manager.active_positions)} active positions loaded")
+
+            else:
+                self.logger.info("🛡️ POSITION RECOVERY: No matching positions to recover - starting fresh")
+
+            # Step 5: Log final recovery summary
+            self.logger.info(f"🔍 DEBUG: Recovery summary - DB Open: {len(open_trades)}, Binance: {len(binance_positions)}, Recovered: {len(recovered_positions)}")
+
         except Exception as e:
-            self.logger.error(f"❌ UNIFIED POSITION SYSTEM ERROR: {e}")
+            self.logger.error(f"❌ POSITION RECOVERY ERROR: {e}")
             import traceback
-            self.logger.error(f"🔍 DEBUG: Unified system traceback: {traceback.format_exc()}")
-            self.logger.info("🔄 Continuing startup without unified positions...")
+            self.logger.error(f"🔍 DEBUG: Recovery traceback: {traceback.format_exc()}")
+            self.logger.info("🔄 Continuing startup without position recovery...")
 
     async def _process_strategy(self, strategy_name: str, strategy_config: Dict):
         """Process a single strategy with improved error handling"""
