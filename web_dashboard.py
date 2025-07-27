@@ -1666,3 +1666,15 @@ def get_positions():
                     except Exception as e:
                         logging.error(f"Error processing unified position {trade_id}: {e}")
                         continue
+
+                return jsonify({
+                    'status': 'success',
+                    'positions': positions,
+                    'count': len(positions),
+                    'source': 'unified_position_system',
+                    'synchronized': True
+                })
+
+            except Exception as e:
+                logging.error(f"Error with unified positions: {e}")
+                # Fallback to legacy position system
