@@ -992,8 +992,6 @@ def create_strategy():
         }
 
         # Add strategy-specific parameters with validation
-
-        # Add strategy-specific parameters with validation
         if 'rsi' in strategy_name.lower():
             new_config.update({
                 'rsi_period': 14,
