@@ -796,6 +796,7 @@ def get_strategies():
                         config['decimals'] = 2
 
                 # RSI Strategy Specific Parameters                if 'rsi' in name.lower():
+                if 'rsi' in name.lower():
                     config.setdefault('rsi_period', 14)
                     config.setdefault('rsi_long_entry', 30)    # Oversold entry
                     config.setdefault('rsi_long_exit', 70)     # Take profit (overbought)
@@ -1378,8 +1379,7 @@ def update_strategy(strategy_name):
 
         logger.info(f"🌐 WEB DASHBOARD: SINGLE SOURCE OF TRUTH UPDATE for {strategy_name}")
         logger.info(f"📝 ALL PARAMETERS UPDATED: {list(data.keys())}")
-        logger.info(```text
-f"🔄 VALUES: {data}")
+        logger.info(f"🔄 VALUES: {data}")
         logger.info(f"📁 FILE CONFIGS WILL BE OVERRIDDEN - Web dashboard has authority")
 
         # Always try to get the latest shared bot manager
@@ -2181,9 +2181,7 @@ def get_ml_system_status():
                 'success': False, 
                 'error': 'ML features not available in demo mode',
                 'status': {
-                    'data_available': False,
-                    'models_trained': False,
-                    ```text
+                    'data_available                    'models_trained': False,
                     'total_trades': 0,
                     'closed_trades': 0,
                     'ml_ready': False
