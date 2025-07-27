@@ -1,7 +1,6 @@
 
 import json
 import os
-import requests
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
@@ -9,19 +8,23 @@ import hashlib
 import time
 
 class CloudDatabaseSync:
-    """Synchronize database between Replit development and Render deployment"""
+    """Synchronize database between Replit development and Render deployment using PostgreSQL"""
     
-    def __init__(self, replit_db_url: str = None):
+    def __init__(self, database_url: str = None):
         self.logger = logging.getLogger(__name__)
         
-        # Replit Database URL (get from environment or parameter)
-        self.replit_db_url = replit_db_url or os.getenv('REPLIT_DB_URL')
+        # PostgreSQL Database URL
+        self.database_url = database_url or os.getenv('DATABASE_URL') or os.getenv('REPLIT_DB_URL')
         
-        if not self.replit_db_url:
-            raise ValueError("REPLIT_DB_URL environment variable is required")
+        if not self.database_url:
+            self.logger.warning("No DATABASE_URL or REPLIT_DB_URL found - cloud sync disabled")
+            self.enabled = False
+            return
+        
+        self.enabled = True
         
         # Environment detection
-        self.is_deployment = os.environ.get('RENDER') == 'true'
+        self.is_deployment = os.environ.get('RENDER') == 'true' or os.environ.get('REPLIT_DEPLOYMENT') == '1'
         self.environment = "RENDER_DEPLOYMENT" if self.is_deployment else "REPLIT_DEVELOPMENT"
         
         # Sync configuration
@@ -30,7 +33,42 @@ class CloudDatabaseSync:
         self.local_hash = None
         self.remote_hash = None
         
-        self.logger.info(f"🌐 Cloud Database Sync initialized for {self.environment}")
+        # Initialize database connection
+        self._init_database()
+        
+        self.logger.info(f"🌐 PostgreSQL Cloud Database Sync initialized for {self.environment}")
+    
+    def _init_database(self):
+        """Initialize PostgreSQL database connection and create tables if needed"""
+        try:
+            import psycopg2
+            from psycopg2.extras import RealDictCursor
+            
+            # Create connection
+            self.conn = psycopg2.connect(self.database_url)
+            self.conn.autocommit = True
+            
+            # Create trading_database table if it doesn't exist
+            with self.conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS trading_database (
+                        id SERIAL PRIMARY KEY,
+                        data JSONB NOT NULL,
+                        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_by VARCHAR(50),
+                        trade_count INTEGER,
+                        data_hash VARCHAR(32)
+                    )
+                """)
+            
+            self.logger.info("✅ PostgreSQL database initialized")
+            
+        except ImportError:
+            self.logger.error("❌ psycopg2 not installed - install with: pip install psycopg2-binary")
+            self.enabled = False
+        except Exception as e:
+            self.logger.error(f"❌ Failed to initialize PostgreSQL: {e}")
+            self.enabled = False
     
     def _calculate_data_hash(self, data: Dict) -> str:
         """Calculate hash of data for change detection"""
@@ -41,38 +79,13 @@ class CloudDatabaseSync:
             self.logger.error(f"Error calculating hash: {e}")
             return "unknown"
     
-    def _make_db_request(self, method: str, key: str = "", data: Any = None) -> Optional[Any]:
-        """Make request to Replit Database"""
-        try:
-            url = f"{self.replit_db_url}/{key}" if key else self.replit_db_url
-            
-            headers = {'Content-Type': 'application/json'} if data else {}
-            
-            if method == 'GET':
-                response = requests.get(url, timeout=10)
-            elif method == 'POST':
-                response = requests.post(url, data=json.dumps(data) if data else None, headers=headers, timeout=10)
-            elif method == 'DELETE':
-                response = requests.delete(url, timeout=10)
-            else:
-                raise ValueError(f"Unsupported method: {method}")
-            
-            if response.status_code == 200:
-                return response.json() if response.content else None
-            elif response.status_code == 404:
-                return None
-            else:
-                self.logger.warning(f"Database request failed: {response.status_code} - {response.text}")
-                return None
-                
-        except Exception as e:
-            self.logger.error(f"Database request error: {e}")
-            return None
-    
     def upload_database_to_cloud(self, local_trades: Dict[str, Any]) -> bool:
-        """Upload local database to Replit cloud database"""
+        """Upload local database to PostgreSQL cloud database"""
+        if not self.enabled:
+            return False
+            
         try:
-            self.logger.info(f"📤 Uploading {len(local_trades)} trades to cloud database")
+            self.logger.info(f"📤 Uploading {len(local_trades)} trades to PostgreSQL cloud database")
             
             # Prepare data with metadata
             cloud_data = {
@@ -83,33 +96,46 @@ class CloudDatabaseSync:
                 'data_hash': self._calculate_data_hash(local_trades)
             }
             
-            # Upload to cloud
-            result = self._make_db_request('POST', 'trading_database', cloud_data)
+            # Clear existing data and insert new
+            with self.conn.cursor() as cur:
+                cur.execute("DELETE FROM trading_database")
+                cur.execute("""
+                    INSERT INTO trading_database (data, updated_by, trade_count, data_hash)
+                    VALUES (%s, %s, %s, %s)
+                """, (
+                    json.dumps(cloud_data),
+                    self.environment,
+                    len(local_trades),
+                    cloud_data['data_hash']
+                ))
             
-            if result is not None:
-                self.remote_hash = cloud_data['data_hash']
-                self.last_sync_time = datetime.now()
-                self.logger.info(f"✅ Successfully uploaded database to cloud")
-                return True
-            else:
-                self.logger.error(f"❌ Failed to upload database to cloud")
-                return False
-                
+            self.remote_hash = cloud_data['data_hash']
+            self.last_sync_time = datetime.now()
+            self.logger.info(f"✅ Successfully uploaded database to PostgreSQL cloud")
+            return True
+            
         except Exception as e:
-            self.logger.error(f"❌ Error uploading to cloud: {e}")
+            self.logger.error(f"❌ Error uploading to PostgreSQL cloud: {e}")
             return False
     
     def download_database_from_cloud(self) -> Optional[Dict[str, Any]]:
-        """Download database from Replit cloud database"""
+        """Download database from PostgreSQL cloud database"""
+        if not self.enabled:
+            return {}
+            
         try:
-            self.logger.info("📥 Downloading database from cloud")
+            self.logger.debug("📥 Downloading database from PostgreSQL cloud")
             
             # Get data from cloud
-            cloud_data = self._make_db_request('GET', 'trading_database')
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT data FROM trading_database ORDER BY last_updated DESC LIMIT 1")
+                result = cur.fetchone()
             
-            if cloud_data is None:
-                self.logger.info("📊 No cloud database found - will create new one")
+            if not result:
+                self.logger.debug("📊 No cloud database found - will create new one")
                 return {}
+            
+            cloud_data = result[0]
             
             if 'trades' not in cloud_data:
                 self.logger.warning("⚠️ Invalid cloud data format")
@@ -119,20 +145,22 @@ class CloudDatabaseSync:
             self.remote_hash = cloud_data.get('data_hash', 'unknown')
             self.last_sync_time = datetime.now()
             
-            self.logger.info(f"✅ Downloaded {len(trades)} trades from cloud database")
-            self.logger.info(f"📊 Last updated by: {cloud_data.get('updated_by', 'unknown')}")
-            self.logger.info(f"⏰ Last updated: {cloud_data.get('last_updated', 'unknown')}")
+            self.logger.debug(f"✅ Downloaded {len(trades)} trades from PostgreSQL cloud database")
+            self.logger.debug(f"📊 Last updated by: {cloud_data.get('updated_by', 'unknown')}")
             
             return trades
             
         except Exception as e:
-            self.logger.error(f"❌ Error downloading from cloud: {e}")
+            self.logger.error(f"❌ Error downloading from PostgreSQL cloud: {e}")
             return None
     
     def sync_database(self, local_trades: Dict[str, Any]) -> Dict[str, Any]:
-        """Intelligent bidirectional sync between local and cloud database"""
+        """Intelligent bidirectional sync between local and PostgreSQL cloud database"""
+        if not self.enabled:
+            return local_trades
+            
         try:
-            self.logger.info(f"🔄 Starting database sync from {self.environment}")
+            self.logger.debug(f"🔄 Starting PostgreSQL database sync from {self.environment}")
             
             # Calculate local hash
             local_hash = self._calculate_data_hash(local_trades)
@@ -141,32 +169,32 @@ class CloudDatabaseSync:
             cloud_trades = self.download_database_from_cloud()
             
             if cloud_trades is None:
-                self.logger.error("❌ Could not access cloud database")
+                self.logger.error("❌ Could not access PostgreSQL cloud database")
                 return local_trades
             
             # If cloud is empty, upload local data
             if not cloud_trades:
-                self.logger.info("📤 Cloud database empty - uploading local data")
+                self.logger.debug("📤 PostgreSQL cloud database empty - uploading local data")
                 if self.upload_database_to_cloud(local_trades):
                     return local_trades
                 else:
-                    self.logger.error("❌ Failed to initialize cloud database")
+                    self.logger.error("❌ Failed to initialize PostgreSQL cloud database")
                     return local_trades
             
             # Compare hashes to detect changes
             cloud_hash = self._calculate_data_hash(cloud_trades)
             
             if local_hash == cloud_hash:
-                self.logger.info("✅ Local and cloud databases are in sync")
+                self.logger.debug("✅ Local and PostgreSQL cloud databases are in sync")
                 return local_trades
             
             # Determine which is more recent based on trade count and timestamps
             local_count = len(local_trades)
             cloud_count = len(cloud_trades)
             
-            self.logger.info(f"📊 Sync comparison:")
-            self.logger.info(f"   Local: {local_count} trades")
-            self.logger.info(f"   Cloud: {cloud_count} trades")
+            self.logger.debug(f"📊 PostgreSQL sync comparison:")
+            self.logger.debug(f"   Local: {local_count} trades")
+            self.logger.debug(f"   Cloud: {cloud_count} trades")
             
             # Merge strategy: combine both and deduplicate
             merged_trades = {}
@@ -200,23 +228,26 @@ class CloudDatabaseSync:
             
             # Upload merged result to cloud
             final_count = len(merged_trades)
-            self.logger.info(f"🔄 Merged database: {final_count} trades")
+            self.logger.debug(f"🔄 Merged PostgreSQL database: {final_count} trades")
             
             if self.upload_database_to_cloud(merged_trades):
-                self.logger.info(f"✅ Database sync completed successfully")
+                self.logger.debug(f"✅ PostgreSQL database sync completed successfully")
                 return merged_trades
             else:
-                self.logger.error("❌ Failed to upload merged database")
+                self.logger.error("❌ Failed to upload merged database to PostgreSQL")
                 return local_trades
                 
         except Exception as e:
-            self.logger.error(f"❌ Error during database sync: {e}")
+            self.logger.error(f"❌ Error during PostgreSQL database sync: {e}")
             import traceback
-            self.logger.error(f"🔍 Sync error traceback: {traceback.format_exc()}")
+            self.logger.error(f"🔍 PostgreSQL sync error traceback: {traceback.format_exc()}")
             return local_trades
     
     def should_sync(self) -> bool:
         """Check if it's time to sync"""
+        if not self.enabled:
+            return False
+            
         if self.last_sync_time is None:
             return True
         
@@ -226,7 +257,9 @@ class CloudDatabaseSync:
     def get_sync_status(self) -> Dict[str, Any]:
         """Get current sync status"""
         return {
+            'enabled': self.enabled,
             'environment': self.environment,
+            'database_type': 'PostgreSQL',
             'last_sync_time': self.last_sync_time.isoformat() if self.last_sync_time else None,
             'local_hash': self.local_hash,
             'remote_hash': self.remote_hash,
@@ -237,11 +270,11 @@ class CloudDatabaseSync:
 # Global cloud sync instance
 cloud_sync = None
 
-def initialize_cloud_sync(replit_db_url: str = None) -> CloudDatabaseSync:
+def initialize_cloud_sync(database_url: str = None) -> CloudDatabaseSync:
     """Initialize global cloud sync instance"""
     global cloud_sync
     if cloud_sync is None:
-        cloud_sync = CloudDatabaseSync(replit_db_url)
+        cloud_sync = CloudDatabaseSync(database_url)
     return cloud_sync
 
 def get_cloud_sync() -> Optional[CloudDatabaseSync]:
