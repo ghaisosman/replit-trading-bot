@@ -2440,7 +2440,8 @@
         function updateStrategyStatusBadge(strategyName, state) {
             const cards = document.querySelectorAll('.card');
             for (let card of cards) {
-                if (card.innerHTML.includes(strategyName)) {
+                const cardText = card.textContent || card.innerText || '';
+                if (cardText.includes(strategyName)) {
                     const badge = card.querySelector('.badge');
                     if (badge) {
                         badge.textContent = state === 'enabled' ? 'Active' : 'Disabled';
@@ -2454,7 +2455,8 @@
         function updateStrategyToggleButton(strategyName, state) {
             const cards = document.querySelectorAll('.card');
             for (let card of cards) {
-                if (card.innerHTML.includes(strategyName)) {
+                const cardText = card.textContent || card.innerText || '';
+                if (cardText.includes(strategyName)) {
                     const button = card.querySelector('.strategy-toggle-btn');
                     if (button) {
                         button.textContent = state === 'enabled' ? 'Disable' : 'Enable';
@@ -3061,7 +3063,8 @@
         function updateStrategyBadge(strategyName, text, className) {
             const cards = document.querySelectorAll('.card');
             for (let card of cards) {
-                if (card.innerHTML.includes(strategyName)) {
+                const cardText = card.textContent || card.innerText || '';
+                if (cardText.includes(strategyName)) {
                     const badge = card.querySelector('.badge');
                     if (badge) {
                         badge.textContent = text;
