@@ -1,4 +1,3 @@
-
 import logging
 import time
 from datetime import datetime, timedelta
@@ -10,7 +9,7 @@ from src.reporting.telegram_reporter import TelegramReporter
 class ReliableOrphanDetector:
     """
     Reliable Orphan Detection System
-    
+
     Detects trades logged in DB as "open" but no longer exist on Binance,
     and marks them as manually closed with proper audit trail.
     """
@@ -21,12 +20,12 @@ class ReliableOrphanDetector:
         self.trade_db = trade_db
         self.telegram_reporter = telegram_reporter
         self.logger = logging.getLogger(__name__)
-        
+
         # Configuration
         self.verification_interval = 60  # seconds
         self.position_threshold = 0.001  # minimum position size to consider active
         self.last_verification = datetime.now()
-        
+
         self.logger.info("🔍 Reliable Orphan Detection System initialized")
         self.logger.info(f"⏰ Verification interval: {self.verification_interval}s")
 
@@ -36,32 +35,93 @@ class ReliableOrphanDetector:
         return time_elapsed >= self.verification_interval
 
     def run_verification_cycle(self) -> Dict[str, Any]:
-        """
-        Main verification cycle - checks all open trades against Binance positions
-        Returns summary of verification results
-        """
+        """Run a complete verification cycle"""
         try:
+            self.logger.info("🔍 STARTING ORPHAN VERIFICATION CYCLE")
+
+            # Get open trades from database
+            open_trades = {}
+            for trade_id, trade_data in self.trade_db.trades.items():
+                if trade_data.get('trade_status') == 'OPEN':
+                    open_trades[trade_id] = trade_data
+
+            self.logger.info(f"📊 NO OPEN TRADES FOUND IN DATABASE")
+
+            # CRITICAL FIX: Always check Binance positions even if no database trades
+            # Get current Binance positions
+            binance_positions = []
+            try:
+                if self.binance_client.is_futures:
+                    positions = self.binance_client.client.futures_position_information()
+                    for position in positions:
+                        position_amt = float(position.get('positionAmt', 0))
+                        if abs(position_amt) > 0.001:  # Has actual position
+                            binance_positions.append(position)
+                            symbol = position.get('symbol')
+                            entry_price = float(position.get('entryPrice', 0))
+                            side = 'LONG' if position_amt > 0 else 'SHORT'
+                            self.logger.info(f"🔍 FOUND BINANCE POSITION: {symbol} {side} Qty:{abs(position_amt)} Entry:${entry_price}")
+            except Exception as e:
+                self.logger.error(f"❌ Error checking Binance positions: {e}")
+
+            # Check for orphaned positions (Binance positions without database records)
+            orphans_detected = 0
+            if binance_positions and not open_trades:
+                self.logger.warning(f"🚨 ORPHAN POSITIONS DETECTED: {len(binance_positions)} Binance positions with no database records!")
+
+                for position in binance_positions:
+                    symbol = position.get('symbol')
+                    position_amt = float(position.get('positionAmt', 0))
+                    entry_price = float(position.get('entryPrice', 0))
+
+                    # Create recovery record for orphaned position
+                    success = self.trade_db.create_orphan_trade_record(position, f"orphan_recovery_{symbol.lower()}")
+                    if success:
+                        orphans_detected += 1
+                        self.logger.info(f"✅ Created recovery record for orphaned {symbol} position")
+
+                        # Send Telegram notification
+                        try:
+                            self.telegram_reporter.send_message(
+                                f"🚨 ORPHAN POSITION RECOVERED\n"
+                                f"Symbol: {symbol}\n"
+                                f"Side: {'LONG' if position_amt > 0 else 'SHORT'}\n"
+                                f"Quantity: {abs(position_amt)}\n"
+                                f"Entry: ${entry_price}\n"
+                                f"Recovery record created automatically."
+                            )
+                        except Exception as e:
+                            self.logger.warning(f"Could not send Telegram notification: {e}")
+
+            if not open_trades and not binance_positions:
+                return {
+                    'status': 'completed',
+                    'open_trades': 0,
+                    'trades_verified': 0,
+                    'orphans_detected': orphans_detected
+                }
+
             self.logger.info("🔍 DEEP DEBUG: Starting comprehensive orphan verification cycle")
-            
+
             # Check if verification should run
             time_since_last = (datetime.now() - self.last_verification).total_seconds()
             should_run = self.should_run_verification()
-            
+
             self.logger.info(f"🔍 DEEP DEBUG: Verification timing check:")
             self.logger.info(f"   Time since last: {time_since_last:.1f}s")
             self.logger.info(f"   Interval required: {self.verification_interval}s")
             self.logger.info(f"   Should run: {should_run}")
-            
+
             if not should_run:
                 self.logger.info("⏭️ SKIPPING: Verification interval not reached")
                 return {'status': 'skipped', 'reason': 'interval_not_reached'}
 
             self.logger.info("🔍 ORPHAN VERIFICATION: Starting verification cycle")
-            
+
             # Get all open trades from database
             self.logger.info("📊 STEP 1: Getting open trades from database...")
             open_trades = self._get_open_trades_from_db()
-            
+
             if not open_trades:
                 self.logger.warning("📊 NO OPEN TRADES FOUND IN DATABASE")
                 self.logger.info("   This means there should be no orphans to detect")
@@ -96,7 +156,7 @@ class ReliableOrphanDetector:
                 try:
                     trade_id = trade.get('trade_id', 'unknown')
                     self.logger.info(f"🔍 Verifying trade {i+1}/{len(open_trades)}: {trade_id}")
-                    
+
                     is_orphan = self._verify_trade_against_binance(trade, binance_positions)
                     trades_verified += 1
 
@@ -105,7 +165,7 @@ class ReliableOrphanDetector:
                     if is_orphan:
                         self.logger.warning(f"🚨 ORPHAN DETECTED: Processing {trade_id}")
                         orphan_result = self._mark_trade_as_manually_closed(trade)
-                        
+
                         if orphan_result['success']:
                             orphans_detected.append(orphan_result)
                             self.logger.warning(f"✅ ORPHAN PROCESSED: {trade['trade_id']} | {trade['symbol']} | Marked as manually closed")
@@ -141,11 +201,11 @@ class ReliableOrphanDetector:
             self.logger.info(f"   📊 Trades verified: {trades_verified}")
             self.logger.info(f"   📊 Orphans detected: {len(orphans_detected)}")
             self.logger.info(f"   📊 Binance positions: {len(binance_positions)}")
-            
+
             if len(open_trades) > 0 and len(orphans_detected) == 0 and len(binance_positions) == 0:
                 self.logger.error("🚨 POTENTIAL BUG: Open trades exist, no Binance positions, but no orphans detected!")
                 self.logger.error("   This suggests the orphan detection logic has a problem")
-            
+
             return result
 
         except Exception as e:
@@ -159,9 +219,9 @@ class ReliableOrphanDetector:
         try:
             self.logger.info("🔍 DEEP DEBUG: Getting open trades from database...")
             all_trades = self.trade_db.get_all_trades()
-            
+
             self.logger.info(f"📊 Total trades in database: {len(all_trades)}")
-            
+
             # Analyze all trades by status
             status_counts = {}
             open_trades = []
@@ -170,12 +230,12 @@ class ReliableOrphanDetector:
             for trade_id, trade_data in all_trades.items():
                 trade_status = trade_data.get('trade_status', 'UNKNOWN').upper()
                 status_counts[trade_status] = status_counts.get(trade_status, 0) + 1
-                
+
                 if trade_status == 'OPEN':
                     # Check required fields
                     required_fields = ['symbol', 'strategy_name', 'entry_price', 'quantity']
                     missing_fields = [field for field in required_fields if field not in trade_data]
-                    
+
                     if not missing_fields:
                         trade_data['trade_id'] = trade_id  # Ensure trade_id is included
                         open_trades.append(trade_data)
@@ -187,10 +247,10 @@ class ReliableOrphanDetector:
             self.logger.info(f"📊 Trade status breakdown:")
             for status, count in status_counts.items():
                 self.logger.info(f"   {status}: {count}")
-                
+
             self.logger.info(f"📊 Usable open trades: {len(open_trades)}")
             self.logger.info(f"📊 Open trades with missing fields: {len(missing_fields_trades)}")
-            
+
             if len(open_trades) == 0:
                 self.logger.warning("🚨 NO OPEN TRADES FOUND!")
                 if len(missing_fields_trades) > 0:
@@ -211,7 +271,7 @@ class ReliableOrphanDetector:
         """Get all active positions from Binance"""
         try:
             self.logger.info("🔍 DEEP DEBUG: Starting Binance position retrieval...")
-            
+
             if not self.binance_client.is_futures:
                 self.logger.warning("⚠️ Spot trading mode - position verification limited")
                 return []
@@ -221,12 +281,12 @@ class ReliableOrphanDetector:
                 self.logger.info("🔍 DEEP DEBUG: Testing Binance API connectivity...")
                 account_info = self.binance_client.client.futures_account()
                 self.logger.info("✅ DEEP DEBUG: Successfully retrieved Binance account info")
-                
+
                 # Log account balance for context
                 total_balance = float(account_info.get('totalWalletBalance', 0))
                 available_balance = float(account_info.get('availableBalance', 0))
                 self.logger.info(f"📊 Account Balance: Total=${total_balance:.2f}, Available=${available_balance:.2f}")
-                
+
             except Exception as api_error:
                 self.logger.error(f"❌ Binance API error: {api_error}")
                 # Check if it's a geographic restriction
@@ -239,7 +299,7 @@ class ReliableOrphanDetector:
                 else:
                     self.logger.error(f"🚨 Unknown API error type: {type(api_error).__name__}")
                 return []
-            
+
             all_positions = account_info.get('positions', [])
             self.logger.info(f"🔍 DEEP DEBUG: Retrieved {len(all_positions)} total positions from Binance")
 
@@ -247,15 +307,15 @@ class ReliableOrphanDetector:
             zero_positions = 0
             small_positions = 0
             active_positions = []
-            
+
             self.logger.info("🔍 DEEP DEBUG: Analyzing all Binance positions...")
-            
+
             for i, pos in enumerate(all_positions):
                 position_amt = float(pos.get('positionAmt', 0))
                 symbol = pos.get('symbol', 'UNKNOWN')
                 entry_price = float(pos.get('entryPrice', 0))
                 unrealized_pnl = float(pos.get('unRealizedProfit', 0))
-                
+
                 if abs(position_amt) == 0:
                     zero_positions += 1
                 elif abs(position_amt) < self.position_threshold:
@@ -270,7 +330,7 @@ class ReliableOrphanDetector:
             self.logger.info(f"   Zero positions: {zero_positions}")
             self.logger.info(f"   Small positions (below {self.position_threshold}): {small_positions}")
             self.logger.info(f"   Active positions (above threshold): {len(active_positions)}")
-            
+
             # If no active positions, this might be why orphan detection isn't working
             if len(active_positions) == 0:
                 self.logger.warning("🚨 NO ACTIVE POSITIONS FOUND ON BINANCE!")
@@ -299,11 +359,11 @@ class ReliableOrphanDetector:
             self.logger.info(f"🔍 DEEP DEBUG: Verifying trade {trade_id}")
             self.logger.info(f"   📊 DB Trade Details: {symbol} | {db_side} | Qty: {db_quantity}")
             self.logger.info(f"   📊 Available Binance positions: {len(binance_positions)}")
-            
+
             # Log all Binance positions for this symbol
             symbol_positions = [pos for pos in binance_positions if pos.get('symbol') == symbol]
             self.logger.info(f"   📊 Binance positions for {symbol}: {len(symbol_positions)}")
-            
+
             for i, pos in enumerate(symbol_positions):
                 pos_amt = float(pos.get('positionAmt', 0))
                 entry_price = float(pos.get('entryPrice', 0))
@@ -326,7 +386,7 @@ class ReliableOrphanDetector:
             # Check if position size matches (within tolerance)
             binance_amt = float(matching_position.get('positionAmt', 0))
             entry_price = float(matching_position.get('entryPrice', 0))
-            
+
             # Calculate expected position amount based on DB trade
             expected_amt = db_quantity if db_side == 'BUY' else -db_quantity
 
@@ -374,7 +434,7 @@ class ReliableOrphanDetector:
         try:
             trade_id = trade['trade_id']
             symbol = trade['symbol']
-            
+
             # Get current price for PnL calculation
             current_price = self._get_current_price(symbol)
             if not current_price:
@@ -460,12 +520,12 @@ class ReliableOrphanDetector:
                     symbol = orphan.get('symbol', 'Unknown')
                     pnl = orphan.get('pnl_usdt', 0.0)
                     pnl_pct = orphan.get('pnl_percentage', 0.0)
-                    
+
                     pnl_emoji = "🟢" if pnl >= 0 else "🔴"
                     message_lines.append(f"{pnl_emoji} {strategy} | {symbol}")
                     message_lines.append(f"   PnL: ${pnl:.2f} ({pnl_pct:.2f}%)")
                     message_lines.append("")
-                    
+
                     total_pnl += pnl
 
             total_emoji = "🟢" if total_pnl >= 0 else "🔴"
@@ -496,13 +556,13 @@ class ReliableOrphanDetector:
         """Debug current verification status"""
         try:
             self.logger.info("🔍 DEBUG: Starting verification status check")
-            
+
             # Check database trades
             open_trades = self._get_open_trades_from_db()
             self.logger.info(f"🔍 DEBUG: Found {len(open_trades)} open trades in database:")
             for trade in open_trades:
                 self.logger.info(f"   - {trade['trade_id']}: {trade['symbol']} {trade['side']} {trade['quantity']}")
-            
+
             # Check Binance positions
             binance_positions = self._get_all_binance_positions()
             self.logger.info(f"🔍 DEBUG: Found {len(binance_positions)} active Binance positions:")
@@ -510,11 +570,11 @@ class ReliableOrphanDetector:
                 symbol = pos.get('symbol', 'UNKNOWN')
                 amt = pos.get('positionAmt', 0)
                 self.logger.info(f"   - {symbol}: {amt}")
-            
+
             # Check verification timing
             time_since_last = (datetime.now() - self.last_verification).total_seconds()
             should_run = self.should_run_verification()
-            
+
             status = {
                 'open_trades_count': len(open_trades),
                 'binance_positions_count': len(binance_positions),
@@ -523,10 +583,10 @@ class ReliableOrphanDetector:
                 'verification_interval': self.verification_interval,
                 'last_verification': self.last_verification.isoformat()
             }
-            
+
             self.logger.info(f"🔍 DEBUG: Verification status: {status}")
             return status
-            
+
         except Exception as e:
             self.logger.error(f"❌ Error in debug verification: {e}")
             return {'error': str(e)}
