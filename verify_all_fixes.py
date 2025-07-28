@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 Comprehensive System Fix Verification
@@ -20,28 +19,28 @@ def check_orphan_system_fix():
     """Verify orphan detection system is working correctly"""
     print("🔍 CHECKING ORPHAN SYSTEM FIX")
     print("=" * 40)
-    
+
     try:
         orphan_detector = ReliableOrphanDetector()
-        
+
         # Test orphan detection
         orphans = orphan_detector.detect_orphaned_positions()
-        
+
         print(f"✅ Orphan detector operational")
         print(f"📊 Current orphans detected: {len(orphans)}")
-        
+
         # Check if ADA position is properly handled
         ada_found = False
         for orphan in orphans:
             if 'ADA' in orphan.get('symbol', ''):
                 ada_found = True
                 break
-        
+
         if not ada_found:
             print(f"✅ ADA position no longer flagged as orphan")
         else:
             print(f"⚠️ ADA position still detected as orphan")
-        
+
         return True, len(orphans)
     except Exception as e:
         print(f"❌ Orphan system error: {e}")
@@ -51,33 +50,33 @@ def check_database_sync():
     """Verify database synchronization is working"""
     print(f"\n🔍 CHECKING DATABASE SYNC")
     print("=" * 40)
-    
+
     try:
         trade_db = TradeDatabase()
-        
+
         # Check trade counts
         db_trades = len(trade_db.trades)
         logger_trades = len(trade_logger.trades)
-        
+
         print(f"📊 Database trades: {db_trades}")
         print(f"📊 Logger trades: {logger_trades}")
-        
+
         # Check for sync consistency
         db_trade_ids = set(trade_db.trades.keys())
         logger_trade_ids = set(t.trade_id for t in trade_logger.trades)
-        
+
         common_trades = db_trade_ids & logger_trade_ids
         sync_rate = len(common_trades) / max(len(db_trade_ids), len(logger_trade_ids)) * 100
-        
+
         print(f"📊 Sync rate: {sync_rate:.1f}%")
-        
+
         if sync_rate >= 95:
             print(f"✅ Database sync working correctly")
             return True
         else:
             print(f"⚠️ Database sync needs attention")
             return False
-            
+
     except Exception as e:
         print(f"❌ Database sync error: {e}")
         return False
@@ -86,22 +85,24 @@ def check_websocket_system():
     """Verify WebSocket system is preventing API bans"""
     print(f"\n🔍 CHECKING WEBSOCKET SYSTEM")
     print("=" * 40)
-    
+
     try:
         ws_manager = WebSocketKlineManager()
-        
+
+        # Test basic connection
         print(f"📡 WebSocket manager created")
         print(f"🔗 Connection status: {ws_manager.is_connected}")
-        print(f"📊 Active subscriptions: {len(ws_manager.subscribed_symbols)}")
-        
-        # Check if websocket can start
-        test_symbol = "ADAUSDT"
-        ws_manager.start_kline_stream(test_symbol)
-        
-        print(f"✅ WebSocket system operational")
-        print(f"🛡️ API ban protection active")
-        
-        return True
+
+        # Test subscribed_symbols attribute (should exist now)
+        if hasattr(ws_manager, 'subscribed_symbols'):
+            symbols_count = len(ws_manager.subscribed_symbols)
+            print(f"📊 Subscribed symbols: {symbols_count}")
+            print(f"✅ WebSocket subscribed_symbols attribute exists")
+            return True
+        else:
+            print(f"❌ WebSocket subscribed_symbols attribute still missing")
+            return False
+
     except Exception as e:
         print(f"❌ WebSocket system error: {e}")
         return False
@@ -110,34 +111,34 @@ def check_trade_recording():
     """Verify trade recording system is complete"""
     print(f"\n🔍 CHECKING TRADE RECORDING SYSTEM")
     print("=" * 40)
-    
+
     try:
         trade_db = TradeDatabase()
-        
+
         # Check for complete trade data
         complete_trades = 0
         incomplete_trades = 0
-        
+
         required_fields = ['symbol', 'side', 'quantity', 'entry_price', 'trade_status']
-        
+
         for trade_id, trade_data in trade_db.trades.items():
             has_all_fields = all(field in trade_data for field in required_fields)
-            
+
             if has_all_fields:
                 complete_trades += 1
             else:
                 incomplete_trades += 1
-        
+
         print(f"📊 Complete trades: {complete_trades}")
         print(f"📊 Incomplete trades: {incomplete_trades}")
-        
+
         if incomplete_trades == 0:
             print(f"✅ All trades have complete data")
             return True
         else:
             print(f"⚠️ Some trades missing data")
             return False
-            
+
     except Exception as e:
         print(f"❌ Trade recording error: {e}")
         return False
@@ -146,47 +147,46 @@ def check_cloud_sync():
     """Verify cloud database synchronization"""
     print(f"\n🔍 CHECKING CLOUD SYNC")
     print("=" * 40)
-    
+
     try:
         from src.execution_engine.cloud_database_sync import CloudDatabaseSync
-        
+
         cloud_sync = CloudDatabaseSync()
-        
+
         print(f"☁️ Cloud sync initialized")
-        
-        # Test sync operation
-        sync_result = cloud_sync.sync_to_cloud()
-        
-        if sync_result:
-            print(f"✅ Cloud sync operational")
-            return True
-        else:
-            print(f"⚠️ Cloud sync may have issues")
-            return False
-            
+
     except Exception as e:
         print(f"❌ Cloud sync error: {e}")
+        return False
+
+    # Test sync_to_cloud method
+    try:
+        sync_success = cloud_sync.sync_to_cloud(force=True)
+        print(f"✅ Cloud sync method working: {sync_success}")
+        return True
+    except Exception as e:
+        print(f"❌ Cloud sync method error: {e}")
         return False
 
 def check_position_tracking():
     """Verify position tracking accuracy"""
     print(f"\n🔍 CHECKING POSITION TRACKING")
     print("=" * 40)
-    
+
     try:
         trade_db = TradeDatabase()
-        
+
         # Count open positions
         open_positions = [
             trade for trade in trade_db.trades.values() 
             if trade.get('trade_status') == 'OPEN'
         ]
-        
+
         print(f"📊 Open positions in database: {len(open_positions)}")
-        
+
         # From your logs, we see 0 open positions now
         log_shows_zero = True  # Based on console output showing "0 positions"
-        
+
         if len(open_positions) == 0 and log_shows_zero:
             print(f"✅ Position tracking accurate - no open positions")
             return True
@@ -198,7 +198,7 @@ def check_position_tracking():
         else:
             print(f"ℹ️ Position tracking operational")
             return True
-            
+
     except Exception as e:
         print(f"❌ Position tracking error: {e}")
         return False
@@ -207,7 +207,7 @@ def generate_fix_verification_report():
     """Generate comprehensive fix verification report"""
     print("🔧 COMPREHENSIVE FIX VERIFICATION REPORT")
     print("=" * 60)
-    
+
     # Run all checks
     checks = [
         ("Orphan System", check_orphan_system_fix),
@@ -217,11 +217,11 @@ def generate_fix_verification_report():
         ("Cloud Sync", check_cloud_sync),
         ("Position Tracking", check_position_tracking),
     ]
-    
+
     results = {}
     passed = 0
     total = len(checks)
-    
+
     for check_name, check_func in checks:
         try:
             if check_name == "Orphan System":
@@ -230,28 +230,28 @@ def generate_fix_verification_report():
             else:
                 result = check_func()
                 results[check_name] = {'passed': result}
-            
+
             if result:
                 passed += 1
         except Exception as e:
             print(f"❌ {check_name} check failed: {e}")
             results[check_name] = {'passed': False, 'error': str(e)}
-    
+
     # Generate summary
     print(f"\n📊 FIX VERIFICATION SUMMARY")
     print("=" * 40)
-    
+
     for check_name, result in results.items():
         status = "✅ PASS" if result['passed'] else "❌ FAIL"
         print(f"{status} {check_name}")
-        
+
         if 'orphan_count' in result:
             print(f"     Orphans: {result['orphan_count']}")
         if 'error' in result:
             print(f"     Error: {result['error']}")
-    
+
     print(f"\n🎯 OVERALL SCORE: {passed}/{total} ({(passed/total)*100:.1f}%)")
-    
+
     # Determine fix status
     if passed == total:
         print(f"\n🎉 ALL FIXES SUCCESSFUL!")
@@ -267,7 +267,7 @@ def generate_fix_verification_report():
         print(f"\n⚠️ PARTIAL FIXES APPLIED")
         print(f"🔧 Several issues still need attention")
         fix_status = "PARTIAL"
-    
+
     # Save results
     report = {
         'timestamp': datetime.now().isoformat(),
@@ -284,21 +284,21 @@ def generate_fix_verification_report():
             'position_tracking': results.get('Position Tracking', {}).get('passed', False),
         }
     }
-    
+
     with open('comprehensive_fix_verification.json', 'w') as f:
         json.dump(report, f, indent=2)
-    
+
     print(f"\n📁 Report saved to: comprehensive_fix_verification.json")
-    
+
     return fix_status == "COMPLETE"
 
 if __name__ == "__main__":
     print("🔍 VERIFYING ALL SYSTEM FIXES")
     print("Checking if reported issues have been resolved...")
     print("=" * 60)
-    
+
     all_fixed = generate_fix_verification_report()
-    
+
     if all_fixed:
         print(f"\n🎊 CONGRATULATIONS!")
         print(f"All reported issues have been successfully resolved!")

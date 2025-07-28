@@ -264,6 +264,20 @@ class CloudDatabaseSync:
         time_since_sync = (datetime.now() - self.last_sync_time).total_seconds()
         return time_since_sync >= self.sync_interval
 
+    def sync_to_cloud(self, force: bool = False) -> bool:
+        """Sync local database to cloud (alias for upload_database_to_cloud)"""
+        if not self.enabled:
+            return False
+            
+        if not force and not self.should_sync():
+            return True
+            
+        # Get local trades
+        trade_db = TradeDatabase()
+        local_trades = trade_db.get_all_trades()
+        
+        return self.upload_database_to_cloud(local_trades)
+
     def get_sync_status(self) -> Dict[str, Any]:
         """Get current sync status"""
         return {

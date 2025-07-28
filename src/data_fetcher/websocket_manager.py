@@ -30,6 +30,7 @@ class WebSocketKlineManager:
 
         # Subscriptions management
         self.subscribed_streams = set()
+        self.subscribed_symbols = set()  # Add missing attribute
         self.symbols = set()
         self.intervals = set()
 
@@ -56,6 +57,7 @@ class WebSocketKlineManager:
         """Add a symbol/interval pair for WebSocket streaming"""
         symbol = symbol.upper()
         self.symbols.add(symbol)
+        self.subscribed_symbols.add(symbol)  # Update subscribed_symbols
         self.intervals.add(interval)
 
         stream_name = f"{symbol.lower()}@kline_{interval}"
