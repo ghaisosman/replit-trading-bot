@@ -1,0 +1,35 @@
+{
+  "timestamp": "2025-07-28T04:21:32.034868",
+  "fix_status": "PARTIAL",
+  "score": "3/6",
+  "percentage": 50.0,
+  "checks": {
+    "Orphan System": {
+      "passed": false,
+      "orphan_count": 0
+    },
+    "Database Sync": {
+      "passed": true
+    },
+    "WebSocket System": {
+      "passed": false
+    },
+    "Trade Recording": {
+      "passed": true
+    },
+    "Cloud Sync": {
+      "passed": false
+    },
+    "Position Tracking": {
+      "passed": true
+    }
+  },
+  "summary": {
+    "orphan_system": false,
+    "database_sync": true,
+    "websocket_system": false,
+    "trade_recording": true,
+    "cloud_sync": false,
+    "position_tracking": true
+  }
+}
