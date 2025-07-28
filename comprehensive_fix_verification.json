@@ -1,8 +1,8 @@
 {
-  "timestamp": "2025-07-28T04:21:32.034868",
+  "timestamp": "2025-07-28T04:27:40.922694",
   "fix_status": "PARTIAL",
-  "score": "3/6",
-  "percentage": 50.0,
+  "score": "4/6",
+  "percentage": 66.7,
   "checks": {
     "Orphan System": {
       "passed": false,
@@ -12,7 +12,7 @@
       "passed": true
     },
     "WebSocket System": {
-      "passed": false
+      "passed": true
     },
     "Trade Recording": {
       "passed": true
@@ -27,7 +27,7 @@
   "summary": {
     "orphan_system": false,
     "database_sync": true,
-    "websocket_system": false,
+    "websocket_system": true,
     "trade_recording": true,
     "cloud_sync": false,
     "position_tracking": true
