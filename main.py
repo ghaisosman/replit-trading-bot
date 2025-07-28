@@ -14,7 +14,13 @@ import time
 from datetime import datetime
 
 # Setup logging first
-from src.utils.logger import setup_logger
+try:
+    from src.utils.logger import setup_logger
+except ImportError as e:
+    print(f"Warning: Could not import logger: {e}")
+    # Fallback logging setup
+    import logging
+    logging.basicConfig(level=logging.INFO)
 
 # Global bot manager
 bot_manager = None
@@ -80,7 +86,14 @@ async def main():
     global bot_manager
 
     # Setup logging
-    setup_logger()
+    try:
+        setup_logger()
+    except Exception as e:
+        print(f"Warning: Could not setup logger: {e}")
+        # Fallback logging setup
+        import logging
+        logging.basicConfig(level=logging.INFO)
+    
     logger = logging.getLogger(__name__)
 
     # Setup signal handlers
@@ -111,7 +124,7 @@ async def main():
 
             logger.info("🌐 DEPLOYMENT: Web dashboard active - Bot can be controlled via web interface")
             logger.info("🎯 DEPLOYMENT: Access your dashboard to start/stop the bot")
-
+            
         except Exception as e:
             logger.error(f"❌ Failed to initialize bot manager: {e}")
             bot_manager = None
