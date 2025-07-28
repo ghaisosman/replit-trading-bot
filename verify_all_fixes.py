@@ -32,24 +32,35 @@ def check_orphan_system_fix():
         orphan_detector = ReliableOrphanDetector(binance_client, trade_db, telegram_reporter)
 
         # Test orphan detection
-        orphans = orphan_detector.run_verification_cycle()
+        orphan_result = orphan_detector.run_verification_cycle()
 
         print(f"✅ Orphan detector operational")
-        print(f"📊 Current orphans detected: {len(orphans)}")
+        
+        # Handle both dict result and list result
+        if isinstance(orphan_result, dict):
+            orphans_count = orphan_result.get('orphans_detected', 0)
+            orphan_details = orphan_result.get('orphan_details', [])
+        else:
+            orphans_count = 0
+            orphan_details = []
+            
+        print(f"📊 Current orphans detected: {orphans_count}")
 
         # Check if ADA position is properly handled
         ada_found = False
-        for orphan in orphans:
-            if 'ADA' in orphan.get('symbol', ''):
-                ada_found = True
-                break
+        if orphan_details:
+            for orphan in orphan_details:
+                if isinstance(orphan, dict) and 'symbol' in orphan:
+                    if 'ADA' in orphan.get('symbol', ''):
+                        ada_found = True
+                        break
 
         if not ada_found:
             print(f"✅ ADA position no longer flagged as orphan")
         else:
             print(f"⚠️ ADA position still detected as orphan")
 
-        return True, len(orphans)
+        return True, orphans_count
     except Exception as e:
         print(f"❌ Orphan system error: {e}")
         return False, 0
