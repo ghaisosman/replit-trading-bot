@@ -273,6 +273,7 @@ class CloudDatabaseSync:
             return True
             
         # Get local trades
+        from src.execution_engine.trade_database import TradeDatabase
         trade_db = TradeDatabase()
         local_trades = trade_db.get_all_trades()
         

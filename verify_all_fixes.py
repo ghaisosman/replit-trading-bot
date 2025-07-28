@@ -21,10 +21,18 @@ def check_orphan_system_fix():
     print("=" * 40)
 
     try:
-        orphan_detector = ReliableOrphanDetector()
+        from src.binance_client.client import BinanceClientWrapper
+        from src.reporting.telegram_reporter import TelegramReporter
+        
+        # Initialize required dependencies
+        binance_client = BinanceClientWrapper()
+        trade_db = TradeDatabase()
+        telegram_reporter = TelegramReporter()
+        
+        orphan_detector = ReliableOrphanDetector(binance_client, trade_db, telegram_reporter)
 
         # Test orphan detection
-        orphans = orphan_detector.detect_orphaned_positions()
+        orphans = orphan_detector.run_verification_cycle()
 
         print(f"✅ Orphan detector operational")
         print(f"📊 Current orphans detected: {len(orphans)}")
