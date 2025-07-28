@@ -155,41 +155,55 @@ def dashboard():
 def start_bot():
     """Start the trading bot"""
     try:
+        logger.info("🔄 Starting bot via web dashboard...")
+        
         bot_manager = get_shared_bot_manager()
         if not bot_manager:
+            logger.error("❌ Bot manager not available")
             return jsonify({'success': False, 'error': 'Bot manager not available'}), 500
+
+        logger.info("✅ Bot manager found, checking initialization...")
 
         # Initialize bot manager if not already done
         if not bot_manager.initialization_successful:
-            logger.info("Initializing bot manager...")
+            logger.info("🔄 Initializing bot manager...")
             try:
                 # Run initialization in a thread
                 def init_bot():
                     try:
                         asyncio.run(bot_manager.initialize())
                     except Exception as e:
-                        logger.error(f"Bot initialization failed: {e}")
+                        logger.error(f"❌ Bot initialization failed: {e}")
 
                 init_thread = threading.Thread(target=init_bot, daemon=True)
                 init_thread.start()
                 init_thread.join(timeout=10)  # Wait up to 10 seconds for initialization
                 
                 if not bot_manager.initialization_successful:
+                    logger.error("❌ Bot initialization failed after timeout")
                     return jsonify({'success': False, 'error': 'Bot initialization failed'}), 500
+                else:
+                    logger.info("✅ Bot initialization successful")
                     
             except Exception as e:
-                logger.error(f"Error during bot initialization: {e}")
+                logger.error(f"❌ Error during bot initialization: {e}")
                 return jsonify({'success': False, 'error': f'Initialization error: {str(e)}'}), 500
+        else:
+            logger.info("✅ Bot manager already initialized")
 
         # Start bot in background thread
         def run_bot():
             try:
+                logger.info("🚀 Starting trading bot...")
                 asyncio.run(bot_manager.start_trading())
+                logger.info("✅ Trading bot started successfully")
             except Exception as e:
-                logger.error(f"Error starting bot: {e}")
+                logger.error(f"❌ Error starting bot: {e}")
 
         thread = threading.Thread(target=run_bot, daemon=True)
         thread.start()
+
+        logger.info("✅ Bot start command sent successfully")
 
         return jsonify({
             'success': True,
@@ -198,7 +212,7 @@ def start_bot():
         })
 
     except Exception as e:
-        logger.error(f"Error in start_bot: {e}")
+        logger.error(f"❌ Error in start_bot: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
