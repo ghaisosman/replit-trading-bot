@@ -92,26 +92,32 @@ def get_shared_bot_manager():
         # Try to get from main module first
         import sys
         if hasattr(sys.modules['__main__'], 'bot_manager') and sys.modules['__main__'].bot_manager:
+            logger.info("Using bot manager from main module")
             return sys.modules['__main__'].bot_manager
         
         # Try to get from globals
         if 'bot_manager' in globals() and globals()['bot_manager']:
+            logger.info("Using bot manager from globals")
             return globals()['bot_manager']
         
         # Create a new bot manager instance if none exists
         if bot_manager_instance is None:
             try:
+                logger.info("Attempting to create new bot manager instance...")
                 from src.bot_manager import BotManager
                 bot_manager_instance = BotManager()
-                logger.info("Created new bot manager instance for web dashboard")
+                logger.info("✅ Created new bot manager instance for web dashboard")
+            except ImportError as e:
+                logger.error(f"❌ Import error creating bot manager: {e}")
+                return None
             except Exception as e:
-                logger.error(f"Failed to create bot manager: {e}")
+                logger.error(f"❌ Failed to create bot manager: {e}")
                 return None
         
         return bot_manager_instance
         
     except Exception as e:
-        logger.error(f"Error getting bot manager: {e}")
+        logger.error(f"❌ Error getting bot manager: {e}")
         return None
 
 @app.route('/healthz')
