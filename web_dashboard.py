@@ -35,6 +35,9 @@ werkzeug_logger.setLevel(flask_logging.WARNING)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Global bot manager instance
+bot_manager_instance = None
+
 @app.route('/static/<path:filename>')
 def static_files(filename):
     """Serve static files"""
@@ -83,17 +86,30 @@ def rate_limit(endpoint_key, max_requests=20, window_seconds=60):
 
 def get_shared_bot_manager():
     """Get the shared bot manager instance"""
+    global bot_manager_instance
+    
     try:
-        # Try to get from main module
+        # Try to get from main module first
         import sys
-        if hasattr(sys.modules['__main__'], 'bot_manager'):
+        if hasattr(sys.modules['__main__'], 'bot_manager') and sys.modules['__main__'].bot_manager:
             return sys.modules['__main__'].bot_manager
         
         # Try to get from globals
-        if 'bot_manager' in globals():
+        if 'bot_manager' in globals() and globals()['bot_manager']:
             return globals()['bot_manager']
         
-        return None
+        # Create a new bot manager instance if none exists
+        if bot_manager_instance is None:
+            try:
+                from src.bot_manager import BotManager
+                bot_manager_instance = BotManager()
+                logger.info("Created new bot manager instance for web dashboard")
+            except Exception as e:
+                logger.error(f"Failed to create bot manager: {e}")
+                return None
+        
+        return bot_manager_instance
+        
     except Exception as e:
         logger.error(f"Error getting bot manager: {e}")
         return None
@@ -136,6 +152,28 @@ def start_bot():
         bot_manager = get_shared_bot_manager()
         if not bot_manager:
             return jsonify({'success': False, 'error': 'Bot manager not available'}), 500
+
+        # Initialize bot manager if not already done
+        if not bot_manager.initialization_successful:
+            logger.info("Initializing bot manager...")
+            try:
+                # Run initialization in a thread
+                def init_bot():
+                    try:
+                        asyncio.run(bot_manager.initialize())
+                    except Exception as e:
+                        logger.error(f"Bot initialization failed: {e}")
+
+                init_thread = threading.Thread(target=init_bot, daemon=True)
+                init_thread.start()
+                init_thread.join(timeout=10)  # Wait up to 10 seconds for initialization
+                
+                if not bot_manager.initialization_successful:
+                    return jsonify({'success': False, 'error': 'Bot initialization failed'}), 500
+                    
+            except Exception as e:
+                logger.error(f"Error during bot initialization: {e}")
+                return jsonify({'success': False, 'error': f'Initialization error: {str(e)}'}), 500
 
         # Start bot in background thread
         def run_bot():
