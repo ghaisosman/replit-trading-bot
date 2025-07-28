@@ -1,4 +1,8 @@
-print(">>> main.py is running")
+#!/usr/bin/env python3
+"""
+Trading Bot Main Entry Point
+Fixed version with proper error handling and simplified logic
+"""
 
 import asyncio
 import logging
@@ -7,7 +11,9 @@ import signal
 import sys
 import threading
 import time
-from src.bot_manager import BotManager
+from datetime import datetime
+
+# Setup logging first
 from src.utils.logger import setup_logger
 
 # Global bot manager
@@ -63,12 +69,7 @@ def run_web_dashboard():
         logger.error(f"Web dashboard error: {e}")
 
 async def main():
-    print(">>> ENTERED main()")
-    # Setup logging
-    print(">>> BEFORE setup_logger()")
-    setup_logger()
-    print(">>> AFTER setup_logger()")
-    """Main bot function"""
+    """Main bot function with improved error handling"""
     global bot_manager
 
     # Setup logging
@@ -79,92 +80,64 @@ async def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    # Check if running on Render (or any deployment)
+    # Check if running on deployment platform
     is_deployment = os.environ.get('RENDER') == 'true' or os.environ.get('REPLIT_DEPLOYMENT') == '1'
 
-    # Check for potential dual deployment situation
-    if not is_deployment:
-        try:
-            import socket
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(1)
-            result = sock.connect_ex(('localhost', 5000))
-            sock.close()
-
-            if result == 0:
-                logger.warning("⚠️ DUAL DEPLOYMENT DETECTED!")
-                logger.warning("💡 Port 5000 is occupied - likely by your live Render deployment")
-                logger.warning("🔄 Will use alternative port for development dashboard")
-        except:
-            pass
-
     if is_deployment:
-        logger.info("🚀 RENDER DEPLOYMENT MODE: Starting web dashboard + bot with independent control")
+        logger.info("🚀 DEPLOYMENT MODE: Starting web dashboard + bot with independent control")
 
-        # Start web dashboard in background thread (always running)
-        web_thread = threading.Thread(target=run_web_dashboard, daemon=False)  # Changed to non-daemon
+        # Start web dashboard in background thread
+        web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
 
         # Give web dashboard time to start
         await asyncio.sleep(2)
 
         # Initialize bot manager but don't start it automatically
-        bot_manager = BotManager()
+        try:
+            from src.bot_manager import BotManager
+            bot_manager = BotManager()
+            
+            # Make bot manager available to web dashboard
+            sys.modules['__main__'].bot_manager = bot_manager
+            globals()['bot_manager'] = bot_manager
 
-        # Make bot manager available to web dashboard
-        sys.modules['__main__'].bot_manager = bot_manager
-        globals()['bot_manager'] = bot_manager
+            logger.info("🌐 DEPLOYMENT: Web dashboard active - Bot can be controlled via web interface")
+            logger.info("🎯 DEPLOYMENT: Access your dashboard to start/stop the bot")
 
-        logger.info("🌐 RENDER DEPLOYMENT: Web dashboard active - Bot can be controlled via web interface")
-        logger.info("🎯 RENDER DEPLOYMENT: Access your dashboard to start/stop the bot")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize bot manager: {e}")
+            bot_manager = None
 
         # Keep the process alive indefinitely - web dashboard controls everything
         try:
             restart_attempts = 0
-            max_restart_attempts = 5  # Increased attempts
-            syntax_error_detected = False
+            max_restart_attempts = 5
 
             while True:
                 # Check if web thread is still alive
                 if not web_thread.is_alive():
                     restart_attempts += 1
 
-                    logger.error(f"🔍 DEBUG: Web thread status - Alive: {web_thread.is_alive()}")
-                    logger.error(f"🔍 DEBUG: Restart attempt {restart_attempts}/{max_restart_attempts}")
-
-                    if restart_attempts <= max_restart_attempts and not syntax_error_detected:
+                    if restart_attempts <= max_restart_attempts:
                         logger.error(f"🚨 Web dashboard thread died! Restarting... (Attempt {restart_attempts}/{max_restart_attempts})")
 
-                        # Check if it's a syntax error by looking at recent logs
-                        # (This is a simple heuristic - in production you'd want more sophisticated error detection)
-
-                        # Wait a bit before restarting to avoid rapid restart loops
-                        wait_time = min(10, 2 * restart_attempts)  # Progressive backoff
-                        logger.info(f"🔍 DEBUG: Waiting {wait_time}s before restart attempt...")
+                        # Wait before restarting to avoid rapid restart loops
+                        wait_time = min(10, 2 * restart_attempts)
                         await asyncio.sleep(wait_time)
 
-                        logger.info(f"🔍 DEBUG: Creating new web dashboard thread...")
                         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
                         web_thread.start()
 
-                        # Give it more time to start
-                        startup_wait = 5
-                        logger.info(f"🔍 DEBUG: Waiting {startup_wait}s for web dashboard startup...")
-                        await asyncio.sleep(startup_wait)
+                        # Give it time to start
+                        await asyncio.sleep(5)
 
-                        # Check if the new thread is alive
                         if web_thread.is_alive():
                             logger.info("✅ Web dashboard restart successful")
                         else:
                             logger.error("❌ Web dashboard restart failed immediately")
-
                     else:
-                        if syntax_error_detected:
-                            logger.error(f"🚫 Syntax error detected - stopping restart attempts.")
-                            logger.error("💡 Fix the syntax error in web_dashboard.py and restart manually.")
-                        else:
-                            logger.error(f"🚫 Web dashboard failed {max_restart_attempts} times. Stopping restart attempts.")
-                            logger.error("💡 Check the error logs above and fix the underlying issue.")
+                        logger.error(f"🚫 Web dashboard failed {max_restart_attempts} times. Stopping restart attempts.")
                         break
                 else:
                     # Reset restart counter if web dashboard is running fine
@@ -176,14 +149,14 @@ async def main():
                 await asyncio.sleep(10)
 
         except KeyboardInterrupt:
-            logger.info("🔴 Render deployment shutdown")
-            if bot_manager and bot_manager.is_running:
+            logger.info("🔴 Deployment shutdown")
+            if bot_manager and hasattr(bot_manager, 'is_running') and bot_manager.is_running:
                 await bot_manager.stop("Deployment shutdown")
 
     else:
         logger.info("🛠️ DEVELOPMENT MODE: Starting web dashboard only")
 
-        # Start web dashboard in background thread (NON-DAEMON for persistence)
+        # Start web dashboard in background thread
         web_thread = threading.Thread(target=run_web_dashboard, daemon=False)
         web_thread.start()
 
