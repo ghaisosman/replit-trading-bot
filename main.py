@@ -33,7 +33,7 @@ def run_web_dashboard():
 
         # Get port from environment, with fallback ports
         primary_port = int(os.environ.get('PORT', 5000))
-        fallback_ports = [5000, 5001, 5002, 5003, 8000, 8080, 3000]
+        fallback_ports = [5000, 5001, 5002, 5003, 8000, 8080, 3000, 4000, 6000, 7000, 9000, 10000]
 
         # Ensure primary port is in fallback list
         if primary_port not in fallback_ports:
@@ -62,7 +62,14 @@ def run_web_dashboard():
                 logger.warning(f"⚠️ Port {port} failed: {e}, trying next port...")
                 continue
         else:
-            logger.error("❌ Could not start web dashboard on any available port")
+            # If all ports fail, try a random port
+            import random
+            random_port = random.randint(10000, 65535)
+            logger.info(f"🌐 Trying random port {random_port}")
+            try:
+                app.run(host='0.0.0.0', port=random_port, debug=False, use_reloader=False, threaded=True)
+            except Exception as e:
+                logger.error(f"❌ Could not start web dashboard on any port: {e}")
 
     except Exception as e:
         logger = logging.getLogger(__name__)
